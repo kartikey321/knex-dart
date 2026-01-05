@@ -1,0 +1,51 @@
+=== Test 1: wrapString - Simple identifier ===
+"users"
+
+=== Test 2: wrapString - Dotted (schema.table) ===
+"public"."users"
+
+=== Test 3: wrapString - Three parts (schema.table.column) ===
+"public"."users"."id"
+
+=== Test 4: wrapString - With AS alias ===
+"name" AS "user_name"
+
+=== Test 5: wrapString - Dotted with AS ===
+"users"."email" AS "contact"
+
+=== Test 6: wrapString - Wildcard ===
+*
+
+=== Test 7: wrap - String ===
+"users"
+Bindings: []
+
+=== Test 8: wrap - Number ===
+123
+Bindings: []
+
+=== Test 9: wrap - Raw ===
+NOW()
+Bindings: []
+
+=== Test 10: wrap - Raw with bindings ===
+SELECT ?
+Bindings: [ 123 ]
+
+=== Test 11: columnize - Single column ===
+"id"
+
+=== Test 12: columnize - Multiple columns ===
+"id", "name", "email"
+
+=== Test 13: columnize - Dotted columns ===
+"users"."id", "users"."name"
+
+=== Test 14: columnize - With wildcard ===
+*
+
+=== Test 15: columnize - Mixed: strings and Raw ===
+"id", COUNT(*)
+
+=== Test 16: columnize - With AS aliases ===
+"id", "name" AS "user_name"

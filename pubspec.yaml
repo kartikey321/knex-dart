@@ -1,0 +1,21 @@
+name: knex_dart
+description: A Dart SQL query builder inspired by Knex.js (skeleton scaffold).
+version: 0.0.1
+repository: https://github.com/kartik/knex-dart
+
+environment:
+  sdk: ^3.10.0
+
+# Add regular dependencies here.
+dependencies:
+  logging: ^1.2.0
+  meta: ^1.11.0
+  collection: ^1.18.0
+  # Dialect drivers will be added per-database in later phases:
+  # postgres: ^3.0.0
+  # mysql1: ^0.20.0
+  # sqlite3: ^2.1.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

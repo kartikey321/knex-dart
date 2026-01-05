@@ -1,0 +1,44 @@
+=== Test 1: operator - Equals ===
+=
+
+=== Test 2: operator - Not equals ===
+!=
+
+=== Test 3: operator - LIKE (case insensitive) ===
+like
+
+=== Test 4: operator - Between ===
+between
+
+=== Test 5: operator - Greater than ===
+>
+
+=== Test 6: operator - PostgreSQL ? (escaped) ===
+\?
+
+=== Test 7: operator - PostgreSQL @> (contains) ===
+@>
+
+=== Test 8: operator - Raw value ===
+CUSTOM_OP
+
+=== Test 9: operator - Invalid (should throw) ===
+Threw: The operator "INVALID_OP" is not permitted
+
+=== Test 10: direction - ASC ===
+ASC
+
+=== Test 11: direction - DESC ===
+DESC
+
+=== Test 12: direction - asc (lowercase) ===
+asc
+
+=== Test 13: direction - Invalid (defaults to asc) ===
+asc
+
+=== Test 14: direction - Empty (defaults to asc) ===
+asc
+
+=== Test 15: direction - Raw value ===
+CUSTOM_DIR

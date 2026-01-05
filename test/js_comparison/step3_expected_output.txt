@@ -1,0 +1,48 @@
+=== Test 1: Single ? binding ===
+{
+  "sql": "SELECT * FROM users WHERE id = $1",
+  "bindings": [
+    123
+  ]
+}
+
+=== Test 2: Multiple ? bindings ===
+{
+  "sql": "SELECT * FROM users WHERE id = $1 AND status = $2",
+  "bindings": [
+    123,
+    "active"
+  ]
+}
+
+=== Test 3: ?? identifier binding ===
+{
+  "sql": "SELECT * FROM \"users\"",
+  "bindings": []
+}
+
+=== Test 4: Mixed ? and ?? ===
+{
+  "sql": "SELECT \"name\" FROM \"users\" WHERE id = $1",
+  "bindings": [
+    123
+  ]
+}
+
+=== Test 5: Escaped \? ===
+{
+  "sql": "SELECT * FROM users WHERE email LIKE ?",
+  "bindings": []
+}
+
+=== Test 6: Multiple types ===
+{
+  "sql": "INSERT INTO \"users\" (\"name\", \"email\") VALUES ($1, $2)",
+  "bindings": [
+    "John",
+    "john@example.com"
+  ]
+}
+
+=== Test 7: Wrong binding count (should error) ===
+✓ Caught error: Expected 2 bindings, saw 1

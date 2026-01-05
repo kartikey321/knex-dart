@@ -1,0 +1,72 @@
+=== Test 1: Simple ref ===
+{
+  "sql": "\"user_id\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 2: Ref with alias ===
+{
+  "sql": "\"user_id\" AS \"uid\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 3: Ref with schema ===
+{
+  "sql": "\"accounts\".\"balance\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 4: Ref with schema and alias ===
+{
+  "sql": "\"accounts\".\"balance\" AS \"account_balance\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 5: Dotted ref (table.column) ===
+{
+  "sql": "\"users\".\"email\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 6: Dotted ref with alias ===
+{
+  "sql": "\"users\".\"email\" AS \"user_email\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 7: Chaining returns this ===
+Same instance: true
+{
+  "sql": "\"public\".\"id\" AS \"user_id\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 8: Ref can use .wrap() (inherited from Raw) ===
+{
+  "sql": "(\"count\")",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}
+
+=== Test 9: Multiple schema parts ===
+{
+  "sql": "\"schema\".\"table\".\"column\"",
+  "bindings": [],
+  "method": "raw",
+  "__knexQueryUid": "test-uid-123"
+}

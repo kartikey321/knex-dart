@@ -1,0 +1,59 @@
+=== Test 1: Single :key binding ===
+{
+  "sql": "SELECT * FROM users WHERE id = $1",
+  "bindings": [
+    123
+  ]
+}
+
+=== Test 2: Multiple :key bindings ===
+{
+  "sql": "SELECT * FROM users WHERE id = $1 AND status = $2",
+  "bindings": [
+    123,
+    "active"
+  ]
+}
+
+=== Test 3: :key: identifier binding ===
+{
+  "sql": "SELECT * FROM \"users\"",
+  "bindings": []
+}
+
+=== Test 4: Mixed :key and :key: ===
+{
+  "sql": "SELECT \"name\" FROM \"users\" WHERE id = $1",
+  "bindings": [
+    123
+  ]
+}
+
+=== Test 5: Escaped \:key (becomes literal :key) ===
+{
+  "sql": "SELECT * FROM users WHERE email = :email",
+  "bindings": []
+}
+
+=== Test 6: :key: before ::cast (user example) ===
+{
+  "sql": "SELECT $1::jsonb FROM users",
+  "bindings": [
+    "data"
+  ]
+}
+
+=== Test 7: Complex mixed ===
+{
+  "sql": "INSERT INTO \"users\" (\"name\", \"email\") VALUES ($1, $2)",
+  "bindings": [
+    "John",
+    "john@example.com"
+  ]
+}
+
+=== Test 8: Undefined value (should keep placeholder) ===
+{
+  "sql": "SELECT * FROM users WHERE id = :id",
+  "bindings": []
+}
