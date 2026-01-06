@@ -249,8 +249,7 @@ MIT - See LICENSE file for details
 ## Links
 
 - **Original Knex.js:** https://knexjs.org/
-- **Issues:** https://github.com/your-username/knex-dart/issues
-- **Documentation:** https://github.com/your-username/knex-dart
+- **Issues:** https://github.com/kartikey321/knex-dart/issues
 
 ---
 
