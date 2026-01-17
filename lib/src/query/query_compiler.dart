@@ -139,8 +139,16 @@ class QueryCompiler {
   ///
   /// For MVP: Just compile columns, more components added later
   String _select() {
+    final parts = <String>[];
+
+    // WITH clauses (must come first in SQL)
+    final withSql = _with();
+    if (withSql.isNotEmpty) {
+      parts.add(withSql);
+    }
+
     // Build base SELECT + FROM
-    final parts = <String>[_columns()];
+    parts.add(_columns());
 
     // JOIN clause (after FROM, before WHERE)
     final joinSql = _join();
@@ -787,6 +795,55 @@ class QueryCompiler {
     }
 
     return parts.join(' ');
+  }
+
+  /// Compile WITH clauses (CTEs)
+  ///
+  /// JS Reference: querycompiler.js _with()
+  String _with() {
+    final withs = grouped['with'];
+    if (withs == null || withs.isEmpty) return '';
+
+    final ctes = <String>[];
+    bool isRecursive = false;
+
+    for (final stmt in withs) {
+      final type = stmt['type'] as String;
+      final alias = stmt['alias'] as String;
+      final query = stmt['value'];
+
+      // Check if any CTE is recursive
+      if (type == 'withRecursive') {
+        isRecursive = true;
+      }
+
+      String cteSql;
+
+      if (query is QueryBuilder) {
+        // Compile the CTE query
+        final cteCompiler = client.queryCompiler(query);
+        final cteQuery = cteCompiler.toSQL();
+        cteSql = cteQuery.sql;
+
+        // Merge bindings
+        bindings.addAll(cteQuery.bindings);
+      } else if (query is Raw) {
+        final rawSQL = query.toSQL();
+        cteSql = rawSQL.sql;
+        bindings.addAll(rawSQL.bindings);
+      } else {
+        continue;
+      }
+
+      // Format: "alias" as (query)
+      ctes.add('${formatter.wrap(alias)} as ($cteSql)');
+    }
+
+    if (ctes.isEmpty) return '';
+
+    // with [recursive] cte1, cte2, ...
+    final prefix = isRecursive ? 'with recursive' : 'with';
+    return '$prefix ${ctes.join(', ')}';
   }
 
   /// Generate unique query ID

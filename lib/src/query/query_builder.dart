@@ -804,6 +804,37 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add a Common Table Expression (CTE)
+  ///
+  /// CTEs allow complex queries to be broken down into named subqueries
+  ///
+  /// JS Reference: querybuilder.js with() (line 164)
+  /// Note: Named withQuery in Dart since with is a reserved keyword
+  QueryBuilder withQuery(String alias, dynamic query) {
+    _statements.add({
+      'grouping': 'with',
+      'type': 'with',
+      'alias': alias,
+      'value': query,
+    });
+    return this;
+  }
+
+  /// Add a recursive CTE
+  ///
+  /// Used for hierarchical/recursive data (trees, graphs, etc.)
+  ///
+  /// JS Reference: querybuilder.js withRecursive()
+  QueryBuilder withRecursive(String alias, dynamic query) {
+    _statements.add({
+      'grouping': 'with',
+      'type': 'withRecursive',
+      'alias': alias,
+      'value': query,
+    });
+    return this;
+  }
+
   /// Add a HAVING clause
   ///
   /// JS Reference: querybuilder.js having() (line 846)
