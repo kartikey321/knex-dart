@@ -1,4 +1,4 @@
-name: Deploy Documentation
+name: Deploy Docs to Cloudflare Pages
 
 on:
   push:
@@ -7,17 +7,20 @@ on:
     paths:
       - 'docs/site/**'
       - '.github/workflows/deploy_docs.yml'
-  workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy_docs:
     runs-on: ubuntu-latest
+    name: Build & Deploy
+    permissions:
+      contents: read
+      deployments: write
     
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Dart SDK
+      - name: Setup Dart
         uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
@@ -25,25 +28,19 @@ jobs:
       - name: Install Jaspr CLI
         run: dart pub global activate jaspr_cli
 
-      - name: Get dependencies
+      - name: Install Dependencies
         working-directory: docs/site
         run: dart pub get
 
-      - name: Build static site
+      - name: Build Site
         working-directory: docs/site
-        run: dart pub global run jaspr_cli:jaspr build
+        run: jaspr build --verbose
 
-      - name: Deploy to server
-        uses: easingthemes/ssh-deploy@v5.0.3
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
         with:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-          REMOTE_USER: ${{ secrets.REMOTE_USER }}
-          SOURCE: "docs/site/build/jaspr/"
-          TARGET: ${{ secrets.REMOTE_TARGET }}/knex-dart
-          EXCLUDE: ".git*, .github*"
-          SCRIPT_BEFORE: |
-            mkdir -p ${{ secrets.REMOTE_TARGET }}/knex-dart
-          SCRIPT_AFTER: |
-            echo "Knex Dart docs deployed successfully!"
-            ls -la ${{ secrets.REMOTE_TARGET }}/knex-dart
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: knex-dart
+          directory: docs/site/build/jaspr
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
