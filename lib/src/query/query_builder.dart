@@ -15,6 +15,14 @@ class QueryBuilder {
   final Map<String, dynamic> _single = {};
   QueryMethod _method = QueryMethod.select; // Using enum instead of String
 
+  // Flags for WHERE clause modifiers
+  bool _notFlag = false; // For NOT conditions
+  String _boolFlag = 'and'; // For AND/OR (default: 'and')
+  bool _asColumnFlag = false; // For column-to-column comparisons
+
+  // Subquery alias (for use with .as() method)
+  String? _alias;
+
   QueryBuilder(this._client);
 
   /// Get the client
@@ -29,6 +37,9 @@ class QueryBuilder {
   /// Get statements list - used by QueryCompiler
   List<dynamic> get statements => _statements;
 
+  /// Get the alias (for subqueries) - used by QueryCompiler
+  String? get alias => _alias;
+
   /// Convert to SQL
   SqlString toSQL() {
     final compiler = _client.queryCompiler(this);
@@ -37,6 +48,17 @@ class QueryBuilder {
 
   @override
   String toString() => toSQL().toString();
+
+  /// Set alias for this query (when used as a subquery)
+  ///
+  /// Example:
+  /// ```dart
+  /// knex.from(knex('orders').groupBy('user_id').as('grouped'))
+  /// ```
+  QueryBuilder as(String alias) {
+    _alias = alias;
+    return this;
+  }
 
   /// Execute the query
   Future<List<Map<String, dynamic>>> execute() async {
@@ -50,7 +72,9 @@ class QueryBuilder {
   // Basic methods - stubs for now
 
   /// Set the table name
-  QueryBuilder table(String tableName) {
+  ///
+  /// Can accept either a String table name or a QueryBuilder for subqueries
+  QueryBuilder table(dynamic tableName) {
     _single['table'] = tableName;
     return this;
   }
@@ -221,7 +245,9 @@ class QueryBuilder {
   }
 
   /// Alias for table
-  QueryBuilder from(String tableName) => table(tableName);
+  ///
+  /// Can accept either a String table name or a QueryBuilder for subqueries
+  QueryBuilder from(dynamic tableName) => table(tableName);
 
   /// Select columns
   ///
@@ -387,9 +413,9 @@ class QueryBuilder {
       'column': column,
       'operator': value == null ? '=' : operatorOrValue,
       'value': value ?? operatorOrValue,
-      'bool': 'and',
-      'not': false,
-      'asColumn': false,
+      'bool': _bool(), // Read and reset bool flag
+      'not': _not(), // Read and reset not flag
+      'asColumn': _asColumnFlag, // Use flag for whereColumn support
     });
     return this;
   }
@@ -431,6 +457,58 @@ class QueryBuilder {
     return this;
   }
 
+  // ============================================================================
+  // FLAG HELPER METHODS
+  // ============================================================================
+
+  /// Get or set the "notFlag" value
+  ///
+  /// When called with a value, sets the flag and returns `this` for chaining.
+  /// When called without arguments, returns current value and resets to `false`.
+  ///
+  /// JS Reference: lib/query/querybuilder.js lines 1660-1669
+  dynamic _not([bool? val]) {
+    if (val != null) {
+      _notFlag = val;
+      return this;
+    }
+    final ret = _notFlag;
+    _notFlag = false;
+    return ret;
+  }
+
+  /// Get or set the "boolFlag" value
+  ///
+  /// When called with a value, sets the flag and returns `this` for chaining.
+  /// When called without arguments, returns current value and resets to `'and'`.
+  ///
+  /// JS Reference: lib/query/querybuilder.js lines 1649-1658
+  dynamic _bool([String? val]) {
+    if (val != null) {
+      _boolFlag = val;
+      return this;
+    }
+    final ret = _boolFlag;
+    _boolFlag = 'and';
+    return ret;
+  }
+
+  /// Get or set the "asColumnFlag" value
+  ///
+  /// When called with a value, sets the flag and returns `this` for chaining.
+  /// When called without arguments, returns current value and resets to `false`.
+  ///
+  /// JS Reference: lib/query/querybuilder.js lines 1671-1679
+  dynamic _asColumn([bool? val]) {
+    if (val != null) {
+      _asColumnFlag = val;
+      return this;
+    }
+    final ret = _asColumnFlag;
+    _asColumnFlag = false;
+    return ret;
+  }
+
   /// Add an OR WHERE clause
   ///
   /// JS Reference: querybuilder.js orWhere() (line 483)
@@ -442,15 +520,16 @@ class QueryBuilder {
     dynamic value,
   ]) {
     // Set bool to 'or' for next where clause
+    _boolFlag = 'or';
     final stmt = {
       'type': 'whereBasic',
       'grouping': 'where',
       'column': column,
       'operator': value == null ? '=' : operatorOrValue,
       'value': value ?? operatorOrValue,
-      'bool': 'or', // This is the key difference
-      'not': false,
-      'asColumn': false,
+      'bool': _bool(), // Read and reset bool flag (will return 'or')
+      'not': _not(), // Read and reset not flag
+      'asColumn': _asColumnFlag, // Use flag for whereColumn support
     };
     _statements.add(stmt);
     return this;
@@ -498,8 +577,10 @@ class QueryBuilder {
 
   /// Add a WHERE IN clause
   ///
+  /// Accepts either a List of values or a QueryBuilder for subqueries
+  ///
   /// JS Reference: querybuilder.js whereIn() (line 602)
-  QueryBuilder whereIn(String column, List<dynamic> values) {
+  QueryBuilder whereIn(String column, dynamic values) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereIn',
@@ -514,14 +595,171 @@ class QueryBuilder {
   /// Add a WHERE NOT IN clause
   ///
   /// JS Reference: querybuilder.js whereNotIn() (line 622)
-  QueryBuilder whereNotIn(String column, List<dynamic> values) {
+  QueryBuilder whereNotIn(String column, dynamic values) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereIn',
       'column': column,
       'value': values,
       'not': true, // Uses NOT flag
-      'bool': 'and',
+      'bool': _bool(), // Read and reset bool flag
+    });
+    return this;
+  }
+
+  // ============================================================================
+  // EXTENDED WHERE CLAUSE METHODS
+  // ============================================================================
+
+  /// Compare two columns with a WHERE clause
+  ///
+  /// JS Reference: querybuilder.js whereColumn() (lines 475-480)
+  ///
+  /// Example: whereColumn('updated_at', '>', 'created_at')
+  QueryBuilder whereColumn(String column1, String operator, String column2) {
+    _asColumnFlag = true;
+    where(column1, operator, column2);
+    _asColumnFlag = false;
+    return this;
+  }
+
+  /// OR version of whereColumn
+  QueryBuilder orWhereColumn(String column1, String operator, String column2) {
+    _asColumnFlag = true;
+    orWhere(column1, operator, column2);
+    _asColumnFlag = false;
+    return this;
+  }
+
+  /// Add a WHERE BETWEEN clause
+  ///
+  /// JS Reference: querybuilder.js whereBetween() (lines 658-677)
+  ///
+  /// Example: whereBetween('age', [18, 65])
+  QueryBuilder whereBetween(String column, List values) {
+    assert(
+      values.length == 2,
+      'You must specify 2 values for the whereBetween clause',
+    );
+
+    _statements.add({
+      'grouping': 'where',
+      'type': 'whereBetween',
+      'column': column,
+      'value': values,
+      'not': _not(),
+      'bool': _bool(),
+    });
+    return this;
+  }
+
+  /// Add a WHERE NOT BETWEEN clause
+  ///
+  /// JS Reference: querybuilder.js whereNotBetween() (lines 679-682)
+  QueryBuilder whereNotBetween(String column, List values) {
+    return _not(true).whereBetween(column, values) as QueryBuilder;
+  }
+
+  /// OR version of WHERE BETWEEN
+  QueryBuilder orWhereBetween(String column, List values) {
+    return _bool('or').whereBetween(column, values) as QueryBuilder;
+  }
+
+  /// OR version of WHERE NOT BETWEEN
+  QueryBuilder orWhereNotBetween(String column, List values) {
+    return _bool('or')._not(true).whereBetween(column, values) as QueryBuilder;
+  }
+
+  /// Add a WHERE NOT clause
+  ///
+  /// JS Reference: querybuilder.js whereNot() (lines 509-519)
+  ///
+  /// Example: whereNot('status', 'deleted')
+  QueryBuilder whereNot(String column, [dynamic operator, dynamic value]) {
+    // Warning: whereNot is not suitable for "in" and "between"
+    // (should use whereNotIn and whereNotBetween instead)
+    return _not(true).where(column, operator, value) as QueryBuilder;
+  }
+
+  /// OR version of WHERE NOT
+  QueryBuilder orWhereNot(String column, [dynamic operator, dynamic value]) {
+    return _bool('or')._not(true).where(column, operator, value)
+        as QueryBuilder;
+  }
+
+  /// OR version of WHERE NOT IN
+  QueryBuilder orWhereNotIn(String column, List<dynamic> values) {
+    return _bool('or').whereNotIn(column, values);
+  }
+
+  /// OR version of WHERE NOT NULL
+  QueryBuilder orWhereNotNull(String column) {
+    _statements.add({
+      'grouping': 'where',
+      'type': 'whereNull',
+      'column': column,
+      'not': true,
+      'bool': 'or',
+    });
+    return this;
+  }
+
+  /// Add a WHERE EXISTS clause with a subquery
+  ///
+  /// JS Reference: querybuilder.js whereExists() (lines 574-584)
+  ///
+  /// Example:
+  /// ```dart
+  /// whereExists((qb) {
+  ///   qb.select('*').from('orders').whereRaw('orders.user_id = users.id');
+  /// })
+  /// ```
+  QueryBuilder whereExists(Function callback) {
+    _statements.add({
+      'grouping': 'where',
+      'type': 'whereExists',
+      'value': callback,
+      'not': _not(),
+      'bool': _bool(),
+    });
+    return this;
+  }
+
+  /// Add a WHERE NOT EXISTS clause
+  ///
+  /// JS Reference: querybuilder.js whereNotExists() (lines 586-589)
+  QueryBuilder whereNotExists(Function callback) {
+    return _not(true).whereExists(callback) as QueryBuilder;
+  }
+
+  /// OR version of WHERE EXISTS
+  QueryBuilder orWhereExists(Function callback) {
+    return _bool('or').whereExists(callback) as QueryBuilder;
+  }
+
+  /// OR version of WHERE NOT EXISTS
+  QueryBuilder orWhereNotExists(Function callback) {
+    return _bool('or')._not(true).whereExists(callback) as QueryBuilder;
+  }
+
+  /// Add grouped WHERE conditions in parentheses
+  ///
+  /// JS Reference: querybuilder.js whereWrapped() (lines 562-572)
+  ///
+  /// Example:
+  /// ```dart
+  /// whereWrapped((qb) {
+  ///   qb.where('age', '>', 18).orWhere('verified', true);
+  /// })
+  /// // Generates: WHERE (age > 18 OR verified = true)
+  /// ```
+  QueryBuilder whereWrapped(Function callback) {
+    _statements.add({
+      'grouping': 'where',
+      'type': 'whereWrapped',
+      'value': callback,
+      'not': _not(),
+      'bool': _bool(),
     });
     return this;
   }
@@ -537,6 +775,32 @@ class QueryBuilder {
       'type': 'groupByBasic',
       'value': column,
     });
+    return this;
+  }
+
+  /// Add UNION clause - combines results from multiple queries
+  QueryBuilder union(List<dynamic> queries, {bool wrap = false}) {
+    for (final query in queries) {
+      _statements.add({
+        'grouping': 'union',
+        'type': 'union',
+        'value': query,
+        'wrap': wrap,
+      });
+    }
+    return this;
+  }
+
+  /// Add UNION ALL clause - combines results keeping duplicates
+  QueryBuilder unionAll(List<dynamic> queries, {bool wrap = false}) {
+    for (final query in queries) {
+      _statements.add({
+        'grouping': 'union',
+        'type': 'union all',
+        'value': query,
+        'wrap': wrap,
+      });
+    }
     return this;
   }
 

@@ -82,6 +82,34 @@ class QueryCompiler {
     return SqlString(sql, bindings, method: method, uid: uid);
   }
 
+  /// Compile a subquery (QueryBuilder) to SQL with parameter renumbering
+  String _compileSubquery(QueryBuilder subquery, {bool withParens = true}) {
+    final bindingOffset = bindings.length;
+    final subCompiler = client.queryCompiler(subquery);
+    var sql = subCompiler.toSQL().sql;
+
+    // Renumber parameters
+    if (bindingOffset > 0 && subCompiler.bindings.isNotEmpty) {
+      for (var i = subCompiler.bindings.length; i >= 1; i--) {
+        sql = sql.replaceAll('\$$i', '\$${bindingOffset + i}');
+      }
+    }
+
+    bindings.addAll(subCompiler.bindings);
+
+    // Add parentheses if needed
+    if (withParens) {
+      sql = '($sql)';
+    }
+
+    // Add alias AFTER parentheses
+    if (subquery.alias != null) {
+      sql = '$sql as "${subquery.alias}"';
+    }
+
+    return sql;
+  }
+
   /// Dispatch to method-specific compiler
   ///
   /// JS Reference: querycompiler.js _validateAndCompile dispatches to method
@@ -138,6 +166,12 @@ class QueryCompiler {
       parts.add(havingSql);
     }
 
+    // UNION clauses (before ORDER BY/LIMIT for correct SQL semantics)
+    final unionSql = _union();
+    if (unionSql.isNotEmpty) {
+      parts.add(unionSql);
+    }
+
     // ORDER BY clause
     final orderSql = _order();
     if (orderSql.isNotEmpty) {
@@ -165,6 +199,11 @@ class QueryCompiler {
   String get tableName {
     final table = single['table'];
     if (table == null) return '';
+
+    // Subquery
+    if (table is QueryBuilder) {
+      return _compileSubquery(table, withParens: true);
+    }
 
     // Simple string table name
     if (table is String) {
@@ -229,12 +268,26 @@ class QueryCompiler {
         }
       }
 
-      // Handle regular columns
+      // Handle regular columns (but check for QueryBuilder first)
       final columns = stmt['columns'];
       if (columns != null && columns is List && columns.isNotEmpty) {
-        // Use formatter.columnize for proper wrapping
-        final formatted = formatter.columnize(columns);
-        cols.add(formatted);
+        // Check each column - could be string or QueryBuilder
+        for (final col in columns) {
+          if (col is QueryBuilder) {
+            cols.add(_compileSubquery(col));
+          } else {
+            // Regular string column
+            cols.add(formatter.wrap(col.toString()));
+          }
+        }
+        continue;
+      }
+
+      // Handle QueryBuilder subquery in SELECT (when passed as value)
+      final stmtValue = stmt['value'];
+      if (stmtValue is QueryBuilder) {
+        cols.add(_compileSubquery(stmtValue));
+        continue;
       }
 
       // Handle Raw in SELECT
@@ -301,6 +354,12 @@ class QueryCompiler {
         return whereIn(statement);
       case 'whereRaw': // NEW
         return whereRaw(statement);
+      case 'whereBetween': // NEW
+        return whereBetween(statement);
+      case 'whereExists': // NEW
+        return whereExists(statement);
+      case 'whereWrapped': // NEW
+        return whereWrapped(statement);
       default:
         throw Exception('Unknown WHERE type: $type');
     }
@@ -364,19 +423,28 @@ class QueryCompiler {
   ///
   /// JS Reference: querycompiler.js lines 1016-1024 (whereIn)
   ///
-  /// Generates "column" in (?, ?, ?) or "column" not in (?, ?)
+  /// Supports:
+  /// - Array of values: "column" in (?, ?, ?)
+  /// - Subquery: "column" in (SELECT ...)
   String whereIn(Map<String, dynamic> statement) {
     final column = formatter.wrap(statement['column']);
-    final values = statement['value'] as List;
+    final values = statement['value'];
 
-    // Create placeholder for each value in the list
-    final placeholders = <String>[];
-    for (final value in values) {
-      placeholders.add(client.parameter(value, bindings));
+    String valueClause;
+    if (values is QueryBuilder) {
+      // Subquery
+      valueClause = _compileSubquery(values);
+    } else {
+      // Array of values
+      final valuesList = values as List;
+      final placeholders = <String>[];
+      for (final value in valuesList) {
+        placeholders.add(client.parameter(value, bindings));
+      }
+      valueClause = '(${placeholders.join(', ')})';
     }
 
-    final inList = placeholders.join(', ');
-    return '$column ${_not(statement, 'in ')}($inList)';
+    return '$column ${_not(statement, 'in ')}$valueClause';
   }
 
   /// Compile WHERE raw clause
@@ -389,6 +457,93 @@ class QueryCompiler {
     final sql = raw.toSQL();
     bindings.addAll(sql.bindings);
     return sql.sql;
+  }
+
+  /// Compile WHERE BETWEEN clause
+  ///
+  /// JS Reference: querycompiler.js whereBetween() (lines 1103-1121)
+  ///
+  /// Examples:
+  /// - "age" between $1 and $2
+  /// - "score" not between $1 and $2
+  String whereBetween(Map<String, dynamic> statement) {
+    final column = formatter.wrap(statement['column']);
+    final values = statement['value'] as List;
+
+    final placeholders = <String>[];
+    for (final value in values) {
+      placeholders.add(client.parameter(value, bindings));
+    }
+
+    final betweenClause = placeholders.join(' and ');
+    return '$column ${_not(statement, 'between ')}$betweenClause';
+  }
+
+  /// Compile WHERE EXISTS clause
+  ///
+  /// JS Reference: querycompiler.js whereExists() (lines 1077-1090)
+  ///
+  /// Examples:
+  /// - exists (SELECT ...)
+  /// - not exists (SELECT ...)
+  String whereExists(Map<String, dynamic> statement) {
+    final callback = statement['value'] as Function;
+
+    // Create a new QueryBuilder for the subquery
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+
+    // Get the SQL for the subquery
+    final subSQL = subBuilder.toSQL();
+    bindings.addAll(subSQL.bindings);
+
+    return '${_not(statement, 'exists ')}(${subSQL.sql})';
+  }
+
+  /// Compile WHERE WRAPPED clause (grouped conditions)
+  ///
+  /// JS Reference: querycompiler.js whereWrapped() (lines 1092-1101)
+  ///
+  /// Groups WHERE conditions in parentheses
+  ///
+  /// Example:
+  /// - (age > 18 OR verified = true)
+  String whereWrapped(Map<String, dynamic> statement) {
+    final callback = statement['value'] as Function;
+
+    // Create a new QueryBuilder for the wrapped conditions
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+
+    // Get the current binding count before adding subquery bindings
+    final bindingOffset = bindings.length;
+
+    // Compile the WHERE clauses from the sub-builder
+    final subCompiler = client.queryCompiler(subBuilder);
+    var whereSQL = subCompiler._where();
+
+    if (whereSQL.isEmpty) return '';
+
+    // Renumber parameter placeholders to continue from parent's count
+    // The subquery uses $1, $2, etc. but should use $N+1, $N+2, etc.
+    if (bindingOffset > 0 && subCompiler.bindings.isNotEmpty) {
+      // Replace $1 with $(bindingOffset+1), $2 with $(bindingOffset+2), etc.
+      // Must iterate backwards to avoid replacing $1 in $10, $11, etc.
+      for (var i = subCompiler.bindings.length; i >= 1; i--) {
+        whereSQL = whereSQL.replaceAll('\$$i', '\$${bindingOffset + i}');
+      }
+    }
+
+    // Merge bindings from subquery into parent bindings
+    bindings.addAll(subCompiler.bindings);
+
+    // Remove the leading "where " (6 characters)
+    final condition = whereSQL.substring(6);
+
+    // Apply NOT if needed
+    final notStr = (statement['not'] as bool? ?? false) ? 'not ' : '';
+
+    return '$notStr($condition)';
   }
 
   /// Compile JOIN clauses
@@ -578,6 +733,60 @@ class QueryCompiler {
 
     // Add offset value to bindings and get placeholder
     return 'offset ${client.parameter(offset, bindings)}';
+  }
+
+  /// Compile UNION clauses
+  ///
+  /// JS Reference: querycompiler.js _union() (lines 515-543)
+  String _union() {
+    final unions = grouped['union'];
+    if (unions == null || unions.isEmpty) return '';
+
+    final parts = <String>[];
+
+    for (final stmt in unions) {
+      final type = stmt['type'] as String; // 'union' or 'union all'
+      final query = stmt['value'];
+      final wrap = stmt['wrap'] as bool? ?? false;
+
+      String sql;
+
+      if (query is QueryBuilder) {
+        // Get current binding count BEFORE compiling unioned query
+        final bindingOffset = bindings.length;
+
+        // Compile the query
+        final queryCompiler = client.queryCompiler(query);
+        final querySQL = queryCompiler.toSQL();
+        sql = querySQL.sql;
+
+        // Renumber parameters to continue from parent's count
+        if (bindingOffset > 0 && queryCompiler.bindings.isNotEmpty) {
+          // Iterate backwards to avoid replacing $1 in $10, $11, etc.
+          for (var i = queryCompiler.bindings.length; i >= 1; i--) {
+            sql = sql.replaceAll('\$$i', '\$${bindingOffset + i}');
+          }
+        }
+
+        // Merge bindings
+        bindings.addAll(queryCompiler.bindings);
+      } else if (query is Raw) {
+        final rawSQL = query.toSQL();
+        sql = rawSQL.sql;
+        bindings.addAll(rawSQL.bindings);
+      } else {
+        continue;
+      }
+
+      // Wrap if needed
+      if (wrap) {
+        sql = '($sql)';
+      }
+
+      parts.add('$type $sql');
+    }
+
+    return parts.join(' ');
   }
 
   /// Generate unique query ID
