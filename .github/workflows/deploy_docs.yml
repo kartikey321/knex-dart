@@ -1,0 +1,49 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/site/**'
+      - '.github/workflows/deploy_docs.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install Jaspr CLI
+        run: dart pub global activate jaspr_cli
+
+      - name: Get dependencies
+        working-directory: docs/site
+        run: dart pub get
+
+      - name: Build static site
+        working-directory: docs/site
+        run: dart pub global run jaspr_cli:jaspr build
+
+      - name: Deploy to server
+        uses: easingthemes/ssh-deploy@v5.0.3
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          SOURCE: "docs/site/build/jaspr/"
+          TARGET: ${{ secrets.REMOTE_TARGET }}/knex-dart
+          EXCLUDE: ".git*, .github*"
+          SCRIPT_BEFORE: |
+            mkdir -p ${{ secrets.REMOTE_TARGET }}/knex-dart
+          SCRIPT_AFTER: |
+            echo "Knex Dart docs deployed successfully!"
+            ls -la ${{ secrets.REMOTE_TARGET }}/knex-dart
