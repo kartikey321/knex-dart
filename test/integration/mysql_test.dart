@@ -1,0 +1,311 @@
+import 'dart:io';
+
+import 'package:knex_dart/knex_dart.dart';
+// ignore: unused_import
+import 'package:knex_dart/src/client/mysql_client.dart';
+import 'package:knex_dart/src/query/aggregate_options.dart';
+import 'package:test/test.dart';
+
+import '../mocks/mysql_mock_client.dart';
+
+void main() {
+  group('MySQL Integration Tests', () {
+    MySQLClient? client;
+    final mockClient = MySQLMockClient();
+
+    final host = Platform.environment['MYSQL_HOST'] ?? 'localhost';
+    final port = int.parse(Platform.environment['MYSQL_PORT'] ?? '3306');
+    final user = Platform.environment['MYSQL_USER'] ?? 'test';
+    final password = Platform.environment['MYSQL_PASSWORD'] ?? 'test';
+    final database = Platform.environment['MYSQL_DATABASE'] ?? 'knex_test';
+
+    MySQLClient? _globalClient;
+
+    setUpAll(() async {
+      try {
+        _globalClient = await MySQLClient.connect(
+          host: host,
+          port: port,
+          user: user,
+          password: password,
+          database: database,
+        );
+        // Purge any stale rows left by previous test runs
+        await _globalClient!.raw(
+          "DELETE FROM users WHERE email LIKE '%write@example.com' "
+          "OR email LIKE '%trx%@example.com' "
+          "OR email LIKE '%update@example.com' "
+          "OR email LIKE '%delete@example.com'",
+        );
+      } catch (e) {
+        print('Warning: could not purge stale test data: $e');
+      }
+    });
+
+    tearDownAll(() async {
+      if (_globalClient != null && !_globalClient!.isClosed) {
+        await _globalClient!.close();
+      }
+    });
+
+    setUp(() async {
+      try {
+        // Connect to MySQL
+        client = await MySQLClient.connect(
+          host: host,
+          port: port,
+          user: user,
+          password: password,
+          database: database,
+        );
+      } catch (e) {
+        print(
+          'Skipping MySQL tests: Could not connect to database at $host:$port. Error: $e',
+        );
+        throw e;
+      }
+    });
+
+    tearDown(() async {
+      if (client != null && !client!.isClosed) {
+        await client!.close();
+      }
+    });
+
+    test('should connect to database', () async {
+      expect(client!.isClosed, isFalse);
+    });
+
+    test('should select all users', () async {
+      final query = mockClient.queryBuilder().table('users');
+      final result = await client!.select(query);
+      expect(result.length, 3);
+    });
+
+    test('should filter users with where clause', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .where('first_name', 'John');
+      final result = await client!.select(query);
+      expect(result.length, 1);
+      expect(result.first['first_name'], 'John');
+    });
+
+    test('should perform inner join', () async {
+      final query = mockClient
+          .queryBuilder()
+          .select(['users.first_name', 'accounts.balance'])
+          .from('users')
+          .join('accounts', 'users.id', 'accounts.user_id');
+
+      final result = await client!.select(query);
+      expect(result.length, 3);
+      expect(result.first.containsKey('first_name'), isTrue);
+      expect(result.first.containsKey('balance'), isTrue);
+    });
+
+    test('should perform left join', () async {
+      final query = mockClient
+          .queryBuilder()
+          .select(['users.first_name', 'accounts.balance'])
+          .from('users')
+          .leftJoin('accounts', 'users.id', 'accounts.user_id');
+
+      final result = await client!.select(query);
+      expect(result.length, 3);
+    });
+
+    test('should use raw queries', () async {
+      final result = await client!.raw('select 1 + 1 as result');
+      expect(result.first['result'], 2);
+    });
+
+    test('should limit results', () async {
+      final query = mockClient.queryBuilder().table('users').limit(2);
+      final result = await client!.select(query);
+      expect(result.length, 2);
+    });
+
+    test('should order results', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .orderBy('first_name', 'desc');
+      final result = await client!.select(query);
+      expect(result.first['first_name'], 'John');
+    });
+
+    // Aggregate tests
+    test('should count records', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .count('id', const AggregateOptions(as: 'total'));
+      final result = await client!.select(query);
+
+      // MySQL count return type check
+      final total = result.first['total'];
+      expect(total, 3);
+    });
+
+    test('should sum values', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('accounts')
+          .sum('logins', const AggregateOptions(as: 'total'));
+      final results = await client!.select(query);
+
+      final total = results.first['total'];
+      // MySQL sum might be double or decimal.
+      expect(num.parse(total.toString()), 30);
+    });
+
+    test('should handle question marks in string literals', () async {
+      // This test ensures our placeholder replacement doesn't corrupt strings
+      final result = await client!.raw("select 'Question?' as q, ? as v", [
+        'Answer',
+      ]);
+      expect(result.first['q'], 'Question?');
+      expect(result.first['v'], 'Answer');
+    });
+
+    // ─── Write Operation Tests ────────────────────────────────────────────────
+
+    test('should insert a user and verify via SELECT', () async {
+      final query = mockClient.queryBuilder().table('users').insert({
+        'first_name': 'New',
+        'last_name': 'User',
+        'email': 'new_user_write@example.com',
+      });
+      await client!.insert(query);
+
+      final rows = await client!.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'new_user_write@example.com'),
+      );
+      expect(rows.length, 1);
+      expect(rows.first['first_name'], 'New');
+
+      // Cleanup
+      await client!.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'new_user_write@example.com'),
+      );
+    });
+
+    test('should update a user and verify change', () async {
+      // Insert to update
+      await client!.raw(
+        "INSERT INTO users (first_name, last_name, email) VALUES (?, ?, ?)",
+        ['Before', 'Update', 'before_update_write@example.com'],
+      );
+
+      final updateQ = mockClient
+          .queryBuilder()
+          .table('users')
+          .where('email', 'before_update_write@example.com')
+          .update({'first_name': 'After'});
+      await client!.update(updateQ);
+
+      final rows = await client!.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'before_update_write@example.com'),
+      );
+      expect(rows.first['first_name'], 'After');
+
+      // Cleanup
+      await client!.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'before_update_write@example.com'),
+      );
+    });
+
+    test('should delete a user and confirm removal', () async {
+      // Insert to delete
+      await client!.raw(
+        "INSERT INTO users (first_name, last_name, email) VALUES (?, ?, ?)",
+        ['Temp', 'Delete', 'temp_delete_write@example.com'],
+      );
+
+      final deleteQ = mockClient
+          .queryBuilder()
+          .table('users')
+          .where('email', 'temp_delete_write@example.com')
+          .delete();
+      await client!.delete(deleteQ);
+
+      final rows = await client!.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'temp_delete_write@example.com'),
+      );
+      expect(rows.isEmpty, true);
+    });
+
+    // ─── Transaction Tests ────────────────────────────────────────────────────
+
+    test('trx: COMMIT on success — changes are persisted', () async {
+      await client!.trx((trx) async {
+        await trx.insert(
+          mockClient.queryBuilder().table('users').insert({
+            'first_name': 'Trx',
+            'last_name': 'Commit',
+            'email': 'trx_commit_mysql@example.com',
+          }),
+        );
+      });
+
+      final rows = await client!.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'trx_commit_mysql@example.com'),
+      );
+      expect(rows.length, 1);
+      expect(rows.first['first_name'], 'Trx');
+
+      // Cleanup
+      await client!.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'trx_commit_mysql@example.com'),
+      );
+    });
+
+    test('trx: ROLLBACK on error — changes are reverted', () async {
+      try {
+        await client!.trx((trx) async {
+          await trx.insert(
+            mockClient.queryBuilder().table('users').insert({
+              'first_name': 'Trx',
+              'last_name': 'Rollback',
+              'email': 'trx_rollback_mysql@example.com',
+            }),
+          );
+          throw Exception('Forced rollback');
+        });
+      } catch (_) {
+        // Expected
+      }
+
+      final rows = await client!.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'trx_rollback_mysql@example.com'),
+      );
+      expect(rows.isEmpty, true);
+    });
+  });
+}

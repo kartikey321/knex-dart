@@ -9,8 +9,9 @@ class SqlString {
   /// Method type (select, insert, update, delete, etc.)
   final String? method;
   final String? uid; // Query unique identifier (JS: __knexQueryUid)
+  final String? pluck;
 
-  SqlString(this.sql, this.bindings, {this.method, this.uid});
+  SqlString(this.sql, this.bindings, {this.method, this.uid, this.pluck});
 
   @override
   String toString() => sql;
@@ -21,15 +22,22 @@ class SqlString {
       'sql': sql,
       'bindings': bindings,
       if (method != null) 'method': method,
+      if (pluck != null) 'pluck': pluck,
     };
   }
 
   /// Create a copy with different values
-  SqlString copyWith({String? sql, List<dynamic>? bindings, String? method}) {
+  SqlString copyWith({
+    String? sql,
+    List<dynamic>? bindings,
+    String? method,
+    String? pluck,
+  }) {
     return SqlString(
       sql ?? this.sql,
       bindings ?? this.bindings,
       method: method ?? this.method,
+      pluck: pluck ?? this.pluck,
     );
   }
 
@@ -39,11 +47,12 @@ class SqlString {
     if (other is! SqlString) return false;
     return sql == other.sql &&
         _listEquals(bindings, other.bindings) &&
-        method == other.method;
+        method == other.method &&
+        pluck == other.pluck;
   }
 
   @override
-  int get hashCode => Object.hash(sql, Object.hashAll(bindings), method);
+  int get hashCode => Object.hash(sql, Object.hashAll(bindings), method, pluck);
 
   static bool _listEquals(List? a, List? b) {
     if (a == null) return b == null;

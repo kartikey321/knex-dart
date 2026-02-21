@@ -12,8 +12,9 @@ dependencies:
   meta: ^1.11.0
   collection: ^1.18.0
   # Dialect drivers will be added per-database in later phases:
-  # postgres: ^3.0.0
-  # mysql1: ^0.20.0
+  postgres: ^3.4.50
+  mysql_client: ^0.0.27
+  sqlite3: ^2.0.0 # MySQL Driver (Modern client for MySQL 8.0-compatible servers)
   # sqlite3: ^2.1.0
 
 dev_dependencies:

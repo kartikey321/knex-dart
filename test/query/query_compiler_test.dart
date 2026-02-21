@@ -3,6 +3,7 @@ import 'package:knex_dart/src/query/query_builder.dart';
 import 'package:knex_dart/src/query/query_compiler.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
 import '../mocks/mock_client.dart';
+import '../mocks/mysql_mock_client.dart';
 
 void main() {
   late MockClient client;
@@ -1658,6 +1659,289 @@ void main() {
         'select count(distinct "user_id", "event_type") from "events"',
       );
       expect(sql.bindings, []);
+    });
+  });
+
+  group('QueryCompiler Step 15 - first/pluck and lock/wait modes', () {
+    test('first() compiles to SELECT with LIMIT 1', () {
+      final builder = QueryBuilder(client).table('users').first('id');
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select "id" from "users" limit \$1');
+      expect(sql.bindings, [1]);
+      expect(sql.method, 'first');
+    });
+
+    test('pluck() compiles selected single column', () {
+      final builder = QueryBuilder(client).table('users').pluck('email');
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select "email" from "users"');
+      expect(sql.bindings, []);
+      expect(sql.method, 'pluck');
+      expect(sql.pluck, 'email');
+    });
+
+    test('pluck() normalizes dotted column name metadata', () {
+      final builder = QueryBuilder(client).table('users').pluck('users.email');
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select "users"."email" from "users"');
+      expect(sql.pluck, 'email');
+    });
+
+    test('forUpdate() + skipLocked() on postgres-like client', () {
+      final builder = QueryBuilder(
+        client,
+      ).table('users').forUpdate().skipLocked();
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select * from "users" for update skip locked');
+      expect(sql.bindings, []);
+    });
+
+    test('forShare() with table list on postgres-like client', () {
+      final builder = QueryBuilder(
+        client,
+      ).table('users').forShare(['users']);
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select * from "users" for share of "users"');
+      expect(sql.bindings, []);
+    });
+
+    test('forNoKeyUpdate() + noWait() on postgres-like client', () {
+      final builder = QueryBuilder(
+        client,
+      ).table('users').forNoKeyUpdate().noWait();
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select * from "users" for no key update nowait');
+      expect(sql.bindings, []);
+    });
+
+    test('forShare() on MySQL compiles lock in share mode', () {
+      final my = MySQLMockClient();
+      final builder = QueryBuilder(my).table('users').forShare();
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select * from `users` lock in share mode');
+      expect(sql.bindings, []);
+    });
+
+    test('skipLocked() requires prior lock mode', () {
+      expect(
+        () => QueryBuilder(client).table('users').skipLocked(),
+        throwsA(
+          predicate(
+            (e) => e is StateError && e.message.toString().contains('.forShare() or .forUpdate()'),
+          ),
+        ),
+      );
+    });
+
+    test('noWait() and skipLocked() are mutually exclusive', () {
+      expect(
+        () => QueryBuilder(client).table('users').forUpdate().noWait().skipLocked(),
+        throwsA(
+          predicate(
+            (e) =>
+                e is StateError &&
+                e.message.toString().contains('cannot be used together'),
+          ),
+        ),
+      );
+    });
+
+    test('forNoKeyUpdate() is rejected on MySQL', () {
+      final my = MySQLMockClient();
+      final builder = QueryBuilder(my).table('users').forNoKeyUpdate();
+
+      expect(
+        () => builder.toSQL(),
+        throwsA(
+          predicate(
+            (e) =>
+                e is StateError &&
+                e.message.toString().contains('only supported on PostgreSQL'),
+          ),
+        ),
+      );
+    });
+  });
+
+  group('QueryCompiler Step 16 - Advanced JOIN ON clauses', () {
+    test('Join onVal adds bound parameter in ON clause', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.on('users.id', 'orders.user_id').andOnVal(
+          'orders.status',
+          '=',
+          'completed',
+        );
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "orders"."status" = \$1',
+      );
+      expect(sql.bindings, ['completed']);
+    });
+
+    test('Join onIn compiles IN list with bindings', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.on('users.id', 'orders.user_id').andOnIn('orders.status', [
+          'paid',
+          'pending',
+        ]);
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "orders"."status" in (\$1, \$2)',
+      );
+      expect(sql.bindings, ['paid', 'pending']);
+    });
+
+    test('Join onNull and onNotNull compile NULL checks', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.on('users.id', 'orders.user_id')
+            .andOnNull('orders.deleted_at')
+            .orOnNotNull('orders.archived_at');
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "orders"."deleted_at" is null or "orders"."archived_at" is not null',
+      );
+      expect(sql.bindings, []);
+    });
+
+    test('Join onBetween and onNotBetween compile ranges', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.on('users.id', 'orders.user_id')
+            .andOnBetween('orders.total', [10, 100])
+            .orOnNotBetween('orders.discount', [5, 20]);
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "orders"."total" between \$1 and \$2 or "orders"."discount" not between \$3 and \$4',
+      );
+      expect(sql.bindings, [10, 100, 5, 20]);
+    });
+
+    test('Join onExists and onNotExists compile subqueries', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.on('users.id', 'orders.user_id')
+            .andOnExists((qb) {
+              qb.select(['id']).from('payments').whereColumn(
+                'payments.order_id',
+                '=',
+                'orders.id',
+              );
+            })
+            .orOnNotExists((qb) {
+              qb.select(['id']).from('refunds').whereColumn(
+                'refunds.order_id',
+                '=',
+                'orders.id',
+              );
+            });
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on "users"."id" = "orders"."user_id" and exists (select "id" from "payments" where "payments"."order_id" = "orders"."id") or not exists (select "id" from "refunds" where "refunds"."order_id" = "orders"."id")',
+      );
+      expect(sql.bindings, []);
+    });
+
+    test('Join onWrapped groups nested ON conditions', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.on('users.id', 'orders.user_id').andOn((nested) {
+          nested
+              .onVal('orders.status', '=', 'completed')
+              .orOnVal('orders.status', '=', 'shipped');
+        });
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on "users"."id" = "orders"."user_id" and ("orders"."status" = \$1 or "orders"."status" = \$2)',
+      );
+      expect(sql.bindings, ['completed', 'shipped']);
+    });
+
+    test('Join using() compiles USING clause', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.using(['user_id']);
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" using ("user_id")',
+      );
+      expect(sql.bindings, []);
+    });
+
+    test('Join onIn with multi-column tuple values', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.onIn(['orders.type', 'orders.state'], [
+          ['online', 'paid'],
+          ['retail', 'pending'],
+        ]);
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on ("orders"."type", "orders"."state") in ((\$1, \$2),(\$3, \$4))',
+      );
+      expect(sql.bindings, ['online', 'paid', 'retail', 'pending']);
+    });
+
+    test('Join onJsonPathEquals for postgres-like client', () {
+      final builder = QueryBuilder(client).table('users').join('orders', (j) {
+        j.onJsonPathEquals(
+          'users.meta',
+          r'$.id',
+          'orders.meta',
+          r'$.user_id',
+        );
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" inner join "orders" on jsonb_path_query_first("users"."meta", \$1) = jsonb_path_query_first("orders"."meta", \$2)',
+      );
+      expect(sql.bindings, [r'$.id', r'$.user_id']);
+    });
+
+    test('Join onJsonPathEquals for mysql client uses json_extract', () {
+      final my = MySQLMockClient();
+      final builder = QueryBuilder(my).table('users').join('orders', (j) {
+        j.onJsonPathEquals(
+          'users.meta',
+          r'$.id',
+          'orders.meta',
+          r'$.user_id',
+        );
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from `users` inner join `orders` on json_extract(`users`.`meta`, ?) = json_extract(`orders`.`meta`, ?)',
+      );
+      expect(sql.bindings, [r'$.id', r'$.user_id']);
     });
   });
 }

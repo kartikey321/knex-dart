@@ -4,6 +4,11 @@ import '../client/client.dart';
 import '../util/enums.dart';
 import '../raw.dart';
 import 'aggregate_options.dart';
+import 'analytic.dart';
+export 'analytic.dart';
+
+// Sentinel for undefined arguments
+const _undefined = Object();
 
 /// Query builder for constructing SQL queries
 ///
@@ -69,6 +74,14 @@ class QueryBuilder {
   /// Alias for execute
   Future<List<Map<String, dynamic>>> get then => execute();
 
+  bool _isSelectQuery() {
+    return _method == QueryMethod.select ||
+        _method == QueryMethod.first ||
+        _method == QueryMethod.pluck;
+  }
+
+  bool _hasLockMode() => _single['lock'] != null;
+
   // Basic methods - stubs for now
 
   /// Set the table name
@@ -105,6 +118,33 @@ class QueryBuilder {
   QueryBuilder returning(List<String> columns) {
     _single['returning'] = columns;
     return this;
+  }
+
+  /// Specify conflict target and action for INSERT ... ON CONFLICT.
+  ///
+  /// Mirrors the Knex.js `onConflict()` API exactly:
+  ///
+  /// ```dart
+  /// // UPSERT: update all columns on conflict
+  /// qb.insert({'email': 'a@b.com', 'name': 'Alice'})
+  ///   .onConflict('email')
+  ///   .merge();
+  ///
+  /// // UPSERT: update only specific columns
+  /// qb.insert({'email': 'a@b.com', 'name': 'Alice'})
+  ///   .onConflict('email')
+  ///   .merge({'name': 'Alice'});
+  ///
+  /// // Ignore on conflict (INSERT IGNORE / ON CONFLICT DO NOTHING)
+  /// qb.insert({...}).onConflict('email').ignore();
+  /// ```
+  ///
+  /// [column] can be a single column name, a List of column names, or null
+  /// (lets the DB decide the conflict target via unique constraints).
+  ///
+  /// JS Reference: querybuilder.js onConflict() (line 1255-onwards)
+  OnConflictBuilder onConflict([dynamic column]) {
+    return OnConflictBuilder._(this, column);
   }
 
   /// Update rows with given values
@@ -277,6 +317,45 @@ class QueryBuilder {
     return this;
   }
 
+  /// Return only the first row (LIMIT 1)
+  ///
+  /// JS Reference: querybuilder.js first() (line 1144)
+  QueryBuilder first([dynamic columns]) {
+    if (_method != QueryMethod.select) {
+      throw StateError('Cannot chain .first() on "${_method.name}" query');
+    }
+
+    if (columns != null) {
+      if (columns is List) {
+        select(columns);
+      } else {
+        select([columns]);
+      }
+    }
+
+    _method = QueryMethod.first;
+    limit(1);
+    return this;
+  }
+
+  /// Pluck a single column from a query
+  ///
+  /// JS Reference: querybuilder.js pluck() (line 1164)
+  QueryBuilder pluck(String column) {
+    if (_method != QueryMethod.select) {
+      throw StateError('Cannot chain .pluck() on "${_method.name}" query');
+    }
+
+    _method = QueryMethod.pluck;
+    _single['pluck'] = column;
+    _statements.add({
+      'grouping': 'columns',
+      'type': 'pluck',
+      'value': column,
+    });
+    return this;
+  }
+
   /// Add a DISTINCT clause
   ///
   /// JS Reference: querybuilder.js distinct() (line 300)
@@ -395,7 +474,11 @@ class QueryBuilder {
   /// - where(column, value) - assumes '=' operator
   /// - where(column, operator, value) - explicit operator
   /// - where(Raw) - raw SQL condition
-  QueryBuilder where(dynamic column, [dynamic operatorOrValue, dynamic value]) {
+  QueryBuilder where(
+    dynamic column, [
+    dynamic operatorOrValue = _undefined,
+    dynamic value = _undefined,
+  ]) {
     // Support Raw queries
     if (column is Raw) {
       _statements.add({
@@ -407,12 +490,31 @@ class QueryBuilder {
       return this;
     }
 
+    // Support grouped WHERE closures: where((builder) => ...)
+    if (column is Function) {
+      return whereWrapped(column);
+    }
+
+    // Determine operator and value based on arguments
+    final dynamic operator;
+    final dynamic val;
+
+    if (value == _undefined) {
+      // 2 arguments: column, value (operator is '=')
+      operator = '=';
+      val = operatorOrValue;
+    } else {
+      // 3 arguments: column, operator, value
+      operator = operatorOrValue;
+      val = value;
+    }
+
     _statements.add({
       'type': 'whereBasic',
       'grouping': 'where',
       'column': column,
-      'operator': value == null ? '=' : operatorOrValue,
-      'value': value ?? operatorOrValue,
+      'operator': operator,
+      'value': val,
       'bool': _bool(), // Read and reset bool flag
       'not': _not(), // Read and reset not flag
       'asColumn': _asColumnFlag, // Use flag for whereColumn support
@@ -515,24 +617,13 @@ class QueryBuilder {
   ///
   /// Sets bool='or' then calls where()
   QueryBuilder orWhere(
-    String column,
-    dynamic operatorOrValue, [
-    dynamic value,
+    dynamic column, [
+    dynamic operatorOrValue = _undefined,
+    dynamic value = _undefined,
   ]) {
     // Set bool to 'or' for next where clause
     _boolFlag = 'or';
-    final stmt = {
-      'type': 'whereBasic',
-      'grouping': 'where',
-      'column': column,
-      'operator': value == null ? '=' : operatorOrValue,
-      'value': value ?? operatorOrValue,
-      'bool': _bool(), // Read and reset bool flag (will return 'or')
-      'not': _not(), // Read and reset not flag
-      'asColumn': _asColumnFlag, // Use flag for whereColumn support
-    };
-    _statements.add(stmt);
-    return this;
+    return where(column, operatorOrValue, value);
   }
 
   /// Add a WHERE NULL clause
@@ -675,14 +766,22 @@ class QueryBuilder {
   /// JS Reference: querybuilder.js whereNot() (lines 509-519)
   ///
   /// Example: whereNot('status', 'deleted')
-  QueryBuilder whereNot(String column, [dynamic operator, dynamic value]) {
+  QueryBuilder whereNot(
+    dynamic column, [
+    dynamic operator = _undefined,
+    dynamic value = _undefined,
+  ]) {
     // Warning: whereNot is not suitable for "in" and "between"
     // (should use whereNotIn and whereNotBetween instead)
     return _not(true).where(column, operator, value) as QueryBuilder;
   }
 
   /// OR version of WHERE NOT
-  QueryBuilder orWhereNot(String column, [dynamic operator, dynamic value]) {
+  QueryBuilder orWhereNot(
+    dynamic column, [
+    dynamic operator = _undefined,
+    dynamic value = _undefined,
+  ]) {
     return _bool('or')._not(true).where(column, operator, value)
         as QueryBuilder;
   }
@@ -804,6 +903,67 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add INTERSECT clause — returns rows that appear in ALL queries.
+  ///
+  /// Knex.js equivalent: `.intersect([qb1, qb2])`
+  ///
+  /// Not supported natively by MySQL (use a workaround with JOIN/WHERE EXISTS).
+  QueryBuilder intersect(List<dynamic> queries, {bool wrap = false}) {
+    for (final query in queries) {
+      _statements.add({
+        'grouping': 'union',
+        'type': 'intersect',
+        'value': query,
+        'wrap': wrap,
+      });
+    }
+    return this;
+  }
+
+  /// Add INTERSECT ALL clause — returns rows in ALL queries, preserving duplicates.
+  QueryBuilder intersectAll(List<dynamic> queries, {bool wrap = false}) {
+    for (final query in queries) {
+      _statements.add({
+        'grouping': 'union',
+        'type': 'intersect all',
+        'value': query,
+        'wrap': wrap,
+      });
+    }
+    return this;
+  }
+
+  /// Add EXCEPT clause — returns rows in the first query but NOT in subsequent queries.
+  ///
+  /// Knex.js equivalent: `.except([qb1, qb2])`
+  ///
+  /// MySQL calls this `EXCEPT` (8.0+) or can be approximated with `LEFT JOIN WHERE NULL`.
+  QueryBuilder except(List<dynamic> queries, {bool wrap = false}) {
+    for (final query in queries) {
+      _statements.add({
+        'grouping': 'union',
+        'type': 'except',
+        'value': query,
+        'wrap': wrap,
+      });
+    }
+    return this;
+  }
+
+  /// Add EXCEPT ALL clause — returns rows in the first query but NOT in subsequent queries,
+  /// preserving duplicates.
+  QueryBuilder exceptAll(List<dynamic> queries, {bool wrap = false}) {
+    for (final query in queries) {
+      _statements.add({
+        'grouping': 'union',
+        'type': 'except all',
+        'value': query,
+        'wrap': wrap,
+      });
+    }
+    return this;
+  }
+
   /// Add a Common Table Expression (CTE)
   ///
   /// CTEs allow complex queries to be broken down into named subqueries
@@ -854,5 +1014,242 @@ class QueryBuilder {
       'not': false,
     });
     return this;
+  }
+
+  /// Add a raw HAVING clause to a query
+  ///
+  /// JS Reference: querybuilder.js havingRaw() (line 809)
+  ///
+  /// Use for complex expressions that shouldn't be wrapped in quotes,
+  /// such as aggregate functions: count(*), sum(amount), etc.
+  ///
+  /// Examples:
+  /// ```dart
+  /// // Having with aggregate function
+  /// query.havingRaw('count(*) > ?', [10]);
+  ///
+  /// // Multiple conditions
+  /// query.havingRaw('sum(amount) > ? AND count(*) > ?', [1000, 5]);
+  /// ```
+  QueryBuilder havingRaw(String sql, [List<dynamic> bindings = const []]) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingRaw',
+      'value': sql,
+      'bindings': bindings,
+    });
+    return this;
+  }
+
+  /// Set a row-level lock FOR UPDATE
+  QueryBuilder forUpdate([List<String>? tables]) {
+    _single['lock'] = 'forUpdate';
+    _single['lockTables'] = tables ?? <String>[];
+    return this;
+  }
+
+  /// Set a row-level lock FOR SHARE
+  QueryBuilder forShare([List<String>? tables]) {
+    _single['lock'] = 'forShare';
+    _single['lockTables'] = tables ?? <String>[];
+    return this;
+  }
+
+  /// PostgreSQL-specific lock mode FOR NO KEY UPDATE
+  QueryBuilder forNoKeyUpdate([List<String>? tables]) {
+    _single['lock'] = 'forNoKeyUpdate';
+    _single['lockTables'] = tables ?? <String>[];
+    return this;
+  }
+
+  /// PostgreSQL-specific lock mode FOR KEY SHARE
+  QueryBuilder forKeyShare([List<String>? tables]) {
+    _single['lock'] = 'forKeyShare';
+    _single['lockTables'] = tables ?? <String>[];
+    return this;
+  }
+
+  /// Skip locked rows while waiting on a lock
+  QueryBuilder skipLocked() {
+    if (!_isSelectQuery()) {
+      throw StateError('Cannot chain .skipLocked() on "${_method.name}" query');
+    }
+    if (!_hasLockMode()) {
+      throw StateError(
+        '.skipLocked() can only be used after .forShare() or .forUpdate()',
+      );
+    }
+    if (_single['waitMode'] == 'noWait') {
+      throw StateError('.skipLocked() cannot be used together with .noWait()');
+    }
+    _single['waitMode'] = 'skipLocked';
+    return this;
+  }
+
+  /// Fail immediately when lock cannot be acquired
+  QueryBuilder noWait() {
+    if (!_isSelectQuery()) {
+      throw StateError('Cannot chain .noWait() on "${_method.name}" query');
+    }
+    if (!_hasLockMode()) {
+      throw StateError(
+        '.noWait() can only be used after .forShare() or .forUpdate()',
+      );
+    }
+    if (_single['waitMode'] == 'skipLocked') {
+      throw StateError('.noWait() cannot be used together with .skipLocked()');
+    }
+    _single['waitMode'] = 'noWait';
+    return this;
+  }
+
+  // ============================================================================
+  // ANALYTIC / WINDOW FUNCTIONS
+  //
+  // Dart port of Knex.js querybuilder.js _analytic(), rank(), denseRank(),
+  // rowNumber() (lines 1568-1631) and analytic.js.
+  //
+  // Supported overloads (matching JS _analytic(alias, second, third)):
+  //   1. String/Array: rank(alias, orderBy, [partitionBy])
+  //      where orderBy / partitionBy are String or List<String>
+  //   2. Raw: rank(alias, raw) — raw OVER clause
+  //   3. AnalyticClause callback builder:
+  //      rank(alias, (a) => a.orderBy('col').partitionBy('col'))
+  // ============================================================================
+
+  /// Internal dispatcher — mirrors JS `_analytic(alias, second, third)`
+  QueryBuilder _analytic(
+    String method,
+    dynamic alias, [
+    dynamic second, // String | List | Raw | Function(AnalyticClause)
+    dynamic
+    third, // String | List (partitionBy) — only for string/array overload
+  ]) {
+    final aliasStr = alias is String ? alias : null;
+
+    if (second is Function) {
+      // Callback overload: build an AnalyticClause and pass it to the fn
+      final clause = AnalyticClause(method: method, alias: aliasStr);
+      second(clause);
+      _statements.add({
+        'grouping': 'columns',
+        'type': 'analytic',
+        'method': method,
+        'alias': aliasStr,
+        'order': clause.order,
+        'partitions': clause.partitions,
+      });
+    } else if (second is Raw) {
+      // Raw overload: bare raw SQL in OVER (...)
+      _statements.add({
+        'grouping': 'columns',
+        'type': 'analytic',
+        'method': method,
+        'alias': aliasStr,
+        'raw': second,
+      });
+    } else {
+      // String/array overload: (alias, orderBy, [partitionBy])
+      final order = second == null
+          ? []
+          : (second is! List ? [second] : second as List);
+      final List partitions;
+      if (third == null) {
+        partitions = [];
+      } else if (third is List) {
+        partitions = third;
+      } else {
+        partitions = [third];
+      }
+      _statements.add({
+        'grouping': 'columns',
+        'type': 'analytic',
+        'method': method,
+        'alias': aliasStr,
+        'order': order,
+        'partitions': partitions,
+      });
+    }
+    return this;
+  }
+
+  /// Add `rank() OVER (...) AS alias` to the SELECT list.
+  ///
+  /// Knex.js: `.rank(alias, orderByClause, [partitionByClause])`
+  ///
+  /// String syntax: `rank('alias', 'email', 'firstName')`
+  /// Array syntax:  `rank('alias', ['email', 'addr'], ['firstName', 'lastName'])`
+  /// Raw syntax:    `rank('alias', client.raw('order by ?? desc', ['salary']))`
+  /// Callback:      `rank('alias', (a) => a.orderBy('email').partitionBy('dept'))`
+  QueryBuilder rank(dynamic alias, [dynamic orderBy, dynamic partitionBy]) {
+    return _analytic('rank', alias, orderBy, partitionBy);
+  }
+
+  /// Add `dense_rank() OVER (...) AS alias` to the SELECT list.
+  ///
+  /// Same overloads as [rank].
+  QueryBuilder denseRank(
+    dynamic alias, [
+    dynamic orderBy,
+    dynamic partitionBy,
+  ]) {
+    return _analytic('dense_rank', alias, orderBy, partitionBy);
+  }
+
+  /// Add `row_number() OVER (...) AS alias` to the SELECT list.
+  ///
+  /// Same overloads as [rank].
+  QueryBuilder rowNumber(
+    dynamic alias, [
+    dynamic orderBy,
+    dynamic partitionBy,
+  ]) {
+    return _analytic('row_number', alias, orderBy, partitionBy);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OnConflictBuilder
+//
+// Returned by QueryBuilder.onConflict() and used to specify conflict action.
+// Writes back to the parent QueryBuilder's _single map.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Builder returned by [QueryBuilder.onConflict] to configure UPSERT behaviour.
+///
+/// Knex.js equivalent: `knex('table').insert({...}).onConflict('col').merge()`
+class OnConflictBuilder {
+  final QueryBuilder _builder;
+  final dynamic _column; // String | List<String> | null
+
+  OnConflictBuilder._(this._builder, this._column);
+
+  /// UPSERT — update on conflict.
+  ///
+  /// - `merge()` with no argument → update ALL inserted columns.
+  /// - `merge({'col': val})` → update only the supplied values.
+  /// - `merge(['col1', 'col2'])` → update only those columns (using
+  ///   `EXCLUDED.col` / `VALUES(col)` syntax per dialect).
+  ///
+  /// Returns the parent [QueryBuilder] for continued chaining (e.g. `.returning()`).
+  QueryBuilder merge([dynamic mergeData]) {
+    _builder._single['onConflict'] = {
+      'type': 'merge',
+      'column': _column,
+      'mergeData':
+          mergeData, // null = update all; Map = specific values; List = specific columns
+    };
+    return _builder;
+  }
+
+  /// INSERT IGNORE — do nothing on conflict.
+  ///
+  /// Postgres / SQLite: `ON CONFLICT (...) DO NOTHING`
+  /// MySQL:             `INSERT IGNORE INTO ...`
+  ///
+  /// Returns the parent [QueryBuilder] for continued chaining.
+  QueryBuilder ignore() {
+    _builder._single['onConflict'] = {'type': 'ignore', 'column': _column};
+    return _builder;
   }
 }

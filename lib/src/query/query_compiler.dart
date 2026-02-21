@@ -3,6 +3,7 @@ import '../formatter/formatter.dart';
 import '../util/enums.dart';
 import '../raw.dart';
 import 'query_builder.dart';
+import 'join_clause.dart';
 import 'sql_string.dart';
 
 /// Query compiler that transforms QueryBuilder statements into SQL
@@ -78,8 +79,21 @@ class QueryCompiler {
 
     // Generate UID (same pattern as Raw)
     final uid = _generateUid();
+    final pluck = builder.method == QueryMethod.pluck ? _pluckColumnName() : null;
 
-    return SqlString(sql, bindings, method: method, uid: uid);
+    return SqlString(sql, bindings, method: method, uid: uid, pluck: pluck);
+  }
+
+  /// Return normalized pluck column name (matches Knex.js behavior).
+  String? _pluckColumnName() {
+    final rawPluck = single['pluck'];
+    if (rawPluck == null) return null;
+
+    var value = rawPluck.toString();
+    if (value.contains('.')) {
+      value = value.split('.').last;
+    }
+    return value;
   }
 
   /// Compile a subquery (QueryBuilder) to SQL with parameter renumbering
@@ -119,6 +133,8 @@ class QueryCompiler {
 
     switch (queryMethod) {
       case QueryMethod.select:
+      case QueryMethod.first:
+      case QueryMethod.pluck:
         return _select();
       case QueryMethod.insert:
         return _insertQuery();
@@ -198,6 +214,18 @@ class QueryCompiler {
       parts.add(offsetSql);
     }
 
+    // Lock clause (FOR UPDATE / FOR SHARE / ...)
+    final lockSql = _lock();
+    if (lockSql.isNotEmpty) {
+      parts.add(lockSql);
+    }
+
+    // Lock wait mode (SKIP LOCKED / NOWAIT)
+    final waitModeSql = _waitMode();
+    if (waitModeSql.isNotEmpty) {
+      parts.add(waitModeSql);
+    }
+
     return parts.join(' ');
   }
 
@@ -215,11 +243,27 @@ class QueryCompiler {
 
     // Simple string table name
     if (table is String) {
-      return formatter.wrapString(table);
+      return _wrapTableIdentifier(table);
     }
 
     // Raw or other complex types - for later
     return table.toString();
+  }
+
+  /// Wrap table identifier with JS-like lowercase `as` for aliases.
+  ///
+  /// This keeps table alias SQL closer to Knex.js output while leaving
+  /// existing column alias formatting behavior unchanged.
+  String _wrapTableIdentifier(String table) {
+    final lower = table.toLowerCase();
+    final asIndex = lower.indexOf(' as ');
+    if (asIndex == -1) {
+      return formatter.wrapString(table);
+    }
+
+    final name = table.substring(0, asIndex).trim();
+    final alias = table.substring(asIndex + 4).trim();
+    return '${formatter.wrapString(name)} as ${formatter.wrapAsIdentifier(alias)}';
   }
 
   /// Compile columns clause (SELECT ... FROM ...)
@@ -257,6 +301,15 @@ class QueryCompiler {
       // Handle aggregate functions
       if (stmt['type'] == 'aggregate') {
         cols.addAll(_aggregate(stmt));
+        continue;
+      }
+
+      // Handle pluck() columns
+      if (stmt['type'] == 'pluck') {
+        final pluckValue = stmt['value'];
+        if (pluckValue != null) {
+          cols.add(formatter.wrap(pluckValue.toString()));
+        }
         continue;
       }
 
@@ -304,6 +357,14 @@ class QueryCompiler {
         final sql = rawValue.toSQL();
         bindings.addAll(sql.bindings);
         cols.add(sql.sql);
+        continue;
+      }
+
+      // Handle analytic / window functions (rank, denseRank, rowNumber)
+      // JS Reference: querycompiler.js analytic(stmt) (line 1168)
+      if (stmt['type'] == 'analytic') {
+        cols.add(_compileAnalytic(stmt));
+        continue;
       }
     }
 
@@ -382,6 +443,11 @@ class QueryCompiler {
   /// - "age" > $1
   /// - "users"."id" != $1
   String whereBasic(Map<String, dynamic> statement) {
+    // Check for null value and delegate into whereNull
+    if (statement['value'] == null) {
+      return whereNull(statement);
+    }
+
     return _not(statement, '') +
         formatter.wrap(statement['column']) +
         ' ' +
@@ -569,7 +635,7 @@ class QueryCompiler {
     final sql = <String>[];
     for (final stmt in joins) {
       final joinType = stmt['join'] as String? ?? 'inner';
-      final table = formatter.wrap(stmt['table']);
+      final table = _wrapTableIdentifier(stmt['table'].toString());
 
       // Handle CROSS JOIN (no ON clause)
       if (joinType == 'cross') {
@@ -580,8 +646,8 @@ class QueryCompiler {
       // Check for JoinClause (callback-based join with multiple conditions)
       if (stmt['joinClause'] != null) {
         final joinClause = stmt['joinClause'];
-        final onConditions = _compileJoinClauses(joinClause);
-        sql.add('$joinType join $table on $onConditions');
+        final clauseSql = _compileJoinClauseSequence(joinClause);
+        sql.add('$joinType join $table $clauseSql');
       } else {
         // Simple join with two columns
         final col1 = formatter.wrap(stmt['column1']);
@@ -604,22 +670,190 @@ class QueryCompiler {
     bool isFirst = true;
 
     for (final cond in clauses) {
-      if (cond['type'] == 'onBasic') {
-        final first = formatter.wrap(cond['column']);
-        final operator = cond['operator'];
-        final second = formatter.wrap(cond['value']);
+      final compiled = _compileJoinClause(cond);
+      if (compiled.isEmpty) continue;
 
-        if (isFirst) {
-          parts.add('$first $operator $second');
-          isFirst = false;
-        } else {
-          final bool = cond['bool']; // 'and' or 'or'
-          parts.add('$bool $first $operator $second');
-        }
+      if (isFirst) {
+        parts.add(compiled);
+        isFirst = false;
+      } else {
+        final bool = cond['bool']; // 'and' or 'or'
+        parts.add('$bool $compiled');
       }
     }
 
     return parts.join(' ');
+  }
+
+  /// Compile join clause sequence including initial `on`/`using` keyword.
+  String _compileJoinClauseSequence(dynamic joinClause) {
+    final clauses = joinClause.clauses as List<Map<String, dynamic>>;
+    if (clauses.isEmpty) return '';
+
+    final sb = StringBuffer();
+    for (var i = 0; i < clauses.length; i++) {
+      final clause = clauses[i];
+      final compiled = _compileJoinClause(clause);
+      if (compiled.isEmpty) continue;
+
+      if (i == 0) {
+        sb.write(clause['type'] == 'onUsing' ? 'using ' : 'on ');
+        sb.write(compiled);
+      } else {
+        sb.write(' ${clause['bool']} ');
+        sb.write(compiled);
+      }
+    }
+
+    return sb.toString();
+  }
+
+  String _compileJoinClause(Map<String, dynamic> clause) {
+    final type = clause['type'] as String?;
+    switch (type) {
+      case 'onBasic':
+        return _onBasic(clause);
+      case 'onVal':
+        return _onVal(clause);
+      case 'onIn':
+        return _onIn(clause);
+      case 'onNull':
+        return _onNull(clause);
+      case 'onBetween':
+        return _onBetween(clause);
+      case 'onExists':
+        return _onExists(clause);
+      case 'onRaw':
+        return _onRaw(clause);
+      case 'onWrapped':
+        return _onWrapped(clause);
+      case 'onUsing':
+        return _onUsing(clause);
+      case 'onJsonPathEquals':
+        return _onJsonPathEquals(clause);
+      default:
+        return '';
+    }
+  }
+
+  String _onBasic(Map<String, dynamic> clause) {
+    final first = formatter.wrap(clause['column']);
+    final operator = clause['operator'];
+    final second = formatter.wrap(clause['value']);
+    return '$first $operator $second';
+  }
+
+  String _onVal(Map<String, dynamic> clause) {
+    final first = formatter.wrap(clause['column']);
+    final operator = clause['operator'];
+    final second = client.parameter(clause['value'], bindings);
+    return '$first $operator $second';
+  }
+
+  String _onIn(Map<String, dynamic> clause) {
+    final columns = clause['column'];
+    final values = clause['value'];
+
+    if (columns is List) {
+      final columnSql = formatter.columnize(columns);
+      if (values is! List) {
+        throw ArgumentError('Multi-column onIn requires List of tuples');
+      }
+
+      final rows = <String>[];
+      for (final row in values) {
+        if (row is! List) {
+          throw ArgumentError('Multi-column onIn values must be List<List>');
+        }
+        final params = row.map((v) => client.parameter(v, bindings)).join(', ');
+        rows.add('($params)');
+      }
+      return '($columnSql) ${_not(clause, 'in ')}(${rows.join(',')})';
+    }
+
+    final first = formatter.wrap(columns);
+
+    String inValues;
+    if (values is QueryBuilder) {
+      inValues = _compileSubquery(values);
+    } else if (values is Raw) {
+      final sql = values.toSQL();
+      bindings.addAll(sql.bindings);
+      inValues = '(${sql.sql})';
+    } else if (values is List) {
+      final placeholders = values
+          .map((v) => client.parameter(v, bindings))
+          .join(', ');
+      inValues = '($placeholders)';
+    } else {
+      final p = client.parameter(values, bindings);
+      inValues = '($p)';
+    }
+
+    return '$first ${_not(clause, 'in ')}$inValues';
+  }
+
+  String _onNull(Map<String, dynamic> clause) {
+    final first = formatter.wrap(clause['column']);
+    return '$first is ${_not(clause, 'null')}';
+  }
+
+  String _onBetween(Map<String, dynamic> clause) {
+    final first = formatter.wrap(clause['column']);
+    final values = (clause['value'] as List).cast<dynamic>();
+    final placeholders = values
+        .map((v) => client.parameter(v, bindings))
+        .join(' and ');
+    return '$first ${_not(clause, 'between')} $placeholders';
+  }
+
+  String _onExists(Map<String, dynamic> clause) {
+    final callback = clause['value'] as Function;
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+    final subSQL = subBuilder.toSQL();
+    bindings.addAll(subSQL.bindings);
+    return '${_not(clause, 'exists')} (${subSQL.sql})';
+  }
+
+  String _onRaw(Map<String, dynamic> clause) {
+    final value = clause['value'];
+    if (value is Raw) {
+      final sql = value.toSQL();
+      bindings.addAll(sql.bindings);
+      return sql.sql;
+    }
+    return value.toString();
+  }
+
+  String _onWrapped(Map<String, dynamic> clause) {
+    final callback = clause['value'] as Function;
+    final nested = JoinClause('', 'inner');
+    callback(nested);
+    final sql = _compileJoinClauses(nested);
+    if (sql.isEmpty) return '';
+    return '($sql)';
+  }
+
+  String _onUsing(Map<String, dynamic> clause) {
+    return '(${formatter.columnize(clause['column'])})';
+  }
+
+  String _onJsonPathEquals(Map<String, dynamic> clause) {
+    String fn;
+    final driver = client.driverName;
+    if (driver == 'mysql' || driver == 'mysql2' || driver == 'sqlite3') {
+      fn = 'json_extract';
+    } else {
+      fn = 'jsonb_path_query_first';
+    }
+
+    final firstCol = formatter.wrap(clause['columnFirst']);
+    final secondCol = formatter.wrap(clause['columnSecond']);
+    final firstPath = client.parameter(clause['jsonPathFirst'], bindings);
+    final secondPath = client.parameter(clause['jsonPathSecond'], bindings);
+
+    return '$fn($firstCol, $firstPath) = $fn($secondCol, $secondPath)';
   }
 
   /// Compile GROUP BY clause
@@ -674,6 +908,8 @@ class QueryCompiler {
     switch (type) {
       case 'havingBasic':
         return havingBasic(statement);
+      case 'havingRaw':
+        return havingRaw(statement);
       default:
         throw Exception('Unknown HAVING type: $type');
     }
@@ -689,6 +925,22 @@ class QueryCompiler {
     final operator = statement['operator'] as String? ?? '=';
     final value = client.parameter(statement['value'], bindings);
     return '$column $operator $value';
+  }
+
+  /// Compile raw HAVING clause
+  ///
+  /// For complex SQL expressions like count(*) > ?
+  String havingRaw(Map<String, dynamic> statement) {
+    final sql = statement['value'] as String;
+    final rawBindings = (statement['bindings'] as List?) ?? [];
+
+    // Convert ? placeholders to $N
+    var result = sql;
+    for (var binding in rawBindings) {
+      result = result.replaceFirst('?', client.parameter(binding, bindings));
+    }
+
+    return result;
   }
 
   /// Compile ORDER BY clause
@@ -743,6 +995,69 @@ class QueryCompiler {
     return 'offset ${client.parameter(offset, bindings)}';
   }
 
+  /// Compile lock clause
+  ///
+  /// JS Reference: querycompiler.js lock() + dialect-specific implementations.
+  String _lock() {
+    final lock = single['lock'] as String?;
+    if (lock == null) return '';
+
+    final mysqlLike = client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final postgresLike = client.driverName == 'pg' ||
+        client.driverName == 'postgres' ||
+        client.driverName == 'postgresql' ||
+        client.driverName == 'cockroachdb' ||
+        client.driverName == 'mock';
+
+    switch (lock) {
+      case 'forUpdate':
+        return 'for update${_lockTablesClause(postgresLike)}';
+      case 'forShare':
+        if (mysqlLike) return 'lock in share mode';
+        return 'for share${_lockTablesClause(postgresLike)}';
+      case 'forNoKeyUpdate':
+        if (!postgresLike) {
+          throw StateError('.forNoKeyUpdate() is currently only supported on PostgreSQL');
+        }
+        return 'for no key update${_lockTablesClause(postgresLike)}';
+      case 'forKeyShare':
+        if (!postgresLike) {
+          throw StateError('.forKeyShare() is currently only supported on PostgreSQL');
+        }
+        return 'for key share${_lockTablesClause(postgresLike)}';
+      default:
+        return '';
+    }
+  }
+
+  /// Compile wait mode clause
+  ///
+  /// JS Reference: querycompiler.js waitMode() + dialect-specific implementations.
+  String _waitMode() {
+    final waitMode = single['waitMode'] as String?;
+    if (waitMode == null) return '';
+
+    switch (waitMode) {
+      case 'skipLocked':
+        return 'skip locked';
+      case 'noWait':
+        return 'nowait';
+      default:
+        return '';
+    }
+  }
+
+  /// Optional lock table list for PostgreSQL-style locking.
+  String _lockTablesClause(bool postgresLike) {
+    if (!postgresLike) return '';
+
+    final tables = single['lockTables'];
+    if (tables is! List || tables.isEmpty) return '';
+
+    final tableNames = tables.map((t) => _wrapTableIdentifier(t.toString())).join(', ');
+    return ' of $tableNames';
+  }
+
   /// Compile UNION clauses
   ///
   /// JS Reference: querycompiler.js _union() (lines 515-543)
@@ -795,6 +1110,83 @@ class QueryCompiler {
     }
 
     return parts.join(' ');
+  }
+
+  /// Compile an analytic / window function column expression.
+  ///
+  /// Dart port of JS `querycompiler.js analytic(stmt)` (line 1168).
+  ///
+  /// Produces: `method() over ([partition by ...] order by [...]) [as alias]`
+  ///
+  /// [stmt] keys:
+  ///   - `method`     — SQL function name: 'row_number', 'rank', 'dense_rank'
+  ///   - `alias`      — optional alias string (NOT quoted, matching JS behaviour)
+  ///   - `raw`        — optional [Raw] whose .sql replaces the entire OVER body
+  ///   - `partitions` — List of String or `{'column': String, 'order': String?}`
+  ///   - `order`      — List of String or `{'column': String, 'order': String?}`
+  String _compileAnalytic(Map<String, dynamic> stmt) {
+    final method = stmt['method'] as String;
+    final alias = stmt['alias'] as String?;
+    final raw = stmt['raw'];
+
+    var sql = '$method() over (';
+
+    if (raw != null && raw is Raw) {
+      // Raw OVER clause — JS resolves ?? identifiers via formatter
+      final rawSQL = raw.toSQL();
+      // Replace ?? with quoted column identifiers from bindings
+      var resolved = rawSQL.sql;
+      final rawBindings = rawSQL.bindings;
+      for (final binding in rawBindings) {
+        resolved = resolved.replaceFirst(
+          '??',
+          formatter.wrap(binding.toString()),
+        );
+      }
+      sql += resolved;
+    } else {
+      final partitions = (stmt['partitions'] as List?) ?? [];
+      final order = (stmt['order'] as List?) ?? [];
+
+      if (partitions.isNotEmpty) {
+        sql += 'partition by ';
+        sql += partitions
+            .map((p) {
+              if (p is String) {
+                return formatter.columnize([p]);
+              } else if (p is Map) {
+                final col = formatter.columnize([p['column'] as String]);
+                final dir = p['order'] as String?;
+                return dir != null ? '$col $dir' : col;
+              }
+              return p.toString();
+            })
+            .join(', ');
+        sql += ' ';
+      }
+
+      sql += 'order by ';
+      sql += order
+          .map((o) {
+            if (o is String) {
+              return formatter.columnize([o]);
+            } else if (o is Map) {
+              final col = formatter.columnize([o['column'] as String]);
+              final dir = o['order'] as String?;
+              return dir != null ? '$col $dir' : col;
+            }
+            return o.toString();
+          })
+          .join(', ');
+    }
+
+    sql += ')';
+
+    if (alias != null && alias.isNotEmpty) {
+      sql += ' as $alias';
+    }
+
+    return sql;
   }
 
   /// Compile WITH clauses (CTEs)
@@ -862,8 +1254,20 @@ class QueryCompiler {
   /// JS Reference: querycompiler.js insert() (line 194)
   String _insertQuery() {
     final parts = <String>[];
+    final onConflict = single['onConflict'] as Map<String, dynamic>?;
 
-    parts.add(_insert());
+    // MySQL INSERT IGNORE is a prefix modifier — handle it at INSERT level
+    final isIgnorePrefixDialect =
+        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final isIgnore = onConflict?['type'] == 'ignore';
+
+    parts.add(_insert(ignorePrefix: isIgnorePrefixDialect && isIgnore));
+
+    // ON CONFLICT / ON DUPLICATE KEY UPDATE (non-MySQL ignore is handled here)
+    final conflictSql = _onConflict(onConflict);
+    if (conflictSql.isNotEmpty) {
+      parts.add(conflictSql);
+    }
 
     final returning = _returning();
     if (returning.isNotEmpty) {
@@ -876,7 +1280,7 @@ class QueryCompiler {
   /// Compile INSERT statement
   ///
   /// JS Reference: querycompiler.js _insertBody() (line 222)
-  String _insert() {
+  String _insert({bool ignorePrefix = false}) {
     final insertValue = single['insert'];
     if (insertValue == null) return '';
 
@@ -912,7 +1316,106 @@ class QueryCompiler {
     }
 
     final table = formatter.wrap(single['table']);
-    return 'insert into $table ($columnsSql) values ${valuesClauses.join(', ')}';
+    final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
+    return '$keyword $table ($columnsSql) values ${valuesClauses.join(', ')}';
+  }
+
+  /// Compile ON CONFLICT / ON DUPLICATE KEY UPDATE / INSERT IGNORE clause.
+  ///
+  /// Postgres / SQLite syntax:
+  ///   ON CONFLICT (col) DO NOTHING
+  ///   ON CONFLICT (col) DO UPDATE SET col = EXCLUDED.col, ...
+  ///
+  /// MySQL syntax:
+  ///   INSERT IGNORE INTO ...                (handled as prefix in _insert)
+  ///   ... ON DUPLICATE KEY UPDATE col=VALUES(col), ...
+  String _onConflict(Map<String, dynamic>? onConflict) {
+    if (onConflict == null) return '';
+
+    final type = onConflict['type'] as String;
+    final column = onConflict['column']; // String | List<String> | null
+
+    final isMySQL =
+        client.driverName == 'mysql' || client.driverName == 'mysql2';
+
+    if (type == 'ignore') {
+      if (isMySQL) {
+        // MySQL: INSERT IGNORE is a prefix — nothing to add here
+        return '';
+      }
+      // Postgres / SQLite
+      final target = _conflictTarget(column);
+      return 'on conflict$target do nothing';
+    }
+
+    if (type == 'merge') {
+      final mergeData = onConflict['mergeData'];
+      final insertValue = single['insert'];
+
+      // Determine which columns to update
+      final List<String> updateColumns;
+      Map<String, dynamic>? rawUpdateValues;
+
+      if (mergeData == null) {
+        // No arg: update all inserted columns
+        final rows = insertValue is List
+            ? insertValue.cast<Map<String, dynamic>>()
+            : [insertValue as Map<String, dynamic>];
+        updateColumns = rows[0].keys.toList();
+      } else if (mergeData is List) {
+        updateColumns = List<String>.from(mergeData);
+      } else if (mergeData is Map) {
+        rawUpdateValues = Map<String, dynamic>.from(mergeData);
+        updateColumns = [];
+      } else {
+        updateColumns = [];
+      }
+
+      if (isMySQL) {
+        // MySQL: ON DUPLICATE KEY UPDATE col=VALUES(col), ...
+        final setClauses = <String>[];
+        if (rawUpdateValues != null) {
+          rawUpdateValues.forEach((col, val) {
+            final wrappedCol = formatter.wrap(col);
+            setClauses.add('$wrappedCol = ${client.parameter(val, bindings)}');
+          });
+        } else {
+          for (final col in updateColumns) {
+            final wrappedCol = formatter.wrap(col);
+            setClauses.add('$wrappedCol = VALUES($wrappedCol)');
+          }
+        }
+        return 'on duplicate key update ${setClauses.join(', ')}';
+      } else {
+        // Postgres / SQLite: ON CONFLICT (col) DO UPDATE SET col = EXCLUDED.col, ...
+        final target = _conflictTarget(column);
+        final setClauses = <String>[];
+        if (rawUpdateValues != null) {
+          rawUpdateValues.forEach((col, val) {
+            final wrappedCol = formatter.wrap(col);
+            setClauses.add('$wrappedCol = ${client.parameter(val, bindings)}');
+          });
+        } else {
+          for (final col in updateColumns) {
+            final wrappedCol = formatter.wrap(col);
+            setClauses.add('$wrappedCol = excluded.$wrappedCol');
+          }
+        }
+        return 'on conflict$target do update set ${setClauses.join(', ')}';
+      }
+    }
+
+    return '';
+  }
+
+  /// Build the conflict target string: ` (col1, col2)` or empty string.
+  String _conflictTarget(dynamic column) {
+    if (column == null) return '';
+    if (column is String) return ' (${formatter.wrap(column)})';
+    if (column is List && column.isNotEmpty) {
+      return ' (${column.map((c) => formatter.wrap(c as String)).join(', ')})';
+    }
+    return '';
   }
 
   /// Compile RETURNING clause

@@ -34,9 +34,12 @@
 export 'src/knex.dart';
 export 'src/client/client.dart';
 export 'src/client/knex_config.dart';
+export 'src/client/postgres_client.dart';
+export 'src/client/mysql_client.dart';
 
 // Query builder
 export 'src/query/query_builder.dart';
+export 'src/query/query_compiler.dart';
 export 'src/query/join_clause.dart';
 export 'src/query/sql_string.dart';
 
