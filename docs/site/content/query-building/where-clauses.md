@@ -5,7 +5,7 @@ description: Complete guide to all WHERE clause variants in Knex Dart
 
 # WHERE Clauses
 
-Knex Dart supports all 16 WHERE clause variants from Knex.js.
+Knex Dart supports 23 WHERE methods covering the major Knex.js WHERE variants.
 
 ## Basic WHERE
 

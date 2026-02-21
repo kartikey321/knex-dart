@@ -1,31 +1,35 @@
 ---
 title: Knex Dart
-description: A powerful SQL query builder for Dart with 100% Knex.js API parity
+description: A Knex.js port for Dart with broad API parity
 ---
 
 # Knex Dart
 
-A powerful, flexible SQL query builder for Dart, providing near-complete API parity with **[Knex.js](https://knexjs.org)**.
+A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https://knexjs.org)**.
 
 ## ✨ Features
 
 - ✅ **Complete Query Building** - SELECT, INSERT, UPDATE, DELETE with full support
-- ✅ **16 WHERE Clause Variants** - All Knex.js WHERE methods implemented
-- ✅ **All JOIN Types** - INNER, LEFT, RIGHT, FULL OUTER, CROSS with callback support  
+- ✅ **23 WHERE Methods** - basic, grouped, BETWEEN, EXISTS, IN, NULL, column comparisons
+- ✅ **All JOIN Types** - INNER, LEFT, RIGHT, FULL OUTER, CROSS
+- ✅ **Advanced JOIN Clauses** - `onVal`, `onIn`, `onBetween`, `onExists`, `using`, `onJsonPathEquals`
 - ✅ **Subqueries** - In WHERE IN, FROM, and SELECT clauses
 - ✅ **UNION Operations** - UNION and UNION ALL
 - ✅ **CTEs** - Common Table Expressions (WITH clauses) including recursive
 - ✅ **Aggregates** - COUNT, SUM, AVG, MIN, MAX with DISTINCT variants
-- ✅ **302 Tests Passing** - Comprehensive test coverage with Knex.js comparison tests
-- 🔶 **PostgreSQL Support** - Coming soon
-- 🔶 **MySQL & SQLite** - Planned
+- ✅ **first/pluck + lock modes** - `first`, `pluck`, `forUpdate`, `forShare`, `skipLocked`, `noWait`
+- ✅ **411 Tests Passing** - comprehensive test coverage with Knex.js comparison tests
+- ✅ **DB Wrappers Available** - PostgreSQL, MySQL, SQLite
 
 ## 🚀 Quick Start
 
 ```dart
 import 'package:knex_dart/knex_dart.dart';
 
-final knex = Knex(client: MockClient());
+final knex = Knex(KnexConfig(
+  client: 'sqlite3',
+  connection: {'filename': ':memory:'},
+));
 
 // Build a query
 final users = knex('users')
@@ -58,13 +62,13 @@ dart pub get
 ## 🎯 Why Knex Dart?
 
 ### Familiar API
-Coming from Node.js/Knex.js? You already know how to use Knex Dart. We maintain API parity wherever possible.
+Coming from Node.js/Knex.js? Most query-building patterns transfer directly.
 
 ### Type-Safe
 Leverages Dart's strong typing while maintaining the flexibility of dynamic query building.
 
 ### Well-Tested
-302 tests ensuring correctness and Knex.js behavioral parity.
+411 tests ensuring correctness and behavioral parity checks.
 
 ### Production-Ready Query Building
 Complex queries? We've got you covered with subqueries, CTEs, JOINs, and more.
@@ -81,14 +85,14 @@ Complex queries? We've got you covered with subqueries, CTEs, JOINs, and more.
 ## 🔗 Links
 
 - [GitHub Repository](https://github.com/kartikey321/knex-dart)
-- [pub.dev Package](https://pub.dev/packages/knex_dart) (coming soon)
+- [pub.dev Package](https://pub.dev/packages/knex_dart)
 - [Report Issues](https://github.com/kartikey321/knex-dart/issues)
 
 ## 📊 Current Status
 
-**Query API**: ~90% Knex.js parity  
-**Tests**: 302 passing  
-**Features**: 18 implemented
+**Query API**: broad Knex.js-style coverage with known remaining gaps  
+**Tests**: 411 passing  
+**Execution**: PostgreSQL, MySQL, SQLite wrappers available
 
 ## 🤝 Contributing
 

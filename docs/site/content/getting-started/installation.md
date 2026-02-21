@@ -42,14 +42,11 @@ Create a simple test file:
 ```dart
 import 'package:knex_dart/knex_dart.dart';
 
-void main() {
-  final knex = Knex(client: MockClient());
-  
-  final query = knex('users').select(['*']);
+Future<void> main() async {
+  final db = await Knex.sqlite(filename: ':memory:');
+  final query = db.queryBuilder().table('users').select(['*']);
   print(query.toSQL().sql);
-  // Output: select * from "users"
-  
-  print('✅ Knex Dart is working!');
+  await db.close();
 }
 ```
 

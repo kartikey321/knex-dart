@@ -1,12 +1,10 @@
 # Site Configuration
-titleBase: DOCS
+titleBase: Knex Dart Docs
 favicon: favicon.ico
 
 # Social media links
 social:
   - name: Github
-    url: https://github.com/schultek
-  - name: X/Twitter
-    url: https://twitter.com/schultek_dev
-  - name: Bluesky
-    url: https://bsky.app/profile/schultek.dev
+    url: https://github.com/kartikey321/knex-dart
+  - name: Issues
+    url: https://github.com/kartikey321/knex-dart/issues
