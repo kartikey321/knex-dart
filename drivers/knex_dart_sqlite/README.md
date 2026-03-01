@@ -9,7 +9,7 @@ SQLite driver for [knex_dart](https://pub.dev/packages/knex_dart) — execute qu
 
 ```yaml
 dependencies:
-  knex_dart_sqlite: ^0.0.1
+  knex_dart_sqlite: ^0.1.0
 ```
 
 ## Usage

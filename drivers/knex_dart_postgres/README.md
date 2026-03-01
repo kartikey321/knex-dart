@@ -9,7 +9,7 @@ PostgreSQL driver for [knex_dart](https://pub.dev/packages/knex_dart) — execut
 
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.0.1
+  knex_dart_postgres: ^0.1.0
 ```
 
 ## Usage

@@ -9,7 +9,7 @@ MySQL driver for [knex_dart](https://pub.dev/packages/knex_dart) — execute que
 
 ```yaml
 dependencies:
-  knex_dart_mysql: ^0.0.1
+  knex_dart_mysql: ^0.1.0
 ```
 
 ## Usage
