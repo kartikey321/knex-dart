@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'package:sqlite3/sqlite3.dart';
 
-import 'client.dart';
-import 'knex_config.dart';
-import '../query/query_builder.dart';
-import '../query/query_compiler.dart';
-import '../formatter/formatter.dart';
-import '../schema/schema_builder.dart';
-import '../schema/schema_compiler.dart';
-import '../transaction/transaction.dart';
+import 'package:knex_dart/src/client/client.dart';
+import 'package:knex_dart/src/client/knex_config.dart';
+import 'package:knex_dart/src/query/query_builder.dart';
+import 'package:knex_dart/src/query/query_compiler.dart';
+import 'package:knex_dart/src/formatter/formatter.dart';
+import 'package:knex_dart/src/schema/schema_builder.dart';
+import 'package:knex_dart/src/schema/schema_compiler.dart';
+import 'package:knex_dart/src/transaction/transaction.dart';
 
 /// SQLite database client.
 class SQLiteClient extends Client {
@@ -191,7 +191,6 @@ class SQLiteClient extends Client {
   ]) async {
     final params = bindings ?? [];
 
-    // SQLite: select() returns ResultSet, execute() returns void.
     final stmt = _db.prepare(sql);
     try {
       final upperSql = sql.trimLeft().toUpperCase();

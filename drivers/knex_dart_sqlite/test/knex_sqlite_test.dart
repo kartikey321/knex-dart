@@ -1,40 +1,27 @@
 import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:test/test.dart';
 
 void main() {
-  // ── Knex._createClient dialect aliases ────────────────────────────────────
+  // ── Knex with SQLiteClient ────────────────────────────────────────────────
 
-  group('Knex._createClient dialect aliases', () {
-    test('sqlite3 alias works', () {
-      final knex = Knex(
+  group('Knex with SQLiteClient', () {
+    test('sqlite3 alias works via SQLiteClient.fromConfig', () {
+      final client = SQLiteClient.fromConfig(
         KnexConfig(client: 'sqlite3', connection: {'filename': ':memory:'}),
       );
+      final knex = Knex(client);
       expect(knex.client.driverName, equals('sqlite3'));
+      knex.destroy();
     });
 
-    test('postgresql alias throws UnimplementedError', () {
-      expect(
-        () => Knex(
-          KnexConfig(client: 'postgresql', connection: {}),
-        ),
-        throwsUnimplementedError,
+    test('sqlite alias works via SQLiteClient.fromConfig', () {
+      final client = SQLiteClient.fromConfig(
+        KnexConfig(client: 'sqlite', connection: {'filename': ':memory:'}),
       );
-    });
-
-    test('mysql2 alias throws UnimplementedError', () {
-      expect(
-        () => Knex(
-          KnexConfig(client: 'mysql2', connection: {}),
-        ),
-        throwsUnimplementedError,
-      );
-    });
-
-    test('unknown dialect throws UnimplementedError', () {
-      expect(
-        () => Knex(KnexConfig(client: 'oracle', connection: {})),
-        throwsUnimplementedError,
-      );
+      final knex = Knex(client);
+      expect(knex.client.driverName, equals('sqlite3'));
+      knex.destroy();
     });
   });
 
@@ -44,9 +31,10 @@ void main() {
     late Knex knex;
 
     setUp(() {
-      knex = Knex(
+      final client = SQLiteClient.fromConfig(
         KnexConfig(client: 'sqlite', connection: {'filename': ':memory:'}),
       );
+      knex = Knex(client);
     });
 
     tearDown(() => knex.destroy());
@@ -76,13 +64,13 @@ void main() {
     });
   });
 
-  // ── KnexSQLite via Knex.sqlite() ──────────────────────────────────────────
+  // ── KnexSQLite via KnexSQLite.connect() ──────────────────────────────────
 
   group('KnexSQLite', () {
     late KnexSQLite db;
 
     setUp(() async {
-      db = await Knex.sqlite(filename: ':memory:');
+      db = await KnexSQLite.connect(filename: ':memory:');
       await db.executeSchema((s) {
         s.createTable('items', (t) {
           t.increments('id');

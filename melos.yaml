@@ -1,0 +1,17 @@
+name: knex_dart_workspace
+
+scripts:
+  analyze:
+    run: dart analyze --fatal-warnings
+    exec:
+      concurrency: 4
+  test:
+    run: dart test
+    exec:
+      concurrency: 4
+  test:unit:
+    run: dart test --exclude-tags=postgres,mysql,sqlite
+    exec:
+      concurrency: 1
+      packageFilters:
+        scope: knex_dart

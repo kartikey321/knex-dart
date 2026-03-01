@@ -1,41 +1,32 @@
 /// Knex Dart - SQL Query Builder
 ///
 /// A batteries-included SQL query builder for Dart inspired by Knex.js.
-/// Supports multiple database dialects including PostgreSQL, MySQL, SQLite, and more.
+/// Supports multiple database dialects via separate driver packages:
 ///
-/// Example:
+/// - PostgreSQL: `package:knex_dart_postgres`
+/// - MySQL: `package:knex_dart_mysql`
+/// - SQLite: `package:knex_dart_sqlite`
+///
+/// Example using SQLite:
 /// ```dart
-/// final knex = Knex(KnexConfig(
-///   client: 'postgres',
-///   connection: {
-///     'host': 'localhost',
-///     'database': 'myapp',
-///     'user': 'user',
-///     'password': 'password',
-///   },
-/// ));
+/// import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 ///
-/// // Query
-/// final users = await knex('users')
-///   .where('active', true)
-///   .select(['id', 'name', 'email']);
+/// final db = await KnexSQLite.connect(filename: ':memory:');
 ///
-/// // Schema
-/// await knex.schema.createTable('posts', (table) {
-///   table.increments('id');
-///   table.string('title').notNullable();
-///   table.text('content');
-///   table.integer('user_id').references('id').inTable('users');
-///   table.timestamps();
+/// await db.executeSchema((schema) {
+///   schema.createTable('posts', (table) {
+///     table.increments('id');
+///     table.string('title').notNullable();
+///   });
 /// });
+///
+/// final posts = await db.select(db.queryBuilder().table('posts'));
 /// ```
 
 // Core exports
 export 'src/knex.dart';
 export 'src/client/client.dart';
 export 'src/client/knex_config.dart';
-export 'src/client/postgres_client.dart';
-export 'src/client/mysql_client.dart';
 
 // Query builder
 export 'src/query/query_builder.dart';

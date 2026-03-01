@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:knex_dart/knex_dart.dart';
-// ignore: unused_import
-import 'package:knex_dart/src/client/mysql_client.dart';
+import 'package:knex_dart_mysql/knex_dart_mysql.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
 import 'package:test/test.dart';
 
@@ -51,7 +49,6 @@ void main() {
 
     setUp(() async {
       try {
-        // Connect to MySQL
         client = await MySQLClient.connect(
           host: host,
           port: port,
@@ -145,7 +142,6 @@ void main() {
           .count('id', const AggregateOptions(as: 'total'));
       final result = await client!.select(query);
 
-      // MySQL count return type check
       final total = result.first['total'];
       expect(total, 3);
     });
@@ -158,12 +154,10 @@ void main() {
       final results = await client!.select(query);
 
       final total = results.first['total'];
-      // MySQL sum might be double or decimal.
       expect(num.parse(total.toString()), 30);
     });
 
     test('should handle question marks in string literals', () async {
-      // This test ensures our placeholder replacement doesn't corrupt strings
       final result = await client!.raw("select 'Question?' as q, ? as v", [
         'Answer',
       ]);
@@ -190,7 +184,6 @@ void main() {
       expect(rows.length, 1);
       expect(rows.first['first_name'], 'New');
 
-      // Cleanup
       await client!.delete(
         mockClient
             .queryBuilder()
@@ -200,7 +193,6 @@ void main() {
     });
 
     test('should update a user and verify change', () async {
-      // Insert to update
       final insertQ = mockClient.queryBuilder().table('users').insert({
         'first_name': 'Before',
         'last_name': 'Update',
@@ -223,7 +215,6 @@ void main() {
       );
       expect(rows.first['first_name'], 'After');
 
-      // Cleanup
       await client!.delete(
         mockClient
             .queryBuilder()
@@ -233,7 +224,6 @@ void main() {
     });
 
     test('should delete a user and confirm removal', () async {
-      // Insert to delete
       final insertQ = mockClient.queryBuilder().table('users').insert({
         'first_name': 'Temp',
         'last_name': 'Delete',
@@ -279,7 +269,6 @@ void main() {
       expect(rows.length, 1);
       expect(rows.first['first_name'], 'Trx');
 
-      // Cleanup
       await client!.delete(
         mockClient
             .queryBuilder()
@@ -322,7 +311,6 @@ void main() {
         });
         await client!.insert(insertQuery);
 
-        // Add fulltext index for testing if not exists (MySQL syntax)
         try {
           await client!.raw('ALTER TABLE users ADD FULLTEXT(first_name)');
         } catch (_) {
@@ -340,7 +328,6 @@ void main() {
       });
 
       test('JSON Operators: superset and subset', () async {
-        // Create a column manually and insert data for test
         try {
           await client!.raw('ALTER TABLE users ADD COLUMN metadata JSON NULL');
         } catch (_) {
@@ -351,7 +338,6 @@ void main() {
           'first_name': 'JSON Tester',
           'last_name': 'Tester',
           'email': 'json_test2_mysql@example.com',
-          // MySQL accepts JSON strings for JSON columns
           'metadata': '{"language": "en", "theme": "dark"}',
         });
         await client!.insert(insertQuery);
@@ -360,7 +346,6 @@ void main() {
             .queryBuilder()
             .table('users')
             .select(['id', 'first_name', 'email'])
-            // Using whereRaw for MySQL JSON until whereJsonSupersetOf is ported or if it maps to JSON_CONTAINS
             .where(
               mockClient.raw("JSON_CONTAINS(metadata, ?)", [
                 '{"language": "en"}',
@@ -373,7 +358,6 @@ void main() {
       });
 
       test('Advanced HAVING clauses: havingRaw', () async {
-        // Create orders table specifically for MySQL test
         try {
           await client!.raw(
             'CREATE TABLE IF NOT EXISTS orders (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, amount DECIMAL(10,2))',

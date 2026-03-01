@@ -1,5 +1,5 @@
 import 'package:mysql_client/mysql_client.dart';
-import '../query/query_builder.dart';
+import 'package:knex_dart/src/query/query_builder.dart';
 
 /// MySQL database client (using mysql_client).
 ///
@@ -20,7 +20,6 @@ class MySQLClient {
     required String database,
     bool useSSL = false,
   }) async {
-    // specific options for auth might be needed but defaults are usually good
     final connection = await MySQLConnection.createConnection(
       host: host,
       port: port,
@@ -68,22 +67,18 @@ class MySQLClient {
     String sql, [
     List<dynamic>? bindings,
   ]) async {
-    // If no bindings, execution is simple and stateless
     if (bindings == null || bindings.isEmpty) {
       final IResultSet result = await _connection.execute(sql);
       return _mapResults(result);
     }
 
-    // Check cache for existing statement
     PreparedStmt? stmt = _stmtCache[sql];
 
     if (stmt == null) {
-      // Create and cache new statement
       stmt = await _connection.prepare(sql);
       _stmtCache[sql] = stmt;
     }
 
-    // Execute cached statement
     final IResultSet result = await stmt.execute(bindings);
     return _mapResults(result);
   }
@@ -97,8 +92,6 @@ class MySQLClient {
       query(queryBuilder);
 
   /// Execute an INSERT query.
-  /// Returns inserted rows if a RETURNING clause is present (MySQL 8.0+),
-  /// otherwise an empty list.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder queryBuilder) =>
       query(queryBuilder);
 
@@ -122,7 +115,6 @@ class MySQLClient {
   /// Closes the database connection.
   Future<void> close() async {
     if (!_isClosed) {
-      // Deallocate all cached statements
       for (final stmt in _stmtCache.values) {
         await stmt.deallocate();
       }

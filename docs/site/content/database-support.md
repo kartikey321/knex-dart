@@ -1,148 +1,127 @@
 ---
 title: Database Support
-description: Current database support and runtime limitations
+description: Supported databases and how to connect to each
 ---
 
 # Database Support
 
-Knex Dart supports both:
+Each database is a separate driver package. Install only what you need.
 
-- SQL generation via query builder/compiler
-- query execution through current PostgreSQL, MySQL, and SQLite wrappers
+## Supported Databases
 
-## Current Runtime Status
+| Database | Package | Version | Status |
+|---|---|---|---|
+| PostgreSQL | `knex_dart_postgres` | `^0.1.0` | Available |
+| MySQL | `knex_dart_mysql` | `^0.1.0` | Available |
+| SQLite | `knex_dart_sqlite` | `^0.1.0` | Available |
 
-| Database | Status | Entry Point |
-|---------|--------|-------------|
-| PostgreSQL | Available | `await Knex.postgres(...)` |
-| MySQL | Available | `await Knex.mysql(...)` |
-| SQLite | Available | `await Knex.sqlite(filename: ...)` |
-
-## Query Builder (Compile-Only Mode)
+## PostgreSQL
 
 ```dart
-final knex = Knex(KnexConfig(
-  client: 'sqlite3',
-  connection: {'filename': ':memory:'},
-));
+import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
-final sql = knex('users')
-  .select(['id', 'name'])
-  .where('active', '=', true)
-  .toSQL();
-
-// sql.sql: select "id", "name" from "users" where "active" = $1
-// sql.bindings: [true]
-```
-
-Use this mode for parity tests, SQL snapshots, and compiler verification.
-
-## Executing Queries (Runtime Wrappers)
-
-### PostgreSQL
-
-```dart
-final db = await Knex.postgres(
+final db = await KnexPostgres.connect(
   host: 'localhost',
-  database: 'app',
+  port: 5432,
+  database: 'myapp',
   username: 'user',
   password: 'pass',
 );
 
 final rows = await db.select(
-  db.table('users').where('active', '=', true),
+  db('users').where('active', '=', true),
 );
 
-await db.close();
+await db.destroy();
 ```
 
-### MySQL
+**PostgreSQL-specific features:**
+- `$1, $2, ...` positional placeholders
+- `RETURNING` clause support
+- JSON operators (`whereJsonPath`, `whereJsonSupersetOf`, `whereJsonSubsetOf`)
+- Full-text search with language option
+
+## MySQL
 
 ```dart
-final db = await Knex.mysql(
+import 'package:knex_dart_mysql/knex_dart_mysql.dart';
+
+final db = await KnexMySQL.connect(
   host: 'localhost',
-  user: 'root',
+  port: 3306,
+  database: 'myapp',
+  user: 'user',
   password: 'pass',
-  database: 'app',
 );
 
 final rows = await db.select(
-  db.table('users').where('active', '=', true),
+  db('users').where('active', '=', true),
 );
 
-await db.close();
+await db.destroy();
 ```
 
-### SQLite
+**MySQL-specific features:**
+- `?` positional placeholders
+- Backtick identifier quoting
+- Full-text search with `IN BOOLEAN MODE` / `IN NATURAL LANGUAGE MODE`
+
+## SQLite
 
 ```dart
-final db = await Knex.sqlite(filename: 'app.db');
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+// File-based
+final db = await KnexSQLite.connect(filename: 'app.db');
+
+// In-memory
+final db = await KnexSQLite.connect(filename: ':memory:');
 
 final rows = await db.select(
-  db.queryBuilder().table('users').where('active', '=', true),
+  db('users').where('active', '=', true),
 );
 
-await db.close();
+await db.destroy();
 ```
 
-## Important Limitations (Current)
+**SQLite-specific features:**
+- `?` positional placeholders
+- Double-quoted identifier quoting
+- In-memory database support
+- JSON via `json_extract()`
 
-- Connection pooling is not implemented yet.
-- Runtime wrappers are separate from `Knex(KnexConfig)` for PostgreSQL/MySQL.
-  - `Knex(KnexConfig)` is currently wired for SQLite dialect creation path.
-- Transaction APIs exist, but advanced parity features (nested/savepoint semantics) are still in progress.
-- Some advanced Knex.js APIs are still being ported.
+## Query Builder Only (No Connection)
 
-## Additional Databases (Not Implemented Yet)
+Use `knex_dart` directly when you only need SQL generation — no driver required:
+
+```dart
+import 'package:knex_dart/knex_dart.dart';
+
+final db = Knex(MockClient());
+
+final result = db('users')
+  .select(['id', 'name'])
+  .where('active', '=', true)
+  .toSQL();
+
+print(result.sql);       // select "id", "name" from "users" where "active" = ?
+print(result.bindings);  // [true]
+```
+
+Useful for testing, SQL snapshots, and compiler verification.
+
+## Limitations (Current)
+
+- Connection pooling is not yet implemented.
+- Nested/savepoint transaction semantics are still in progress.
+
+## Additional Databases (Not Yet Supported)
 
 ### CockroachDB
-
-**Status:** Under consideration  
-**Compatibility:** PostgreSQL protocol
-
-CockroachDB uses the PostgreSQL wire protocol. Support expected through PostgreSQL driver.
-
-### Amazon Redshift
-
-**Status:** Under consideration  
-**Compatibility:** PostgreSQL-based
-
-Redshift compatibility expected through PostgreSQL driver with potential dialect adjustments.
+**Status:** Under consideration — uses the PostgreSQL wire protocol, so support may come through the PostgreSQL driver with minimal changes.
 
 ### Microsoft SQL Server
+**Status:** Blocked — no mature pure-Dart TDS driver exists. You can still generate MSSQL-dialect SQL with the query builder and execute it through a custom client.
 
-**Status:** Not currently planned  
-**Package:** No production-ready driver available
-
-MSSQL support blocked by lack of stable Dart drivers. Experimental packages exist but are not production-ready.
-
-Technical limitations:
-- No mature pure Dart driver
-- FFI-based drivers require native dependencies
-- TDS protocol implementation incomplete
-
-Alternative:
-- Generate SQL with query builder, execute with custom driver implementation.
-
-### Oracle Database
-
-**Status:** Evaluation phase  
-**Package:** `oraffi` (new package, requires testing)
-
-Oracle support depends on `oraffi` package maturity.
-
-Current status:
-- New Oracle driver package available
-- Integration complexity assessment needed
-- Production readiness to be determined
-
-Next steps:
-- Evaluate `oraffi` stability
-- Test query compatibility
-- Assess enterprise requirements
-
-## Practical Recommendation
-
-- Use query-builder mode for compile/parity tests.
-- Use `Knex.postgres`, `Knex.mysql`, `Knex.sqlite` for execution.
-- Treat runtime layer as active but still evolving.
+### Oracle
+**Status:** Evaluation phase — depends on `oraffi` package maturity.

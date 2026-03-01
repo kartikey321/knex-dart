@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_postgres/knex_dart_postgres.dart';
+import 'package:knex_dart/src/query/json_builder.dart';
 import 'package:test/test.dart';
 
 import '../mocks/mock_client.dart';
@@ -122,8 +123,6 @@ void main() {
     });
 
     test('WHERE NULL', () async {
-      // Assuming we have some users with inactive status or nullable field
-      // For this seed, let's use a known condition
       final query = mockClient
           .queryBuilder()
           .table('users')
@@ -145,7 +144,7 @@ void main() {
             'users',
             'users.id',
             'orders.user_id',
-          ) // Corrected: join instead of innerJoin
+          )
           .select(['users.name', 'orders.amount', 'orders.status']);
 
       final results = await pgClient.select(query);
@@ -190,15 +189,11 @@ void main() {
       final results = await pgClient.select(query);
 
       // PostgreSQL returns DECIMAL as string to preserve precision
-      // This is industry standard (TypeORM, Sequelize do the same)
       expect(results.first['total'], isA<String>());
       expect(num.parse(results.first['total']), greaterThan(0));
     });
 
     test('GROUP BY with HAVING (using havingRaw)', () async {
-      // PostgreSQL requires HAVING clauses (and Group By) to refer to
-      // non-grouped columns via aggregate functions directly or by position,
-      // but not by alias in the same level.
       final query = mockClient
           .queryBuilder()
           .table('orders')
@@ -274,17 +269,16 @@ void main() {
           .select(['name'])
           .where('role', 'moderator');
 
-      final query = query1.union([query2]); // Corrected: wrapped in List
+      final query = query1.union([query2]);
 
       final results = await pgClient.select(query);
 
       expect(results.length, greaterThan(0));
-      // Should handle both queries results
-      expect(results.any((r) => r['name'] == 'Alice Johnson'), true); // Admin
+      expect(results.any((r) => r['name'] == 'Alice Johnson'), true);
       expect(
         results.any((r) => r['name'] == 'Diana Prince'),
         true,
-      ); // Moderator
+      );
     });
   });
 
@@ -307,7 +301,6 @@ void main() {
     });
 
     test('JSON Operators: superset and subset', () async {
-      // Create a column manually and insert data for test
       await pgClient.rawSql(
         'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "metadata" jsonb DEFAULT \'{}\';',
       );
@@ -315,8 +308,6 @@ void main() {
       final insertQuery = mockClient.queryBuilder().table('users').insert({
         'name': 'JSON Tester',
         'email': 'json_test2@example.com',
-        // In PostgreSQL, passing a Dart string for JSONB usually works,
-        // or a map if the underlying driver supports it.
         'metadata': '{"language": "en", "theme": "dark"}',
       });
       await pgClient.insert(insertQuery);
@@ -360,7 +351,7 @@ void main() {
           .withQuery(
             'user_totals',
             cte,
-          ) // Corrected: withQuery instead of withCTE
+          )
           .table('user_totals')
           .where('total', '>', 500);
 
@@ -372,16 +363,12 @@ void main() {
 
   // ─── Write Operation Tests ──────────────────────────────────────────────────
   group('Write Operations', () {
-    // Each test inserts its own row and cleans it up to stay independent.
-
     test('INSERT a row and verify with SELECT', () async {
-      // Insert a test user
       final insertQ = mockClient
           .queryBuilder()
           .table('users')
           .insert({
             'name': 'Test Insert',
-
             'email': 'test_insert@example.com',
             'role': 'guest',
             'active': true,
@@ -393,12 +380,10 @@ void main() {
       expect(inserted.first['name'], 'Test Insert');
       final id = inserted.first['id'];
 
-      // Verify row exists
       final selectQ = mockClient.queryBuilder().table('users').where('id', id);
       final rows = await pgClient.select(selectQ);
       expect(rows.length, 1);
 
-      // Cleanup
       await pgClient.delete(
         mockClient.queryBuilder().table('users').where('id', id),
       );
@@ -406,7 +391,6 @@ void main() {
 
     test('should perform an upsert with onConflict.merge()', () async {
       final email = 'on_conflict_test@example.com';
-      // Initial insert
       final query1 = mockClient.queryBuilder().table('users').insert({
         'name': 'Original Name',
         'email': email,
@@ -414,7 +398,6 @@ void main() {
       });
       await pgClient.insert(query1);
 
-      // Upsert
       final query2 = mockClient
           .queryBuilder()
           .table('users')
@@ -431,7 +414,6 @@ void main() {
       expect(rows.length, 1);
       expect(rows.first['name'], 'Updated Name');
 
-      // Cleanup
       final deleteQuery = mockClient
           .queryBuilder()
           .table('users')
@@ -441,7 +423,6 @@ void main() {
     });
 
     test('UPDATE a row and verify', () async {
-      // Insert a row to update
       final insertQ = mockClient
           .queryBuilder()
           .table('users')
@@ -455,7 +436,6 @@ void main() {
       final inserted = await pgClient.insert(insertQ);
       final id = inserted.first['id'];
 
-      // Update it
       final updateQ = mockClient
           .queryBuilder()
           .table('users')
@@ -467,14 +447,12 @@ void main() {
       expect(updated.length, 1);
       expect(updated.first['name'], 'After Update');
 
-      // Cleanup
       await pgClient.delete(
         mockClient.queryBuilder().table('users').where('id', id),
       );
     });
 
     test('DELETE a row and verify it is gone', () async {
-      // Insert a row to delete
       final insertQ = mockClient
           .queryBuilder()
           .table('users')
@@ -488,7 +466,6 @@ void main() {
       final inserted = await pgClient.insert(insertQ);
       final id = inserted.first['id'];
 
-      // Delete it
       final deleteQ = mockClient
           .queryBuilder()
           .table('users')
@@ -499,7 +476,6 @@ void main() {
       expect(deleted.length, 1);
       expect(deleted.first['id'], id);
 
-      // Verify it's gone
       final rows = await pgClient.select(
         mockClient.queryBuilder().table('users').where('id', id),
       );
@@ -510,7 +486,6 @@ void main() {
   // ─── Transaction Tests ────────────────────────────────────────────────────
   group('Transactions', () {
     test('trx: COMMIT on success — changes are persisted', () async {
-      // Use trx to insert a user
       final inserted = await pgClient.trx((trx) async {
         return trx.insert(
           mockClient
@@ -530,20 +505,17 @@ void main() {
       expect(inserted.first['name'], 'Trx Commit Test');
       final id = inserted.first['id'];
 
-      // Confirm visible after transaction committed
       final rows = await pgClient.select(
         mockClient.queryBuilder().table('users').where('id', id),
       );
       expect(rows.length, 1);
 
-      // Cleanup
       await pgClient.delete(
         mockClient.queryBuilder().table('users').where('id', id),
       );
     });
 
     test('trx: ROLLBACK on error — changes are reverted', () async {
-      // First insert a user outside the transaction so we know the base count
       final preInsert = await pgClient.insert(
         mockClient
             .queryBuilder()
@@ -558,10 +530,8 @@ void main() {
       );
       final preId = preInsert.first['id'];
 
-      // Try a transaction that should fail and rollback
       try {
         await pgClient.trx((trx) async {
-          // This insert is valid
           await trx.insert(
             mockClient.queryBuilder().table('users').insert({
               'name': 'Trx Rollback Test',
@@ -570,14 +540,12 @@ void main() {
               'active': true,
             }),
           );
-          // This throws, causing rollback
           throw Exception('Forced rollback');
         });
       } catch (_) {
         // Expected
       }
 
-      // The user from inside the failed trx should NOT exist
       final rows = await pgClient.select(
         mockClient
             .queryBuilder()
@@ -586,7 +554,6 @@ void main() {
       );
       expect(rows.isEmpty, true);
 
-      // Cleanup pre-insert
       await pgClient.delete(
         mockClient.queryBuilder().table('users').where('id', preId),
       );

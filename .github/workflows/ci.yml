@@ -8,9 +8,9 @@ on:
     branches: [main]
 
 jobs:
-  # ── 1. Static analysis ──────────────────────────────────────────────────────
+  # ── 1. Static analysis (all packages via melos) ──────────────────────────────
   analyze:
-    name: Analyze
+    name: Analyze (all packages)
     runs-on: ubuntu-latest
 
     steps:
@@ -23,45 +23,15 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
-      - name: Dart analyze
-        run: dart analyze --fatal-warnings
+      - name: Analyze
+        run: melos run analyze
 
-  # ── 2. Test + coverage gate ─────────────────────────────────────────────────
-  test:
-    name: Test & Coverage
+  # ── 2. Core unit tests + coverage (no DB required) ───────────────────────────
+  test-core:
+    name: Test & Coverage (core)
     needs: analyze
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: knex_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: knex_test
-          MYSQL_USER: test
-          MYSQL_PASSWORD: password
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd "mysqladmin ping -h localhost"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
@@ -72,33 +42,8 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
-      - name: Initialize databases
-        run: |
-          sleep 10
-          PGPASSWORD=password psql -h localhost -U test -d knex_test \
-            -f test/integration/sql/postgres_schema.sql
-          PGPASSWORD=password psql -h localhost -U test -d knex_test \
-            -f test/integration/sql/postgres_seed.sql
-          mysql -h 127.0.0.1 -u root -ppassword \
-            -e "ALTER USER 'test'@'%' IDENTIFIED WITH mysql_native_password BY 'password'; FLUSH PRIVILEGES;"
-          mysql -h 127.0.0.1 -u test -ppassword knex_test \
-            < test/integration/sql/mysql_schema.sql
-          mysql -h 127.0.0.1 -u test -ppassword knex_test \
-            < test/integration/sql/mysql_seed.sql
-
-      - name: Run tests with coverage
-        env:
-          PG_HOST: localhost
-          PG_PORT: 5432
-          PG_USER: test
-          PG_PASSWORD: password
-          PG_DATABASE: knex_test
-          MYSQL_HOST: 127.0.0.1
-          MYSQL_PORT: 3306
-          MYSQL_USER: test
-          MYSQL_PASSWORD: password
-          MYSQL_DATABASE: knex_test
-        run: dart test --coverage=coverage
+      - name: Run unit tests with coverage
+        run: dart test --exclude-tags=postgres,mysql,sqlite --coverage=coverage
 
       - name: Format coverage to lcov
         run: |
@@ -128,10 +73,113 @@ jobs:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
-  # ── 3. Publish to pub.dev (version tags only) ───────────────────────────────
+  # ── 3. SQLite integration tests (no service container needed) ────────────────
+  test-sqlite:
+    name: Test (knex_dart_sqlite)
+    needs: analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run SQLite tests
+        working-directory: drivers/knex_dart_sqlite
+        run: dart test
+
+  # ── 4. PostgreSQL integration tests ──────────────────────────────────────────
+  test-postgres:
+    name: Test (knex_dart_postgres)
+    needs: analyze
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: knex
+          POSTGRES_PASSWORD: knex
+          POSTGRES_DB: knex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run PostgreSQL tests
+        working-directory: drivers/knex_dart_postgres
+        run: dart test --tags=postgres
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: knex_test
+          POSTGRES_USER: knex
+          POSTGRES_PASSWORD: knex
+
+  # ── 5. MySQL integration tests ────────────────────────────────────────────────
+  test-mysql:
+    name: Test (knex_dart_mysql)
+    needs: analyze
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: knex_test
+          MYSQL_USER: knex
+          MYSQL_PASSWORD: knex
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run MySQL tests
+        working-directory: drivers/knex_dart_mysql
+        run: dart test --tags=mysql
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_PORT: 3306
+          MYSQL_DB: knex_test
+          MYSQL_USER: knex
+          MYSQL_PASSWORD: knex
+
+  # ── 6. Publish all packages to pub.dev (version tags only) ───────────────────
   publish:
     name: Publish to pub.dev
-    needs: test
+    needs: [test-core, test-sqlite, test-postgres, test-mysql]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -145,10 +193,10 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
-      - name: Dry-run publish (validation)
-        run: dart pub publish --dry-run
+      - name: Dry-run (all packages)
+        run: melos publish
 
-      - name: Publish
-        run: dart pub publish --force
+      - name: Publish changed packages
+        run: melos publish --no-dry-run
         env:
           PUB_TOKEN: ${{ secrets.PUB_TOKEN }}

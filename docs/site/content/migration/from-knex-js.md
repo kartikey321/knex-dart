@@ -7,64 +7,87 @@ description: Transition your Knex.js knowledge to Knex Dart
 
 Knex Dart is a Knex.js port. Most query-building patterns map directly.
 
-## Key Differences
-
-### 1. `with` keyword rename
+## Setup
 
 **Knex.js**
 ```javascript
-knex.with('cte', query).select('*').from('cte')
+const knex = require('knex')({ client: 'pg', connection: { ... } });
 ```
 
 **Knex Dart**
 ```dart
-knex.withQuery('cte', query).select(['*']).from('cte')
+import 'package:knex_dart_postgres/knex_dart_postgres.dart';
+
+final db = await KnexPostgres.connect(
+  host: 'localhost',
+  database: 'myapp',
+  username: 'user',
+  password: 'pass',
+);
 ```
 
-### 2. `select` argument style
+The driver package determines the dialect — no `client:` string needed.
 
-Dart uses list-based column selection consistently:
+## Key Differences
+
+### 1. Driver packages are separate
+
+In Knex.js, the client is configured in one package. In Knex Dart, each database is a separate package:
+
+| Database | Import |
+|---|---|
+| PostgreSQL | `package:knex_dart_postgres/knex_dart_postgres.dart` |
+| MySQL | `package:knex_dart_mysql/knex_dart_mysql.dart` |
+| SQLite | `package:knex_dart_sqlite/knex_dart_sqlite.dart` |
+
+### 2. `select` takes a list
 
 ```dart
-knex('users').select(['id', 'name'])
+// Knex.js
+knex('users').select('id', 'name')
+
+// Knex Dart
+db('users').select(['id', 'name'])
 ```
 
-### 3. Runtime entry points
+### 3. `with` → `withQuery`
 
-For active DB execution, use async factories:
+`with` is a reserved keyword in Dart:
 
 ```dart
-final pg = await Knex.postgres(...);
-final my = await Knex.mysql(...);
-final sq = await Knex.sqlite(filename: 'app.db');
+// Knex.js
+knex.with('cte', query).select('*').from('cte')
+
+// Knex Dart
+db().withQuery('cte', db('orders').where('amount', '>', 1000))
+  .select(['*'])
+  .from('cte')
 ```
 
-## Operator Syntax
-
-Both are supported in Dart:
+### 4. `destroy()` not `destroy()`
 
 ```dart
-// 2-arg form (implicit '=')
-knex('users').where('name', 'John');
+// Knex.js
+await knex.destroy()
 
-// 3-arg form
-knex('users').where('name', '=', 'John');
+// Knex Dart
+await db.destroy()
 ```
 
-## Current Parity Snapshot
+### 5. 2-arg where defaults to `=`
 
-| Area | Status |
-|------|--------|
-| SELECT / INSERT / UPDATE / DELETE | ✅ implemented |
-| WHERE families (basic/IN/NULL/BETWEEN/EXISTS/grouped/column) | ✅ implemented |
-| JOINs (all types + advanced callback join clauses) | ✅ implemented |
-| Aggregates / Subqueries / CTEs / UNION | ✅ implemented |
-| `first`, `pluck`, lock/wait modes | ✅ implemented |
-| Window/analytic coverage | 🔶 partial |
-| Schema builder / migrations full parity | 🔶 in progress |
-| Runtime pooling + advanced transaction parity | 🔶 in progress |
+Both forms are supported:
 
-## Migration Examples
+```dart
+// implicit '='
+db('users').where('name', 'John');
+
+// explicit operator
+db('users').where('name', '=', 'John');
+db('users').where('age', '>', 18);
+```
+
+## Query Parity Examples
 
 ### Basic query
 
@@ -78,39 +101,58 @@ knex('users')
 
 **Knex Dart**
 ```dart
-knex('users')
+db('users')
   .select(['id', 'name'])
-  .where('active', true)
+  .where('active', '=', true)
   .orderBy('name');
 ```
 
-### Advanced callback join
+### Join with callback
 
-```dart
-knex('users').join('orders', (j) {
-  j.on('users.id', 'orders.user_id')
-   .andOnVal('orders.status', '=', 'completed')
-   .orOnNull('orders.deleted_at');
+**Knex.js**
+```javascript
+knex('users').join('orders', function() {
+  this.on('users.id', 'orders.user_id')
+      .andOnVal('orders.status', 'completed');
 });
 ```
 
-### CTE rename
-
+**Knex Dart**
 ```dart
-knex.withQuery('high_value', knex('orders').where('amount', '>', 1000))
-  .select(['*'])
-  .from('high_value');
+db('users').join('orders', (j) {
+  j.on('users.id', '=', 'orders.user_id')
+   .andOnVal('orders.status', '=', 'completed');
+});
 ```
 
-## Current Test Signal
+### CTE
 
-The project currently has **411 passing tests**, including many JS-vs-Dart comparison tests.
+**Knex.js**
+```javascript
+knex.with('high_value', knex('orders').where('amount', '>', 1000))
+  .select('*').from('high_value')
+```
 
-## What is still evolving
+**Knex Dart**
+```dart
+db().withQuery('high_value', db('orders').where('amount', '>', 1000))
+  .select(['*']).from('high_value')
+```
 
-- Connection pooling behavior parity
-- Nested/savepoint transaction semantics parity
-- Remaining advanced APIs and dialect-specific edge cases
+## Current Parity Snapshot
+
+| Area | Status |
+|------|--------|
+| SELECT / INSERT / UPDATE / DELETE | ✅ implemented |
+| WHERE families (basic/IN/NULL/BETWEEN/EXISTS/grouped/column/JSON/full-text) | ✅ implemented |
+| JOINs (all types + advanced callback join clauses) | ✅ implemented |
+| Aggregates / Subqueries / CTEs / UNION / INTERSECT / EXCEPT | ✅ implemented |
+| `first`, `pluck`, lock/wait modes | ✅ implemented |
+| Upserts (`onConflict().merge()`) | ✅ implemented |
+| Schema builder phase 1 & 2 | ✅ implemented |
+| Window/analytic functions | 🔶 partial |
+| Connection pooling | 🔶 in progress |
+| Nested/savepoint transactions | 🔶 in progress |
 
 ## Getting Help
 

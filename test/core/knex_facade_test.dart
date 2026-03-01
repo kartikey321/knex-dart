@@ -1,16 +1,14 @@
-import 'dart:io';
-
 import 'package:knex_dart/knex_dart.dart';
 import 'package:test/test.dart';
 
+import '../mocks/mock_client.dart';
+
 void main() {
   group('Knex Facade Tests', () {
-    test('Can initialize Knex with SQLite via config', () {
-      final knex = Knex(
-        KnexConfig(client: 'sqlite', connection: {'filename': ':memory:'}),
-      );
+    test('Can initialize Knex with a Client', () {
+      final knex = Knex(MockClient());
 
-      expect(knex.client.driverName, equals('sqlite3'));
+      expect(knex.client.driverName, equals('pg'));
 
       // Test QueryBuilder spawning
       final builder1 = knex();
@@ -20,34 +18,30 @@ void main() {
       expect(builder2.toSQL().sql, equals('select * from "users"'));
     });
 
-    test('Throws UnimplementedError for PG via KnexConfig', () {
-      expect(
-        () => Knex(
-          KnexConfig(
-            client: 'pg',
-            connection: {'host': 'localhost', 'database': 'test'},
-          ),
-        ),
-        throwsUnimplementedError,
-      );
+    test('call() with table name sets the FROM clause', () {
+      final knex = Knex(MockClient());
+      final qb = knex('orders');
+      expect(qb.toSQL().sql, contains('"orders"'));
     });
 
-    test('Throws UnimplementedError for MySQL via KnexConfig', () {
-      expect(
-        () => Knex(
-          KnexConfig(
-            client: 'mysql',
-            connection: {'host': 'localhost', 'database': 'test'},
-          ),
-        ),
-        throwsUnimplementedError,
-      );
+    test('schema getter returns a SchemaBuilder', () {
+      final knex = Knex(MockClient());
+      expect(knex.schema, isNotNull);
+    });
+
+    test('migrate getter returns a Migrator', () {
+      final knex = Knex(MockClient());
+      expect(knex.migrate, isNotNull);
+    });
+
+    test('client getter returns the underlying Client', () {
+      final mockClient = MockClient();
+      final knex = Knex(mockClient);
+      expect(knex.client, same(mockClient));
     });
 
     test('Throws UnimplementedError for transaction', () async {
-      final knex = Knex(
-        KnexConfig(client: 'sqlite', connection: {'filename': ':memory:'}),
-      );
+      final knex = Knex(MockClient());
 
       expect(
         () async => await knex.transaction((trx) async {}),
@@ -55,41 +49,16 @@ void main() {
       );
     });
 
-    test(
-      'Knex.postgres() factory initiates connection (throws if no db)',
-      () async {
-        try {
-          await Knex.postgres(
-            host: '127.0.0.1',
-            port: 1, // Invalid port
-            database: 'test',
-            username: 'test',
-          );
-          fail('Should not connect');
-        } catch (e) {
-          expect(e is SocketException || e is KnexException, isTrue);
-        }
-      },
-    );
+    test('raw() returns a Raw object', () {
+      final knex = Knex(MockClient());
+      final r = knex.raw('select ?', [1]);
+      expect(r, isNotNull);
+    });
 
-    test(
-      'Knex.mysql() factory initiates connection (throws if no db)',
-      () async {
-        try {
-          await Knex.mysql(
-            host: '127.0.0.1',
-            port: 1, // Invalid port
-            database: 'test',
-            user: 'test',
-          );
-          fail('Should not connect');
-        } catch (e) {
-          expect(e is SocketException || e is KnexException, isTrue);
-        }
-      },
-    );
-
-    // We skip actual connection tests since they are covered in integration,
-    // but we can test the Unimplemented throws in the Knex facade where applicable.
+    test('ref() returns a Ref', () {
+      final knex = Knex(MockClient());
+      final r = knex.ref('users.id');
+      expect(r.toSQL().sql, contains('users'));
+    });
   });
 }

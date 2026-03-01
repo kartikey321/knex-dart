@@ -1,108 +1,142 @@
 ---
 title: Quick Start
-description: Build your first queries with Knex Dart
+description: Connect to a database and build your first queries with Knex Dart
 ---
 
 # Quick Start
 
 Learn the basics of Knex Dart in a few minutes.
 
-## 1) Build SQL with QueryBuilder
+## 1) Connect to a Database
+
+Each database has its own driver package with a typed connect factory.
+
+### SQLite (no server required)
 
 ```dart
-import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
-void main() {
-  final knex = Knex(KnexConfig(
-    client: 'sqlite3',
-    connection: {'filename': ':memory:'},
-  ));
-
-  final query = knex('users')
-      .select(['id', 'name', 'email'])
-      .where('active', true)
-      .orderBy('name')
-      .limit(10);
-
-  final sql = query.toSQL();
-  print(sql.sql);
-  print(sql.bindings);
-}
+final db = await KnexSQLite.connect(filename: ':memory:');
 ```
 
-## 2) Useful Query Methods
+### PostgreSQL
 
 ```dart
-// first()
-knex('users').first('id');
+import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
-// pluck()
-knex('users').pluck('email');
-
-// Lock/wait modes
-knex('users').forUpdate().skipLocked();
-knex('users').forShare().noWait();
+final db = await KnexPostgres.connect(
+  host: 'localhost',
+  port: 5432,
+  database: 'myapp',
+  username: 'user',
+  password: 'pass',
+);
 ```
 
-## 3) JOINs (including advanced callback clauses)
+### MySQL
 
 ```dart
-knex('users').join('orders', (j) {
-  j.on('users.id', 'orders.user_id')
+import 'package:knex_dart_mysql/knex_dart_mysql.dart';
+
+final db = await KnexMySQL.connect(
+  host: 'localhost',
+  port: 3306,
+  database: 'myapp',
+  user: 'user',
+  password: 'pass',
+);
+```
+
+## 2) Build and Execute Queries
+
+`db` is a callable — `db('table')` returns a `QueryBuilder`.
+
+```dart
+// SELECT
+final users = await db.select(
+  db('users')
+    .select(['id', 'name', 'email'])
+    .where('active', '=', true)
+    .orderBy('name')
+    .limit(10),
+);
+
+// INSERT
+await db.insert(
+  db('users').insert({'name': 'Alice', 'email': 'alice@example.com'}),
+);
+
+// UPDATE
+await db.update(
+  db('users').where('id', '=', 1).update({'name': 'Bob'}),
+);
+
+// DELETE
+await db.delete(
+  db('users').where('id', '=', 1).delete(),
+);
+```
+
+## 3) Generate SQL Without Executing
+
+Call `.toSQL()` on any query builder to inspect the SQL and bindings:
+
+```dart
+final q = db('users')
+    .select(['id', 'name'])
+    .where('active', '=', true)
+    .orderBy('name')
+    .limit(10);
+
+print(q.toSQL().sql);
+// select "id", "name" from "users" where "active" = ? order by "name" asc limit ?
+
+print(q.toSQL().bindings);
+// [true, 10]
+```
+
+## 4) Joins
+
+```dart
+db('users').join('orders', (j) {
+  j.on('users.id', '=', 'orders.user_id')
    .andOnVal('orders.status', '=', 'completed')
    .andOnIn('orders.type', ['online', 'retail'])
    .orOnNull('orders.deleted_at');
 });
 ```
 
-## 4) Execute Against a Real Database
-
-Use async wrappers for runtime execution.
-
-### PostgreSQL
+## 5) Schema Builder
 
 ```dart
-final db = await Knex.postgres(
-  host: 'localhost',
-  database: 'app',
-  username: 'user',
-  password: 'pass',
+await db.executeSchema(
+  db.schema.createTable('users', (t) {
+    t.increments('id');
+    t.string('name').notNullable();
+    t.string('email').unique();
+    t.boolean('active').defaultTo(true);
+    t.timestamps();
+  }),
 );
-
-final rows = await db.select(
-  db.table('users').where('active', true),
-);
-
-await db.close();
 ```
 
-### MySQL
+## 6) Transactions
 
 ```dart
-final db = await Knex.mysql(
-  host: 'localhost',
-  user: 'root',
-  password: 'pass',
-  database: 'app',
-);
-
-final rows = await db.select(
-  db.table('users').where('active', true),
-);
-
-await db.close();
+await db.trx((trx) async {
+  final id = await trx.insert(
+    trx('accounts').insert({'owner': 'Alice', 'balance': 500}),
+  );
+  await trx.update(
+    trx('ledger').insert({'account_id': id, 'amount': 500}),
+  );
+});
 ```
 
-### SQLite
+## 7) Cleanup
 
 ```dart
-final db = await Knex.sqlite(filename: 'app.db');
-
-final rows = await db.select(
-  db.queryBuilder().table('users').where('active', true),
-);
-
-await db.close();
+await db.destroy();
 ```
 
 ## Next Steps
@@ -110,5 +144,5 @@ await db.close();
 - [WHERE Clauses](/query-building/where-clauses)
 - [Subqueries](/query-building/subqueries)
 - [CTEs (WITH)](/query-building/ctes)
-- [UNION](/query-building/unions)
+- [UNION / INTERSECT / EXCEPT](/query-building/unions)
 - [Examples](/examples/basic-queries)

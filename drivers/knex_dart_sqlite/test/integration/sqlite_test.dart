@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:knex_dart/src/client/sqlite_client.dart';
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
 import 'package:test/test.dart';
 
@@ -51,10 +51,6 @@ void main() {
     });
 
     test('should select all users', () async {
-      // Use the real client to create the builder so it uses the correct dialect/compiler defaults
-      // But currently our Client base class might not expose specific dialect compiler without implementation.
-      // Let's check Client.queryBuilder().
-      // It returns QueryBuilder(this).
       final query = client!.queryBuilder().table('users');
       final result = await client!.select(query);
       expect(result.length, 3);
@@ -80,7 +76,6 @@ void main() {
       final result = await client!.select(query);
       expect(result.length, 3);
       expect(result.first.containsKey('first_name'), isTrue);
-      // In SQLite, REAL returns as double (dynamic)
       expect(result.first.containsKey('balance'), isTrue);
     });
 
@@ -123,7 +118,6 @@ void main() {
           .count('id', const AggregateOptions(as: 'total'));
       final result = await client!.select(query);
 
-      // SQLite count return type check (int)
       final total = result.first['total'];
       expect(total, 3);
     });
@@ -140,8 +134,6 @@ void main() {
     });
 
     test('should handle question marks in string literals', () async {
-      // This test ensures our placeholder replacement (or lack thereof for SQLite) works
-      // SQLite supports ? natively, so strings should be fine.
       final result = await client!.raw("select 'Question?' as q, ? as v", [
         'Answer',
       ]).execute();

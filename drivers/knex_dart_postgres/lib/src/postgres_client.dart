@@ -1,5 +1,5 @@
 import 'package:postgres/postgres.dart';
-import '../query/query_builder.dart';
+import 'package:knex_dart/src/query/query_builder.dart';
 
 /// PostgreSQL database client.
 ///
@@ -188,7 +188,7 @@ class PostgresTrxClient {
       final map = <String, dynamic>{};
       final schema = pgResult.schema;
       for (var i = 0; i < schema.columns.length; i++) {
-        final columnName = schema.columns[i].columnName ?? 'column_\$i';
+        final columnName = schema.columns[i].columnName ?? 'column_$i';
         map[columnName] = row[i];
       }
       results.add(map);

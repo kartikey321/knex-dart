@@ -1,13 +1,13 @@
 import 'package:knex_dart/knex_dart.dart';
 import 'package:test/test.dart';
 
+import '../mocks/sqlite_mock_client.dart';
+
 void main() {
   late Knex db;
 
   setUpAll(() {
-    db = Knex(
-      KnexConfig(client: 'sqlite', connection: {'filename': ':memory:'}),
-    );
+    db = Knex(SqliteMockClient());
   });
 
   tearDownAll(() async {
