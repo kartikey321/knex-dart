@@ -1354,7 +1354,8 @@ class QueryCompiler {
     final random =
         (DateTime.now().microsecond * 1000 + DateTime.now().millisecond)
             .toRadixString(36);
-    return '$timestamp$random'.substring(0, 12);
+    final uid = '$timestamp$random';
+    return uid.substring(0, uid.length < 12 ? uid.length : 12);
   }
 
   /// Compile INSERT query
