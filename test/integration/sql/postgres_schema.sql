@@ -1,5 +1,7 @@
 -- Test schema for PostgreSQL integration tests
 
+DROP TABLE IF EXISTS orders, products, users CASCADE;
+
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
