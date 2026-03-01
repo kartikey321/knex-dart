@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:knex_dart/knex_dart.dart';
-import 'package:knex_dart/src/client/postgres_client.dart';
 import 'package:test/test.dart';
 
 import '../mocks/mock_client.dart';

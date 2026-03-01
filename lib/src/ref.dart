@@ -1,4 +1,3 @@
-import 'client/client.dart';
 import 'raw.dart';
 import 'query/sql_string.dart';
 
@@ -11,7 +10,7 @@ class Ref extends Raw {
   String? _alias;
   String? _schema;
 
-  Ref(Client client, this.ref) : super(client);
+  Ref(super.client, this.ref);
 
   /// Set an alias for this reference
   Ref as(String alias) {

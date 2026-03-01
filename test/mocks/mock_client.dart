@@ -71,9 +71,6 @@ class MockClient extends Client {
   Future<void> releaseConnection(connection) => Future.value();
 
   @override
-  Future<void> _destroyPool() => Future.value();
-
-  @override
   String wrapIdentifierImpl(String value) {
     if (value == '*') return value;
     if (_driverName == 'mysql' || _driverName == 'mysql2') {

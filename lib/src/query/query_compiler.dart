@@ -1767,10 +1767,8 @@ class QueryCompiler {
 
   String _whereJsonSupersetOf(Map<String, dynamic> statement) {
     if (client.driverName == 'pg') {
-      return _not(statement, '') +
-          formatter.wrap(statement['column']) +
-          ' @> ' +
-          _valueClause(statement);
+      return '${_not(statement, '') +
+          formatter.wrap(statement['column'])} @> ${_valueClause(statement)}';
     }
     statement['operator'] = '=';
     return whereBasic(statement); // Unsupported on other dialects right now
@@ -1778,10 +1776,8 @@ class QueryCompiler {
 
   String _whereJsonSubsetOf(Map<String, dynamic> statement) {
     if (client.driverName == 'pg') {
-      return _not(statement, '') +
-          formatter.wrap(statement['column']) +
-          ' <@ ' +
-          _valueClause(statement);
+      return '${_not(statement, '') +
+          formatter.wrap(statement['column'])} <@ ${_valueClause(statement)}';
     }
     statement['operator'] = '=';
     return whereBasic(statement); // Unsupported on other dialects right now

@@ -17,6 +17,7 @@ class TransactionConfig {
 ///
 /// Stub implementation - full implementation in Week 12.
 class Transaction {
+  // ignore: unused_field
   final Client _client;
 
   Transaction(this._client);

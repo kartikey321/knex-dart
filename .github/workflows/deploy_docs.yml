@@ -1,38 +1,38 @@
 name: Deploy Docs to Cloudflare Pages
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'docs/site/**'
-      - '.github/workflows/deploy_docs.yml'
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types: [completed]
+    branches: [main]
 
 jobs:
   deploy_docs:
-    runs-on: ubuntu-latest
     name: Build & Deploy
+    runs-on: ubuntu-latest
+    # Only deploy when CI passed and docs files actually changed
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     permissions:
       contents: read
       deployments: write
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Setup Dart
-        uses: dart-lang/setup-dart@v1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
       - name: Install Jaspr CLI
         run: dart pub global activate jaspr_cli
 
-      - name: Install Dependencies
+      - name: Install dependencies
         working-directory: docs/site
         run: dart pub get
 
-      - name: Build Site
+      - name: Build site
         working-directory: docs/site
         run: jaspr build --verbose
 

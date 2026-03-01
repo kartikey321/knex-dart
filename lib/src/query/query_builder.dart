@@ -594,21 +594,6 @@ class QueryBuilder {
     return ret;
   }
 
-  /// Get or set the "asColumnFlag" value
-  ///
-  /// When called with a value, sets the flag and returns `this` for chaining.
-  /// When called without arguments, returns current value and resets to `false`.
-  ///
-  /// JS Reference: lib/query/querybuilder.js lines 1671-1679
-  dynamic _asColumn([bool? val]) {
-    if (val != null) {
-      _asColumnFlag = val;
-      return this;
-    }
-    final ret = _asColumnFlag;
-    _asColumnFlag = false;
-    return ret;
-  }
 
   /// Add an OR WHERE clause
   ///
@@ -1342,7 +1327,7 @@ class QueryBuilder {
       // String/array overload: (alias, orderBy, [partitionBy])
       final order = second == null
           ? []
-          : (second is! List ? [second] : second as List);
+          : (second is! List ? [second] : second);
       final List partitions;
       if (third == null) {
         partitions = [];

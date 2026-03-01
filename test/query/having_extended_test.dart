@@ -2,7 +2,6 @@
 ///
 /// JS Baseline: Run with Node.js to verify SQL
 /// Run this test: cd knex-dart && dart test test/query/having_extended_test.dart
-import 'package:knex_dart/src/query/query_builder.dart';
 import 'package:test/test.dart';
 import '../mocks/mock_client.dart';
 

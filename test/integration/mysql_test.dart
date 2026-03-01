@@ -63,7 +63,7 @@ void main() {
         print(
           'Skipping MySQL tests: Could not connect to database at $host:$port. Error: $e',
         );
-        throw e;
+        rethrow;
       }
     });
 

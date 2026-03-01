@@ -2,15 +2,34 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    tags: ['v*.*.*']
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
+  # ── 1. Static analysis ──────────────────────────────────────────────────────
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Dart analyze
+        run: dart analyze --fatal-warnings
+
+  # ── 2. Test + coverage gate ─────────────────────────────────────────────────
   test:
-    name: Run Parity and Integration Tests
+    name: Test & Coverage
+    needs: analyze
     runs-on: ubuntu-latest
 
     services:
@@ -44,33 +63,30 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-
-      - name: Setup Dart Environment
-        uses: dart-lang/setup-dart@v1
+      - uses: dart-lang/setup-dart@v1
         with:
           sdk: stable
 
-      - name: Install Dart Dependencies
+      - name: Install dependencies
         run: dart pub get
 
-      - name: Initialize Databases (Schemas & Seed)
+      - name: Initialize databases
         run: |
-          # Wait a few extra seconds to ensure MySQL is fully robust
           sleep 10
-          
-          # Initialize PostgreSQL schema and seed
-          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_schema.sql
-          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_seed.sql
-          
-          # Initialize MySQL schema and seed
-          mysql -h 127.0.0.1 -u root -ppassword -e "ALTER USER 'test'@'%' IDENTIFIED WITH mysql_native_password BY 'password'; FLUSH PRIVILEGES;"
-          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_schema.sql
-          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_seed.sql
+          PGPASSWORD=password psql -h localhost -U test -d knex_test \
+            -f test/integration/sql/postgres_schema.sql
+          PGPASSWORD=password psql -h localhost -U test -d knex_test \
+            -f test/integration/sql/postgres_seed.sql
+          mysql -h 127.0.0.1 -u root -ppassword \
+            -e "ALTER USER 'test'@'%' IDENTIFIED WITH mysql_native_password BY 'password'; FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -u test -ppassword knex_test \
+            < test/integration/sql/mysql_schema.sql
+          mysql -h 127.0.0.1 -u test -ppassword knex_test \
+            < test/integration/sql/mysql_seed.sql
 
-      - name: Run All Tests with Coverage
+      - name: Run tests with coverage
         env:
           PG_HOST: localhost
           PG_PORT: 5432
@@ -84,22 +100,55 @@ jobs:
           MYSQL_DATABASE: knex_test
         run: dart test --coverage=coverage
 
-      - name: Format coverage report
+      - name: Format coverage to lcov
         run: |
           dart pub global activate coverage
-          dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --packages=.dart_tool/package_config.json --report-on=lib
+          dart pub global run coverage:format_coverage \
+            --lcov \
+            --in=coverage \
+            --out=coverage/lcov.info \
+            --packages=.dart_tool/package_config.json \
+            --report-on=lib
+          sed -i 's|SF:.*/lib|SF:lib|' coverage/lcov.info
 
-      - name: Convert to relative paths (Linux/Windows)
-        if: runner.os == 'Linux' || runner.os == 'Windows'
-        run: sed -i 's|SF:.*/lib|SF:lib|' coverage/lcov.info
-      
-      - name: Convert to relative paths (macOS)
-        if: runner.os == 'macOS'
-        run: sed -i '' 's|SF:.*/lib|SF:lib|' coverage/lcov.info
+      - name: Check coverage threshold (≥ 85%)
+        run: |
+          COVERAGE=$(awk -F: '/^LF/{lf+=$2} /^LH/{lh+=$2} END{printf "%.1f", lh*100/lf}' coverage/lcov.info)
+          echo "Coverage: ${COVERAGE}%"
+          if awk "BEGIN{exit !(${COVERAGE} < 85)}"; then
+            echo "::error::Coverage ${COVERAGE}% is below the required 85% threshold"
+            exit 1
+          fi
+          echo "Coverage ${COVERAGE}% meets the 85% threshold"
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           fail_ci_if_error: false
+
+  # ── 3. Publish to pub.dev (version tags only) ───────────────────────────────
+  publish:
+    name: Publish to pub.dev
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Dry-run publish (validation)
+        run: dart pub publish --dry-run
+
+      - name: Publish
+        run: dart pub publish --force
+        env:
+          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}

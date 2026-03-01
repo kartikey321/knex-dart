@@ -33,7 +33,7 @@ void main() {
     test('should create timeout exception', () {
       final exception = KnexTimeoutException('Query timed out');
       expect(exception.message, 'Query timed out');
-      expect(exception is KnexException, true);
+      expect(exception, isA<KnexException>());
     });
   });
 
@@ -41,7 +41,7 @@ void main() {
     test('should create connection exception', () {
       final exception = KnexConnectionException('Connection failed');
       expect(exception.message, 'Connection failed');
-      expect(exception is KnexException, true);
+      expect(exception, isA<KnexException>());
     });
   });
 
@@ -49,7 +49,7 @@ void main() {
     test('should create transaction exception', () {
       final exception = KnexTransactionException('Transaction failed');
       expect(exception.message, 'Transaction failed');
-      expect(exception is KnexException, true);
+      expect(exception, isA<KnexException>());
     });
   });
 
@@ -57,7 +57,7 @@ void main() {
     test('should create migration exception', () {
       final exception = KnexMigrationException('Migration failed');
       expect(exception.message, 'Migration failed');
-      expect(exception is KnexException, true);
+      expect(exception, isA<KnexException>());
     });
   });
 
@@ -65,8 +65,8 @@ void main() {
     test('should create migration lock exception', () {
       final exception = KnexMigrationLockException('Migration locked');
       expect(exception.message, 'Migration locked');
-      expect(exception is KnexMigrationException, true);
-      expect(exception is KnexException, true);
+      expect(exception, isA<KnexMigrationException>());
+      expect(exception, isA<KnexException>());
     });
   });
 
@@ -74,7 +74,7 @@ void main() {
     test('should create query exception', () {
       final exception = KnexQueryException('Invalid query');
       expect(exception.message, 'Invalid query');
-      expect(exception is KnexException, true);
+      expect(exception, isA<KnexException>());
     });
   });
 }

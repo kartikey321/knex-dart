@@ -5,15 +5,11 @@ import 'package:meta/meta.dart';
 import 'knex_config.dart';
 import '../query/query_builder.dart';
 import '../query/query_compiler.dart';
-import '../formatter/formatter.dart';
-import '../query/sql_string.dart';
 import '../schema/schema_builder.dart';
 import '../schema/schema_compiler.dart';
 import '../transaction/transaction.dart';
 import '../raw.dart';
 import '../ref.dart';
-import '../util/enums.dart';
-import '../util/knex_exception.dart';
 
 /// Abstract base class for database clients
 ///
