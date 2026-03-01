@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart/src/client/postgres_client.dart';
 import 'package:test/test.dart';
@@ -31,12 +33,18 @@ void main() {
 
   // Initialize connection before tests
   setUpAll(() async {
+    final host = Platform.environment['PG_HOST'] ?? 'localhost';
+    final port = int.parse(Platform.environment['PG_PORT'] ?? '5432');
+    final database = Platform.environment['PG_DATABASE'] ?? 'knex_test';
+    final username = Platform.environment['PG_USER'] ?? 'test';
+    final password = Platform.environment['PG_PASSWORD'] ?? 'test';
+
     pgClient = await PostgresClient.connect(
-      host: 'localhost',
-      port: 5432,
-      database: 'knex_test',
-      username: 'test',
-      password: 'test',
+      host: host,
+      port: port,
+      database: database,
+      username: username,
+      password: password,
     );
     await cleanupTestUsers();
     print('PostgreSQL Connection connects successfully');

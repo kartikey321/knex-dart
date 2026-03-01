@@ -56,7 +56,32 @@ jobs:
       - name: Install Dart Dependencies
         run: dart pub get
 
+      - name: Initialize Databases (Schemas & Seed)
+        run: |
+          # Wait a few extra seconds to ensure MySQL is fully robust
+          sleep 10
+          
+          # Initialize PostgreSQL schema and seed
+          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_schema.sql
+          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_seed.sql
+          
+          # Initialize MySQL schema and seed
+          mysql -h 127.0.0.1 -u root -ppassword -e "ALTER USER 'test'@'%' IDENTIFIED WITH mysql_native_password BY 'password'; FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_schema.sql
+          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_seed.sql
+
       - name: Run All Tests with Coverage
+        env:
+          PG_HOST: localhost
+          PG_PORT: 5432
+          PG_USER: test
+          PG_PASSWORD: password
+          PG_DATABASE: knex_test
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 3306
+          MYSQL_USER: test
+          MYSQL_PASSWORD: password
+          MYSQL_DATABASE: knex_test
         run: dart test --coverage=coverage
 
       - name: Format coverage report
@@ -77,16 +102,3 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           fail_ci_if_error: false
-
-      - name: Initialize Databases (Schemas & Seed)
-        run: |
-          # Wait a few extra seconds to ensure MySQL is fully robust
-          sleep 10
-          
-          # Initialize PostgreSQL schema and seed
-          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_schema.sql
-          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_seed.sql
-          
-          # Initialize MySQL schema and seed
-          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_schema.sql
-          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_seed.sql

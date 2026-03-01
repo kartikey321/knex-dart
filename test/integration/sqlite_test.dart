@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:knex_dart/src/client/sqlite_client.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
 import 'package:test/test.dart';
@@ -7,7 +9,7 @@ void main() {
     SQLiteClient? client;
 
     // Use in-memory database for tests
-    const filename = ':memory:';
+    final filename = Platform.environment['SQLITE_DB'] ?? ':memory:';
 
     setUp(() async {
       // Connect to SQLite
