@@ -4,6 +4,7 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart, bringing the same pow
 
 [![Pub Version](https://img.shields.io/pub/v/knex_dart)](https://pub.dev/packages/knex_dart)
 [![Test](https://img.shields.io/badge/tests-268%20passing-brightgreen)]()
+[![codecov](https://codecov.io/gh/kartikey321/knex-dart/branch/main/graph/badge.svg)](https://codecov.io/gh/kartikey321/knex-dart)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## What is Knex Dart?

@@ -35,7 +35,8 @@ void main() {
           "DELETE FROM users WHERE email LIKE '%write@example.com' "
           "OR email LIKE '%trx%@example.com' "
           "OR email LIKE '%update@example.com' "
-          "OR email LIKE '%delete@example.com'",
+          "OR email LIKE '%delete@example.com' "
+          "OR email LIKE '%json_test%@example.com'",
         );
       } catch (e) {
         print('Warning: could not purge stale test data: $e');
@@ -200,10 +201,12 @@ void main() {
 
     test('should update a user and verify change', () async {
       // Insert to update
-      await client!.raw(
-        "INSERT INTO users (first_name, last_name, email) VALUES (?, ?, ?)",
-        ['Before', 'Update', 'before_update_write@example.com'],
-      );
+      final insertQ = mockClient.queryBuilder().table('users').insert({
+        'first_name': 'Before',
+        'last_name': 'Update',
+        'email': 'before_update_write@example.com',
+      });
+      await client!.insert(insertQ);
 
       final updateQ = mockClient
           .queryBuilder()
@@ -231,10 +234,12 @@ void main() {
 
     test('should delete a user and confirm removal', () async {
       // Insert to delete
-      await client!.raw(
-        "INSERT INTO users (first_name, last_name, email) VALUES (?, ?, ?)",
-        ['Temp', 'Delete', 'temp_delete_write@example.com'],
-      );
+      final insertQ = mockClient.queryBuilder().table('users').insert({
+        'first_name': 'Temp',
+        'last_name': 'Delete',
+        'email': 'temp_delete_write@example.com',
+      });
+      await client!.insert(insertQ);
 
       final deleteQ = mockClient
           .queryBuilder()
@@ -306,6 +311,98 @@ void main() {
             .where('email', 'trx_rollback_mysql@example.com'),
       );
       expect(rows.isEmpty, true);
+    });
+
+    group('Advanced Query APIs', () {
+      test('Full-Text Search whereFullText', () async {
+        final insertQuery = mockClient.queryBuilder().table('users').insert({
+          'first_name': 'Johnathan',
+          'last_name': 'Doe',
+          'email': 'json_test1_mysql@example.com',
+        });
+        await client!.insert(insertQuery);
+
+        // Add fulltext index for testing if not exists (MySQL syntax)
+        try {
+          await client!.raw('ALTER TABLE users ADD FULLTEXT(first_name)');
+        } catch (_) {
+          // Ignore if already exists
+        }
+
+        final query = mockClient
+            .queryBuilder()
+            .table('users')
+            .whereFullText('first_name', 'Johnathan')
+            .orderBy('id');
+        final results = await client!.select(query);
+        expect(results, isNotEmpty);
+        expect(results.first['first_name'], contains('Johnathan'));
+      });
+
+      test('JSON Operators: superset and subset', () async {
+        // Create a column manually and insert data for test
+        try {
+          await client!.raw('ALTER TABLE users ADD COLUMN metadata JSON NULL');
+        } catch (_) {
+          // Ignore if exists
+        }
+
+        final insertQuery = mockClient.queryBuilder().table('users').insert({
+          'first_name': 'JSON Tester',
+          'last_name': 'Tester',
+          'email': 'json_test2_mysql@example.com',
+          // MySQL accepts JSON strings for JSON columns
+          'metadata': '{"language": "en", "theme": "dark"}',
+        });
+        await client!.insert(insertQuery);
+
+        final query = mockClient
+            .queryBuilder()
+            .table('users')
+            .select(['id', 'first_name', 'email'])
+            // Using whereRaw for MySQL JSON until whereJsonSupersetOf is ported or if it maps to JSON_CONTAINS
+            .where(
+              mockClient.raw("JSON_CONTAINS(metadata, ?)", [
+                '{"language": "en"}',
+              ]),
+            );
+
+        final results = await client!.select(query);
+
+        expect(results, isNotEmpty);
+      });
+
+      test('Advanced HAVING clauses: havingRaw', () async {
+        // Create orders table specifically for MySQL test
+        try {
+          await client!.raw(
+            'CREATE TABLE IF NOT EXISTS orders (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, amount DECIMAL(10,2))',
+          );
+          final insertQ = mockClient.queryBuilder().table('orders').insert([
+            {'user_id': 1, 'amount': 100},
+            {'user_id': 1, 'amount': 200},
+            {'user_id': 2, 'amount': 300},
+          ]);
+          await client!.insert(insertQ);
+        } catch (_) {}
+
+        final query = mockClient
+            .queryBuilder()
+            .table('orders')
+            .select(['user_id', mockClient.raw('COUNT(id) as total')])
+            .groupBy('user_id')
+            .havingRaw('COUNT(id) > ?', [1])
+            .orderBy('total', 'desc');
+
+        final results = await client!.select(query);
+
+        expect(results, isNotEmpty);
+        expect(results.first['total'], greaterThan(1));
+
+        try {
+          await client!.raw('DROP TABLE orders');
+        } catch (_) {}
+      });
     });
   });
 }

@@ -1,0 +1,92 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Parity and Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: knex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: knex_test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+
+      - name: Setup Dart Environment
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install Dart Dependencies
+        run: dart pub get
+
+      - name: Run All Tests with Coverage
+        run: dart test --coverage=coverage
+
+      - name: Format coverage report
+        run: |
+          dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --packages=.dart_tool/package_config.json --report-on=lib
+
+      - name: Convert to relative paths (Linux/Windows)
+        if: runner.os == 'Linux' || runner.os == 'Windows'
+        run: sed -i 's|SF:.*/lib|SF:lib|' coverage/lcov.info
+      
+      - name: Convert to relative paths (macOS)
+        if: runner.os == 'macOS'
+        run: sed -i '' 's|SF:.*/lib|SF:lib|' coverage/lcov.info
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Initialize Databases (Schemas & Seed)
+        run: |
+          # Wait a few extra seconds to ensure MySQL is fully robust
+          sleep 10
+          
+          # Initialize PostgreSQL schema and seed
+          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_schema.sql
+          PGPASSWORD=password psql -h localhost -U test -d knex_test -f test/integration/sql/postgres_seed.sql
+          
+          # Initialize MySQL schema and seed
+          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_schema.sql
+          mysql -h 127.0.0.1 -u test -ppassword knex_test < test/integration/sql/mysql_seed.sql

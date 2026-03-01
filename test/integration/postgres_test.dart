@@ -15,17 +15,18 @@ void main() {
     'trx_commit@example.com',
     'pre_rollback@example.com',
     'trx_rollback@example.com',
+    'json_test@example.com',
+    'json_test1@example.com',
+    'json_test2@example.com',
   ];
 
   Future<void> cleanupTestUsers() async {
-    final placeholders = List.generate(
-      testEmails.length,
-      (i) => '\$${i + 1}',
-    ).join(', ');
-    await pgClient.rawSql(
-      'delete from "users" where "email" in ($placeholders)',
-      testEmails,
-    );
+    final deleteQuery = mockClient
+        .queryBuilder()
+        .table('users')
+        .whereIn('email', testEmails)
+        .delete();
+    await pgClient.delete(deleteQuery);
   }
 
   // Initialize connection before tests
@@ -280,6 +281,64 @@ void main() {
     });
   });
 
+  group('Advanced Query APIs', () {
+    test('Full-Text Search whereFullText', () async {
+      final insertQuery = mockClient.queryBuilder().table('users').insert({
+        'name': 'Johnathan Doe',
+        'email': 'json_test1@example.com',
+      });
+      await pgClient.insert(insertQuery);
+
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .whereFullText('name', 'Johnathan')
+          .orderBy('id');
+      final results = await pgClient.select(query);
+      expect(results, isNotEmpty);
+      expect(results.first['name'], contains('Johnathan'));
+    });
+
+    test('JSON Operators: superset and subset', () async {
+      // Create a column manually and insert data for test
+      await pgClient.rawSql(
+        'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "metadata" jsonb DEFAULT \'{}\';',
+      );
+
+      final insertQuery = mockClient.queryBuilder().table('users').insert({
+        'name': 'JSON Tester',
+        'email': 'json_test2@example.com',
+        // In PostgreSQL, passing a Dart string for JSONB usually works,
+        // or a map if the underlying driver supports it.
+        'metadata': '{"language": "en", "theme": "dark"}',
+      });
+      await pgClient.insert(insertQuery);
+
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .whereJsonSupersetOf('metadata', {'language': 'en'});
+      final results = await pgClient.select(query);
+
+      expect(results, isNotEmpty);
+    });
+
+    test('Advanced HAVING clauses: havingRaw', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['user_id', mockClient.raw('COUNT(id) as total')])
+          .groupBy('user_id')
+          .havingRaw('COUNT(id) > ?', [1])
+          .orderBy('total', 'desc');
+
+      final results = await pgClient.select(query);
+
+      expect(results, isNotEmpty);
+      expect(results.first['total'], greaterThan(1));
+    });
+  });
+
   group('CTEs (WITH)', () {
     test('Basic CTE', () async {
       final cte = mockClient
@@ -366,7 +425,12 @@ void main() {
       expect(rows.first['name'], 'Updated Name');
 
       // Cleanup
-      await pgClient.rawSql('delete from "users" where "email" = \$1', [email]);
+      final deleteQuery = mockClient
+          .queryBuilder()
+          .table('users')
+          .where('email', email)
+          .delete();
+      await pgClient.delete(deleteQuery);
     });
 
     test('UPDATE a row and verify', () async {

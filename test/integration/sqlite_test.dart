@@ -23,31 +23,19 @@ void main() {
           )
           .execute();
 
-      await client!
-          .raw("INSERT INTO users (first_name) VALUES ('John')")
-          .execute();
-      await client!
-          .raw("INSERT INTO users (first_name) VALUES ('Alice')")
-          .execute();
-      await client!
-          .raw("INSERT INTO users (first_name) VALUES ('Bob')")
-          .execute();
+      final insertUsersQ = client!.queryBuilder().table('users').insert([
+        {'first_name': 'John'},
+        {'first_name': 'Alice'},
+        {'first_name': 'Bob'},
+      ]);
+      await client!.insert(insertUsersQ);
 
-      await client!
-          .raw(
-            "INSERT INTO accounts (user_id, balance, logins) VALUES (1, 100.50, 10)",
-          )
-          .execute();
-      await client!
-          .raw(
-            "INSERT INTO accounts (user_id, balance, logins) VALUES (2, 200.00, 5)",
-          )
-          .execute();
-      await client!
-          .raw(
-            "INSERT INTO accounts (user_id, balance, logins) VALUES (3, 300.00, 15)",
-          )
-          .execute();
+      final insertAccountsQ = client!.queryBuilder().table('accounts').insert([
+        {'user_id': 1, 'balance': 100.50, 'logins': 10},
+        {'user_id': 2, 'balance': 200.00, 'logins': 5},
+        {'user_id': 3, 'balance': 300.00, 'logins': 15},
+      ]);
+      await client!.insert(insertAccountsQ);
     });
 
     tearDown(() async {
