@@ -27,9 +27,9 @@ class SQLiteClient extends Client {
       String s => s,
       Map m when m['filename'] is String => m['filename'] as String,
       _ => throw ArgumentError(
-          'SQLite config.connection must be a filename String '
-          'or Map containing a String "filename".',
-        ),
+        'SQLite config.connection must be a filename String '
+        'or Map containing a String "filename".',
+      ),
     };
 
     final client = SQLiteClient._(filename, config);
@@ -107,7 +107,7 @@ class SQLiteClient extends Client {
 
   @override
   SchemaCompiler schemaCompiler(SchemaBuilder builder) {
-    throw UnimplementedError('Schema operations not yet supported');
+    return SchemaCompiler(this, builder);
   }
 
   @override

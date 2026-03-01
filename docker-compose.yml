@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: knex_dart_postgres
+    environment:
+      POSTGRES_DB: knex_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d knex_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./test/integration/sql/postgres_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./test/integration/sql/postgres_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+
+  # MySQL - Coming in Phase 2
+  mysql:
+    image: mysql:8.0
+    container_name: knex_dart_mysql
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: knex_test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./test/integration/sql/mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql

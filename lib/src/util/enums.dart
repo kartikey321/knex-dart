@@ -4,7 +4,7 @@
 /// to provide better type safety and IDE support in Dart.
 
 /// Query method types
-enum QueryMethod { select, insert, update, delete, first, pluck }
+enum QueryMethod { select, insert, update, delete, first, pluck, truncate }
 
 /// Transaction isolation levels
 enum IsolationLevel {

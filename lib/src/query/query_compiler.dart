@@ -79,7 +79,9 @@ class QueryCompiler {
 
     // Generate UID (same pattern as Raw)
     final uid = _generateUid();
-    final pluck = builder.method == QueryMethod.pluck ? _pluckColumnName() : null;
+    final pluck = builder.method == QueryMethod.pluck
+        ? _pluckColumnName()
+        : null;
 
     return SqlString(sql, bindings, method: method, uid: uid, pluck: pluck);
   }
@@ -142,10 +144,8 @@ class QueryCompiler {
         return _updateQuery();
       case QueryMethod.delete:
         return _deleteQuery();
-      default:
-        throw UnimplementedError(
-          'Query method $queryMethod not yet implemented',
-        );
+      case QueryMethod.truncate:
+        return _truncateQuery();
     }
   }
 
@@ -232,22 +232,33 @@ class QueryCompiler {
   /// Get table name, properly wrapped
   ///
   /// JS Reference: Used in columns() via this.tableName getter
+  // Cache for tableName so Raw bindings are only consumed once
+  String? _tableNameCache;
+
   String get tableName {
+    if (_tableNameCache != null) return _tableNameCache!;
+
     final table = single['table'];
-    if (table == null) return '';
+    if (table == null) return _tableNameCache = '';
 
     // Subquery
     if (table is QueryBuilder) {
-      return _compileSubquery(table, withParens: true);
+      return _tableNameCache = _compileSubquery(table, withParens: true);
+    }
+
+    // Raw (from fromRaw())
+    if (table is Raw) {
+      final sql = table.toSQL();
+      bindings.addAll(sql.bindings);
+      return _tableNameCache = sql.sql;
     }
 
     // Simple string table name
     if (table is String) {
-      return _wrapTableIdentifier(table);
+      return _tableNameCache = _wrapTableIdentifier(table);
     }
 
-    // Raw or other complex types - for later
-    return table.toString();
+    return _tableNameCache = table.toString();
   }
 
   /// Wrap table identifier with JS-like lowercase `as` for aliases.
@@ -332,10 +343,14 @@ class QueryCompiler {
       // Handle regular columns (but check for QueryBuilder first)
       final columns = stmt['columns'];
       if (columns != null && columns is List && columns.isNotEmpty) {
-        // Check each column - could be string or QueryBuilder
+        // Check each column - could be string, QueryBuilder, or Raw
         for (final col in columns) {
           if (col is QueryBuilder) {
             cols.add(_compileSubquery(col));
+          } else if (col is Raw) {
+            final rawSql = col.toSQL();
+            bindings.addAll(rawSql.bindings);
+            cols.add(rawSql.sql);
           } else {
             // Regular string column
             cols.add(formatter.wrap(col.toString()));
@@ -429,6 +444,16 @@ class QueryCompiler {
         return whereExists(statement);
       case 'whereWrapped': // NEW
         return whereWrapped(statement);
+      case 'whereJsonObject': // NEW (JSON)
+        return _whereJsonObject(statement);
+      case 'whereJsonPath': // NEW (JSON)
+        return _whereJsonPath(statement);
+      case 'whereJsonSupersetOf': // NEW (JSON)
+        return _whereJsonSupersetOf(statement);
+      case 'whereJsonSubsetOf': // NEW (JSON)
+        return _whereJsonSubsetOf(statement);
+      case 'whereFullText': // NEW (Full-text)
+        return _whereFullText(statement);
       default:
         throw Exception('Unknown WHERE type: $type');
     }
@@ -448,12 +473,7 @@ class QueryCompiler {
       return whereNull(statement);
     }
 
-    return _not(statement, '') +
-        formatter.wrap(statement['column']) +
-        ' ' +
-        formatter.operator(statement['operator']) +
-        ' ' +
-        _valueClause(statement);
+    return '${_not(statement, '') + formatter.wrap(statement['column'])} ${formatter.operator(statement['operator'])} ${_valueClause(statement)}';
   }
 
   /// Format WHERE clause value
@@ -634,6 +654,19 @@ class QueryCompiler {
 
     final sql = <String>[];
     for (final stmt in joins) {
+      // Handle joinRaw
+      if (stmt['type'] == 'joinRaw') {
+        final value = stmt['value'];
+        if (value is Raw) {
+          final rawSql = value.toSQL();
+          bindings.addAll(rawSql.bindings);
+          sql.add(rawSql.sql);
+        } else {
+          sql.add(value.toString());
+        }
+        continue;
+      }
+
       final joinType = stmt['join'] as String? ?? 'inner';
       final table = _wrapTableIdentifier(stmt['table'].toString());
 
@@ -867,7 +900,18 @@ class QueryCompiler {
 
     final columns = <String>[];
     for (final stmt in groups) {
-      columns.add(formatter.wrap(stmt['value']));
+      if (stmt['type'] == 'groupByRaw') {
+        final value = stmt['value'];
+        if (value is Raw) {
+          final rawSql = value.toSQL();
+          bindings.addAll(rawSql.bindings);
+          columns.add(rawSql.sql);
+        } else {
+          columns.add(value.toString());
+        }
+      } else {
+        columns.add(formatter.wrap(stmt['value']));
+      }
     }
 
     return 'group by ${columns.join(', ')}';
@@ -910,6 +954,12 @@ class QueryCompiler {
         return havingBasic(statement);
       case 'havingRaw':
         return havingRaw(statement);
+      case 'havingIn':
+        return havingIn(statement);
+      case 'havingBetween':
+        return havingBetween(statement);
+      case 'havingNull':
+        return havingNull(statement);
       default:
         throw Exception('Unknown HAVING type: $type');
     }
@@ -943,6 +993,44 @@ class QueryCompiler {
     return result;
   }
 
+  /// Compile HAVING IN clause
+  ///
+  /// Format: "column" [not] in (?, ?, ?)
+  String havingIn(Map<String, dynamic> statement) {
+    final column = formatter.wrap(statement['column']);
+    final values = statement['value'] as List;
+    final not = statement['not'] as bool? ?? false;
+
+    final placeholders = values
+        .map((v) => client.parameter(v, bindings))
+        .join(', ');
+    final modifier = not ? 'not in' : 'in';
+    return '$column $modifier ($placeholders)';
+  }
+
+  /// Compile HAVING BETWEEN clause
+  ///
+  /// Format: "column" [not] between ? and ?
+  String havingBetween(Map<String, dynamic> statement) {
+    final column = formatter.wrap(statement['column']);
+    final values = statement['value'] as List;
+    final not = statement['not'] as bool? ?? false;
+
+    final low = client.parameter(values[0], bindings);
+    final high = client.parameter(values[1], bindings);
+    final modifier = not ? 'not between' : 'between';
+    return '$column $modifier $low and $high';
+  }
+
+  /// Compile HAVING NULL clause
+  ///
+  /// Format: "column" is [not] null
+  String havingNull(Map<String, dynamic> statement) {
+    final column = formatter.wrap(statement['column']);
+    final not = statement['not'] as bool? ?? false;
+    return not ? '$column is not null' : '$column is null';
+  }
+
   /// Compile ORDER BY clause
   ///
   /// JS Reference: querycompiler.js lines 601-603 (order), 1441-1448 (_groupsOrders)
@@ -956,6 +1044,18 @@ class QueryCompiler {
     final sql = <String>[];
 
     for (final stmt in orders) {
+      if (stmt['type'] == 'orderByRaw') {
+        final value = stmt['value'];
+        if (value is Raw) {
+          final rawSql = value.toSQL();
+          bindings.addAll(rawSql.bindings);
+          sql.add(rawSql.sql);
+        } else {
+          sql.add(value.toString());
+        }
+        continue;
+      }
+
       // Get column and wrap it
       final column = formatter.wrap(stmt['value']);
 
@@ -1002,8 +1102,10 @@ class QueryCompiler {
     final lock = single['lock'] as String?;
     if (lock == null) return '';
 
-    final mysqlLike = client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final postgresLike = client.driverName == 'pg' ||
+    final mysqlLike =
+        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final postgresLike =
+        client.driverName == 'pg' ||
         client.driverName == 'postgres' ||
         client.driverName == 'postgresql' ||
         client.driverName == 'cockroachdb' ||
@@ -1017,12 +1119,16 @@ class QueryCompiler {
         return 'for share${_lockTablesClause(postgresLike)}';
       case 'forNoKeyUpdate':
         if (!postgresLike) {
-          throw StateError('.forNoKeyUpdate() is currently only supported on PostgreSQL');
+          throw StateError(
+            '.forNoKeyUpdate() is currently only supported on PostgreSQL',
+          );
         }
         return 'for no key update${_lockTablesClause(postgresLike)}';
       case 'forKeyShare':
         if (!postgresLike) {
-          throw StateError('.forKeyShare() is currently only supported on PostgreSQL');
+          throw StateError(
+            '.forKeyShare() is currently only supported on PostgreSQL',
+          );
         }
         return 'for key share${_lockTablesClause(postgresLike)}';
       default:
@@ -1054,7 +1160,9 @@ class QueryCompiler {
     final tables = single['lockTables'];
     if (tables is! List || tables.isEmpty) return '';
 
-    final tableNames = tables.map((t) => _wrapTableIdentifier(t.toString())).join(', ');
+    final tableNames = tables
+        .map((t) => _wrapTableIdentifier(t.toString()))
+        .join(', ');
     return ' of $tableNames';
   }
 
@@ -1259,7 +1367,7 @@ class QueryCompiler {
     // MySQL INSERT IGNORE is a prefix modifier — handle it at INSERT level
     final isIgnorePrefixDialect =
         client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final isIgnore = onConflict?['type'] == 'ignore';
+    final isIgnore = onConflict?['strategy'] == 'ignore';
 
     parts.add(_insert(ignorePrefix: isIgnorePrefixDialect && isIgnore));
 
@@ -1332,13 +1440,13 @@ class QueryCompiler {
   String _onConflict(Map<String, dynamic>? onConflict) {
     if (onConflict == null) return '';
 
-    final type = onConflict['type'] as String;
-    final column = onConflict['column']; // String | List<String> | null
+    final strategy = onConflict['strategy'] as String;
+    final column = onConflict['columns']; // String | List<String> | null
 
     final isMySQL =
         client.driverName == 'mysql' || client.driverName == 'mysql2';
 
-    if (type == 'ignore') {
+    if (strategy == 'ignore') {
       if (isMySQL) {
         // MySQL: INSERT IGNORE is a prefix — nothing to add here
         return '';
@@ -1348,24 +1456,24 @@ class QueryCompiler {
       return 'on conflict$target do nothing';
     }
 
-    if (type == 'merge') {
-      final mergeData = onConflict['mergeData'];
+    if (strategy == 'merge') {
+      final mergeColumns = onConflict['mergeColumns'];
       final insertValue = single['insert'];
 
       // Determine which columns to update
       final List<String> updateColumns;
       Map<String, dynamic>? rawUpdateValues;
 
-      if (mergeData == null) {
+      if (mergeColumns == null) {
         // No arg: update all inserted columns
         final rows = insertValue is List
             ? insertValue.cast<Map<String, dynamic>>()
             : [insertValue as Map<String, dynamic>];
         updateColumns = rows[0].keys.toList();
-      } else if (mergeData is List) {
-        updateColumns = List<String>.from(mergeData);
-      } else if (mergeData is Map) {
-        rawUpdateValues = Map<String, dynamic>.from(mergeData);
+      } else if (mergeColumns is List) {
+        updateColumns = List<String>.from(mergeColumns);
+      } else if (mergeColumns is Map) {
+        rawUpdateValues = Map<String, dynamic>.from(mergeColumns);
         updateColumns = [];
       } else {
         updateColumns = [];
@@ -1518,6 +1626,18 @@ class QueryCompiler {
     return parts.join(' ');
   }
 
+  /// Compile TRUNCATE TABLE statement
+  ///
+  /// Postgres appends `restart identity`, matching Knex.js behavior.
+  String _truncateQuery() {
+    final table = tableName;
+    final driver = client.driverName;
+    if (driver == 'pg' || driver == 'postgres' || driver == 'postgresql') {
+      return 'truncate $table restart identity';
+    }
+    return 'truncate $table';
+  }
+
   /// Compile DELETE statement
   ///
   /// JS Reference: querycompiler.js _deleteBody()
@@ -1608,5 +1728,122 @@ class QueryCompiler {
     bindings.addAll(sql.bindings);
 
     return '$method($distinct${sql.sql})';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // JSON OPERATORS (PG, MySQL, SQLite)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  String _whereJsonObject(Map<String, dynamic> statement) {
+    return '${_not(statement, '') + formatter.wrap(statement['column'])} = ${_valueClause(statement)}';
+  }
+
+  String _whereJsonPath(Map<String, dynamic> statement) {
+    if (client.driverName == 'pg') {
+      final col = formatter.wrap(statement['column']);
+      final path = client.parameter(statement['jsonPath'], bindings);
+      final op = formatter.operator(statement['operator']);
+
+      final valStr = statement['value'].toString();
+      String castValue = " #>> '{}'";
+      if (int.tryParse(valStr) != null) {
+        castValue = '::int';
+      } else if (double.tryParse(valStr) != null) {
+        castValue = '::float';
+      }
+
+      final valClause = _valueClause(statement);
+      return '${_not(statement, '')}jsonb_path_query_first($col, $path)$castValue $op $valClause';
+    } else if (client.driverName == 'mysql' || client.driverName == 'sqlite') {
+      final col = formatter.wrap(statement['column']);
+      final path = client.parameter(statement['jsonPath'], bindings);
+      final op = formatter.operator(statement['operator']);
+      final valClause = _valueClause(statement);
+      return '${_not(statement, '')}json_extract($col, $path) $op $valClause';
+    }
+    // Fallback if not supported
+    return whereBasic(statement);
+  }
+
+  String _whereJsonSupersetOf(Map<String, dynamic> statement) {
+    if (client.driverName == 'pg') {
+      return _not(statement, '') +
+          formatter.wrap(statement['column']) +
+          ' @> ' +
+          _valueClause(statement);
+    }
+    statement['operator'] = '=';
+    return whereBasic(statement); // Unsupported on other dialects right now
+  }
+
+  String _whereJsonSubsetOf(Map<String, dynamic> statement) {
+    if (client.driverName == 'pg') {
+      return _not(statement, '') +
+          formatter.wrap(statement['column']) +
+          ' <@ ' +
+          _valueClause(statement);
+    }
+    statement['operator'] = '=';
+    return whereBasic(statement); // Unsupported on other dialects right now
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FULL-TEXT SEARCH
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  String _whereFullText(Map<String, dynamic> statement) {
+    final columns = statement['columns']; // String or List
+    final List<String> colList = columns is List
+        ? List<String>.from(columns.map((e) => e.toString()))
+        : [columns.toString()];
+    final query = statement['query'] as String;
+    final options = statement['options'] as Map<String, dynamic>?;
+
+    final driver = client.driverName;
+
+    if (driver == 'pg') {
+      // PG: to_tsvector([config,] col) @@ to_tsquery([config,] query)
+      // Multiple columns: to_tsvector(col1) || to_tsvector(col2) @@ ...
+      final lang = options?['language'] as String?;
+      final langArg = lang != null ? "'$lang', " : "";
+
+      final vectors = colList
+          .map((c) {
+            final wrapped = formatter.wrap(c);
+            return "to_tsvector($langArg$wrapped)";
+          })
+          .join(" || ");
+
+      final queryParam = client.parameter(query, bindings);
+      final boolOp = _not(statement, '');
+      return '$boolOp($vectors) @@ to_tsquery($langArg$queryParam)';
+    }
+
+    if (driver == 'mysql' || driver == 'mysql2') {
+      // MySQL: MATCH(col1, col2) AGAINST(query [mode])
+      final wrappedCols = colList.map((c) => formatter.wrap(c)).join(', ');
+      final queryParam = client.parameter(query, bindings);
+      final mode = options?['mode'] as String?;
+      final modeArg = mode != null ? ' $mode' : '';
+      final boolOp = _not(statement, '');
+      return '${boolOp}MATCH($wrappedCols) AGAINST($queryParam$modeArg)';
+    }
+
+    if (driver == 'sqlite' || driver == 'sqlite3') {
+      // SQLite: col MATCH query (assuming FTS virtual table, usually searching on table name or specific col)
+      // If multiple columns, just pick the first or usually the table name is used.  SQLite FTS:  `table MATCH '...'`
+      final col = formatter.wrap(colList.first);
+      final queryParam = client.parameter(query, bindings);
+      final boolOp = _not(statement, '');
+      return '$boolOp$col MATCH $queryParam';
+    }
+
+    // Fallback if fulltext is unsupported for dialect
+    return whereBasic({
+      ...statement,
+      'operator': 'like',
+      'value': '%$query%',
+      'column': colList.first,
+    });
   }
 }

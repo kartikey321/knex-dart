@@ -5,7 +5,10 @@ import '../util/enums.dart';
 import '../raw.dart';
 import 'aggregate_options.dart';
 import 'analytic.dart';
+import 'on_conflict_builder.dart';
 export 'analytic.dart';
+export 'on_conflict_builder.dart';
+export 'json_builder.dart';
 
 // Sentinel for undefined arguments
 const _undefined = Object();
@@ -144,7 +147,7 @@ class QueryBuilder {
   ///
   /// JS Reference: querybuilder.js onConflict() (line 1255-onwards)
   OnConflictBuilder onConflict([dynamic column]) {
-    return OnConflictBuilder._(this, column);
+    return OnConflictBuilder(this, column);
   }
 
   /// Update rows with given values
@@ -348,11 +351,7 @@ class QueryBuilder {
 
     _method = QueryMethod.pluck;
     _single['pluck'] = column;
-    _statements.add({
-      'grouping': 'columns',
-      'type': 'pluck',
-      'value': column,
-    });
+    _statements.add({'grouping': 'columns', 'type': 'pluck', 'value': column});
     return this;
   }
 
@@ -1037,6 +1036,197 @@ class QueryBuilder {
       'type': 'havingRaw',
       'value': sql,
       'bindings': bindings,
+      'bool': 'and',
+    });
+    return this;
+  }
+
+  /// Add an OR raw HAVING clause
+  QueryBuilder orHavingRaw(String sql, [List<dynamic> bindings = const []]) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingRaw',
+      'value': sql,
+      'bindings': bindings,
+      'bool': 'or',
+    });
+    return this;
+  }
+
+  /// Add an OR HAVING clause
+  ///
+  /// JS Reference: querybuilder.js orHaving()
+  /// Example: .having('total', '>', 100).orHaving('count', '<', 5)
+  QueryBuilder orHaving(
+    String column,
+    dynamic operatorOrValue, [
+    dynamic value,
+  ]) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingBasic',
+      'column': column,
+      'operator': value == null ? '=' : operatorOrValue,
+      'value': value ?? operatorOrValue,
+      'bool': 'or',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add a HAVING IN clause
+  ///
+  /// JS Reference: querybuilder.js havingIn()
+  QueryBuilder havingIn(String column, List<dynamic> values) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingIn',
+      'column': column,
+      'value': values,
+      'bool': 'and',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add a HAVING NOT IN clause
+  QueryBuilder havingNotIn(String column, List<dynamic> values) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingIn',
+      'column': column,
+      'value': values,
+      'bool': 'and',
+      'not': true,
+    });
+    return this;
+  }
+
+  /// Add an OR HAVING IN clause
+  QueryBuilder orHavingIn(String column, List<dynamic> values) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingIn',
+      'column': column,
+      'value': values,
+      'bool': 'or',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add an OR HAVING NOT IN clause
+  QueryBuilder orHavingNotIn(String column, List<dynamic> values) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingIn',
+      'column': column,
+      'value': values,
+      'bool': 'or',
+      'not': true,
+    });
+    return this;
+  }
+
+  /// Add a HAVING BETWEEN clause
+  ///
+  /// JS Reference: querybuilder.js havingBetween()
+  QueryBuilder havingBetween(String column, List<dynamic> values) {
+    assert(
+      values.length == 2,
+      'havingBetween requires a list of exactly 2 values',
+    );
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingBetween',
+      'column': column,
+      'value': values,
+      'bool': 'and',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add a HAVING NOT BETWEEN clause
+  QueryBuilder havingNotBetween(String column, List<dynamic> values) {
+    assert(
+      values.length == 2,
+      'havingNotBetween requires a list of exactly 2 values',
+    );
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingBetween',
+      'column': column,
+      'value': values,
+      'bool': 'and',
+      'not': true,
+    });
+    return this;
+  }
+
+  /// Add an OR HAVING BETWEEN clause
+  QueryBuilder orHavingBetween(String column, List<dynamic> values) {
+    assert(
+      values.length == 2,
+      'orHavingBetween requires a list of exactly 2 values',
+    );
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingBetween',
+      'column': column,
+      'value': values,
+      'bool': 'or',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add a HAVING NULL clause
+  ///
+  /// JS Reference: querybuilder.js havingNull()
+  QueryBuilder havingNull(String column) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingNull',
+      'column': column,
+      'bool': 'and',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add a HAVING NOT NULL clause
+  QueryBuilder havingNotNull(String column) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingNull',
+      'column': column,
+      'bool': 'and',
+      'not': true,
+    });
+    return this;
+  }
+
+  /// Add an OR HAVING NULL clause
+  QueryBuilder orHavingNull(String column) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingNull',
+      'column': column,
+      'bool': 'or',
+      'not': false,
+    });
+    return this;
+  }
+
+  /// Add an OR HAVING NOT NULL clause
+  QueryBuilder orHavingNotNull(String column) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingNull',
+      'column': column,
+      'bool': 'or',
+      'not': true,
     });
     return this;
   }
@@ -1206,50 +1396,183 @@ class QueryBuilder {
   ]) {
     return _analytic('row_number', alias, orderBy, partitionBy);
   }
+
+  // ============================================================================
+  // BUILDER UTILITIES & LOCKS
+  // ============================================================================
+
+  /// Deep clones the query builder
+  QueryBuilder clone() {
+    final cloned = QueryBuilder(_client);
+    cloned._statements.addAll(_statements);
+    cloned._single.addAll(
+      _single.map((key, value) {
+        if (value is List) return MapEntry(key, List.from(value));
+        if (value is Map) return MapEntry(key, Map.from(value));
+        return MapEntry(key, value);
+      }),
+    );
+    cloned._method = _method;
+    cloned._notFlag = _notFlag;
+    cloned._boolFlag = _boolFlag;
+    cloned._asColumnFlag = _asColumnFlag;
+    cloned._alias = _alias;
+    if (_timeout != null) cloned._timeout = _timeout;
+    if (_cancelOnTimeout != null) cloned._cancelOnTimeout = _cancelOnTimeout;
+    return cloned;
+  }
+
+  /// Clears all standard groupings (select, where, group, order, having)
+  QueryBuilder clear([String? target]) {
+    if (target != null) {
+      _statements.removeWhere((stmt) => stmt['grouping'] == target);
+    } else {
+      _statements.clear();
+      _single.clear();
+      _method = QueryMethod.select;
+    }
+    return this;
+  }
+
+  /// Truncates the table
+  QueryBuilder truncate() {
+    _method = QueryMethod.truncate;
+    return this;
+  }
+
+  QueryBuilder clearSelect() {
+    _statements.removeWhere((stmt) => stmt['grouping'] == 'columns');
+    return this;
+  }
+
+  QueryBuilder clearWhere() {
+    _statements.removeWhere((stmt) => stmt['grouping'] == 'where');
+    return this;
+  }
+
+  QueryBuilder clearGroup() {
+    _statements.removeWhere((stmt) => stmt['grouping'] == 'group');
+    return this;
+  }
+
+  QueryBuilder clearOrder() {
+    _statements.removeWhere((stmt) => stmt['grouping'] == 'order');
+    return this;
+  }
+
+  QueryBuilder clearHaving() {
+    _statements.removeWhere((stmt) => stmt['grouping'] == 'having');
+    return this;
+  }
+
+  QueryBuilder clearCounters() {
+    _single.remove('counter');
+    return this;
+  }
+
+  /// Join raw SQL
+  QueryBuilder joinRaw(dynamic sql, [dynamic bindings]) {
+    _statements.add({
+      'grouping': 'join',
+      'type': 'joinRaw',
+      'value': sql is Raw ? sql : client.raw(sql.toString(), bindings),
+    });
+    return this;
+  }
+
+  /// Group by raw SQL
+  QueryBuilder groupByRaw(dynamic sql, [dynamic bindings]) {
+    _statements.add({
+      'grouping': 'group',
+      'type': 'groupByRaw',
+      'value': sql is Raw ? sql : client.raw(sql.toString(), bindings),
+    });
+    return this;
+  }
+
+  /// Order by raw SQL
+  QueryBuilder orderByRaw(dynamic sql, [dynamic bindings]) {
+    _statements.add({
+      'grouping': 'order',
+      'type': 'orderByRaw',
+      'value': sql is Raw ? sql : client.raw(sql.toString(), bindings),
+    });
+    return this;
+  }
+
+  /// Select from raw SQL
+  QueryBuilder fromRaw(dynamic sql, [dynamic bindings]) {
+    _single['table'] = sql is Raw ? sql : client.raw(sql.toString(), bindings);
+    return this;
+  }
+
+  // Modifiers
+  Duration? _timeout;
+  bool? _cancelOnTimeout;
+
+  QueryBuilder timeout(int ms, {bool cancel = false}) {
+    _timeout = Duration(milliseconds: ms);
+    _cancelOnTimeout = cancel;
+    return this;
+  }
+
+  QueryBuilder modify(Function callback, [List<dynamic> args = const []]) {
+    Function.apply(callback, <dynamic>[this, ...args]);
+    return this;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FULLTEXT SEARCH (whereFullText)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /// Add a full-text search clause for the given column(s).
+  ///
+  /// This generates dialect-specific full-text queries:
+  /// - **PostgreSQL**: `to_tsvector(col) @@ to_tsquery(?)` (optionally with language/config)
+  /// - **MySQL**: `MATCH(col) AGAINST(?)` (optionally with mode)
+  /// - **SQLite**: `col MATCH ?` (using FTS4/FTS5)
+  ///
+  /// [columns] can be a single `String` or a `List<String>`.
+  /// [query] is the search string.
+  /// [options] can include dialect-specific tweaks like `language` for PG or `mode` for MySQL.
+  QueryBuilder whereFullText(
+    dynamic columns,
+    String query, [
+    Map<String, dynamic>? options,
+  ]) {
+    _statements.add({
+      'grouping': 'where',
+      'type': 'whereFullText',
+      'columns': columns, // String or List<String>
+      'query': query,
+      'options': options,
+      'bool': 'and',
+      'not': false,
+    });
+    return this;
+  }
+
+  QueryBuilder orWhereFullText(
+    dynamic columns,
+    String query, [
+    Map<String, dynamic>? options,
+  ]) {
+    _statements.add({
+      'grouping': 'where',
+      'type': 'whereFullText',
+      'columns': columns,
+      'query': query,
+      'options': options,
+      'bool': 'or',
+      'not': false,
+    });
+    return this;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // HAVING CLAUSES
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OnConflictBuilder
 //
-// Returned by QueryBuilder.onConflict() and used to specify conflict action.
-// Writes back to the parent QueryBuilder's _single map.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Builder returned by [QueryBuilder.onConflict] to configure UPSERT behaviour.
-///
-/// Knex.js equivalent: `knex('table').insert({...}).onConflict('col').merge()`
-class OnConflictBuilder {
-  final QueryBuilder _builder;
-  final dynamic _column; // String | List<String> | null
-
-  OnConflictBuilder._(this._builder, this._column);
-
-  /// UPSERT — update on conflict.
-  ///
-  /// - `merge()` with no argument → update ALL inserted columns.
-  /// - `merge({'col': val})` → update only the supplied values.
-  /// - `merge(['col1', 'col2'])` → update only those columns (using
-  ///   `EXCLUDED.col` / `VALUES(col)` syntax per dialect).
-  ///
-  /// Returns the parent [QueryBuilder] for continued chaining (e.g. `.returning()`).
-  QueryBuilder merge([dynamic mergeData]) {
-    _builder._single['onConflict'] = {
-      'type': 'merge',
-      'column': _column,
-      'mergeData':
-          mergeData, // null = update all; Map = specific values; List = specific columns
-    };
-    return _builder;
-  }
-
-  /// INSERT IGNORE — do nothing on conflict.
-  ///
-  /// Postgres / SQLite: `ON CONFLICT (...) DO NOTHING`
-  /// MySQL:             `INSERT IGNORE INTO ...`
-  ///
-  /// Returns the parent [QueryBuilder] for continued chaining.
-  QueryBuilder ignore() {
-    _builder._single['onConflict'] = {'type': 'ignore', 'column': _column};
-    return _builder;
-  }
-}

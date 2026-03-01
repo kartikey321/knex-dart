@@ -150,6 +150,35 @@ knex('users').where('email', 'like', '%@gmail.com');
 // where "email" like $1
 ```
 
+## Full-Text Search (whereFullText)
+
+Cross-dialect full text search. Compiles down to `to_tsvector` in PostgreSQL, `MATCH AGAINST` in MySQL, and `MATCH` in SQLite.
+
+```dart
+knex('articles').whereFullText(['title', 'body'], 'flutter dart');
+// PG: where to_tsvector("title" || ' ' || "body") @@ to_tsquery($1)
+// MySQL: where match("title", "body") against($1)
+// SQLite: where "articles" match $1
+```
+
+## JSON Operators (PostgreSQL)
+
+If using the PostgresClient, you can use Native JSON operators:
+
+```dart
+knex('users').whereJsonObject('metadata', {'theme': 'dark'});
+// where "metadata" @> $1::jsonb AND "metadata" <@ $1::jsonb
+
+knex('users').whereJsonPath('metadata', '\$.name', 'John');
+// where jsonb_path_query_first("metadata", $1) = $2
+
+knex('users').whereJsonSupersetOf('roles', ['admin', 'user']);
+// where "roles" @> $1::jsonb
+
+knex('users').whereJsonSubsetOf('roles', ['superadmin', 'admin', 'user']);
+// where "roles" <@ $1::jsonb
+```
+
 ## All WHERE Methods
 
 | Method | Description |
@@ -177,5 +206,11 @@ knex('users').where('email', 'like', '%@gmail.com');
 | `orWhereExists()` | OR EXISTS |
 | `orWhereNotExists()` | OR NOT EXISTS |
 | `whereWrapped()` | Grouped conditions |
+| `whereFullText()` | Full-Text search match |
+| `orWhereFullText()` | OR Full-Text search |
+| `whereJsonObject()` | Match JSON object exactly |
+| `whereJsonPath()` | Query JSON by path |
+| `whereJsonSupersetOf()` | JSON Superset (`@>`) |
+| `whereJsonSubsetOf()` | JSON Subset (`<@`) |
 
-**Total: 23 WHERE methods** providing complete flexibility for query filtering.
+**Total: 29 WHERE methods** providing complete flexibility for query filtering.

@@ -10,18 +10,17 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart, bringing the same pow
 
 **Knex Dart is a work-in-progress port of [Knex.js](https://knexjs.org/) to Dart**, bringing the same powerful and intuitive query builder API to Dart/Flutter backends.
 
-### 🚧 Current Status: Query Generation (Soft Launch)
+### � Current Status: Query Generation & Execution
 
-Right now, Knex Dart focuses on **SQL query generation** with **100% API parity** for implemented features:
+Knex Dart supports **SQL query generation** and **database execution** with **identical API parity** for implemented features:
 
-- ✅ **Type-safe query construction** - Fluent, chainable API identical to Knex.js
-- ✅ **SQL generation** - Generate PostgreSQL-compatible SQL strings with parameter bindings
-- ✅ **Comprehensive testing** - 268 tests ensuring correctness against Knex.js baseline
-- ✅ **SELECT, INSERT, UPDATE, DELETE** - Full CRUD operations
-- ✅ **WHERE clauses, JOINs, aggregates** - Complex query building support
-- 🚧 **Database execution** - Coming soon! Currently porting driver integration
-
-If you've used Knex.js in Node.js, you'll feel right at home with the API.
+- ✅ **Type-safe query construction** - Fluent API identical to Knex.js
+- ✅ **SQL generation** - Generate dialect-specific SQL (Postgres, MySQL, SQLite)
+- ✅ **Database execution** - Built-in clients for PostgreSQL, MySQL, and SQLite (`.select()`, `.insert()`, etc.)
+- ✅ **Transactions** - Bulletproof transactional scopes (`.trx()`)
+- ✅ **Schema Builder** - Execute DDL for table creation (`createTable()`, `alterTable()`)
+- ✅ **Advanced Queries** - CTEs (WITH), Subqueries, UNIONs, JSON operators, Full-Text Search, and Upserts (`onConflict`)
+- ✅ **Comprehensive testing** - Hundreds of tests ensuring correctness against a Knex.js baseline
 
 ## Side-by-Side: Knex.js vs Knex Dart
 
@@ -142,7 +141,9 @@ final sql = query.toSQL();
 print(sql.sql);       // select "id", "name", "email" from "users" where "status" = $1 limit $2
 print(sql.bindings);  // ['active', 10]
 
-// Note: Actual database execution (.execute()) coming soon!
+// Execute on a live database (PostgreSQL wrapper natively supported)
+final results = await client.select(query);
+print(results);
 ```
 
 
@@ -193,30 +194,25 @@ QueryBuilder(client)
 
 ## Roadmap
 
-### ✅ Phase 1: Query Builder (Current - Soft Launch)
-
-- ✅ Core query building API
+### ✅ Phase 1: Query Builder Core
 - ✅ SELECT, INSERT, UPDATE, DELETE operations
 - ✅ WHERE clauses, JOINs, ORDER BY, LIMIT/OFFSET
 - ✅ Aggregate functions (COUNT, SUM, AVG, MIN, MAX)
 - ✅ Raw queries with parameter binding
-- ✅ PostgreSQL SQL generation
-- ✅ 268 comprehensive tests
+- ✅ PostgreSQL, MySQL, and SQLite generation
 
-### 🚧 Phase 2: Database Execution (In Progress)
+### ✅ Phase 2: Database Execution & Schema
+- ✅ Database driver integration (PostgreSQL, MySQL, SQLite)
+- ✅ Query execution with `client.select()` / `client.insert()` etc.
+- ✅ Transaction support with `client.trx`
+- ✅ Schema Builder phase 1 and 2 (`createTable`, `alterTable`, `foreign`)
 
-- 🚧 Database driver integration (PostgreSQL, MySQL, SQLite)
-- 🚧 Connection pooling
-- 🚧 Query execution with `.execute()`
-- 🚧 Transaction support
-- 🚧 Migration system
-
-### 📋 Phase 3: Advanced Query Features (Planned)
-
-- Extended WHERE clauses (BETWEEN, EXISTS, column comparisons)
-- Subqueries
-- CTEs (WITH clauses)
-- Window functions
+### ✅ Phase 3: Advanced Query Features
+- ✅ Extended WHERE clauses (BETWEEN, EXISTS, column comparisons, Full-Text, JSON)
+- ✅ Subqueries & UNIONs
+- ✅ CTEs (WITH clauses)
+- ✅ Upserts (`onConflict.merge`)
+- 🚧 Window functions (Planned)
 
 
 ## Comparison with Knex.js

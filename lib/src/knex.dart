@@ -4,8 +4,12 @@ import 'client/mysql_client.dart';
 import 'client/sqlite_client.dart';
 
 import 'client/postgres_client.dart';
+import 'formatter/formatter.dart';
 import 'query/query_builder.dart';
+import 'query/query_compiler.dart';
 import 'schema/schema_builder.dart';
+import 'schema/schema_compiler.dart';
+import 'transaction/transaction.dart';
 import 'raw.dart';
 import 'ref.dart';
 import 'migration/migrator.dart';
@@ -183,9 +187,32 @@ class KnexPostgres {
     List<dynamic>? bindings,
   ]) => _pgClient.rawSql(sql, bindings);
 
+  /// Create a query builder.
+  QueryBuilder queryBuilder() => _PgSchemaClient().queryBuilder();
+
   /// Run a transaction. See [PostgresClient.trx].
   Future<T> trx<T>(Future<T> Function(PostgresTrxClient trx) callback) =>
       _pgClient.trx(callback);
+
+  /// Execute schema DDL operations.
+  ///
+  /// Takes a [SchemaBuilder] callback, generates dialect-aware SQL, and runs
+  /// each statement against the database.
+  Future<void> executeSchema(
+    void Function(SchemaBuilder schema) callback,
+  ) async {
+    // Use a PG-flavored mock client to generate SQL, then execute via rawSql
+    final pgMock = _PgSchemaClient();
+    final builder = pgMock.schemaBuilder();
+    callback(builder);
+    final statements = builder.toSQL();
+    for (final stmt in statements) {
+      await _pgClient.rawSql(
+        stmt['sql'] as String,
+        stmt['bindings'] as List<dynamic>?,
+      );
+    }
+  }
 
   Future<void> close() => _pgClient.close();
 }
@@ -218,9 +245,28 @@ class KnexMySQL {
     return _client.raw(sql, bindings);
   }
 
+  /// Create a query builder.
+  QueryBuilder queryBuilder() => _MySQLSchemaClient().queryBuilder();
+
   /// Run a transaction. See [MySQLClient.trx].
   Future<T> trx<T>(Future<T> Function(MySQLTrxClient trx) callback) =>
       _client.trx(callback);
+
+  /// Execute schema DDL operations.
+  Future<void> executeSchema(
+    void Function(SchemaBuilder schema) callback,
+  ) async {
+    final mysqlMock = _MySQLSchemaClient();
+    final builder = mysqlMock.schemaBuilder();
+    callback(builder);
+    final statements = builder.toSQL();
+    for (final stmt in statements) {
+      await _client.raw(
+        stmt['sql'] as String,
+        stmt['bindings'] as List<dynamic>?,
+      );
+    }
+  }
 
   Future<void> close() => _client.close();
 }
@@ -250,9 +296,169 @@ class KnexSQLite {
 
   QueryBuilder queryBuilder() => _client.queryBuilder();
 
+  /// Get a schema builder for executing DDL against this SQLite database.
+  SchemaBuilder get schema => _client.schemaBuilder();
+
+  /// Execute schema DDL operations.
+  Future<void> executeSchema(
+    void Function(SchemaBuilder schema) callback,
+  ) async {
+    final builder = _client.schemaBuilder();
+    callback(builder);
+    await builder.execute();
+  }
+
   /// Run a transaction. See [SQLiteClient.trx].
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) =>
       _client.trx(callback);
 
   Future<void> close() => _client.close();
+}
+
+// ============================================================================
+// INTERNAL SCHEMA CLIENTS
+// These are lightweight "stub" clients used only for SQL generation.
+// They don't connect to any database.
+// ============================================================================
+
+/// Internal PG-flavored schema client for SQL generation only.
+class _PgSchemaClient extends Client {
+  _PgSchemaClient() : super(KnexConfig(client: 'pg', connection: {}));
+
+  @override
+  String get driverName => 'pg';
+
+  @override
+  SchemaCompiler schemaCompiler(SchemaBuilder builder) =>
+      SchemaCompiler(this, builder);
+
+  @override
+  QueryBuilder queryBuilder() => QueryBuilder(this);
+
+  @override
+  Future<dynamic> rawQuery(String sql, List<dynamic> bindings) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<Map<String, dynamic>>> query(
+    dynamic connection,
+    String sql,
+    List<dynamic> bindings,
+  ) => throw UnimplementedError();
+
+  @override
+  Stream<Map<String, dynamic>> streamQuery(
+    dynamic connection,
+    String sql,
+    List<dynamic> bindings,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<void> destroy() => Future.value();
+
+  @override
+  Future<Transaction> transaction([TransactionConfig? config]) =>
+      throw UnimplementedError();
+
+  @override
+  void initializeDriver() {}
+
+  @override
+  void initializePool([poolConfig]) {}
+
+  @override
+  QueryCompiler queryCompiler(QueryBuilder builder) =>
+      QueryCompiler(this, builder);
+
+  @override
+  dynamic formatter(dynamic builder) => Formatter(this, builder);
+
+  @override
+  SchemaBuilder schemaBuilder() => SchemaBuilder(this);
+
+  @override
+  Future acquireConnection() => throw UnimplementedError();
+
+  @override
+  Future<void> releaseConnection(connection) => Future.value();
+
+  @override
+  String wrapIdentifierImpl(String identifier) => '"$identifier"';
+
+  @override
+  String parameterPlaceholder(int index) => '\$$index';
+
+  @override
+  String formatValue(value) => value.toString();
+}
+
+/// Internal MySQL-flavored schema client for SQL generation only.
+class _MySQLSchemaClient extends Client {
+  _MySQLSchemaClient() : super(KnexConfig(client: 'mysql2', connection: {}));
+
+  @override
+  String get driverName => 'mysql2';
+
+  @override
+  SchemaCompiler schemaCompiler(SchemaBuilder builder) =>
+      SchemaCompiler(this, builder);
+
+  @override
+  QueryBuilder queryBuilder() => QueryBuilder(this);
+
+  @override
+  Future<dynamic> rawQuery(String sql, List<dynamic> bindings) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<Map<String, dynamic>>> query(
+    dynamic connection,
+    String sql,
+    List<dynamic> bindings,
+  ) => throw UnimplementedError();
+
+  @override
+  Stream<Map<String, dynamic>> streamQuery(
+    dynamic connection,
+    String sql,
+    List<dynamic> bindings,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<void> destroy() => Future.value();
+
+  @override
+  Future<Transaction> transaction([TransactionConfig? config]) =>
+      throw UnimplementedError();
+
+  @override
+  void initializeDriver() {}
+
+  @override
+  void initializePool([poolConfig]) {}
+
+  @override
+  QueryCompiler queryCompiler(QueryBuilder builder) =>
+      QueryCompiler(this, builder);
+
+  @override
+  dynamic formatter(dynamic builder) => Formatter(this, builder);
+
+  @override
+  SchemaBuilder schemaBuilder() => SchemaBuilder(this);
+
+  @override
+  Future acquireConnection() => throw UnimplementedError();
+
+  @override
+  Future<void> releaseConnection(connection) => Future.value();
+
+  @override
+  String wrapIdentifierImpl(String identifier) => '`$identifier`';
+
+  @override
+  String parameterPlaceholder(int index) => '?';
+
+  @override
+  String formatValue(value) => value.toString();
 }

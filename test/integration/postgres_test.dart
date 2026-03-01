@@ -9,6 +9,7 @@ void main() {
   final mockClient = MockClient();
   const testEmails = <String>[
     'test_insert@example.com',
+    'on_conflict_test@example.com',
     'before_update@example.com',
     'to_delete@example.com',
     'trx_commit@example.com',
@@ -314,6 +315,7 @@ void main() {
           .table('users')
           .insert({
             'name': 'Test Insert',
+
             'email': 'test_insert@example.com',
             'role': 'guest',
             'active': true,
@@ -334,6 +336,37 @@ void main() {
       await pgClient.delete(
         mockClient.queryBuilder().table('users').where('id', id),
       );
+    });
+
+    test('should perform an upsert with onConflict.merge()', () async {
+      final email = 'on_conflict_test@example.com';
+      // Initial insert
+      final query1 = mockClient.queryBuilder().table('users').insert({
+        'name': 'Original Name',
+        'email': email,
+        'role': 'guest',
+      });
+      await pgClient.insert(query1);
+
+      // Upsert
+      final query2 = mockClient
+          .queryBuilder()
+          .table('users')
+          .insert({'name': 'Updated Name', 'email': email})
+          .onConflict('email')
+          .merge(['name']);
+
+      await pgClient.insert(query2);
+
+      final rows = await pgClient.select(
+        mockClient.queryBuilder().table('users').where('email', email),
+      );
+
+      expect(rows.length, 1);
+      expect(rows.first['name'], 'Updated Name');
+
+      // Cleanup
+      await pgClient.rawSql('delete from "users" where "email" = \$1', [email]);
     });
 
     test('UPDATE a row and verify', () async {

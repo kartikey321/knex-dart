@@ -76,7 +76,8 @@ Complex queries? We've got you covered with subqueries, CTEs, JOINs, and more.
 ## 📚 Documentation
 
 - [Getting Started](/getting-started/installation) - Install and configure
-- [WHERE Clauses](/query-building/where-clauses) - All 23 methods
+- [Write Operations](/query-building/write-operations) - Insert, Update, Delete, Upsert
+- [WHERE Clauses](/query-building/where-clauses) - All 29 methods
 - [Subqueries](/query-building/subqueries) - Nested queries
 - [CTEs (WITH)](/query-building/ctes) - Common table expressions
 - [Migration Guide](/migration/from-knex-js) - Coming from Knex.js?

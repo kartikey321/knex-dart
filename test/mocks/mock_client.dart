@@ -9,10 +9,14 @@ import 'package:knex_dart/src/transaction/transaction.dart';
 
 /// Mock client for testing
 class MockClient extends Client {
-  MockClient() : super(KnexConfig(client: 'mock', connection: {}));
+  final String _driverName;
+
+  MockClient({String driverName = 'pg'})
+    : _driverName = driverName,
+      super(KnexConfig(client: 'mock', connection: {}));
 
   @override
-  String get driverName => 'mock';
+  String get driverName => _driverName;
 
   @override
   void initializeDriver() {}
@@ -38,7 +42,7 @@ class MockClient extends Client {
 
   @override
   SchemaCompiler schemaCompiler(SchemaBuilder builder) =>
-      throw UnimplementedError();
+      SchemaCompiler(this, builder);
 
   @override
   Future<Transaction> transaction([config]) => throw UnimplementedError();
@@ -70,7 +74,13 @@ class MockClient extends Client {
   Future<void> _destroyPool() => Future.value();
 
   @override
-  String wrapIdentifierImpl(String identifier) => '"$identifier"';
+  String wrapIdentifierImpl(String value) {
+    if (value == '*') return value;
+    if (_driverName == 'mysql' || _driverName == 'mysql2') {
+      return '`$value`';
+    }
+    return '"$value"';
+  }
 
   @override
   String parameterPlaceholder(int index) => '\$$index'; // PostgreSQL style
