@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
+      - name: Install melos
+        run: dart pub global activate melos
+
       - name: Analyze
         run: melos run analyze
 
@@ -192,6 +195,9 @@ jobs:
 
       - name: Install dependencies
         run: dart pub get
+
+      - name: Install melos
+        run: dart pub global activate melos
 
       - name: Dry-run (all packages)
         run: melos publish
