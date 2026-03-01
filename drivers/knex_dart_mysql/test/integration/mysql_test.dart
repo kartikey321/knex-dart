@@ -1,3 +1,6 @@
+@Tags(['mysql'])
+library;
+
 import 'dart:io';
 
 import 'package:knex_dart_mysql/knex_dart_mysql.dart';

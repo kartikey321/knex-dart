@@ -1,3 +1,6 @@
+@Tags(['postgres'])
+library;
+
 import 'dart:io';
 
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';

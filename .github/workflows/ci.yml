@@ -131,11 +131,11 @@ jobs:
         working-directory: drivers/knex_dart_postgres
         run: dart test --tags=postgres
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: knex_test
-          POSTGRES_USER: knex
-          POSTGRES_PASSWORD: knex
+          PG_HOST: localhost
+          PG_PORT: 5432
+          PG_DATABASE: knex_test
+          PG_USER: knex
+          PG_PASSWORD: knex
 
   # ── 5. MySQL integration tests ────────────────────────────────────────────────
   test-mysql:
@@ -175,7 +175,7 @@ jobs:
         env:
           MYSQL_HOST: localhost
           MYSQL_PORT: 3306
-          MYSQL_DB: knex_test
+          MYSQL_DATABASE: knex_test
           MYSQL_USER: knex
           MYSQL_PASSWORD: knex
 
