@@ -127,6 +127,14 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
+      - name: Set up schema and seed data
+        working-directory: drivers/knex_dart_postgres
+        run: |
+          psql -h localhost -U knex -d knex_test -f test/integration/sql/postgres_schema.sql
+          psql -h localhost -U knex -d knex_test -f test/integration/sql/postgres_seed.sql
+        env:
+          PGPASSWORD: knex
+
       - name: Run PostgreSQL tests
         working-directory: drivers/knex_dart_postgres
         run: dart test --tags=postgres
@@ -168,6 +176,12 @@ jobs:
 
       - name: Install dependencies
         run: dart pub get
+
+      - name: Set up schema and seed data
+        working-directory: drivers/knex_dart_mysql
+        run: |
+          mysql -h 127.0.0.1 -u knex -pknex knex_test < test/integration/sql/mysql_schema.sql
+          mysql -h 127.0.0.1 -u knex -pknex knex_test < test/integration/sql/mysql_seed.sql
 
       - name: Run MySQL tests
         working-directory: drivers/knex_dart_mysql
