@@ -70,9 +70,18 @@ await db.destroy();
 - `RETURNING` clause support
 - JSON operators (`whereJsonPath`, `whereJsonSupersetOf`, `whereJsonSubsetOf`)
 - Full-text search (`whereFullText` with language option)
+- Connection pooling support
+- Nested transactions via savepoints
+
+## Documentation
+
+- Docs home: https://docs.knex.mahawarkartikey.in/
+- Transactions: https://docs.knex.mahawarkartikey.in/query-building/transactions
+- Migrations: https://docs.knex.mahawarkartikey.in/migration/migrations
+- Schema Builder: https://docs.knex.mahawarkartikey.in/query-building/schema-builder
 
 ## See also
 
-- [knex_dart](https://pub.dev/packages/knex_dart) — core query builder docs and full API reference
+- [knex_dart](https://pub.dev/packages/knex_dart) — core package
 - [knex_dart_mysql](https://pub.dev/packages/knex_dart_mysql)
 - [knex_dart_sqlite](https://pub.dev/packages/knex_dart_sqlite)

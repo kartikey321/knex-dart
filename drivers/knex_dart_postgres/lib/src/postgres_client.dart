@@ -10,6 +10,17 @@ class PostgresClient {
   final Pool<void> _pool;
   bool _isClosed = false;
 
+  /// Pinned transaction session, set only while [runInTransaction] is active.
+  ///
+  /// When non-null, [rawSql] and [_run] route queries through this session
+  /// instead of acquiring a new pool connection — ensuring all statements
+  /// inside the migration step land on the same physical connection.
+  ///
+  /// Dart's single-threaded event loop makes this field safe for sequential
+  /// callers (e.g., the Migrator). Concurrent transactions should use [trx]
+  /// instead, which scopes the session to the callback closure.
+  TxSession? _txSession;
+
   PostgresClient._(this._pool);
 
   /// Creates a new PostgreSQL client connected to the database via a pool.
@@ -71,6 +82,14 @@ class PostgresClient {
     print('SQL: ${compiled.sql}');
     print('Bindings: ${compiled.bindings}');
 
+    if (_txSession != null) {
+      final result = await _txSession!.execute(
+        compiled.sql,
+        parameters: compiled.bindings,
+      );
+      return _mapResults(result);
+    }
+
     return _pool.withConnection((conn) async {
       final result = await conn.execute(
         compiled.sql,
@@ -108,6 +127,9 @@ class PostgresClient {
   }
 
   /// Execute a raw SQL query directly and return results as a List of Maps.
+  ///
+  /// When [runInTransaction] is active, queries are automatically routed to
+  /// the pinned transaction session.
   Future<List<Map<String, dynamic>>> rawSql(
     String sql, [
     List<dynamic>? bindings,
@@ -117,8 +139,13 @@ class PostgresClient {
     }
     print('SQL: $sql');
     print('Bindings: $bindings');
+    final params = bindings ?? [];
+    if (_txSession != null) {
+      final result = await _txSession!.execute(sql, parameters: params);
+      return _mapResults(result);
+    }
     return _pool.withConnection((conn) async {
-      final result = await conn.execute(sql, parameters: bindings ?? []);
+      final result = await conn.execute(sql, parameters: params);
       return _mapResults(result);
     });
   }
@@ -130,6 +157,45 @@ class PostgresClient {
   bool get isClosed => _isClosed;
 
   // ─── Transaction support ──────────────────────────────────────────────────
+
+  /// Run [action] inside a Postgres transaction, pinning one pool connection.
+  ///
+  /// Acquires a single connection, opens a transaction via [Connection.runTx],
+  /// and sets [_txSession] for the duration of [action]. Any [rawSql] or query
+  /// call made inside [action] is automatically routed to that pinned session.
+  ///
+  /// **Reentrancy guard**: if [_txSession] is already set (i.e., this is called
+  /// from within an active [runInTransaction] scope), [action] is run directly
+  /// without opening a new transaction — preventing nested `BEGIN` errors.
+  ///
+  /// This is the correct hook for the knex-dart Migrator when
+  /// `MigrationConfig.disableTransactions` is `false`. The migrator's internal
+  /// `rawQuery` calls (e.g., INSERT into `knex_migrations`) are routed through
+  /// the same session as the migration SQL itself.
+  Future<T> runInTransaction<T>(Future<T> Function() action) {
+    if (_txSession != null) {
+      // Already pinned — run directly to avoid nested BEGIN.
+      return action();
+    }
+    return _pool.withConnection(
+      (conn) => conn.runTx(
+        (session) => _withPinnedSession(session, action),
+      ),
+    );
+  }
+
+  /// Sets [_txSession] for the duration of [action], then clears it.
+  Future<T> _withPinnedSession<T>(
+    TxSession session,
+    Future<T> Function() action,
+  ) async {
+    _txSession = session;
+    try {
+      return await action();
+    } finally {
+      _txSession = null;
+    }
+  }
 
   /// Run [callback] inside a Postgres transaction.
   ///

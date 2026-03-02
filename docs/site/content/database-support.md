@@ -112,8 +112,8 @@ Useful for testing, SQL snapshots, and compiler verification.
 
 ## Limitations (Current)
 
-- Connection pooling is not yet implemented.
-- Nested/savepoint transaction semantics are still in progress.
+- Connection pooling is implemented for PostgreSQL and MySQL drivers.
+- Nested/savepoint transaction semantics are implemented across PostgreSQL, MySQL, and SQLite.
 
 ## Additional Databases (Not Yet Supported)
 

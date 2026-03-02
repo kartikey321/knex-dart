@@ -114,14 +114,30 @@ class MigrationConfig {
   /// Schema name for migration table
   final String? schemaName;
 
-  /// Disable transactions for migrations
+  /// Disable transaction wrapping for each migration step.
+  ///
+  /// Defaults to `true` because the default [Client.runInTransaction]
+  /// implementation issues raw `BEGIN` / `COMMIT` / `ROLLBACK` via
+  /// [Client.rawQuery]. On pooled drivers (Postgres, MySQL) each [rawQuery]
+  /// call acquires and releases a **separate** pool connection, so `BEGIN` and
+  /// its matching `COMMIT` may land on different physical connections — making
+  /// the transaction a silent no-op.
+  ///
+  /// **Safe to set `false` when:**
+  /// - Using SQLite — single connection, and the driver properly overrides
+  ///   [Client.runInTransaction] to pin the connection via `trx()`.
+  /// - Using a custom driver that overrides [Client.runInTransaction] to
+  ///   acquire one connection and reuse it for the entire migration step.
+  ///
+  /// **Warning — do NOT set `false` for MySQL or Postgres** unless the driver
+  /// has been updated to pin a single connection in `runInTransaction`.
   final bool disableTransactions;
 
   const MigrationConfig({
     this.directory = './migrations',
     this.tableName = 'knex_migrations',
     this.schemaName,
-    this.disableTransactions = false,
+    this.disableTransactions = true,
   });
 }
 

@@ -100,6 +100,39 @@ abstract class Client {
   /// Returns the raw result from the database driver
   Future<dynamic> rawQuery(String sql, List<dynamic> bindings);
 
+  /// Run [action] inside a database transaction on a single pinned connection.
+  ///
+  /// The default implementation issues raw `BEGIN` / `COMMIT` / `ROLLBACK` via
+  /// [rawQuery]. This is correct for single-connection clients such as SQLite,
+  /// but unreliable on connection-pooled drivers (Postgres, MySQL) where each
+  /// [rawQuery] call may land on a **different** physical connection — making
+  /// the transaction a silent no-op.
+  ///
+  /// Pooled drivers should override this method to acquire one connection,
+  /// keep it pinned for the duration of [action], then release it:
+  /// ```dart
+  /// @override
+  /// Future<T> runInTransaction<T>(Future<T> Function() action) =>
+  ///     _pool.withConnection((conn) => conn.runTx((_) => action()));
+  /// ```
+  ///
+  /// The [Migrator] calls this when `MigrationConfig.disableTransactions` is
+  /// `false`. It defaults to `true` precisely because pooled drivers have not
+  /// yet overridden this method.
+  Future<T> runInTransaction<T>(Future<T> Function() action) async {
+    await rawQuery('BEGIN', const []);
+    try {
+      final result = await action();
+      await rawQuery('COMMIT', const []);
+      return result;
+    } catch (e) {
+      try {
+        await rawQuery('ROLLBACK', const []);
+      } catch (_) {}
+      rethrow;
+    }
+  }
+
   /// Execute a query and return results
   Future<List<Map<String, dynamic>>> query(
     dynamic connection,

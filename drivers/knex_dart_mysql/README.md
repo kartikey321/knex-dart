@@ -69,9 +69,18 @@ await db.destroy();
 - `?` positional placeholders
 - Backtick identifier quoting
 - Full-text search (`whereFullText` with IN BOOLEAN MODE / IN NATURAL LANGUAGE MODE)
+- Connection pooling support
+- Nested transactions via savepoints
+
+## Documentation
+
+- Docs home: https://docs.knex.mahawarkartikey.in/
+- Transactions: https://docs.knex.mahawarkartikey.in/query-building/transactions
+- Migrations: https://docs.knex.mahawarkartikey.in/migration/migrations
+- Schema Builder: https://docs.knex.mahawarkartikey.in/query-building/schema-builder
 
 ## See also
 
-- [knex_dart](https://pub.dev/packages/knex_dart) — core query builder docs and full API reference
+- [knex_dart](https://pub.dev/packages/knex_dart) — core package
 - [knex_dart_postgres](https://pub.dev/packages/knex_dart_postgres)
 - [knex_dart_sqlite](https://pub.dev/packages/knex_dart_sqlite)

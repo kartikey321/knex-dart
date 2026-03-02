@@ -17,6 +17,15 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 
 `knex_dart` is the core package — it contains the query builder, schema builder, and compiler logic but no database connectivity. Pick the driver package for your database.
 
+## Documentation
+
+Full documentation is available at:
+
+- https://docs.knex.mahawarkartikey.in/
+- Migrations: https://docs.knex.mahawarkartikey.in/migration/migrations
+- Transactions: https://docs.knex.mahawarkartikey.in/query-building/transactions
+- Schema Builder: https://docs.knex.mahawarkartikey.in/query-building/schema-builder
+
 ## Installation
 
 ```yaml
@@ -151,6 +160,56 @@ await db.trx((trx) async {
 });
 ```
 
+Nested transactions are supported via savepoints (`SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, `RELEASE SAVEPOINT`).
+
+### Migrations
+
+Knex Dart supports explicit migration source styles:
+
+- `fromCode(...)` for in-code migration units
+- `fromSqlDir(...)` for filesystem `*.up.sql` / `*.down.sql` migrations
+- `fromSchema(...)` for external schema input mapped to `KnexSchemaAst`
+
+```dart
+// 1) Code-first (SQL migration unit)
+await db.migrate.fromCode([
+  const SqlMigration(
+    name: '001_create_users',
+    upSql: ['create table users (id integer primary key, email varchar(255))'],
+    downSql: ['drop table users'],
+  ),
+]).latest();
+
+// 2) SQL directory
+await db.migrate.fromSqlDir('./migrations').latest();
+```
+
+Schema builder style is also supported by implementing a migration unit:
+
+```dart
+class CreateUsersMigration implements MigrationUnit {
+  @override
+  String get name => '002_create_users_with_builder';
+
+  @override
+  Future<void> up(Knex db) async {
+    final schema = db.schema;
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('email', 255).notNullable().unique();
+    });
+    await schema.execute();
+  }
+
+  @override
+  Future<void> down(Knex db) async {
+    final schema = db.schema;
+    schema.dropTableIfExists('users');
+    await schema.execute();
+  }
+}
+```
+
 ## Side-by-Side: Knex.js vs knex_dart
 
 **Knex.js**
@@ -187,6 +246,7 @@ db('users')
 - Full-text search (`whereFullText`)
 - Upserts (`onConflict().merge()`)
 - Schema builder — createTable, alterTable, dropTable, foreign keys, indexes
+- Migrations — code-first, SQL-directory, and external-schema sources
 - Dialect-aware SQL (PostgreSQL `$1`, MySQL/SQLite `?`)
 
 ## Acknowledgments

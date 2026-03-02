@@ -96,7 +96,18 @@ class TableBuilder {
     }
   }
 
-  String _timestampType() => _datetimeType();
+  String _timestampType([bool useTz = true]) {
+    switch (_dialect) {
+      case 'sqlite':
+      case 'sqlite3':
+        return 'datetime';
+      case 'mysql':
+      case 'mysql2':
+        return 'datetime';
+      default:
+        return useTz ? 'timestamptz' : 'timestamp';
+    }
+  }
 
   String _binaryType() {
     switch (_dialect) {
@@ -242,9 +253,15 @@ class TableBuilder {
     return cb;
   }
 
-  /// Timestamp column
-  ColumnBuilder timestamp(String column) {
-    final cb = ColumnBuilder(column, _timestampType());
+  /// Timestamp column.
+  ///
+  /// For PostgreSQL:
+  /// - `useTz = true`  -> `timestamptz` (default)
+  /// - `useTz = false` -> `timestamp`
+  ///
+  /// For MySQL/SQLite, this maps to `datetime` regardless of [useTz].
+  ColumnBuilder timestamp(String column, [bool useTz = true]) {
+    final cb = ColumnBuilder(column, _timestampType(useTz));
     _columns.add(cb);
     return cb;
   }
@@ -319,9 +336,21 @@ class TableBuilder {
     return cb;
   }
 
-  /// Timestamps helper — adds created_at and updated_at columns
-  void timestamps([bool useTimestamps = false, bool defaultToNow = false]) {
-    final type = _datetimeType();
+  /// Timestamps helper — adds created_at and updated_at columns.
+  ///
+  /// [useTimestamps] is kept for Knex.js API parity (currently unused here).
+  ///
+  /// For PostgreSQL:
+  /// - `useTz = true`  -> `timestamptz` (default)
+  /// - `useTz = false` -> `timestamp`
+  ///
+  /// For MySQL/SQLite, this maps to `datetime` regardless of [useTz].
+  void timestamps([
+    bool useTimestamps = false,
+    bool defaultToNow = false,
+    bool useTz = true,
+  ]) {
+    final type = _timestampType(useTz);
     final createdAt = ColumnBuilder('created_at', type);
     final updatedAt = ColumnBuilder('updated_at', type);
 
@@ -424,12 +453,10 @@ class TableBuilder {
 
   /// Drop timestamps columns (created_at, updated_at)
   void dropTimestamps([bool useCamelCase = false]) {
-    final cols =
-        useCamelCase ? ['createdAt', 'updatedAt'] : ['created_at', 'updated_at'];
-    _alterStatements.add({
-      'method': 'dropTimestamps',
-      'args': cols,
-    });
+    final cols = useCamelCase
+        ? ['createdAt', 'updatedAt']
+        : ['created_at', 'updated_at'];
+    _alterStatements.add({'method': 'dropTimestamps', 'args': cols});
   }
 
   /// Set a column to nullable (ALTER TABLE ... ALTER COLUMN ... DROP NOT NULL)

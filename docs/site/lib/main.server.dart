@@ -105,6 +105,7 @@ void main() {
               SidebarGroup(
                 title: 'Migration',
                 links: [
+                  SidebarLink(text: "Migrations", href: '/migration/migrations'),
                   SidebarLink(text: "From Knex.js", href: '/migration/from-knex-js'),
                 ],
               ),

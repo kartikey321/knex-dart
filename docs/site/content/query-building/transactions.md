@@ -176,8 +176,8 @@ Future<void> transfer({
 
 ## Limitations
 
-- **Nested/savepoint transactions** are not yet supported. Calling `trx()` inside another `trx()` callback will start a separate transaction, not a savepoint.
-- Connection pooling is not yet implemented — each `trx()` uses a single connection per call.
+- Nested transactions are supported using savepoints (`SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, `RELEASE SAVEPOINT`).
+- Transactions are connection-pinned: each outer `trx()` acquires one pooled connection for its full scope.
 
 ## Next Steps
 

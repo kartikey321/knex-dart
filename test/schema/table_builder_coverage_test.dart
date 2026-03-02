@@ -137,6 +137,23 @@ void main() {
       expect(t.columns.first.toSQL(), contains('not null'));
       expect(t.columns.last.toSQL(), contains('not null'));
     });
+
+    test('timestamp(useTz: false) maps to timestamp on postgres', () {
+      final t = TableBuilder(pg, 'create', 'tbl');
+      t.timestamp('created_at', false);
+      expect(t.columns.first.type, equals('timestamp'));
+    });
+
+    test(
+      'timestamps(useTz: false) maps both columns to timestamp on postgres',
+      () {
+        final t = TableBuilder(pg, 'create', 'tbl');
+        t.timestamps(false, false, false);
+        expect(t.columns.length, equals(2));
+        expect(t.columns.first.type, equals('timestamp'));
+        expect(t.columns.last.type, equals('timestamp'));
+      },
+    );
   });
 
   // ── Alter table operations not elsewhere tested ───────────────────────────
@@ -155,13 +172,18 @@ void main() {
     test('dropPrimary() records alter statement', () {
       final t = TableBuilder(pg, 'alter', 'tbl');
       t.dropPrimary();
-      expect(t.alterStatements.any((s) => s['method'] == 'dropPrimary'), isTrue);
+      expect(
+        t.alterStatements.any((s) => s['method'] == 'dropPrimary'),
+        isTrue,
+      );
     });
 
     test('dropPrimary() with constraint name', () {
       final t = TableBuilder(pg, 'alter', 'tbl');
       t.dropPrimary('pk_tbl');
-      final stmt = t.alterStatements.firstWhere((s) => s['method'] == 'dropPrimary');
+      final stmt = t.alterStatements.firstWhere(
+        (s) => s['method'] == 'dropPrimary',
+      );
       expect(stmt['args'], contains('pk_tbl'));
     });
 
@@ -194,7 +216,9 @@ void main() {
           .onDelete('cascade')
           .onUpdate('restrict');
 
-      final stmt = t.alterStatements.firstWhere((s) => s['method'] == 'foreign');
+      final stmt = t.alterStatements.firstWhere(
+        (s) => s['method'] == 'foreign',
+      );
       final data = stmt['args'][0] as Map<String, dynamic>;
 
       expect(data['references'], equals('id'));

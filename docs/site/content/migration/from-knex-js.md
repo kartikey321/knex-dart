@@ -151,8 +151,9 @@ db().withQuery('high_value', db('orders').where('amount', '>', 1000))
 | Upserts (`onConflict().merge()`) | ✅ implemented |
 | Schema builder phase 1 & 2 | ✅ implemented |
 | Window/analytic functions | 🔶 partial |
-| Connection pooling | 🔶 in progress |
-| Nested/savepoint transactions | 🔶 in progress |
+| Connection pooling | ✅ implemented |
+| Nested/savepoint transactions | ✅ implemented |
+| Multi-source migrations (`fromCode` / `fromSqlDir` / `fromSchema`) | ✅ implemented |
 
 ## Getting Help
 

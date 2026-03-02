@@ -11,9 +11,9 @@ import 'package:knex_dart/src/transaction/transaction.dart';
 class MockClient extends Client {
   final String _driverName;
 
-  MockClient({String driverName = 'pg'})
+  MockClient({String driverName = 'pg', KnexConfig? config})
     : _driverName = driverName,
-      super(KnexConfig(client: 'mock', connection: {}));
+      super(config ?? KnexConfig(client: 'mock', connection: {}));
 
   @override
   String get driverName => _driverName;

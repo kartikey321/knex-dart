@@ -137,6 +137,15 @@ class SQLiteClient extends Client {
   ///   });
   /// });
   /// ```
+  /// Implements [Client.runInTransaction] by delegating to [trx].
+  ///
+  /// This ensures the migrator's `runInTransaction` calls respect the
+  /// [_transactionDepth] counter and produce SAVEPOINT SQL when nested.
+  @override
+  Future<T> runInTransaction<T>(Future<T> Function() action) {
+    return trx((_) => action());
+  }
+
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
     if (_transactionDepth > 0) {
       final sp = _savepointId();

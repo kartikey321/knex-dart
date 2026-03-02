@@ -126,6 +126,31 @@ class QueryCompiler {
     return sql;
   }
 
+  /// Compile a LATERAL join subquery to `(sql)` — no alias appended.
+  ///
+  /// Handles [QueryBuilder] (with parameter index renumbering for
+  /// positional placeholders like `$1`) and [Raw].
+  String _compileLateralQuery(dynamic query) {
+    if (query is QueryBuilder) {
+      final bindingOffset = bindings.length;
+      final subCompiler = client.queryCompiler(query);
+      var subSql = subCompiler.toSQL().sql;
+      if (bindingOffset > 0 && subCompiler.bindings.isNotEmpty) {
+        for (var i = subCompiler.bindings.length; i >= 1; i--) {
+          subSql = subSql.replaceAll('\$$i', '\$${bindingOffset + i}');
+        }
+      }
+      bindings.addAll(subCompiler.bindings);
+      return '($subSql)';
+    }
+    if (query is Raw) {
+      final rawSql = query.toSQL();
+      bindings.addAll(rawSql.bindings);
+      return '(${rawSql.sql})';
+    }
+    return '($query)';
+  }
+
   /// Dispatch to method-specific compiler
   ///
   /// JS Reference: querycompiler.js _validateAndCompile dispatches to method
@@ -663,6 +688,19 @@ class QueryCompiler {
           sql.add(rawSql.sql);
         } else {
           sql.add(value.toString());
+        }
+        continue;
+      }
+
+      // Handle JOIN LATERAL / LEFT JOIN LATERAL / CROSS JOIN LATERAL
+      if (stmt['type'] == 'joinLateral') {
+        final joinType = stmt['joinType'] as String;
+        final alias = client.wrapIdentifier(stmt['alias'] as String);
+        final subSql = _compileLateralQuery(stmt['query']);
+        if (joinType == 'cross') {
+          sql.add('cross join lateral $subSql as $alias');
+        } else {
+          sql.add('$joinType join lateral $subSql as $alias on true');
         }
         continue;
       }

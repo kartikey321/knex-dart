@@ -427,6 +427,82 @@ class QueryBuilder {
     return this;
   }
 
+  // ─── Lateral joins ─────────────────────────────────────────────────────────
+
+  /// Add a `JOIN LATERAL` clause (PostgreSQL / MySQL 8+).
+  ///
+  /// Emits: `join lateral (subquery) as "alias" on true`
+  ///
+  /// A lateral join allows the [subquery] to reference columns from tables
+  /// appearing **earlier** in the FROM clause — like a correlated subquery
+  /// but usable in the SELECT list and with proper row-set semantics.
+  ///
+  /// [subquery] can be:
+  /// - A [QueryBuilder] — compiled inline with parameter renumbering.
+  /// - A [Raw] — inserted as raw SQL inside parentheses.
+  /// - A `void Function(QueryBuilder)` callback — a fresh [QueryBuilder]
+  ///   is created and passed to the callback.
+  ///
+  /// **Not supported by SQLite.**
+  ///
+  /// Example:
+  /// ```dart
+  /// qb.table('users').joinLateral('latest_order', (sub) {
+  ///   sub.table('orders')
+  ///      .where('orders.user_id', knex.raw('"users"."id"'))
+  ///      .orderBy('created_at', 'desc')
+  ///      .limit(1);
+  /// });
+  /// // → join lateral (select * from "orders" where ...) as "latest_order" on true
+  /// ```
+  QueryBuilder joinLateral(String alias, dynamic subquery) =>
+      _performLateralJoin('inner', alias, subquery);
+
+  /// Add a `LEFT JOIN LATERAL` clause (PostgreSQL / MySQL 8+).
+  ///
+  /// Like [joinLateral] but rows from the left side that produce no matches
+  /// in the lateral subquery are preserved (with NULL columns).
+  ///
+  /// Emits: `left join lateral (subquery) as "alias" on true`
+  QueryBuilder leftJoinLateral(String alias, dynamic subquery) =>
+      _performLateralJoin('left', alias, subquery);
+
+  /// Add a `CROSS JOIN LATERAL` clause (PostgreSQL / MySQL 8+).
+  ///
+  /// Emits: `cross join lateral (subquery) as "alias"` (no ON clause).
+  ///
+  /// Equivalent to `JOIN LATERAL ... ON true` in PostgreSQL; rows that
+  /// produce an empty lateral subquery are excluded.
+  QueryBuilder crossJoinLateral(String alias, dynamic subquery) =>
+      _performLateralJoin('cross', alias, subquery);
+
+  QueryBuilder _performLateralJoin(
+    String joinType,
+    String alias,
+    dynamic subquery,
+  ) {
+    final dynamic resolvedQuery;
+    if (subquery is Function) {
+      final qb = QueryBuilder(client);
+      subquery(qb);
+      resolvedQuery = qb;
+    } else if (subquery is QueryBuilder || subquery is Raw) {
+      resolvedQuery = subquery;
+    } else {
+      throw ArgumentError(
+        'joinLateral subquery must be a QueryBuilder, Raw, or Function',
+      );
+    }
+    _statements.add({
+      'grouping': 'join',
+      'type': 'joinLateral',
+      'joinType': joinType,
+      'alias': alias,
+      'query': resolvedQuery,
+    });
+    return this;
+  }
+
   /// Internal helper for performing joins
   ///
   /// Handles both simple and callback-based joins

@@ -4,6 +4,8 @@ import 'schema/schema_builder.dart';
 import 'raw.dart';
 import 'ref.dart';
 import 'migration/migrator.dart';
+import 'migration/migration.dart';
+import 'migration/migration_source.dart';
 
 /// Main Knex factory class — pure query-builder wrapper.
 ///
@@ -41,7 +43,20 @@ class Knex {
   SchemaBuilder get schema => _client.schemaBuilder();
 
   /// Get the migrator
-  Migrator get migrate => Migrator();
+  Migrator get migrate => Migrator(this, config: _client.config.migrations);
+
+  /// Create a migrator with explicitly registered migration units.
+  Migrator migrator({
+    List<MigrationUnit> migrations = const [],
+    List<MigrationSource> sources = const [],
+  }) {
+    return Migrator(
+      this,
+      migrations: migrations,
+      sources: sources,
+      config: _client.config.migrations,
+    );
+  }
 
   /// Create a raw query
   Raw raw(String sql, [dynamic bindings]) {

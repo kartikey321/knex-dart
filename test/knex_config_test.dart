@@ -76,7 +76,7 @@ void main() {
       expect(config.directory, './migrations');
       expect(config.tableName, 'knex_migrations');
       expect(config.schemaName, null);
-      expect(config.disableTransactions, false);
+      expect(config.disableTransactions, true);
     });
 
     test('should create with custom values', () {

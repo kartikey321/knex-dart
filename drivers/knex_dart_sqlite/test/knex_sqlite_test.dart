@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:test/test.dart';
@@ -236,6 +238,166 @@ void main() {
       );
       final rows = await db.select(db.queryBuilder().table('items'));
       expect(rows, isEmpty);
+    });
+  });
+
+  // ── Migration pipeline ────────────────────────────────────────────────────
+
+  group('Migration pipeline — SQLite :memory:', () {
+    late Knex knex;
+    late SQLiteClient sqlite;
+
+    setUp(() async {
+      sqlite = await SQLiteClient.connect(filename: ':memory:');
+      knex = Knex(sqlite);
+    });
+
+    tearDown(() async {
+      await sqlite.close();
+    });
+
+    const migrations = [
+      SqlMigration(
+        name: '001_create_users',
+        upSql: [
+          'CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
+        ],
+        downSql: ['DROP TABLE users'],
+      ),
+      SqlMigration(
+        name: '002_add_email',
+        upSql: ['ALTER TABLE users ADD COLUMN email TEXT'],
+        downSql: [
+          // SQLite does not support DROP COLUMN in older versions;
+          // recreate the table without the column.
+          'CREATE TABLE users_tmp (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
+          'INSERT INTO users_tmp SELECT id, name FROM users',
+          'DROP TABLE users',
+          'ALTER TABLE users_tmp RENAME TO users',
+        ],
+      ),
+    ];
+
+    test('latest() creates schema and records are queryable', () async {
+      await knex.migrator(migrations: migrations).latest();
+
+      // Table exists — can insert and select.
+      await sqlite.rawQuery(
+        'INSERT INTO users (id, name, email) VALUES (1, \'Alice\', \'alice@example.com\')',
+        [],
+      );
+      final rows = await sqlite.rawQuery('SELECT * FROM users', []) as List;
+      expect(rows.length, 1);
+      expect(rows.first['name'], 'Alice');
+    });
+
+    test('latest() is idempotent — running twice does not duplicate work',
+        () async {
+      final migrator = knex.migrator(migrations: migrations);
+      await migrator.latest();
+      await migrator.latest(); // second call should be a no-op
+
+      final status = await migrator.status();
+      expect(status.every((s) => s['status'] == 'completed'), isTrue);
+    });
+
+    test('rollback() reverts the latest batch only', () async {
+      final m1 = knex.migrator(migrations: [migrations[0]]);
+      final m2 = knex.migrator(migrations: migrations);
+
+      await m1.latest(); // batch 1: 001
+      await m2.latest(); // batch 2: 002
+
+      await m2.rollback(); // rolls back batch 2 (002 only)
+
+      // users table still exists (001 was not rolled back).
+      final rows =
+          await sqlite.rawQuery('SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'users\'', []) as List;
+      expect(rows.length, 1);
+
+      // But email column is gone — check via pragma.
+      final cols =
+          await sqlite.rawQuery('PRAGMA table_info(users)', []) as List;
+      final colNames = cols.map((c) => c['name'] as String).toList();
+      expect(colNames, contains('id'));
+      expect(colNames, contains('name'));
+      expect(colNames, isNot(contains('email')));
+
+      // Rolling back again removes batch 1.
+      await m2.rollback();
+      final tables =
+          await sqlite.rawQuery('SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'users\'', []) as List;
+      expect(tables, isEmpty);
+    });
+
+    test('disableTransactions:false exercises runInTransaction via trx()',
+        () async {
+      // Build a Knex with transactions enabled for SQLite.
+      final txKnex = Knex(
+        sqlite,
+        // ignore: invalid_use_of_visible_for_testing_member
+      );
+      final migrator = Migrator(
+        txKnex,
+        migrations: migrations,
+        config: const MigrationConfig(disableTransactions: false),
+      );
+
+      await migrator.latest();
+
+      final status = await migrator.status();
+      expect(status.every((s) => s['status'] == 'completed'), isTrue);
+
+      await migrator.rollback();
+      await migrator.rollback();
+
+      final tables =
+          await sqlite.rawQuery('SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'users\'', []) as List;
+      expect(tables, isEmpty);
+    });
+
+    test('fromConfig() reads .up.sql/.down.sql files from config.directory',
+        () async {
+      final dir = await Directory.systemTemp.createTemp('knex_sqlite_cfg_');
+      addTearDown(() async {
+        if (await dir.exists()) await dir.delete(recursive: true);
+      });
+
+      await File('${dir.path}/001_items.up.sql').writeAsString(
+        'CREATE TABLE items (id INTEGER PRIMARY KEY, label TEXT)',
+      );
+      await File(
+        '${dir.path}/001_items.down.sql',
+      ).writeAsString('DROP TABLE items');
+
+      final cfgKnex = Knex(
+        SQLiteClient.fromConfig(
+          KnexConfig(
+            client: 'sqlite3',
+            connection: {'filename': ':memory:'},
+            migrations: MigrationConfig(directory: dir.path),
+          ),
+        ),
+      );
+      addTearDown(() => cfgKnex.destroy());
+
+      await cfgKnex.migrate.fromConfig().latest();
+
+      final tables =
+          await (cfgKnex.client as SQLiteClient).rawQuery(
+        'SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'items\'',
+        [],
+      ) as List;
+      expect(tables.length, 1);
+
+      await cfgKnex.migrate.fromConfig().rollback();
+
+      final tablesAfter =
+          await (cfgKnex.client as SQLiteClient).rawQuery(
+        'SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'items\'',
+        [],
+      ) as List;
+      expect(tablesAfter, isEmpty);
     });
   });
 }

@@ -185,6 +185,22 @@ void main() {
       );
     });
 
+    // Test 9b: timestamp without timezone on PostgreSQL
+    test('Test 9b: timestamp without timezone', () {
+      final schema = client.schemaBuilder();
+      schema.createTable('events', (table) {
+        table.increments('id');
+        table.timestamp('created_at', false);
+      });
+      final sqls = schema.toSQL();
+
+      expect(sqls.length, 1);
+      expect(
+        sqls[0]['sql'],
+        'create table "events" ("id" serial primary key, "created_at" timestamp)',
+      );
+    });
+
     // Test 10: createTable with foreign key + onDelete
     test('Test 10: createTable with foreign key', () {
       final schema = client.schemaBuilder();

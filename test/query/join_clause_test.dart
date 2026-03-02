@@ -190,4 +190,88 @@ void main() {
       expect(q.toSQL().sql, contains('1 = 0'));
     });
   });
+
+  // ─── Lateral joins ─────────────────────────────────────────────────────────
+
+  group('LATERAL joins', () {
+    test('joinLateral with callback subquery emits join lateral ... on true',
+        () {
+      final q = db('users').joinLateral('latest_order', (sub) {
+        sub.table('orders').where('orders.user_id', 1).limit(1);
+      });
+      final compiled = q.toSQL();
+      expect(compiled.sql, contains('join lateral ('));
+      expect(compiled.sql, contains(') as "latest_order" on true'));
+      expect(compiled.sql, contains('"orders"'));
+      expect(compiled.bindings, containsAll([1, 1])); // where value + limit
+    });
+
+    test('leftJoinLateral emits left join lateral ... on true', () {
+      final q = db('users').leftJoinLateral('recent_event', (sub) {
+        sub.table('events').where('events.user_id', 99).limit(5);
+      });
+      final compiled = q.toSQL();
+      expect(compiled.sql, contains('left join lateral ('));
+      expect(compiled.sql, contains(') as "recent_event" on true'));
+      expect(compiled.bindings, containsAll([99, 5]));
+    });
+
+    test('crossJoinLateral emits cross join lateral without ON clause', () {
+      final q = db('users').crossJoinLateral('stats', (sub) {
+        sub.table('metrics').where('user_id', 7);
+      });
+      final sql = q.toSQL().sql;
+      expect(sql, contains('cross join lateral ('));
+      expect(sql, contains(') as "stats"'));
+      expect(sql, isNot(contains('on true')));
+    });
+
+    test('joinLateral with pre-built QueryBuilder', () {
+      final sub = db().table('orders').where('active', true).limit(1);
+      final q = db('users').joinLateral('first_order', sub);
+      final compiled = q.toSQL();
+      expect(compiled.sql, contains('join lateral ('));
+      expect(compiled.sql, contains('"orders"'));
+      expect(compiled.sql, contains(') as "first_order" on true'));
+      expect(compiled.bindings, containsAll([true, 1]));
+    });
+
+    test('joinLateral with Raw subquery', () {
+      final q = db('users').joinLateral(
+        'top_score',
+        db.raw('select max(score) as score from scores where user_id = users.id'),
+      );
+      final sql = q.toSQL().sql;
+      expect(sql, contains('join lateral ('));
+      expect(sql, contains('max(score)'));
+      expect(sql, contains(') as "top_score" on true'));
+    });
+
+    test('bindings from lateral subquery are collected alongside outer bindings',
+        () {
+      final q = db('users')
+          .where('active', true)
+          .joinLateral('latest', (sub) {
+            sub.table('orders').where('user_id', 999).limit(3);
+          });
+      final compiled = q.toSQL();
+      // Joins are compiled before WHERE, so lateral bindings (999, 3) come
+      // first in the collected list; the outer WHERE binding (true) follows.
+      expect(compiled.bindings, equals([999, 3, true]));
+    });
+
+    test('lateral join full SQL structure', () {
+      final q = db('users')
+          .select(['users.id', 'users.name', 'lo.total'])
+          .leftJoinLateral('lo', (sub) {
+            sub.table('orders').where('orders.user_id', 42).sum('amount as total');
+          })
+          .where('users.active', true);
+      final compiled = q.toSQL();
+      expect(compiled.sql, startsWith('select'));
+      expect(compiled.sql, contains('left join lateral ('));
+      expect(compiled.sql, contains(') as "lo" on true'));
+      expect(compiled.sql, contains('where "users"."active" ='));
+    });
+  });
 }

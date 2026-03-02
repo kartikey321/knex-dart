@@ -42,9 +42,12 @@ export 'src/ref.dart';
 export 'src/schema/schema_builder.dart';
 export 'src/schema/table_builder.dart';
 export 'src/schema/column_builder.dart';
+export 'src/schema/schema_ast.dart';
+export 'src/schema/json_schema_adapter.dart';
 
 // Migration
 export 'src/migration/migration.dart';
+export 'src/migration/migration_source.dart';
 export 'src/migration/migrator.dart';
 
 // Transaction

@@ -52,6 +52,95 @@ db('users').crossJoin('roles');
 // cross join "roles"
 ```
 
+---
+
+## Lateral Joins
+
+> **Dialect support:** PostgreSQL and MySQL 8+. **Not supported by SQLite.**
+>
+> Knex.js has no built-in lateral join API; this is a Knex Dart extension.
+
+A lateral join lets the subquery reference columns from tables that appear **earlier** in the `FROM` clause — behaving like a correlated subquery that returns a full row set rather than a scalar. This unlocks patterns like "most recent N rows per group" without a self-join.
+
+### joinLateral
+
+Emits `JOIN LATERAL (…) AS alias ON true`. Rows from the left side that produce no matches in the lateral subquery are excluded.
+
+```dart
+db('users').joinLateral('latest_order', (sub) {
+  sub
+    .table('orders')
+    .where('orders.user_id', db.raw('"users"."id"'))
+    .orderBy('created_at', 'desc')
+    .limit(1);
+});
+// join lateral (
+//   select * from "orders"
+//   where "orders"."user_id" = "users"."id"
+//   order by "created_at" desc limit 1
+// ) as "latest_order" on true
+```
+
+### leftJoinLateral
+
+Emits `LEFT JOIN LATERAL (…) AS alias ON true`. Rows from the left side that produce **no** lateral matches are preserved with `NULL` columns — equivalent to `LEFT JOIN` semantics.
+
+```dart
+db('users').leftJoinLateral('recent_event', (sub) {
+  sub
+    .table('events')
+    .where('events.user_id', db.raw('"users"."id"'))
+    .orderBy('occurred_at', 'desc')
+    .limit(5);
+});
+// left join lateral (...) as "recent_event" on true
+```
+
+### crossJoinLateral
+
+Emits `CROSS JOIN LATERAL (…) AS alias` (no `ON` clause). In PostgreSQL this is equivalent to `JOIN LATERAL … ON true`.
+
+```dart
+db('users').crossJoinLateral('agg', (sub) {
+  sub
+    .table('orders')
+    .where('orders.user_id', db.raw('"users"."id"'))
+    .sum('amount as total');
+});
+// cross join lateral (...) as "agg"
+```
+
+### Subquery forms
+
+All three methods accept the same subquery types:
+
+```dart
+// 1. Callback (most common — new QueryBuilder created automatically)
+db('users').joinLateral('lo', (sub) { sub.table('orders').limit(1); });
+
+// 2. Pre-built QueryBuilder
+final sub = db().table('orders').where('user_id', 1).limit(1);
+db('users').joinLateral('lo', sub);
+
+// 3. Raw SQL
+db('users').joinLateral('lo', db.raw('select 1 as n'));
+```
+
+### Parameter binding
+
+Bindings inside the lateral subquery are collected correctly and parameter placeholders are renumbered to follow any outer bindings:
+
+```dart
+db('users')
+  .select(['users.id', 'lo.amount'])
+  .leftJoinLateral('lo', (sub) {
+    sub.table('orders').where('user_id', 99).orderBy('amount', 'desc').limit(1);
+  });
+// Bindings: [99, 1]  (subquery bindings; outer WHERE would follow after)
+```
+
+---
+
 ## Multiple Joins
 
 Chain as many joins as needed:
@@ -178,6 +267,20 @@ db('users').join('settings', (j) {
 
 ---
 
+## Join Type Reference
+
+| Method | SQL emitted | Dialect |
+|---|---|---|
+| `join(table, col1, col2)` | `INNER JOIN … ON col1 = col2` | All |
+| `leftJoin(table, col1, col2)` | `LEFT JOIN … ON col1 = col2` | All |
+| `rightJoin(table, col1, col2)` | `RIGHT JOIN … ON col1 = col2` | All |
+| `fullOuterJoin(table, col1, col2)` | `FULL OUTER JOIN … ON col1 = col2` | PG, MySQL |
+| `crossJoin(table)` | `CROSS JOIN table` | All |
+| `joinRaw(sql, bindings)` | Raw SQL join fragment | All |
+| `joinLateral(alias, sub)` | `JOIN LATERAL (…) AS alias ON true` | PG, MySQL 8+ |
+| `leftJoinLateral(alias, sub)` | `LEFT JOIN LATERAL (…) AS alias ON true` | PG, MySQL 8+ |
+| `crossJoinLateral(alias, sub)` | `CROSS JOIN LATERAL (…) AS alias` | PG, MySQL 8+ |
+
 ## Complete ON Clause Method Reference
 
 | Method | Description |
@@ -246,6 +349,38 @@ final usersWithOrders = await db.select(
     .orderBy('order_count', 'desc'),
 );
 ```
+
+### Most-recent order per user (lateral join)
+
+A lateral subquery is the cleanest way to fetch exactly one correlated row per outer row — no window functions, no subquery in SELECT:
+
+```dart
+// PostgreSQL / MySQL 8+
+final usersWithLatest = await pgClient.select(
+  db('users')
+    .select(['users.id', 'users.name', 'lo.amount', 'lo.created_at'])
+    .leftJoinLateral('lo', (sub) {
+      sub
+        .table('orders')
+        .where('orders.user_id', db.raw('"users"."id"'))
+        .orderBy('created_at', 'desc')
+        .limit(1);
+    })
+    .orderBy('users.id'),
+);
+// Equivalent SQL:
+// select "users"."id", "users"."name", "lo"."amount", "lo"."created_at"
+// from "users"
+// left join lateral (
+//   select * from "orders"
+//   where "orders"."user_id" = "users"."id"
+//   order by "created_at" desc
+//   limit 1
+// ) as "lo" on true
+// order by "users"."id" asc
+```
+
+Users with no orders still appear in the result (with `null` for `lo.amount` and `lo.created_at`) because of `leftJoinLateral`. Use `joinLateral` to exclude them.
 
 ## Next Steps
 

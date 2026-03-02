@@ -16,6 +16,17 @@ class MySQLClient {
   final TarnPool<MySQLConnection> _pool;
   bool _isClosed = false;
 
+  /// Pinned transaction connection, set only while [runInTransaction] is active.
+  ///
+  /// When non-null, [_execute] routes queries through this connection instead
+  /// of acquiring a new pool connection — ensuring all statements inside the
+  /// migration step land on the same physical connection.
+  ///
+  /// Dart's single-threaded event loop makes this field safe for sequential
+  /// callers (e.g., the Migrator). Concurrent transactions should use [trx]
+  /// instead, which scopes the connection to the callback closure.
+  MySQLConnection? _txConn;
+
   MySQLClient._(this._pool);
 
   /// Creates a new MySQL client connected to the database via a pool.
@@ -88,22 +99,15 @@ class MySQLClient {
     String sql, [
     List<dynamic>? bindings,
   ]) async {
+    // Route through the pinned connection when inside runInTransaction.
+    if (_txConn != null) {
+      return _executeOnConn(_txConn!, sql, bindings);
+    }
+
     final conn = await _pool.acquire();
     bool success = false;
     try {
-      List<Map<String, dynamic>> result;
-      if (bindings == null || bindings.isEmpty) {
-        final res = await conn.execute(sql);
-        result = _mapResults(res);
-      } else {
-        final stmt = await conn.prepare(sql);
-        try {
-          final res = await stmt.execute(bindings);
-          result = _mapResults(res);
-        } finally {
-          await stmt.deallocate();
-        }
-      }
+      final result = await _executeOnConn(conn, sql, bindings);
       success = true;
       return result;
     } finally {
@@ -114,6 +118,25 @@ class MySQLClient {
         // Query threw — connection may be broken; discard rather than recycle.
         _pool.discard(conn);
       }
+    }
+  }
+
+  /// Execute [sql] on [conn] without any pool acquire/release.
+  Future<List<Map<String, dynamic>>> _executeOnConn(
+    MySQLConnection conn,
+    String sql, [
+    List<dynamic>? bindings,
+  ]) async {
+    if (bindings == null || bindings.isEmpty) {
+      final res = await conn.execute(sql);
+      return _mapResults(res);
+    }
+    final stmt = await conn.prepare(sql);
+    try {
+      final res = await stmt.execute(bindings);
+      return _mapResults(res);
+    } finally {
+      await stmt.deallocate();
     }
   }
 
@@ -161,6 +184,53 @@ class MySQLClient {
   bool get isClosed => _isClosed;
 
   // ─── Transaction support ──────────────────────────────────────────────────
+
+  /// Run [action] inside a MySQL transaction, pinning one pool connection.
+  ///
+  /// Acquires a single connection, issues `START TRANSACTION`, and sets
+  /// [_txConn] for the duration of [action]. Any [_execute] call made inside
+  /// [action] (via [query], [raw], etc.) is automatically routed to that
+  /// pinned connection.
+  ///
+  /// **Reentrancy guard**: if [_txConn] is already set (i.e., this is called
+  /// from within an active [runInTransaction] scope), [action] is run directly
+  /// without issuing a new `START TRANSACTION` — preventing nested transaction
+  /// errors.
+  ///
+  /// This is the correct hook for the knex-dart Migrator when
+  /// `MigrationConfig.disableTransactions` is `false`. The migrator's internal
+  /// rawQuery calls (e.g., INSERT into `knex_migrations`) are routed through
+  /// the same connection as the migration SQL itself.
+  Future<T> runInTransaction<T>(Future<T> Function() action) async {
+    if (_txConn != null) {
+      // Already pinned — run directly to avoid nested START TRANSACTION.
+      return action();
+    }
+    if (_isClosed) throw StateError('Pool is closed');
+    final conn = await _pool.acquire();
+    bool success = false;
+    try {
+      await conn.execute('START TRANSACTION');
+      _txConn = conn;
+      try {
+        final result = await action();
+        await conn.execute('COMMIT');
+        success = true;
+        return result;
+      } catch (e) {
+        await conn.execute('ROLLBACK');
+        rethrow;
+      } finally {
+        _txConn = null;
+      }
+    } finally {
+      if (success) {
+        _pool.release(conn);
+      } else {
+        _pool.discard(conn);
+      }
+    }
+  }
 
   /// Run [callback] inside a MySQL transaction.
   ///
