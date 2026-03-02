@@ -6,9 +6,11 @@ import '../raw.dart';
 import 'aggregate_options.dart';
 import 'analytic.dart';
 import 'on_conflict_builder.dart';
+import 'window_spec.dart';
 export 'analytic.dart';
 export 'on_conflict_builder.dart';
 export 'json_builder.dart';
+export 'window_spec.dart';
 
 // Sentinel for undefined arguments
 const _undefined = Object();
@@ -1380,6 +1382,204 @@ class QueryBuilder {
     dynamic partitionBy,
   ]) {
     return _analytic('row_number', alias, orderBy, partitionBy);
+  }
+
+  // ============================================================================
+  // VALUE WINDOW FUNCTIONS (lead, lag, first_value, last_value, nth_value)
+  // ============================================================================
+
+  /// Internal dispatcher for value window functions (those that take a source
+  /// column as their first argument inside the SQL function call).
+  ///
+  /// [method] — SQL function name (e.g. 'lead', 'lag', 'first_value', …)
+  /// [alias]  — output alias
+  /// [column] — source column passed inside the function call
+  /// [offset] — optional offset for lead/lag
+  /// [defaultVal] — optional default value for lead/lag
+  /// [nthN]   — required integer for nth_value
+  /// [second] — OVER clause config: same overloads as [_analytic] (String |
+  ///            List | Raw | Function(AnalyticClause) | [WindowSpec])
+  /// [third]  — partitionBy when [second] is a String/List
+  QueryBuilder _analyticValue(
+    String method,
+    String alias,
+    String column, {
+    int? offset,
+    dynamic defaultVal,
+    int? nthN,
+    dynamic second,
+    dynamic third,
+  }) {
+    final stmt = <String, dynamic>{
+      'grouping': 'columns',
+      'type': 'analytic',
+      'method': method,
+      'sourceColumn': column,
+      'alias': alias,
+    };
+
+    if (offset != null) stmt['offset'] = offset;
+    if (defaultVal != null) stmt['defaultVal'] = defaultVal;
+    if (nthN != null) stmt['nthN'] = nthN;
+
+    if (second is WindowSpec) {
+      stmt['partitions'] = second.partitions
+          .map((p) => <String, String>{'column': p})
+          .toList();
+      stmt['order'] = second.orders
+          .map(
+            (o) => <String, String?>{
+              'column': o['column']!,
+              'order': o['direction'],
+            },
+          )
+          .toList();
+      final fc = second.frameClause;
+      if (fc != null) stmt['frameClause'] = fc;
+    } else if (second is Function) {
+      final clause = AnalyticClause(method: method, alias: alias);
+      second(clause);
+      stmt['order'] = clause.order;
+      stmt['partitions'] = clause.partitions;
+    } else if (second is Raw) {
+      stmt['raw'] = second;
+    } else {
+      final order = second == null ? [] : (second is! List ? [second] : second);
+      final List partitions;
+      if (third == null) {
+        partitions = [];
+      } else if (third is List) {
+        partitions = third;
+      } else {
+        partitions = [third];
+      }
+      stmt['order'] = order;
+      stmt['partitions'] = partitions;
+    }
+
+    _statements.add(stmt);
+    return this;
+  }
+
+  /// Add `lead(column[, offset[, default]]) OVER (...) AS alias` to the SELECT list.
+  ///
+  /// [column] is the source column. [second]/[third] configure the OVER clause
+  /// the same way as [rank] (orderBy / partitionBy, Raw, callback, or [WindowSpec]).
+  /// [offset] defaults to 1 (the SQL default); omit to emit `lead("col")`.
+  /// [defaultVal] is the fallback value when there is no lead row.
+  ///
+  /// Example:
+  /// ```dart
+  /// qb.lead('next_sal', 'salary', 'salary', 'dept', offset: 1, defaultVal: 0)
+  /// // → lead("salary", 1, 0) over (partition by "dept" order by "salary") as next_sal
+  /// ```
+  QueryBuilder lead(
+    String alias,
+    String column, [
+    dynamic second,
+    dynamic third,
+    int? offset,
+    dynamic defaultVal,
+  ]) {
+    return _analyticValue(
+      'lead',
+      alias,
+      column,
+      offset: offset,
+      defaultVal: defaultVal,
+      second: second,
+      third: third,
+    );
+  }
+
+  /// Add `lag(column[, offset]) OVER (...) AS alias` to the SELECT list.
+  ///
+  /// [column] is the source column. [second]/[third] configure the OVER clause.
+  /// [offset] is optional; omit to emit `lag("col")`.
+  ///
+  /// Example:
+  /// ```dart
+  /// qb.lag('prev_sal', 'salary', 'created_at')
+  /// // → lag("salary") over (order by "created_at") as prev_sal
+  /// ```
+  QueryBuilder lag(
+    String alias,
+    String column, [
+    dynamic second,
+    dynamic third,
+    int? offset,
+  ]) {
+    return _analyticValue(
+      'lag',
+      alias,
+      column,
+      offset: offset,
+      second: second,
+      third: third,
+    );
+  }
+
+  /// Add `first_value(column) OVER (...) AS alias` to the SELECT list.
+  ///
+  /// [column] is the source column. [second]/[third] configure the OVER clause
+  /// the same way as [rank].
+  QueryBuilder firstValue(
+    String alias,
+    String column, [
+    dynamic second,
+    dynamic third,
+  ]) {
+    return _analyticValue(
+      'first_value',
+      alias,
+      column,
+      second: second,
+      third: third,
+    );
+  }
+
+  /// Add `last_value(column) OVER (...) AS alias` to the SELECT list.
+  ///
+  /// Cross-dialect note: without an explicit frame clause, most databases use
+  /// `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`, which yields
+  /// unexpected results. Pass a [WindowSpec] with
+  /// `rowsBetween(WindowSpec.unboundedPreceding, WindowSpec.unboundedFollowing)`
+  /// for the typical "true last value" behaviour.
+  QueryBuilder lastValue(
+    String alias,
+    String column, [
+    dynamic second,
+    dynamic third,
+  ]) {
+    return _analyticValue(
+      'last_value',
+      alias,
+      column,
+      second: second,
+      third: third,
+    );
+  }
+
+  /// Add `nth_value(column, n) OVER (...) AS alias` to the SELECT list.
+  ///
+  /// [n] is 1-based (the 1st, 2nd, … row in the window).
+  ///
+  /// Note: not supported in MySQL 5.x; requires MySQL 8+ or PostgreSQL.
+  QueryBuilder nthValue(
+    String alias,
+    String column,
+    int n, [
+    dynamic second,
+    dynamic third,
+  ]) {
+    return _analyticValue(
+      'nth_value',
+      alias,
+      column,
+      nthN: n,
+      second: second,
+      third: third,
+    );
   }
 
   // ============================================================================

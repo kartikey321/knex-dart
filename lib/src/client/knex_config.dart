@@ -85,6 +85,10 @@ class PoolConfig {
   /// Maximum age of a connection (milliseconds)
   final int? maxConnectionAge;
 
+  /// Interval in milliseconds between idle-connection reaping checks.
+  /// Matches tarn.js default of 1000 ms.
+  final int reapIntervalMillis;
+
   /// Function called after creating a connection
   final Future<void> Function(dynamic connection)? afterCreate;
 
@@ -94,6 +98,7 @@ class PoolConfig {
     this.acquireTimeoutMillis = 60000,
     this.idleTimeoutMillis,
     this.maxConnectionAge,
+    this.reapIntervalMillis = 1000,
     this.afterCreate,
   });
 }

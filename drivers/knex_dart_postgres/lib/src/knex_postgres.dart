@@ -39,6 +39,7 @@ class KnexPostgres {
     required String username,
     String? password,
     bool useSSL = false,
+    PoolConfig poolConfig = const PoolConfig(),
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -47,6 +48,7 @@ class KnexPostgres {
       username: username,
       password: password,
       useSSL: useSSL,
+      poolConfig: poolConfig,
     );
     return KnexPostgres._(client);
   }

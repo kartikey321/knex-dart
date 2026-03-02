@@ -16,6 +16,9 @@ class SQLiteClient extends Client {
   final String _filename;
   bool _isClosed = false;
 
+  /// Depth counter for nested transactions (0 = no active transaction).
+  int _transactionDepth = 0;
+
   SQLiteClient._(this._filename, KnexConfig config) : super(config);
 
   /// Create a SQLite client directly from [KnexConfig].
@@ -115,32 +118,58 @@ class SQLiteClient extends Client {
     throw UnimplementedError('Use beginTransaction() for SQLite transactions');
   }
 
-  /// Run [callback] inside a SQLite transaction.
+  /// Run [callback] inside a SQLite transaction (or savepoint for nesting).
   ///
-  /// The callback receives this same [SQLiteClient] instance. All queries run
-  /// inside the callback are automatically wrapped in BEGIN / COMMIT.
-  /// On error, ROLLBACK is called automatically.
+  /// The callback receives this same [SQLiteClient] instance.
+  ///
+  /// - **Top-level** (`_transactionDepth == 0`): wraps with BEGIN / COMMIT /
+  ///   ROLLBACK.
+  /// - **Nested** (`_transactionDepth > 0`): uses SAVEPOINT / RELEASE SAVEPOINT
+  ///   / ROLLBACK TO SAVEPOINT, so the inner scope can roll back independently
+  ///   without affecting the outer transaction.
   ///
   /// Example:
   /// ```dart
-  /// await client.trx((trx) async {
-  ///   await trx.execute(trx.queryBuilder().table('accounts')
-  ///     .where('id', 1).update({'balance': 500}));
-  ///   await trx.execute(trx.queryBuilder().table('accounts')
-  ///     .where('id', 2).update({'balance': 1500}));
+  /// await client.trx((outer) async {
+  ///   await outer.insert(...);
+  ///   await outer.trx((inner) async {   // uses SAVEPOINT
+  ///     await inner.insert(...);
+  ///   });
   /// });
   /// ```
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
-    _db.execute('BEGIN');
-    try {
-      final result = await callback(this);
-      _db.execute('COMMIT');
-      return result;
-    } catch (e) {
-      _db.execute('ROLLBACK');
-      rethrow;
+    if (_transactionDepth > 0) {
+      final sp = _savepointId();
+      _transactionDepth++;
+      _db.execute('SAVEPOINT $sp');
+      try {
+        final result = await callback(this);
+        _db.execute('RELEASE SAVEPOINT $sp');
+        return result;
+      } catch (e) {
+        _db.execute('ROLLBACK TO SAVEPOINT $sp');
+        rethrow;
+      } finally {
+        _transactionDepth--;
+      }
+    } else {
+      _transactionDepth++;
+      _db.execute('BEGIN');
+      try {
+        final result = await callback(this);
+        _db.execute('COMMIT');
+        return result;
+      } catch (e) {
+        _db.execute('ROLLBACK');
+        rethrow;
+      } finally {
+        _transactionDepth--;
+      }
     }
   }
+
+  String _savepointId() =>
+      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
 
   @override
   Future<dynamic> rawQuery(String sql, List<dynamic> bindings) async {

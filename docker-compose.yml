@@ -37,4 +37,5 @@ services:
       timeout: 5s
       retries: 5
     volumes:
+      - ./test/integration/sql/mysql_schema.sql:/docker-entrypoint-initdb.d/00_schema.sql
       - ./test/integration/sql/mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql

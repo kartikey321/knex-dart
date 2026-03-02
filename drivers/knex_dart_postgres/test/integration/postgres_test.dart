@@ -23,6 +23,12 @@ void main() {
     'json_test@example.com',
     'json_test1@example.com',
     'json_test2@example.com',
+    'outer_sp@example.com',
+    'inner_sp@example.com',
+    'inner_fail_sp@example.com',
+    'outer_after_sp@example.com',
+    'outer_bubble_sp@example.com',
+    'inner_bubble_sp@example.com',
   ];
 
   Future<void> cleanupTestUsers() async {
@@ -560,6 +566,148 @@ void main() {
       await pgClient.delete(
         mockClient.queryBuilder().table('users').where('id', preId),
       );
+    });
+  });
+
+  // ─── Nested Transaction (Savepoint) Tests ─────────────────────────────────
+  group('Nested Transactions (Savepoints)', () {
+    test('nested trx: both succeed — both changes visible', () async {
+      int? outerId, innerId;
+
+      await pgClient.trx((outer) async {
+        final r1 = await outer.insert(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .insert({
+                'name': 'Outer SP',
+                'email': 'outer_sp@example.com',
+                'role': 'guest',
+              })
+              .returning(['id']),
+        );
+        outerId = r1.first['id'];
+
+        await outer.trx((inner) async {
+          final r2 = await inner.insert(
+            mockClient
+                .queryBuilder()
+                .table('users')
+                .insert({
+                  'name': 'Inner SP',
+                  'email': 'inner_sp@example.com',
+                  'role': 'guest',
+                })
+                .returning(['id']),
+          );
+          innerId = r2.first['id'];
+        });
+      });
+
+      final outerRows = await pgClient.select(
+        mockClient.queryBuilder().table('users').where('id', outerId),
+      );
+      final innerRows = await pgClient.select(
+        mockClient.queryBuilder().table('users').where('id', innerId),
+      );
+      expect(outerRows.length, 1);
+      expect(innerRows.length, 1);
+
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .whereIn('email', ['outer_sp@example.com', 'inner_sp@example.com']),
+      );
+    });
+
+    test('nested trx: inner rollback, outer continues', () async {
+      int? outerId;
+
+      await pgClient.trx((outer) async {
+        final r1 = await outer.insert(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .insert({
+                'name': 'Outer After SP',
+                'email': 'outer_after_sp@example.com',
+                'role': 'guest',
+              })
+              .returning(['id']),
+        );
+        outerId = r1.first['id'];
+
+        try {
+          await outer.trx((inner) async {
+            await inner.insert(
+              mockClient.queryBuilder().table('users').insert({
+                'name': 'Inner SP Fail',
+                'email': 'inner_fail_sp@example.com',
+                'role': 'guest',
+              }),
+            );
+            throw Exception('force inner rollback');
+          });
+        } catch (_) {
+          // Caught — outer continues
+        }
+      });
+
+      final outerRows = await pgClient.select(
+        mockClient.queryBuilder().table('users').where('id', outerId),
+      );
+      final innerRows = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'inner_fail_sp@example.com'),
+      );
+      expect(outerRows.length, 1); // outer committed
+      expect(innerRows.isEmpty, true); // inner rolled back
+
+      await pgClient.delete(
+        mockClient.queryBuilder().table('users').where('id', outerId),
+      );
+    });
+
+    test('nested trx: inner error bubbles — outer rolled back too', () async {
+      try {
+        await pgClient.trx((outer) async {
+          await outer.insert(
+            mockClient.queryBuilder().table('users').insert({
+              'name': 'Outer Bubble',
+              'email': 'outer_bubble_sp@example.com',
+              'role': 'guest',
+            }),
+          );
+          await outer.trx((inner) async {
+            await inner.insert(
+              mockClient.queryBuilder().table('users').insert({
+                'name': 'Inner Bubble',
+                'email': 'inner_bubble_sp@example.com',
+                'role': 'guest',
+              }),
+            );
+            throw Exception('bubble up');
+          });
+        });
+      } catch (_) {}
+
+      final outerRows = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'outer_bubble_sp@example.com'),
+      );
+      final innerRows = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'inner_bubble_sp@example.com'),
+      );
+      expect(outerRows.isEmpty, true);
+      expect(innerRows.isEmpty, true);
     });
   });
 }

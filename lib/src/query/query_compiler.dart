@@ -1226,18 +1226,54 @@ class QueryCompiler {
   ///
   /// Produces: `method() over ([partition by ...] order by [...]) [as alias]`
   ///
-  /// [stmt] keys:
-  ///   - `method`     — SQL function name: 'row_number', 'rank', 'dense_rank'
-  ///   - `alias`      — optional alias string (NOT quoted, matching JS behaviour)
-  ///   - `raw`        — optional [Raw] whose .sql replaces the entire OVER body
-  ///   - `partitions` — List of String or `{'column': String, 'order': String?}`
-  ///   - `order`      — List of String or `{'column': String, 'order': String?}`
+  /// [stmt] keys (all):
+  ///   - `method`       — SQL function name: 'row_number', 'rank', 'dense_rank',
+  ///                      'lead', 'lag', 'first_value', 'last_value', 'nth_value'
+  ///   - `alias`        — optional alias string (NOT quoted, matching JS behaviour)
+  ///   - `raw`          — optional [Raw] whose .sql replaces the entire OVER body
+  ///   - `partitions`   — List of String or `{'column': String, 'order': String?}`
+  ///   - `order`        — List of String or `{'column': String, 'order': String?}`
+  ///   - `sourceColumn` — source column for value funcs (lead/lag/first_value/…)
+  ///   - `offset`       — optional int offset for lead/lag
+  ///   - `defaultVal`   — optional default value for lead/lag
+  ///   - `nthN`         — required int n for nth_value
+  ///   - `frameClause`  — optional pre-compiled frame string (e.g. 'rows between …')
   String _compileAnalytic(Map<String, dynamic> stmt) {
     final method = stmt['method'] as String;
     final alias = stmt['alias'] as String?;
     final raw = stmt['raw'];
+    final sourceColumn = stmt['sourceColumn'] as String?;
+    final offset = stmt['offset'];
+    final defaultVal = stmt['defaultVal'];
+    final nthN = stmt['nthN'];
+    final frameClause = stmt['frameClause'] as String?;
 
-    var sql = '$method() over (';
+    // Build the function call (with or without source column arguments).
+    // defaultVal is added as a bound parameter (not interpolated) to prevent
+    // SQL injection when the caller passes a string default value.
+    String funcCall;
+    if (sourceColumn != null) {
+      final quotedCol = formatter.columnize([sourceColumn]);
+      if (method == 'nth_value') {
+        funcCall = '$method($quotedCol, $nthN)';
+      } else if (method == 'lead' || method == 'lag') {
+        if (offset != null && defaultVal != null) {
+          final defaultPlaceholder = client.parameter(defaultVal, bindings);
+          funcCall = '$method($quotedCol, $offset, $defaultPlaceholder)';
+        } else if (offset != null) {
+          funcCall = '$method($quotedCol, $offset)';
+        } else {
+          funcCall = '$method($quotedCol)';
+        }
+      } else {
+        // first_value, last_value
+        funcCall = '$method($quotedCol)';
+      }
+    } else {
+      funcCall = '$method()';
+    }
+
+    var sql = '$funcCall over (';
 
     if (raw != null && raw is Raw) {
       // Raw OVER clause — JS resolves ?? identifiers via formatter
@@ -1286,6 +1322,10 @@ class QueryCompiler {
             return o.toString();
           })
           .join(', ');
+
+      if (frameClause != null && frameClause.isNotEmpty) {
+        sql += ' $frameClause';
+      }
     }
 
     sql += ')';

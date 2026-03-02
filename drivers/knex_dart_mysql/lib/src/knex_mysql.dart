@@ -39,6 +39,7 @@ class KnexMySQL {
     String? password,
     required String database,
     bool useSSL = false,
+    PoolConfig poolConfig = const PoolConfig(),
   }) async {
     final client = await MySQLClient.connect(
       host: host,
@@ -47,6 +48,7 @@ class KnexMySQL {
       password: password,
       database: database,
       useSSL: useSSL,
+      poolConfig: poolConfig,
     );
     return KnexMySQL._(client);
   }

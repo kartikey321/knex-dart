@@ -173,5 +173,69 @@ void main() {
       final rows = await db.select(db.queryBuilder().table('tags'));
       expect(rows.first['label'], equals('dart'));
     });
+
+    // ── Nested transactions (savepoints) ─────────────────────────────────────
+
+    test('nested trx: both commit — all changes visible', () async {
+      await db.trx((outer) async {
+        await outer.insert(
+          outer.queryBuilder().table('items').insert({'name': 'outer', 'qty': 1}),
+        );
+        await outer.trx((inner) async {
+          await inner.insert(
+            inner.queryBuilder().table('items').insert({'name': 'inner', 'qty': 2}),
+          );
+        });
+      });
+      final rows = await db.select(db.queryBuilder().table('items'));
+      expect(rows.length, equals(2));
+      expect(rows.any((r) => r['name'] == 'outer'), isTrue);
+      expect(rows.any((r) => r['name'] == 'inner'), isTrue);
+    });
+
+    test('nested trx: inner rollback, outer continues and commits', () async {
+      await db.trx((outer) async {
+        await outer.insert(
+          outer.queryBuilder().table('items').insert({'name': 'outer_only', 'qty': 10}),
+        );
+        try {
+          await outer.trx((inner) async {
+            await inner.insert(
+              inner.queryBuilder().table('items').insert({'name': 'inner_only', 'qty': 99}),
+            );
+            throw Exception('inner failure');
+          });
+        } catch (_) {
+          // inner rolled back to savepoint; outer continues
+        }
+        await outer.insert(
+          outer.queryBuilder().table('items').insert({'name': 'outer_after', 'qty': 20}),
+        );
+      });
+      final rows = await db.select(db.queryBuilder().table('items'));
+      final names = rows.map((r) => r['name'] as String).toList();
+      expect(names, contains('outer_only'));
+      expect(names, contains('outer_after'));
+      expect(names, isNot(contains('inner_only')));
+    });
+
+    test('nested trx: inner rollback bubbles — outer also rolls back', () async {
+      await expectLater(
+        () => db.trx((outer) async {
+          await outer.insert(
+            outer.queryBuilder().table('items').insert({'name': 'outer_bubble', 'qty': 5}),
+          );
+          await outer.trx((inner) async {
+            await inner.insert(
+              inner.queryBuilder().table('items').insert({'name': 'inner_bubble', 'qty': 50}),
+            );
+            throw Exception('bubble up');
+          });
+        }),
+        throwsException,
+      );
+      final rows = await db.select(db.queryBuilder().table('items'));
+      expect(rows, isEmpty);
+    });
   });
 }

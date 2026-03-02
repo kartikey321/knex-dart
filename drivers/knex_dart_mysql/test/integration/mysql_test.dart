@@ -37,7 +37,8 @@ void main() {
           "OR email LIKE '%trx%@example.com' "
           "OR email LIKE '%update@example.com' "
           "OR email LIKE '%delete@example.com' "
-          "OR email LIKE '%json_test%@example.com'",
+          "OR email LIKE '%json_test%@example.com' "
+          "OR email LIKE '%_sp@example.com'",
         );
       } catch (e) {
         print('Warning: could not purge stale test data: $e');
@@ -303,6 +304,141 @@ void main() {
             .where('email', 'trx_rollback_mysql@example.com'),
       );
       expect(rows.isEmpty, true);
+    });
+
+    // ─── Nested Transaction (Savepoint) Tests ───────────────────────────────
+    group('Nested Transactions (Savepoints)', () {
+      test('nested trx: both succeed — both changes visible', () async {
+        await client!.trx((outer) async {
+          await outer.insert(
+            mockClient.queryBuilder().table('users').insert({
+              'first_name': 'Outer',
+              'last_name': 'SP',
+              'email': 'outer_sp@example.com',
+            }),
+          );
+
+          await outer.trx((inner) async {
+            await inner.insert(
+              mockClient.queryBuilder().table('users').insert({
+                'first_name': 'Inner',
+                'last_name': 'SP',
+                'email': 'inner_sp@example.com',
+              }),
+            );
+          });
+        });
+
+        final outerRows = await client!.select(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'outer_sp@example.com'),
+        );
+        final innerRows = await client!.select(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'inner_sp@example.com'),
+        );
+        expect(outerRows.length, 1);
+        expect(innerRows.length, 1);
+
+        await client!.delete(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .whereIn('email', ['outer_sp@example.com', 'inner_sp@example.com']),
+        );
+      });
+
+      test('nested trx: inner rollback, outer continues', () async {
+        await client!.trx((outer) async {
+          await outer.insert(
+            mockClient.queryBuilder().table('users').insert({
+              'first_name': 'Outer After',
+              'last_name': 'SP',
+              'email': 'outer_after_sp@example.com',
+            }),
+          );
+
+          try {
+            await outer.trx((inner) async {
+              await inner.insert(
+                mockClient.queryBuilder().table('users').insert({
+                  'first_name': 'Inner Fail',
+                  'last_name': 'SP',
+                  'email': 'inner_fail_sp@example.com',
+                }),
+              );
+              throw Exception('force inner rollback');
+            });
+          } catch (_) {
+            // Caught — outer continues
+          }
+        });
+
+        final outerRows = await client!.select(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'outer_after_sp@example.com'),
+        );
+        final innerRows = await client!.select(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'inner_fail_sp@example.com'),
+        );
+        expect(outerRows.length, 1); // outer committed
+        expect(innerRows.isEmpty, true); // inner rolled back
+
+        await client!.delete(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'outer_after_sp@example.com'),
+        );
+      });
+
+      test('nested trx: inner error bubbles — outer rolled back too', () async {
+        try {
+          await client!.trx((outer) async {
+            await outer.insert(
+              mockClient.queryBuilder().table('users').insert({
+                'first_name': 'Outer',
+                'last_name': 'Bubble',
+                'email': 'outer_bubble_sp@example.com',
+              }),
+            );
+            await outer.trx((inner) async {
+              await inner.insert(
+                mockClient.queryBuilder().table('users').insert({
+                  'first_name': 'Inner',
+                  'last_name': 'Bubble',
+                  'email': 'inner_bubble_sp@example.com',
+                }),
+              );
+              throw Exception('bubble up');
+            });
+          });
+        } catch (_) {}
+
+        final outerRows = await client!.select(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'outer_bubble_sp@example.com'),
+        );
+        final innerRows = await client!.select(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'inner_bubble_sp@example.com'),
+        );
+        expect(outerRows.isEmpty, true);
+        expect(innerRows.isEmpty, true);
+      });
     });
 
     group('Advanced Query APIs', () {
