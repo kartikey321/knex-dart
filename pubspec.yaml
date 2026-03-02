@@ -30,6 +30,7 @@ dev_dependencies:
   melos: ^7.0.0
 
 melos:
+  useRootAsPackage: true
   scripts:
     analyze:
       run: dart analyze --fatal-warnings

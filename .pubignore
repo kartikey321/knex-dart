@@ -1,0 +1,15 @@
+# Documentation site (not needed on pub.dev)
+docs/
+
+# Development/test assets
+test/js/
+test/js_comparison/
+test/integration/sql/
+tool/
+verify_parity.js
+
+# Docker
+docker-compose.yml
+
+# Internal step notes
+docs/step*.md
