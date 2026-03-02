@@ -92,7 +92,11 @@ void main() {
               SidebarGroup(
                 title: 'Query Building',
                 links: [
+                  SidebarLink(text: "Joins", href: '/query-building/joins'),
                   SidebarLink(text: "WHERE Clauses", href: '/query-building/where-clauses'),
+                  SidebarLink(text: "Write Operations", href: '/query-building/write-operations'),
+                  SidebarLink(text: "Transactions", href: '/query-building/transactions'),
+                  SidebarLink(text: "Schema Builder", href: '/query-building/schema-builder'),
                   SidebarLink(text: "Subqueries", href: '/query-building/subqueries'),
                   SidebarLink(text: "UNION Operations", href: '/query-building/unions'),
                   SidebarLink(text: "CTEs (WITH)", href: '/query-building/ctes'),

@@ -10,7 +10,7 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 ## ✨ Features
 
 - ✅ **Complete Query Building** — SELECT, INSERT, UPDATE, DELETE with full support
-- ✅ **23+ WHERE Methods** — basic, grouped, BETWEEN, EXISTS, IN, NULL, column comparisons, JSON, full-text
+- ✅ **29 WHERE Methods** — basic, grouped, BETWEEN, EXISTS, IN, NULL, column comparisons, JSON, full-text
 - ✅ **All JOIN Types** — INNER, LEFT, RIGHT, FULL OUTER, CROSS
 - ✅ **Advanced JOIN Clauses** — `onVal`, `onIn`, `onBetween`, `onExists`, `using`, `onJsonPathEquals`
 - ✅ **Subqueries** — in WHERE IN, FROM, and SELECT clauses
@@ -87,8 +87,11 @@ Leverages Dart's strong typing while maintaining the flexibility of dynamic quer
 - [Getting Started](/getting-started/installation) — Install and configure
 - [Quick Start](/getting-started/quick-start) — Connect and run your first query
 - [Database Support](/database-support) — PostgreSQL, MySQL, SQLite
+- [Joins](/query-building/joins) — INNER, LEFT, RIGHT, FULL OUTER, CROSS + advanced ON clauses
+- [WHERE Clauses](/query-building/where-clauses) — All 29 filtering methods
 - [Write Operations](/query-building/write-operations) — INSERT, UPDATE, DELETE, upsert
-- [WHERE Clauses](/query-building/where-clauses) — All filtering methods
+- [Transactions](/query-building/transactions) — Atomic multi-query operations
+- [Schema Builder](/query-building/schema-builder) — CREATE TABLE, ALTER TABLE, indexes, foreign keys
 - [Subqueries](/query-building/subqueries) — Nested queries
 - [CTEs (WITH)](/query-building/ctes) — Common table expressions
 - [Migration Guide](/migration/from-knex-js) — Coming from Knex.js?
