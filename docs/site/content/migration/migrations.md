@@ -13,6 +13,7 @@ Knex Dart supports multiple migration source styles. Use one explicit entrypoint
 |---|---|---|
 | Code-first units | `db.migrate.fromCode([...])` | App-defined migration classes/objects in Dart |
 | SQL files on disk | `db.migrate.fromSqlDir('./migrations')` | SQL-first teams and DBA-reviewed SQL |
+| SQL files from config | `db.migrate.fromConfig()` | Teams standardizing on `MigrationConfig.directory` |
 | External schema input | `db.migrate.fromSchema(...)` | Converting JSON/OpenAPI/custom schema formats into Knex schema AST |
 
 All three return a `Migrator` and share the same lifecycle:
@@ -57,6 +58,15 @@ Notes:
 - Files are loaded in lexicographic order.
 - Missing `.down.sql` means rollback for that migration will fail with a clear error.
 
+## 2b) SQL Directory from Config (`fromConfig`)
+
+`fromConfig()` is equivalent to `fromSqlDir(config.migrations.directory)`.
+
+```dart
+final db = Knex(client); // client.config.migrations.directory = './migrations'
+await db.migrate.fromConfig().latest();
+```
+
 ## 3) External Schema (`fromSchema`)
 
 Convert external schema input to `KnexSchemaAst` via an adapter, then run as a migration unit.
@@ -65,7 +75,6 @@ Convert external schema input to `KnexSchemaAst` via an adapter, then run as a m
 final migrator = db.migrate.fromSchema(
   name: '001_bootstrap_schema',
   input: jsonSchemaMap,
-  adapter: JsonSchemaAdapter(),
   ifNotExists: true,
 );
 
@@ -73,6 +82,14 @@ await migrator.latest();
 ```
 
 Use `dropOnDown: true` if you want generated rollback to `drop table if exists ...` for all projected tables.
+
+If no adapter is passed, `JsonSchemaAdapter` is auto-registered.
+
+## Transaction Wrapping Note
+
+Each migration step can be wrapped in a transaction when `disableTransactions: false`.
+
+Current default is `disableTransactions: true` because pooled drivers must pin one physical connection for transactional correctness. SQLite is safe to run with `disableTransactions: false` because it uses a single connection and supports nested savepoints.
 
 ## Duplicate Name Rules
 

@@ -2,6 +2,7 @@
 ///
 /// These types replace generic `dynamic` with more specific types
 /// for better type safety and IDE support.
+library;
 
 /// Connection configuration
 /// Can be a Map for connection parameters or a String for connection URI

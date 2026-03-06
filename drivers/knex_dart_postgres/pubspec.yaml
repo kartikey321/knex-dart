@@ -1,6 +1,6 @@
 name: knex_dart_postgres
 description: PostgreSQL driver for knex_dart — connect and execute queries against a PostgreSQL database using the knex_dart query builder.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
@@ -17,7 +17,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  knex_dart: ^1.0.0
+  knex_dart: ^1.1.0
   postgres: ^3.4.50
   logging: ^1.2.0
 

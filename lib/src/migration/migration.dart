@@ -7,9 +7,13 @@ import '../util/knex_exception.dart';
 ///
 /// This is the runtime contract used by the migrator engine.
 abstract class MigrationUnit {
+  /// Stable migration identifier used for ordering and persistence.
   String get name;
 
+  /// Applies the migration.
   Future<void> up(Knex knex);
+
+  /// Reverts the migration.
   Future<void> down(Knex knex);
 }
 
@@ -25,7 +29,13 @@ abstract class Migration implements MigrationUnit {}
 class SqlMigration implements MigrationUnit {
   @override
   final String name;
+
+  /// SQL statements executed in order during [up].
   final List<String> upSql;
+
+  /// SQL statements executed in order during [down].
+  ///
+  /// If empty, rollback for this migration is considered non-reversible.
   final List<String> downSql;
 
   const SqlMigration({
@@ -56,8 +66,14 @@ class SqlMigration implements MigrationUnit {
 class SchemaAstMigration implements MigrationUnit {
   @override
   final String name;
+
+  /// Schema AST projected into CREATE TABLE statements on [up].
   final KnexSchemaAst schema;
+
+  /// Whether table creation should include `IF NOT EXISTS`.
   final bool ifNotExists;
+
+  /// Whether [down] should drop projected tables automatically.
   final bool dropOnDown;
 
   const SchemaAstMigration({

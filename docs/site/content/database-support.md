@@ -9,11 +9,11 @@ Each database is a separate driver package. Install only what you need.
 
 ## Supported Databases
 
-| Database | Package | Version | Status |
-|---|---|---|---|
-| PostgreSQL | `knex_dart_postgres` | `^0.1.0` | Available |
-| MySQL | `knex_dart_mysql` | `^0.1.0` | Available |
-| SQLite | `knex_dart_sqlite` | `^0.1.0` | Available |
+| Database | Package | Status |
+|---|---|---|
+| PostgreSQL | [`knex_dart_postgres`](https://pub.dev/packages/knex_dart_postgres) | Available |
+| MySQL | [`knex_dart_mysql`](https://pub.dev/packages/knex_dart_mysql) | Available |
+| SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | Available |
 
 ## PostgreSQL
 

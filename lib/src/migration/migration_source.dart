@@ -11,11 +11,13 @@ import 'migration.dart';
 /// - filesystem SQL directories
 /// - external schema adapters projected into migration units
 abstract class MigrationSource {
+  /// Loads migration units from this source.
   Future<List<MigrationUnit>> load(Knex knex);
 }
 
 /// Simple source backed by an in-memory list of migration units.
 class CodeMigrationSource implements MigrationSource {
+  /// In-memory migration units returned by [load].
   final List<MigrationUnit> migrations;
 
   const CodeMigrationSource(this.migrations);
@@ -34,6 +36,7 @@ class CodeMigrationSource implements MigrationSource {
 ///
 /// The migration id is `name`, and units are loaded in lexicographic id order.
 class SqlDirectoryMigrationSource implements MigrationSource {
+  /// Directory containing `*.up.sql` / `*.down.sql` files.
   final String directoryPath;
 
   const SqlDirectoryMigrationSource(this.directoryPath);

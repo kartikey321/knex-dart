@@ -15,10 +15,28 @@ export 'window_spec.dart';
 // Sentinel for undefined arguments
 const _undefined = Object();
 
+/// Typed callback for subquery/grouped query builders.
+typedef QueryBuilderCallback = void Function(QueryBuilder qb);
+
+/// Typed callback for join ON clause builders.
+typedef JoinClauseCallback = void Function(JoinClause join);
+
 /// Query builder for constructing SQL queries
 ///
 /// Provides a fluent API for building SELECT, INSERT, UPDATE, and DELETE queries.
-/// This is a stub implementation - full implementation will be added in Week 2.
+///
+/// Basic example:
+/// ```dart
+/// final qb = db.queryBuilder()
+///   .table('users')
+///   .where('active', true)
+///   .orderBy('created_at', 'desc')
+///   .limit(10);
+///
+/// final sql = qb.toSQL();
+/// // sql.sql      -> select * from "users" where "active" = ? order by ...
+/// // sql.bindings -> [true, 10]
+/// ```
 class QueryBuilder {
   final Client _client;
   final List<dynamic> _statements = [];
@@ -99,7 +117,6 @@ class QueryBuilder {
 
   /// Insert one or more rows
   ///
-  /// JS Reference: querybuilder.js insert() (line 1225)
   ///
   /// Supports:
   /// - Single row: insert({'name': 'John', 'email': 'john@example.com'})
@@ -117,7 +134,6 @@ class QueryBuilder {
 
   /// Specify columns to return after INSERT/UPDATE/DELETE
   ///
-  /// JS Reference: querybuilder.js returning() (PostgreSQL RETURNING clause)
   ///
   /// Example: insert({...}).returning(['id', 'name'])
   QueryBuilder returning(List<String> columns) {
@@ -127,7 +143,7 @@ class QueryBuilder {
 
   /// Specify conflict target and action for INSERT ... ON CONFLICT.
   ///
-  /// Mirrors the Knex.js `onConflict()` API exactly:
+  /// Mirrors the JavaScript query builder `onConflict()` shape:
   ///
   /// ```dart
   /// // UPSERT: update all columns on conflict
@@ -147,14 +163,12 @@ class QueryBuilder {
   /// [column] can be a single column name, a List of column names, or null
   /// (lets the DB decide the conflict target via unique constraints).
   ///
-  /// JS Reference: querybuilder.js onConflict() (line 1255-onwards)
   OnConflictBuilder onConflict([dynamic column]) {
     return OnConflictBuilder(this, column);
   }
 
   /// Update rows with given values
   ///
-  /// JS Reference: querybuilder.js update() (line 1234)
   ///
   /// Example: update({'name': 'John', 'email': 'john@example.com'})
   QueryBuilder update(Map<String, dynamic> values, [List<String>? returning]) {
@@ -170,7 +184,6 @@ class QueryBuilder {
 
   /// Increment a column value
   ///
-  /// JS Reference: querybuilder.js increment()
   ///
   /// Example: increment('login_count', 1)
   QueryBuilder increment(String column, [num amount = 1]) {
@@ -186,7 +199,6 @@ class QueryBuilder {
 
   /// Decrement a column value
   ///
-  /// JS Reference: querybuilder.js decrement()
   ///
   /// Example: decrement('stock', 5)
   QueryBuilder decrement(String column, [num amount = 1]) {
@@ -324,7 +336,6 @@ class QueryBuilder {
 
   /// Return only the first row (LIMIT 1)
   ///
-  /// JS Reference: querybuilder.js first() (line 1144)
   QueryBuilder first([dynamic columns]) {
     if (_method != QueryMethod.select) {
       throw StateError('Cannot chain .first() on "${_method.name}" query');
@@ -345,7 +356,6 @@ class QueryBuilder {
 
   /// Pluck a single column from a query
   ///
-  /// JS Reference: querybuilder.js pluck() (line 1164)
   QueryBuilder pluck(String column) {
     if (_method != QueryMethod.select) {
       throw StateError('Cannot chain .pluck() on "${_method.name}" query');
@@ -359,7 +369,6 @@ class QueryBuilder {
 
   /// Add a DISTINCT clause
   ///
-  /// JS Reference: querybuilder.js distinct() (line 300)
   ///
   /// Makes the query return only unique/distinct rows
   QueryBuilder distinct([List<String>? columns]) {
@@ -373,47 +382,42 @@ class QueryBuilder {
 
   /// Add an INNER JOIN clause
   ///
-  /// JS Reference: querybuilder.js join() (line 323), innerJoin() (line 352)
   ///
   /// Supports:
   /// - Simple: join('orders', 'users.id', 'orders.user_id')
   /// - Callback: join('orders', (j) => j.on('users.id', 'orders.user_id'))
-  QueryBuilder join(String table, [dynamic first, String? second]) {
+  QueryBuilder join(String table, [Object? first, String? second]) {
     return _performJoin('inner', table, first, second);
   }
 
   /// Add a LEFT JOIN clause
   ///
-  /// JS Reference: querybuilder.js leftJoin() (line 356)
   ///
   /// Supports:
   /// - Simple: leftJoin('profiles', 'users.id', 'profiles.user_id')
   /// - Callback: leftJoin('profiles', (j) => j.on('users.id', 'profiles.user_id'))
-  QueryBuilder leftJoin(String table, [dynamic first, String? second]) {
+  QueryBuilder leftJoin(String table, [Object? first, String? second]) {
     return _performJoin('left', table, first, second);
   }
 
   /// Add a RIGHT JOIN clause
   ///
-  /// JS Reference: querybuilder.js rightJoin() (line 364)
   ///
   /// Supports:
   /// - Simple: rightJoin('reviews', 'products.id', 'reviews.product_id')
   /// - Callback: rightJoin('reviews', (j) => j.on('products.id', 'reviews.product_id'))
-  QueryBuilder rightJoin(String table, [dynamic first, String? second]) {
+  QueryBuilder rightJoin(String table, [Object? first, String? second]) {
     return _performJoin('right', table, first, second);
   }
 
   /// Add a FULL OUTER JOIN clause
   ///
-  /// JS Reference: querybuilder.js fullOuterJoin() (line 376)
-  QueryBuilder fullOuterJoin(String table, [dynamic first, String? second]) {
+  QueryBuilder fullOuterJoin(String table, [Object? first, String? second]) {
     return _performJoin('full outer', table, first, second);
   }
 
   /// Add a CROSS JOIN clause
   ///
-  /// JS Reference: querybuilder.js crossJoin() (line 380)
   ///
   /// CROSS JOIN has no ON condition
   QueryBuilder crossJoin(String table) {
@@ -455,7 +459,7 @@ class QueryBuilder {
   /// });
   /// // → join lateral (select * from "orders" where ...) as "latest_order" on true
   /// ```
-  QueryBuilder joinLateral(String alias, dynamic subquery) =>
+  QueryBuilder joinLateral(String alias, Object subquery) =>
       _performLateralJoin('inner', alias, subquery);
 
   /// Add a `LEFT JOIN LATERAL` clause (PostgreSQL / MySQL 8+).
@@ -464,7 +468,7 @@ class QueryBuilder {
   /// in the lateral subquery are preserved (with NULL columns).
   ///
   /// Emits: `left join lateral (subquery) as "alias" on true`
-  QueryBuilder leftJoinLateral(String alias, dynamic subquery) =>
+  QueryBuilder leftJoinLateral(String alias, Object subquery) =>
       _performLateralJoin('left', alias, subquery);
 
   /// Add a `CROSS JOIN LATERAL` clause (PostgreSQL / MySQL 8+).
@@ -473,16 +477,16 @@ class QueryBuilder {
   ///
   /// Equivalent to `JOIN LATERAL ... ON true` in PostgreSQL; rows that
   /// produce an empty lateral subquery are excluded.
-  QueryBuilder crossJoinLateral(String alias, dynamic subquery) =>
+  QueryBuilder crossJoinLateral(String alias, Object subquery) =>
       _performLateralJoin('cross', alias, subquery);
 
   QueryBuilder _performLateralJoin(
     String joinType,
     String alias,
-    dynamic subquery,
+    Object subquery,
   ) {
     final dynamic resolvedQuery;
-    if (subquery is Function) {
+    if (subquery is QueryBuilderCallback) {
       final qb = QueryBuilder(client);
       subquery(qb);
       resolvedQuery = qb;
@@ -490,7 +494,7 @@ class QueryBuilder {
       resolvedQuery = subquery;
     } else {
       throw ArgumentError(
-        'joinLateral subquery must be a QueryBuilder, Raw, or Function',
+        'joinLateral subquery must be a QueryBuilder, Raw, or QueryBuilderCallback',
       );
     }
     _statements.add({
@@ -509,10 +513,10 @@ class QueryBuilder {
   QueryBuilder _performJoin(
     String joinType,
     String table, [
-    dynamic first,
+    Object? first,
     String? second,
   ]) {
-    if (first is Function) {
+    if (first is JoinClauseCallback) {
       // Callback-based join with complex ON conditions
       final joinClause = JoinClause(table, joinType);
       first(joinClause); // User builds ON conditions
@@ -545,7 +549,6 @@ class QueryBuilder {
 
   /// Add a where clause
   ///
-  /// JS Reference: querybuilder.js where()
   ///
   /// Supports:
   /// - where(column, value) - assumes '=' operator
@@ -568,7 +571,7 @@ class QueryBuilder {
     }
 
     // Support grouped WHERE closures: where((builder) => ...)
-    if (column is Function) {
+    if (column is QueryBuilderCallback) {
       return whereWrapped(column);
     }
 
@@ -601,7 +604,6 @@ class QueryBuilder {
 
   /// Add an order by clause
   ///
-  /// JS Reference: querybuilder.js orderBy() (lines 752-764)
   ///
   /// Supports orderBy(column, [direction])
   /// - direction defaults to 'asc'
@@ -618,7 +620,6 @@ class QueryBuilder {
 
   /// Set the LIMIT for the query
   ///
-  /// JS Reference: querybuilder.js limit() (lines 1048-1057)
   ///
   /// Limits the number of rows returned
   QueryBuilder limit(int value) {
@@ -628,7 +629,6 @@ class QueryBuilder {
 
   /// Set the OFFSET for the query
   ///
-  /// JS Reference: querybuilder.js offset() (lines 1029-1045)
   ///
   /// Skips the specified number of rows
   QueryBuilder offset(int value) {
@@ -645,7 +645,6 @@ class QueryBuilder {
   /// When called with a value, sets the flag and returns `this` for chaining.
   /// When called without arguments, returns current value and resets to `false`.
   ///
-  /// JS Reference: lib/query/querybuilder.js lines 1660-1669
   dynamic _not([bool? val]) {
     if (val != null) {
       _notFlag = val;
@@ -661,7 +660,6 @@ class QueryBuilder {
   /// When called with a value, sets the flag and returns `this` for chaining.
   /// When called without arguments, returns current value and resets to `'and'`.
   ///
-  /// JS Reference: lib/query/querybuilder.js lines 1649-1658
   dynamic _bool([String? val]) {
     if (val != null) {
       _boolFlag = val;
@@ -675,7 +673,6 @@ class QueryBuilder {
 
   /// Add an OR WHERE clause
   ///
-  /// JS Reference: querybuilder.js orWhere() (line 483)
   ///
   /// Sets bool='or' then calls where()
   QueryBuilder orWhere(
@@ -690,7 +687,6 @@ class QueryBuilder {
 
   /// Add a WHERE NULL clause
   ///
-  /// JS Reference: querybuilder.js whereNull() (line 632)
   QueryBuilder whereNull(String column) {
     _statements.add({
       'grouping': 'where',
@@ -704,7 +700,6 @@ class QueryBuilder {
 
   /// Add a WHERE NOT NULL clause
   ///
-  /// JS Reference: querybuilder.js whereNotNull() (line 649)
   QueryBuilder whereNotNull(String column) {
     _statements.add({
       'grouping': 'where',
@@ -732,7 +727,6 @@ class QueryBuilder {
   ///
   /// Accepts either a List of values or a QueryBuilder for subqueries
   ///
-  /// JS Reference: querybuilder.js whereIn() (line 602)
   QueryBuilder whereIn(String column, dynamic values) {
     _statements.add({
       'grouping': 'where',
@@ -747,7 +741,6 @@ class QueryBuilder {
 
   /// Add a WHERE NOT IN clause
   ///
-  /// JS Reference: querybuilder.js whereNotIn() (line 622)
   QueryBuilder whereNotIn(String column, dynamic values) {
     _statements.add({
       'grouping': 'where',
@@ -766,7 +759,6 @@ class QueryBuilder {
 
   /// Compare two columns with a WHERE clause
   ///
-  /// JS Reference: querybuilder.js whereColumn() (lines 475-480)
   ///
   /// Example: whereColumn('updated_at', '>', 'created_at')
   QueryBuilder whereColumn(String column1, String operator, String column2) {
@@ -786,7 +778,6 @@ class QueryBuilder {
 
   /// Add a WHERE BETWEEN clause
   ///
-  /// JS Reference: querybuilder.js whereBetween() (lines 658-677)
   ///
   /// Example: whereBetween('age', [18, 65])
   QueryBuilder whereBetween(String column, List values) {
@@ -808,7 +799,6 @@ class QueryBuilder {
 
   /// Add a WHERE NOT BETWEEN clause
   ///
-  /// JS Reference: querybuilder.js whereNotBetween() (lines 679-682)
   QueryBuilder whereNotBetween(String column, List values) {
     return _not(true).whereBetween(column, values) as QueryBuilder;
   }
@@ -825,7 +815,6 @@ class QueryBuilder {
 
   /// Add a WHERE NOT clause
   ///
-  /// JS Reference: querybuilder.js whereNot() (lines 509-519)
   ///
   /// Example: whereNot('status', 'deleted')
   QueryBuilder whereNot(
@@ -867,7 +856,6 @@ class QueryBuilder {
 
   /// Add a WHERE EXISTS clause with a subquery
   ///
-  /// JS Reference: querybuilder.js whereExists() (lines 574-584)
   ///
   /// Example:
   /// ```dart
@@ -875,7 +863,7 @@ class QueryBuilder {
   ///   qb.select('*').from('orders').whereRaw('orders.user_id = users.id');
   /// })
   /// ```
-  QueryBuilder whereExists(Function callback) {
+  QueryBuilder whereExists(QueryBuilderCallback callback) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereExists',
@@ -888,24 +876,22 @@ class QueryBuilder {
 
   /// Add a WHERE NOT EXISTS clause
   ///
-  /// JS Reference: querybuilder.js whereNotExists() (lines 586-589)
-  QueryBuilder whereNotExists(Function callback) {
+  QueryBuilder whereNotExists(QueryBuilderCallback callback) {
     return _not(true).whereExists(callback) as QueryBuilder;
   }
 
   /// OR version of WHERE EXISTS
-  QueryBuilder orWhereExists(Function callback) {
+  QueryBuilder orWhereExists(QueryBuilderCallback callback) {
     return _bool('or').whereExists(callback) as QueryBuilder;
   }
 
   /// OR version of WHERE NOT EXISTS
-  QueryBuilder orWhereNotExists(Function callback) {
+  QueryBuilder orWhereNotExists(QueryBuilderCallback callback) {
     return _bool('or')._not(true).whereExists(callback) as QueryBuilder;
   }
 
   /// Add grouped WHERE conditions in parentheses
   ///
-  /// JS Reference: querybuilder.js whereWrapped() (lines 562-572)
   ///
   /// Example:
   /// ```dart
@@ -914,7 +900,7 @@ class QueryBuilder {
   /// })
   /// // Generates: WHERE (age > 18 OR verified = true)
   /// ```
-  QueryBuilder whereWrapped(Function callback) {
+  QueryBuilder whereWrapped(QueryBuilderCallback callback) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereWrapped',
@@ -927,7 +913,6 @@ class QueryBuilder {
 
   /// Add a GROUP BY clause
   ///
-  /// JS Reference: querybuilder.js groupBy() (line 728)
   ///
   /// Groups rows by one or more columns
   QueryBuilder groupBy(String column) {
@@ -967,7 +952,7 @@ class QueryBuilder {
 
   /// Add INTERSECT clause — returns rows that appear in ALL queries.
   ///
-  /// Knex.js equivalent: `.intersect([qb1, qb2])`
+  /// Equivalent to SQL `INTERSECT` between the current query and [queries].
   ///
   /// Not supported natively by MySQL (use a workaround with JOIN/WHERE EXISTS).
   QueryBuilder intersect(List<dynamic> queries, {bool wrap = false}) {
@@ -997,7 +982,7 @@ class QueryBuilder {
 
   /// Add EXCEPT clause — returns rows in the first query but NOT in subsequent queries.
   ///
-  /// Knex.js equivalent: `.except([qb1, qb2])`
+  /// Equivalent to SQL `EXCEPT` between the current query and [queries].
   ///
   /// MySQL calls this `EXCEPT` (8.0+) or can be approximated with `LEFT JOIN WHERE NULL`.
   QueryBuilder except(List<dynamic> queries, {bool wrap = false}) {
@@ -1030,7 +1015,6 @@ class QueryBuilder {
   ///
   /// CTEs allow complex queries to be broken down into named subqueries
   ///
-  /// JS Reference: querybuilder.js with() (line 164)
   /// Note: Named withQuery in Dart since with is a reserved keyword
   QueryBuilder withQuery(String alias, dynamic query) {
     _statements.add({
@@ -1046,7 +1030,6 @@ class QueryBuilder {
   ///
   /// Used for hierarchical/recursive data (trees, graphs, etc.)
   ///
-  /// JS Reference: querybuilder.js withRecursive()
   QueryBuilder withRecursive(String alias, dynamic query) {
     _statements.add({
       'grouping': 'with',
@@ -1059,7 +1042,6 @@ class QueryBuilder {
 
   /// Add a HAVING clause
   ///
-  /// JS Reference: querybuilder.js having() (line 846)
   ///
   /// Filters grouped results (like WHERE for aggregates)
   /// Supports two forms:
@@ -1080,7 +1062,6 @@ class QueryBuilder {
 
   /// Add a raw HAVING clause to a query
   ///
-  /// JS Reference: querybuilder.js havingRaw() (line 809)
   ///
   /// Use for complex expressions that shouldn't be wrapped in quotes,
   /// such as aggregate functions: count(*), sum(amount), etc.
@@ -1118,7 +1099,6 @@ class QueryBuilder {
 
   /// Add an OR HAVING clause
   ///
-  /// JS Reference: querybuilder.js orHaving()
   /// Example: .having('total', '>', 100).orHaving('count', '<', 5)
   QueryBuilder orHaving(
     String column,
@@ -1139,7 +1119,6 @@ class QueryBuilder {
 
   /// Add a HAVING IN clause
   ///
-  /// JS Reference: querybuilder.js havingIn()
   QueryBuilder havingIn(String column, List<dynamic> values) {
     _statements.add({
       'grouping': 'having',
@@ -1193,7 +1172,6 @@ class QueryBuilder {
 
   /// Add a HAVING BETWEEN clause
   ///
-  /// JS Reference: querybuilder.js havingBetween()
   QueryBuilder havingBetween(String column, List<dynamic> values) {
     assert(
       values.length == 2,
@@ -1246,7 +1224,6 @@ class QueryBuilder {
 
   /// Add a HAVING NULL clause
   ///
-  /// JS Reference: querybuilder.js havingNull()
   QueryBuilder havingNull(String column) {
     _statements.add({
       'grouping': 'having',
@@ -1359,8 +1336,6 @@ class QueryBuilder {
   // ============================================================================
   // ANALYTIC / WINDOW FUNCTIONS
   //
-  // Dart port of Knex.js querybuilder.js _analytic(), rank(), denseRank(),
-  // rowNumber() (lines 1568-1631) and analytic.js.
   //
   // Supported overloads (matching JS _analytic(alias, second, third)):
   //   1. String/Array: rank(alias, orderBy, [partitionBy])
@@ -1428,7 +1403,7 @@ class QueryBuilder {
 
   /// Add `rank() OVER (...) AS alias` to the SELECT list.
   ///
-  /// Knex.js: `.rank(alias, orderByClause, [partitionByClause])`
+  /// Same call shape as common JS query builders: `rank(alias, orderBy, [partitionBy])`.
   ///
   /// String syntax: `rank('alias', 'email', 'firstName')`
   /// Array syntax:  `rank('alias', ['email', 'addr'], ['firstName', 'lastName'])`
@@ -1662,7 +1637,9 @@ class QueryBuilder {
   // BUILDER UTILITIES & LOCKS
   // ============================================================================
 
-  /// Deep clones the query builder
+  /// Creates a deep clone of this query builder.
+  ///
+  /// Useful when branching query variants from a common base.
   QueryBuilder clone() {
     final cloned = QueryBuilder(_client);
     cloned._statements.addAll(_statements);
@@ -1683,7 +1660,11 @@ class QueryBuilder {
     return cloned;
   }
 
-  /// Clears all standard groupings (select, where, group, order, having)
+  /// Clears query state.
+  ///
+  /// If [target] is provided, only that statement grouping is removed
+  /// (for example: `'where'` or `'order'`). Otherwise all statements and
+  /// single-value options are reset.
   QueryBuilder clear([String? target]) {
     if (target != null) {
       _statements.removeWhere((stmt) => stmt['grouping'] == target);
@@ -1695,43 +1676,49 @@ class QueryBuilder {
     return this;
   }
 
-  /// Truncates the table
+  /// Marks this query as `TRUNCATE`.
   QueryBuilder truncate() {
     _method = QueryMethod.truncate;
     return this;
   }
 
+  /// Removes selected columns from this query.
   QueryBuilder clearSelect() {
     _statements.removeWhere((stmt) => stmt['grouping'] == 'columns');
     return this;
   }
 
+  /// Removes WHERE clauses from this query.
   QueryBuilder clearWhere() {
     _statements.removeWhere((stmt) => stmt['grouping'] == 'where');
     return this;
   }
 
+  /// Removes GROUP BY clauses from this query.
   QueryBuilder clearGroup() {
     _statements.removeWhere((stmt) => stmt['grouping'] == 'group');
     return this;
   }
 
+  /// Removes ORDER BY clauses from this query.
   QueryBuilder clearOrder() {
     _statements.removeWhere((stmt) => stmt['grouping'] == 'order');
     return this;
   }
 
+  /// Removes HAVING clauses from this query.
   QueryBuilder clearHaving() {
     _statements.removeWhere((stmt) => stmt['grouping'] == 'having');
     return this;
   }
 
+  /// Removes increment/decrement counter mutations from this query.
   QueryBuilder clearCounters() {
     _single.remove('counter');
     return this;
   }
 
-  /// Join raw SQL
+  /// Adds a raw JOIN fragment.
   QueryBuilder joinRaw(dynamic sql, [dynamic bindings]) {
     _statements.add({
       'grouping': 'join',
@@ -1741,7 +1728,7 @@ class QueryBuilder {
     return this;
   }
 
-  /// Group by raw SQL
+  /// Adds a raw GROUP BY fragment.
   QueryBuilder groupByRaw(dynamic sql, [dynamic bindings]) {
     _statements.add({
       'grouping': 'group',
@@ -1751,7 +1738,7 @@ class QueryBuilder {
     return this;
   }
 
-  /// Order by raw SQL
+  /// Adds a raw ORDER BY fragment.
   QueryBuilder orderByRaw(dynamic sql, [dynamic bindings]) {
     _statements.add({
       'grouping': 'order',
@@ -1761,7 +1748,7 @@ class QueryBuilder {
     return this;
   }
 
-  /// Select from raw SQL
+  /// Uses a raw table/subquery source in FROM.
   QueryBuilder fromRaw(dynamic sql, [dynamic bindings]) {
     _single['table'] = sql is Raw ? sql : client.raw(sql.toString(), bindings);
     return this;
@@ -1771,12 +1758,23 @@ class QueryBuilder {
   Duration? _timeout;
   bool? _cancelOnTimeout;
 
+  /// Sets a query timeout duration.
+  ///
+  /// [ms] is in milliseconds. [cancel] indicates whether cancellation should
+  /// be requested when timeout is reached (driver support may vary).
   QueryBuilder timeout(int ms, {bool cancel = false}) {
     _timeout = Duration(milliseconds: ms);
     _cancelOnTimeout = cancel;
     return this;
   }
 
+  /// Applies a reusable modifier callback to this builder.
+  ///
+  /// Example:
+  /// ```dart
+  /// void onlyActive(QueryBuilder qb) => qb.where('active', true);
+  /// db.queryBuilder().table('users').modify(onlyActive);
+  /// ```
   QueryBuilder modify(Function callback, [List<dynamic> args = const []]) {
     Function.apply(callback, <dynamic>[this, ...args]);
     return this;
@@ -1813,6 +1811,7 @@ class QueryBuilder {
     return this;
   }
 
+  /// OR variant of [whereFullText].
   QueryBuilder orWhereFullText(
     dynamic columns,
     String query, [

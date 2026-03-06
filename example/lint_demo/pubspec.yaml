@@ -1,0 +1,25 @@
+name: lint_demo
+description: Demo app to validate knex_dart_lint diagnostics.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.0
+
+dependency_overrides:
+  knex_dart:
+    path: ../..
+  knex_dart_capabilities:
+    path: ../../packages/knex_dart_capabilities
+
+dependencies:
+  knex_dart_postgres:
+    path: ../../drivers/knex_dart_postgres
+  knex_dart_mysql:
+    path: ../../drivers/knex_dart_mysql
+  knex_dart_sqlite:
+    path: ../../drivers/knex_dart_sqlite
+
+dev_dependencies:
+  custom_lint: ^0.8.1
+  knex_dart_lint: ^0.1.0

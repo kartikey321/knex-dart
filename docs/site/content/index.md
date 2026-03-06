@@ -26,18 +26,15 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 
 Pick your database driver:
 
-```yaml
+```bash
 # PostgreSQL
-dependencies:
-  knex_dart_postgres: ^0.1.0
+dart pub add knex_dart_postgres
 
 # MySQL
-dependencies:
-  knex_dart_mysql: ^0.1.0
+dart pub add knex_dart_mysql
 
 # SQLite
-dependencies:
-  knex_dart_sqlite: ^0.1.0
+dart pub add knex_dart_sqlite
 ```
 
 Connect and query:
@@ -93,6 +90,7 @@ Leverages Dart's strong typing while maintaining the flexibility of dynamic quer
 - [Transactions](/query-building/transactions) — Atomic multi-query operations
 - [Schema Builder](/query-building/schema-builder) — CREATE TABLE, ALTER TABLE, indexes, foreign keys
 - [Migrations](/migration/migrations) — Code-first, SQL-directory, and external-schema migration sources
+- [Dialect Lint](/tooling/dialect-lint) — Optional static checks for dialect-incompatible query APIs
 - [Subqueries](/query-building/subqueries) — Nested queries
 - [CTEs (WITH)](/query-building/ctes) — Common table expressions
 - [Migration Guide](/migration/from-knex-js) — Coming from Knex.js?

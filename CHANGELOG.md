@@ -1,3 +1,14 @@
+## 1.1.0
+
+- Added filesystem/config migration source support via `fromConfig()`.
+- Added auto-registration of `JsonSchemaAdapter` for `fromSchema(...)`.
+- Added `Client.runInTransaction(...)` hook and integrated migrator transaction path.
+- Added lateral joins API (`joinLateral`, `leftJoinLateral`, `crossJoinLateral`).
+- Added and published supporting packages:
+  - `knex_dart_capabilities` (`0.1.0`)
+  - `knex_dart_lint` (`0.1.0`)
+- Documentation updates for migrations and optional dialect lint tooling.
+
 ## 1.0.0
 
 - Initial stable release.

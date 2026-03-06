@@ -1,3 +1,8 @@
+## 0.1.1
+
+- Updated dependency to `knex_dart: ^1.1.0`.
+- Transaction execution path aligned with core `runInTransaction(...)` hook.
+
 ## 0.1.0
 
 - Initial release.

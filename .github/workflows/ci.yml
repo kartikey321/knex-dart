@@ -3,7 +3,13 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
-    tags: ['v*.*.*']
+    tags:
+      - 'knex_dart-v*.*.*'
+      - 'knex_dart_postgres-v*.*.*'
+      - 'knex_dart_mysql-v*.*.*'
+      - 'knex_dart_sqlite-v*.*.*'
+      - 'knex_dart_capabilities-v*.*.*'
+      - 'knex_dart_lint-v*.*.*'
   pull_request:
     branches: [main]
 
@@ -194,12 +200,11 @@ jobs:
           MYSQL_USER: knex
           MYSQL_PASSWORD: knex
 
-  # ── 6. Publish all packages to pub.dev (version tags only) ───────────────────
-  publish:
-    name: Publish to pub.dev
-    needs: [test-core, test-sqlite, test-postgres, test-mysql]
+  # ── 6. Package tests (capabilities + lint) ───────────────────────────────────
+  test-packages:
+    name: Test (packages)
+    needs: analyze
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - uses: actions/checkout@v4
@@ -211,13 +216,57 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
-      - name: Install melos
-        run: dart pub global activate melos
+      - name: Run capabilities package tests
+        working-directory: packages/knex_dart_capabilities
+        run: dart test
 
-      - name: Dry-run (all packages)
-        run: melos publish
+      - name: Run lint package tests
+        working-directory: packages/knex_dart_lint
+        run: dart test
 
-      - name: Publish changed packages
-        run: melos publish --no-dry-run
-        env:
-          PUB_TOKEN: ${{ secrets.PUB_TOKEN }}
+  # ── 7. Publish package to pub.dev (version tags only) ───────────────────────
+  publish:
+    name: Publish to pub.dev
+    needs: [test-core, test-sqlite, test-postgres, test-mysql, test-packages]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/knex_dart-') || startsWith(github.ref, 'refs/tags/knex_dart_postgres-') || startsWith(github.ref, 'refs/tags/knex_dart_mysql-') || startsWith(github.ref, 'refs/tags/knex_dart_sqlite-') || startsWith(github.ref, 'refs/tags/knex_dart_capabilities-') || startsWith(github.ref, 'refs/tags/knex_dart_lint-')
+    environment: pub.dev
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Resolve package from tag
+        id: resolve
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in
+            knex_dart-v*) echo "dir=." >> "$GITHUB_OUTPUT" ;;
+            knex_dart_postgres-v*) echo "dir=drivers/knex_dart_postgres" >> "$GITHUB_OUTPUT" ;;
+            knex_dart_mysql-v*) echo "dir=drivers/knex_dart_mysql" >> "$GITHUB_OUTPUT" ;;
+            knex_dart_sqlite-v*) echo "dir=drivers/knex_dart_sqlite" >> "$GITHUB_OUTPUT" ;;
+            knex_dart_capabilities-v*) echo "dir=packages/knex_dart_capabilities" >> "$GITHUB_OUTPUT" ;;
+            knex_dart_lint-v*) echo "dir=packages/knex_dart_lint" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "Unsupported tag pattern: $TAG"
+              exit 1
+              ;;
+          esac
+          echo "tag=$TAG package_dir=$(cat $GITHUB_OUTPUT | sed -n 's/^dir=//p')"
+
+      - name: Publish dry-run
+        working-directory: ${{ steps.resolve.outputs.dir }}
+        run: dart pub publish --dry-run
+
+      - name: Publish package
+        working-directory: ${{ steps.resolve.outputs.dir }}
+        run: dart pub publish --force

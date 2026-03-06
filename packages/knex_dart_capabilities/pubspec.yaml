@@ -1,0 +1,23 @@
+name: knex_dart_capabilities
+description: Shared dialect capability matrix for knex_dart runtime and tooling.
+version: 0.1.0
+repository: https://github.com/kartikey321/knex-dart
+homepage: https://github.com/kartikey321/knex-dart
+issue_tracker: https://github.com/kartikey321/knex-dart/issues
+topics:
+  - sql
+  - query-builder
+  - lints
+  - capabilities
+  - knex
+
+environment:
+  sdk: ^3.10.0
+
+resolution: workspace
+
+dependencies:
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

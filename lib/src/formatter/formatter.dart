@@ -3,7 +3,6 @@ import '../client/client.dart';
 
 /// Formatter for wrapping identifiers and formatting SQL components
 ///
-/// JS Reference: lib/formatter/wrappingFormatter.js
 ///
 /// Handles identifier wrapping, column formatting, and SQL generation
 /// with proper quoting and aliasing based on the database dialect.
@@ -67,7 +66,6 @@ class Formatter {
 
   /// Format a list of columns with proper identifier wrapping
   ///
-  /// JS Reference: lines 67-76, parseObject lines 164-194
   ///
   /// Handles:
   /// - Simple: ['id', 'name'] → "id", "name"
@@ -105,7 +103,6 @@ class Formatter {
 
   /// Parse object notation for column aliasing
   ///
-  /// JS Reference: lines 164-194 (parseObject)
   ///
   /// Handles { 'alias_name': 'column_name' } → "column_name" as "alias_name"
   String _parseObject(Map<dynamic, dynamic> obj) {
@@ -127,7 +124,6 @@ class Formatter {
 
   /// Validate and return SQL operator
   ///
-  /// JS Reference: lines 128-136
   ///
   /// Validates operator is in allowed list, handles Raw values.
   /// Throws Exception for invalid operators.
@@ -148,7 +144,6 @@ class Formatter {
 
   /// Validate and return sort direction (ASC/DESC)
   ///
-  /// JS Reference: lines 236-240
   ///
   /// Returns validated direction or defaults to 'asc'.
   /// Handles Raw values.
@@ -167,7 +162,6 @@ class Formatter {
 
   /// Universal wrapper for any value type
   ///
-  /// JS Reference: lines 80-98
   ///
   /// Dispatches to appropriate handler based on value type:
   /// - Raw → unwrap to SQL
@@ -189,7 +183,6 @@ class Formatter {
 
   /// Extract SQL from Raw instance
   ///
-  /// JS Reference: lines 100-126 (unwrapRaw function)
   ///
   /// Returns null if not a Raw, otherwise returns SQL string
   /// and accumulates bindings.
@@ -214,7 +207,6 @@ class Formatter {
 
   /// Wrap string identifier with quotes, handling dots and aliases
   ///
-  /// JS Reference: lines 139-161 (wrapString function)
   ///
   /// Handles:
   /// - Simple: 'users' → "users"
@@ -249,7 +241,6 @@ class Formatter {
 
   /// Wrap as identifier using client's wrapping logic
   ///
-  /// JS Reference: formatterUtils.js lines 16-19
   String wrapAsIdentifier(String value) {
     // Skip wrapping for wildcard
     if (value == '*') return value;
@@ -260,7 +251,6 @@ class Formatter {
 
   /// Format a parameter value, handling NULL/undefined
   ///
-  /// JS Reference: Knex.js formatter parameter() method
   ///
   /// Returns placeholder for value, with optional fallback for NULL
   String parameter(dynamic value, [dynamic notSetValue]) {
@@ -276,7 +266,6 @@ class Formatter {
 
   /// Format a values list for IN clauses
   ///
-  /// JS Reference: Knex.js formatter values() method
   ///
   /// Formats value lists: [1,2,3] → (?, ?, ?)
   /// Handles nested arrays: [[1,2,3]] → (?, ?, ?)

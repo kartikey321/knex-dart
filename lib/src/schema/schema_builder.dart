@@ -6,7 +6,6 @@ import 'table_builder.dart';
 /// Records a sequence of DDL operations (createTable, dropTable, etc.)
 /// and compiles them to SQL via [SchemaCompiler].
 ///
-/// JS Reference: lib/schema/builder.js
 class SchemaBuilder {
   final Client _client;
   final List<Map<String, dynamic>> _sequence = [];
@@ -87,7 +86,6 @@ class SchemaBuilder {
     return this;
   }
 
-  /// Shorthand alias for alterTable (matches Knex.js `table()`)
   SchemaBuilder table(String tableName, void Function(TableBuilder) callback) {
     return alterTable(tableName, callback);
   }

@@ -6,8 +6,12 @@ import 'query_builder.dart';
 /// These operators are dialect-specific. They are primarily designed for
 /// PostgreSQL (`jsonb` columns) but have some fallback implementations for
 /// MySQL (`json_extract`) and SQLite (`json_extract`).
-///
-/// JS Reference: Knex.js lib/query/builder.js whereJsonObject, whereJsonPath, etc.
+/// Basic example:
+/// ```dart
+/// db.queryBuilder()
+///   .table('users')
+///   .whereJsonPath('metadata', r'$.language', '=', 'en');
+/// ```
 extension JsonQueryBuilder on QueryBuilder {
   /// Add a where clause for matching a JSON object.
   ///
@@ -25,6 +29,7 @@ extension JsonQueryBuilder on QueryBuilder {
     return this;
   }
 
+  /// OR variant of [whereJsonObject].
   QueryBuilder orWhereJsonObject(String column, Map<String, dynamic> value) {
     statements.add({
       'grouping': 'where',
@@ -61,6 +66,7 @@ extension JsonQueryBuilder on QueryBuilder {
     return this;
   }
 
+  /// OR variant of [whereJsonPath].
   QueryBuilder orWhereJsonPath(
     String column,
     String path,
@@ -96,6 +102,7 @@ extension JsonQueryBuilder on QueryBuilder {
     return this;
   }
 
+  /// OR variant of [whereJsonSupersetOf].
   QueryBuilder orWhereJsonSupersetOf(String column, dynamic value) {
     final encoded = value is String ? value : jsonEncode(value);
     statements.add({
@@ -125,6 +132,7 @@ extension JsonQueryBuilder on QueryBuilder {
     return this;
   }
 
+  /// OR variant of [whereJsonSubsetOf].
   QueryBuilder orWhereJsonSubsetOf(String column, dynamic value) {
     final encoded = value is String ? value : jsonEncode(value);
     statements.add({

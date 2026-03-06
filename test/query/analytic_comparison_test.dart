@@ -1,6 +1,5 @@
 import 'package:test/test.dart';
 import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/query/window_spec.dart';
 import '../mocks/mock_client.dart';
 
 void main() {

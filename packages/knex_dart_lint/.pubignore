@@ -1,0 +1,11 @@
+# Local build/test artifacts
+coverage/
+*.log
+
+# IDE/local metadata
+.idea/
+.vscode/
+.DS_Store
+
+# Tooling internals
+.dart_tool/

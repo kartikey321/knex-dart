@@ -2,8 +2,6 @@ import 'query_builder.dart';
 
 /// Fluent builder for ON CONFLICT / INSERT IGNORE / ON DUPLICATE KEY UPDATE
 ///
-/// JS Reference: Knex.js lib/query/builder.js onConflict()
-///
 /// Usage:
 /// ```dart
 /// // PG/SQLite: ON CONFLICT DO NOTHING

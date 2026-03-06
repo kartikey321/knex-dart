@@ -1,0 +1,51 @@
+- title: Getting Started
+  links:
+    - text: Home
+      href: /
+    - text: Installation
+      href: /getting-started/installation
+    - text: Quick Start
+      href: /getting-started/quick-start
+    - text: Versions
+      href: /versions
+
+- title: Query Building
+  links:
+    - text: Joins
+      href: /query-building/joins
+    - text: WHERE Clauses
+      href: /query-building/where-clauses
+    - text: Write Operations
+      href: /query-building/write-operations
+    - text: Transactions
+      href: /query-building/transactions
+    - text: Schema Builder
+      href: /query-building/schema-builder
+    - text: Subqueries
+      href: /query-building/subqueries
+    - text: UNION Operations
+      href: /query-building/unions
+    - text: CTEs (WITH)
+      href: /query-building/ctes
+
+- title: Migration
+  links:
+    - text: Migrations
+      href: /migration/migrations
+    - text: From Knex.js
+      href: /migration/from-knex-js
+
+- title: Tooling
+  links:
+    - text: Dialect Lint
+      href: /tooling/dialect-lint
+
+- title: Database Support
+  links:
+    - text: Databases
+      href: /database-support
+
+- title: Examples
+  links:
+    - text: Basic Queries
+      href: /examples/basic-queries

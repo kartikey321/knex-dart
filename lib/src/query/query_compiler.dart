@@ -1,3 +1,5 @@
+import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
+
 import '../client/client.dart';
 import '../formatter/formatter.dart';
 import '../util/enums.dart';
@@ -7,8 +9,6 @@ import 'join_clause.dart';
 import 'sql_string.dart';
 
 /// Query compiler that transforms QueryBuilder statements into SQL
-///
-/// JS Reference: lib/query/querycompiler.js
 ///
 /// Core responsibilities:
 /// - Group statements by type (columns, where, join, etc.)
@@ -34,7 +34,6 @@ class QueryCompiler {
   /// Query method (select, insert, update, delete)
   late final String method;
 
-  /// JS Reference: querycompiler.js lines 49-67 (constructor)
   QueryCompiler(this.client, this.builder) {
     // Get method from builder
     method = builder.method.toString().split('.').last;
@@ -49,9 +48,16 @@ class QueryCompiler {
     formatter = client.formatter(builder);
   }
 
+  bool _supports(SqlCapability capability) {
+    final dialect = dialectFromDriverName(client.driverName);
+    // Unknown drivers are treated as unknown capability to avoid false
+    // negatives; runtime guards only fail when we are certain.
+    if (dialect == null) return true;
+    return supportsCapability(dialect, capability);
+  }
+
   /// Group statements by their grouping or type
   ///
-  /// JS Reference: constructor uses lodash groupBy
   Map<String, List<Map<String, dynamic>>> _groupStatements(
     List<dynamic> statements,
   ) {
@@ -72,7 +78,6 @@ class QueryCompiler {
 
   /// Compile query to SQL
   ///
-  /// JS Reference: querycompiler.js lines 70-121 (toSQL)
   SqlString toSQL() {
     // Call method-specific compiler
     final sql = _compileMethod();
@@ -86,7 +91,7 @@ class QueryCompiler {
     return SqlString(sql, bindings, method: method, uid: uid, pluck: pluck);
   }
 
-  /// Return normalized pluck column name (matches Knex.js behavior).
+  /// Returns a normalized pluck column name.
   String? _pluckColumnName() {
     final rawPluck = single['pluck'];
     if (rawPluck == null) return null;
@@ -153,7 +158,6 @@ class QueryCompiler {
 
   /// Dispatch to method-specific compiler
   ///
-  /// JS Reference: querycompiler.js _validateAndCompile dispatches to method
   String _compileMethod() {
     // Use the public method getter from builder
     final queryMethod = builder.method;
@@ -176,7 +180,6 @@ class QueryCompiler {
 
   /// Compile SELECT query
   ///
-  /// JS Reference: querycompiler.js lines 126-179 (select)
   ///
   /// For MVP: Just compile columns, more components added later
   String _select() {
@@ -256,7 +259,6 @@ class QueryCompiler {
 
   /// Get table name, properly wrapped
   ///
-  /// JS Reference: Used in columns() via this.tableName getter
   // Cache for tableName so Raw bindings are only consumed once
   String? _tableNameCache;
 
@@ -288,7 +290,7 @@ class QueryCompiler {
 
   /// Wrap table identifier with JS-like lowercase `as` for aliases.
   ///
-  /// This keeps table alias SQL closer to Knex.js output while leaving
+  /// This keeps table-alias SQL stable while leaving
   /// existing column alias formatting behavior unchanged.
   String _wrapTableIdentifier(String table) {
     final lower = table.toLowerCase();
@@ -304,7 +306,6 @@ class QueryCompiler {
 
   /// Compile columns clause (SELECT ... FROM ...)
   ///
-  /// JS Reference: querycompiler.js lines 277-321 (columns)
   String _columns() {
     // Get column statements
     final columnStmts = grouped['columns'] ?? grouped['select'];
@@ -401,7 +402,6 @@ class QueryCompiler {
       }
 
       // Handle analytic / window functions (rank, denseRank, rowNumber)
-      // JS Reference: querycompiler.js analytic(stmt) (line 1168)
       if (stmt['type'] == 'analytic') {
         cols.add(_compileAnalytic(stmt));
         continue;
@@ -421,7 +421,6 @@ class QueryCompiler {
 
   /// Compile WHERE clause
   ///
-  /// JS Reference: querycompiler.js lines 570-595 (where)
   ///
   /// Iterates through WHERE statements and dispatches to type-specific compilers.
   /// First statement gets 'where' keyword, subsequent ones get boolean operator (and/or).
@@ -486,7 +485,6 @@ class QueryCompiler {
 
   /// Compile basic WHERE clause (column operator value)
   ///
-  /// JS Reference: querycompiler.js lines 1055-1075 (whereBasic)
   ///
   /// Examples:
   /// - "status" = $1
@@ -503,7 +501,6 @@ class QueryCompiler {
 
   /// Format WHERE clause value
   ///
-  /// JS Reference: querycompiler.js lines 979-993 (_valueClause)
   ///
   /// If asColumn=true, wraps value as column name.
   /// Otherwise, adds to bindings and returns parameter placeholder.
@@ -521,7 +518,6 @@ class QueryCompiler {
 
   /// Add NOT prefix if statement has not=true
   ///
-  /// JS Reference: querycompiler.js lines 1267-1270 (_not)
   String _not(Map<String, dynamic> statement, String str) {
     final not = statement['not'] as bool? ?? false;
     if (not) return 'not $str';
@@ -530,7 +526,6 @@ class QueryCompiler {
 
   /// Compile WHERE NULL clause
   ///
-  /// JS Reference: querycompiler.js lines 1040-1051 (whereNull)
   ///
   /// Generates "column" is null or "column" is not null
   String whereNull(Map<String, dynamic> statement) {
@@ -540,7 +535,6 @@ class QueryCompiler {
 
   /// Compile WHERE IN clause
   ///
-  /// JS Reference: querycompiler.js lines 1016-1024 (whereIn)
   ///
   /// Supports:
   /// - Array of values: "column" in (?, ?, ?)
@@ -568,7 +562,6 @@ class QueryCompiler {
 
   /// Compile WHERE raw clause
   ///
-  /// JS Reference: querycompiler.js whereRaw()
   ///
   /// Compiles a Raw SQL condition
   String whereRaw(Map<String, dynamic> statement) {
@@ -580,7 +573,6 @@ class QueryCompiler {
 
   /// Compile WHERE BETWEEN clause
   ///
-  /// JS Reference: querycompiler.js whereBetween() (lines 1103-1121)
   ///
   /// Examples:
   /// - "age" between $1 and $2
@@ -600,13 +592,12 @@ class QueryCompiler {
 
   /// Compile WHERE EXISTS clause
   ///
-  /// JS Reference: querycompiler.js whereExists() (lines 1077-1090)
   ///
   /// Examples:
   /// - exists (SELECT ...)
   /// - not exists (SELECT ...)
   String whereExists(Map<String, dynamic> statement) {
-    final callback = statement['value'] as Function;
+    final callback = statement['value'] as QueryBuilderCallback;
 
     // Create a new QueryBuilder for the subquery
     final subBuilder = QueryBuilder(client);
@@ -621,14 +612,13 @@ class QueryCompiler {
 
   /// Compile WHERE WRAPPED clause (grouped conditions)
   ///
-  /// JS Reference: querycompiler.js whereWrapped() (lines 1092-1101)
   ///
   /// Groups WHERE conditions in parentheses
   ///
   /// Example:
   /// - (age > 18 OR verified = true)
   String whereWrapped(Map<String, dynamic> statement) {
-    final callback = statement['value'] as Function;
+    final callback = statement['value'] as QueryBuilderCallback;
 
     // Create a new QueryBuilder for the wrapped conditions
     final subBuilder = QueryBuilder(client);
@@ -667,7 +657,6 @@ class QueryCompiler {
 
   /// Compile JOIN clauses
   ///
-  /// JS Reference: querycompiler.js join() method
   ///
   /// Supports:
   /// - Simple joins: INNER/LEFT/RIGHT JOIN with single ON
@@ -694,6 +683,11 @@ class QueryCompiler {
 
       // Handle JOIN LATERAL / LEFT JOIN LATERAL / CROSS JOIN LATERAL
       if (stmt['type'] == 'joinLateral') {
+        if (!_supports(SqlCapability.lateralJoin)) {
+          throw StateError(
+            'LATERAL JOIN is not supported by ${client.driverName}',
+          );
+        }
         final joinType = stmt['joinType'] as String;
         final alias = client.wrapIdentifier(stmt['alias'] as String);
         final subSql = _compileLateralQuery(stmt['query']);
@@ -706,6 +700,11 @@ class QueryCompiler {
       }
 
       final joinType = stmt['join'] as String? ?? 'inner';
+      if (joinType == 'full outer' && !_supports(SqlCapability.fullOuterJoin)) {
+        throw StateError(
+          'FULL OUTER JOIN is not supported by ${client.driverName}',
+        );
+      }
       final table = _wrapTableIdentifier(stmt['table'].toString());
 
       // Handle CROSS JOIN (no ON clause)
@@ -929,7 +928,6 @@ class QueryCompiler {
 
   /// Compile GROUP BY clause
   ///
-  /// JS Reference: querycompiler.js lines 597-599 (group), uses _groupsOrders
   ///
   /// Groups rows by one or more columns
   String _group() {
@@ -957,7 +955,6 @@ class QueryCompiler {
 
   /// Compile HAVING clause
   ///
-  /// JS Reference: querycompiler.js lines 606-624 (having)
   ///
   /// Filters aggregated groups (similar to WHERE for groups)
   String _having() {
@@ -1005,7 +1002,6 @@ class QueryCompiler {
 
   /// Compile basic HAVING clause
   ///
-  /// JS Reference: Similar to whereBasic
   ///
   /// Format: "column" operator value
   String havingBasic(Map<String, dynamic> statement) {
@@ -1071,7 +1067,6 @@ class QueryCompiler {
 
   /// Compile ORDER BY clause
   ///
-  /// JS Reference: querycompiler.js lines 601-603 (order), 1441-1448 (_groupsOrders)
   ///
   /// Iterates through ORDER BY statements and formats each with direction.
   /// Multiple columns are joined with commas.
@@ -1109,7 +1104,6 @@ class QueryCompiler {
 
   /// Compile LIMIT clause
   ///
-  /// JS Reference: querycompiler.js lines 807-811 (limit)
   ///
   /// LIMIT value is parameterized (added to bindings)
   String _limit() {
@@ -1122,7 +1116,6 @@ class QueryCompiler {
 
   /// Compile OFFSET clause
   ///
-  /// JS Reference: querycompiler.js lines 813-816 (offset)
   ///
   /// OFFSET value is parameterized (added to bindings)
   String _offset() {
@@ -1135,7 +1128,6 @@ class QueryCompiler {
 
   /// Compile lock clause
   ///
-  /// JS Reference: querycompiler.js lock() + dialect-specific implementations.
   String _lock() {
     final lock = single['lock'] as String?;
     if (lock == null) return '';
@@ -1176,7 +1168,6 @@ class QueryCompiler {
 
   /// Compile wait mode clause
   ///
-  /// JS Reference: querycompiler.js waitMode() + dialect-specific implementations.
   String _waitMode() {
     final waitMode = single['waitMode'] as String?;
     if (waitMode == null) return '';
@@ -1206,7 +1197,6 @@ class QueryCompiler {
 
   /// Compile UNION clauses
   ///
-  /// JS Reference: querycompiler.js _union() (lines 515-543)
   String _union() {
     final unions = grouped['union'];
     if (unions == null || unions.isEmpty) return '';
@@ -1260,7 +1250,6 @@ class QueryCompiler {
 
   /// Compile an analytic / window function column expression.
   ///
-  /// Dart port of JS `querycompiler.js analytic(stmt)` (line 1168).
   ///
   /// Produces: `method() over ([partition by ...] order by [...]) [as alias]`
   ///
@@ -1377,7 +1366,6 @@ class QueryCompiler {
 
   /// Compile WITH clauses (CTEs)
   ///
-  /// JS Reference: querycompiler.js _with()
   String _with() {
     final withs = grouped['with'];
     if (withs == null || withs.isEmpty) return '';
@@ -1438,7 +1426,6 @@ class QueryCompiler {
 
   /// Compile INSERT query
   ///
-  /// JS Reference: querycompiler.js insert() (line 194)
   String _insertQuery() {
     final parts = <String>[];
     final onConflict = single['onConflict'] as Map<String, dynamic>?;
@@ -1466,7 +1453,6 @@ class QueryCompiler {
 
   /// Compile INSERT statement
   ///
-  /// JS Reference: querycompiler.js _insertBody() (line 222)
   String _insert({bool ignorePrefix = false}) {
     final insertValue = single['insert'];
     if (insertValue == null) return '';
@@ -1536,6 +1522,11 @@ class QueryCompiler {
     }
 
     if (strategy == 'merge') {
+      if (!_supports(SqlCapability.onConflictMerge)) {
+        throw StateError(
+          '.onConflict().merge() is not supported by ${client.driverName}',
+        );
+      }
       final mergeColumns = onConflict['mergeColumns'];
       final insertValue = single['insert'];
 
@@ -1607,7 +1598,6 @@ class QueryCompiler {
 
   /// Compile RETURNING clause
   ///
-  /// JS Reference: PostgreSQL-specific RETURNING clause
   String _returning() {
     final returningCols = single['returning'];
     if (returningCols == null ||
@@ -1620,12 +1610,15 @@ class QueryCompiler {
         .map((c) => formatter.wrap(c))
         .join(', ');
 
+    if (!_supports(SqlCapability.returning)) {
+      throw StateError('RETURNING is not supported by ${client.driverName}');
+    }
+
     return 'returning $columns';
   }
 
   /// Compile UPDATE query
   ///
-  /// JS Reference: querycompiler.js update() (line 254)
   String _updateQuery() {
     final parts = <String>[];
 
@@ -1649,7 +1642,6 @@ class QueryCompiler {
 
   /// Compile UPDATE statement
   ///
-  /// JS Reference: querycompiler.js _updateBody()
   String _update() {
     final updateMap = single['update'] as Map<String, dynamic>?;
     final counterMap = single['counter'] as Map<String, dynamic>?;
@@ -1686,7 +1678,6 @@ class QueryCompiler {
 
   /// Compile DELETE query
   ///
-  /// JS Reference: querycompiler.js delete() (line 263)
   String _deleteQuery() {
     final parts = <String>[];
 
@@ -1707,7 +1698,7 @@ class QueryCompiler {
 
   /// Compile TRUNCATE TABLE statement
   ///
-  /// Postgres appends `restart identity`, matching Knex.js behavior.
+  /// Postgres appends `restart identity`.
   String _truncateQuery() {
     final table = tableName;
     final driver = client.driverName;
@@ -1719,7 +1710,6 @@ class QueryCompiler {
 
   /// Compile DELETE statement
   ///
-  /// JS Reference: querycompiler.js _deleteBody()
   String _delete() {
     final table = formatter.wrap(single['table']);
     return 'delete from $table';
@@ -1846,8 +1836,7 @@ class QueryCompiler {
 
   String _whereJsonSupersetOf(Map<String, dynamic> statement) {
     if (client.driverName == 'pg') {
-      return '${_not(statement, '') +
-          formatter.wrap(statement['column'])} @> ${_valueClause(statement)}';
+      return '${_not(statement, '') + formatter.wrap(statement['column'])} @> ${_valueClause(statement)}';
     }
     statement['operator'] = '=';
     return whereBasic(statement); // Unsupported on other dialects right now
@@ -1855,8 +1844,7 @@ class QueryCompiler {
 
   String _whereJsonSubsetOf(Map<String, dynamic> statement) {
     if (client.driverName == 'pg') {
-      return '${_not(statement, '') +
-          formatter.wrap(statement['column'])} <@ ${_valueClause(statement)}';
+      return '${_not(statement, '') + formatter.wrap(statement['column'])} <@ ${_valueClause(statement)}';
     }
     statement['operator'] = '=';
     return whereBasic(statement); // Unsupported on other dialects right now

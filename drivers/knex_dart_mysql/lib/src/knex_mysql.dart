@@ -1,11 +1,4 @@
-import 'package:knex_dart/src/client/client.dart';
-import 'package:knex_dart/src/client/knex_config.dart';
-import 'package:knex_dart/src/formatter/formatter.dart';
-import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/query/query_compiler.dart';
-import 'package:knex_dart/src/schema/schema_builder.dart';
-import 'package:knex_dart/src/schema/schema_compiler.dart';
-import 'package:knex_dart/src/transaction/transaction.dart';
+import 'package:knex_dart/knex_dart.dart';
 
 import 'mysql_client.dart';
 
@@ -53,21 +46,27 @@ class KnexMySQL {
     return KnexMySQL._(client);
   }
 
+  /// Executes a SELECT-style query and returns rows.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
       _client.select(query);
 
+  /// Executes any compiled query and returns rows/result payload.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
       _client.execute(query);
 
+  /// Executes an INSERT query.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
       _client.insert(query);
 
+  /// Executes an UPDATE query.
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
       _client.update(query);
 
+  /// Executes a DELETE query.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
       _client.delete(query);
 
+  /// Executes raw SQL directly.
   Future<List<Map<String, dynamic>>> raw(
     String sql, [
     List<dynamic>? bindings,
@@ -98,6 +97,7 @@ class KnexMySQL {
     }
   }
 
+  /// Closes the underlying MySQL connection pool.
   Future<void> close() => _client.close();
 }
 

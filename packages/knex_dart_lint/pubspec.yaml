@@ -1,0 +1,26 @@
+name: knex_dart_lint
+description: Optional custom_lint plugin for dialect-aware Knex Dart capability checks.
+version: 0.1.0
+repository: https://github.com/kartikey321/knex-dart
+homepage: https://github.com/kartikey321/knex-dart
+issue_tracker: https://github.com/kartikey321/knex-dart/issues
+topics:
+  - sql
+  - lint
+  - custom-lint
+  - query-builder
+  - knex
+
+environment:
+  sdk: ^3.10.0
+
+resolution: workspace
+
+dependencies:
+  analyzer: ^8.0.0
+  custom_lint_builder: ^0.8.1
+  knex_dart_capabilities: ^0.1.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6

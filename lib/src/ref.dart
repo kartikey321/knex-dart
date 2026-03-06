@@ -3,7 +3,6 @@ import 'query/sql_string.dart';
 
 /// Column reference that should behave like a Raw fragment
 ///
-/// Mirrors Knex.js where Ref extends Raw, so it can be used anywhere a Raw is
 /// accepted and benefits from wrapping/UID handling in Raw.toSQL().
 class Ref extends Raw {
   final String ref;

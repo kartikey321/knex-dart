@@ -2,6 +2,8 @@
 ///
 /// JS Baseline: knex-js/test/js_comparison/querycompiler_step21b_schema_extended.js
 /// Run: dart test test/schema/schema_extended_test.dart
+library;
+
 import 'package:test/test.dart';
 import '../mocks/mock_client.dart';
 

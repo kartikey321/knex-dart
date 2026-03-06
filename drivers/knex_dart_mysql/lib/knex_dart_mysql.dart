@@ -17,5 +17,7 @@
 ///
 /// await db.close();
 /// ```
+library;
+
 export 'src/mysql_client.dart';
 export 'src/knex_mysql.dart';

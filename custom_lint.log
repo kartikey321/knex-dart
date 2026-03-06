@@ -1,0 +1,884 @@
+[IgnoreCode] 2026-03-03T13:44:23.059592 Plugin IgnoreCode threw while analyzing /Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/lib/main.dart:
+[IgnoreCode] 2026-03-03T13:44:23.059592 InconsistentAnalysisException: Requested result might be inconsistent with previously returned results
+[IgnoreCode] 2026-03-03T13:44:23.059592
+[IgnoreCode] 2026-03-03T13:44:23.059592 #0      AnalysisSessionImpl.checkConsistency (package:analyzer/src/dart/analysis/session.dart:58:7)
+[IgnoreCode] 2026-03-03T13:44:23.059592 #1      AnalysisSessionImpl.getResolvedLibraryByElement (package:analyzer/src/dart/analysis/session.dart:128:5)
+[IgnoreCode] 2026-03-03T13:44:23.059592 #2      AnalysisSessionImpl.getResolvedLibraryContaining (package:analyzer/src/dart/analysis/session.dart:152:49)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #3      ChangeBuilderImpl._createDartFileEditBuilder (package:analyzer_plugin/src/utilities/change_builder/change_builder_core.dart:464:25)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #4      ChangeBuilderImpl.addDartFileEdit (package:analyzer_plugin/src/utilities/change_builder/change_builder_core.dart:168:17)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #5      Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #6      ChangeBuilderImpl.waitForCompletion (package:custom_lint_core/src/change_reporter.dart:287:5)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #7      Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #8      ChangeReporterImpl.waitForCompletion (package:custom_lint_core/src/change_reporter.dart:154:5)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #9      Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #10     ChangeReporterBuilderImpl.waitForCompletion (package:custom_lint_core/src/change_reporter.dart:105:5)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #11     _ClientAnalyzerPlugin._runFixes (package:custom_lint_builder/src/client.dart:742:5)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #12     _ClientAnalyzerPlugin._computeFixes.<anonymous closure> (package:custom_lint_builder/src/client.dart:649:9)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #13     Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #14     _ClientAnalyzerPlugin.handleEditGetFixes (package:custom_lint_builder/src/client.dart:610:19)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #15     ServerPlugin._getResponse (package:analyzer_plugin/plugin/plugin.dart:568:18)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592 #16     ServerPlugin._onRequest (package:analyzer_plugin/plugin/plugin.dart:606:18)
+[IgnoreCode] 2026-03-03T13:44:23.059592 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.059592
+[IgnoreCode] 2026-03-03T13:44:23.060397 Plugin IgnoreCode threw while analyzing /Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/lib/main.dart:
+[IgnoreCode] 2026-03-03T13:44:23.060397 InconsistentAnalysisException: Requested result might be inconsistent with previously returned results
+[IgnoreCode] 2026-03-03T13:44:23.060397
+[IgnoreCode] 2026-03-03T13:44:23.060397 #0      AnalysisSessionImpl.checkConsistency (package:analyzer/src/dart/analysis/session.dart:58:7)
+[IgnoreCode] 2026-03-03T13:44:23.060397 #1      AnalysisSessionImpl.getResolvedLibraryByElement (package:analyzer/src/dart/analysis/session.dart:128:5)
+[IgnoreCode] 2026-03-03T13:44:23.060397 #2      AnalysisSessionImpl.getResolvedLibraryContaining (package:analyzer/src/dart/analysis/session.dart:152:49)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #3      ChangeBuilderImpl._createDartFileEditBuilder (package:analyzer_plugin/src/utilities/change_builder/change_builder_core.dart:464:25)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #4      ChangeBuilderImpl.addDartFileEdit (package:analyzer_plugin/src/utilities/change_builder/change_builder_core.dart:168:17)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #5      Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #6      ChangeBuilderImpl.waitForCompletion (package:custom_lint_core/src/change_reporter.dart:287:5)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #7      Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #8      ChangeReporterImpl.waitForCompletion (package:custom_lint_core/src/change_reporter.dart:154:5)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #9      Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #10     ChangeReporterBuilderImpl.waitForCompletion (package:custom_lint_core/src/change_reporter.dart:105:5)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #11     _ClientAnalyzerPlugin._runFixes (package:custom_lint_builder/src/client.dart:742:5)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #12     _ClientAnalyzerPlugin._computeFixes.<anonymous closure> (package:custom_lint_builder/src/client.dart:649:9)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #13     Future.wait.<anonymous closure> (dart:async/future.dart:546:21)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #14     _ClientAnalyzerPlugin.handleEditGetFixes (package:custom_lint_builder/src/client.dart:610:19)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #15     ServerPlugin._getResponse (package:analyzer_plugin/plugin/plugin.dart:568:18)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397 #16     ServerPlugin._onRequest (package:analyzer_plugin/plugin/plugin.dart:606:18)
+[IgnoreCode] 2026-03-03T13:44:23.060397 <asynchronous suspension>
+[IgnoreCode] 2026-03-03T13:44:23.060397
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "././pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+The package "knex_dart_lint" has incompatible version constraints in the project:
+- "../../packages/knex_dart_lint"
+  from "lint_demo" at "./Users/kartik/StudioProjects/knex/knex-dart/example/lint_demo/pubspec.yaml".
+- "^0.1.0"
+  from "knex_dart" at "./Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml".
+
+at:
+#0      _buildDependencyConstraint.throws (package:custom_lint/src/workspace.dart:40)
+#1      _buildDependencyConstraint (package:custom_lint/src/workspace.dart:107)
+#2      CustomLintWorkspace._writePubspecDependencies (package:custom_lint/src/workspace.dart:658)
+#3      CustomLintWorkspace.computePubspec (package:custom_lint/src/workspace.dart:564)
+#4      CustomLintWorkspace.resolvePluginHost (package:custom_lint/src/workspace.dart:749)
+#5      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:151)
+#6      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:110)
+#7      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#8      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#9      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#10     CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+
+[custom_lint] 2026-03-04T22:09:00.397804 ProcessException: No such file or directory
+[custom_lint] 2026-03-04T22:09:00.397804   Command: dart lib/custom_lint_client.dart ::1 56745
+[custom_lint] 2026-03-04T22:09:00.397804 #0      _ProcessImpl._start (dart:io-patch/process_patch.dart:421)
+[custom_lint] 2026-03-04T22:09:00.397804 #1      Process.start (dart:io-patch/process_patch.dart:42)
+[custom_lint] 2026-03-04T22:09:00.397804 #2      SocketCustomLintServerToClientChannel._startProcess.<anonymous closure> (package:custom_lint/src/v2/server_to_client_channel.dart:155)
+[custom_lint] 2026-03-04T22:09:00.397804 #3      _asyncRetry (package:custom_lint/src/v2/server_to_client_channel.dart:24)
+[custom_lint] 2026-03-04T22:09:00.397804 #4      SocketCustomLintServerToClientChannel._startProcess (package:custom_lint/src/v2/server_to_client_channel.dart:154)
+[custom_lint] 2026-03-04T22:09:00.397804 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.397804 #5      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:111)
+[custom_lint] 2026-03-04T22:09:00.397804 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.397804 #6      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+[custom_lint] 2026-03-04T22:09:00.397804 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.397804 #7      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+[custom_lint] 2026-03-04T22:09:00.397804 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.397804 #8      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+[custom_lint] 2026-03-04T22:09:00.397804 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.397804 #9      CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+[custom_lint] 2026-03-04T22:09:00.397804 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.397804
+[custom_lint] 2026-03-04T22:09:00.424081 ProcessException: No such file or directory
+[custom_lint] 2026-03-04T22:09:00.424081   Command: dart lib/custom_lint_client.dart ::1 56745
+[custom_lint] 2026-03-04T22:09:00.424081 #0      _ProcessImpl._start (dart:io-patch/process_patch.dart:421)
+[custom_lint] 2026-03-04T22:09:00.424081 #1      Process.start (dart:io-patch/process_patch.dart:42)
+[custom_lint] 2026-03-04T22:09:00.424081 #2      SocketCustomLintServerToClientChannel._startProcess.<anonymous closure> (package:custom_lint/src/v2/server_to_client_channel.dart:155)
+[custom_lint] 2026-03-04T22:09:00.424081 #3      _asyncRetry (package:custom_lint/src/v2/server_to_client_channel.dart:24)
+[custom_lint] 2026-03-04T22:09:00.424081 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.424081 #4      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:111)
+[custom_lint] 2026-03-04T22:09:00.424081 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.424081 #5      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+[custom_lint] 2026-03-04T22:09:00.424081 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.424081 #6      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+[custom_lint] 2026-03-04T22:09:00.424081 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.424081 #7      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+[custom_lint] 2026-03-04T22:09:00.424081 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.424081 #8      CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+[custom_lint] 2026-03-04T22:09:00.424081 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.424081
+[custom_lint] 2026-03-04T22:09:00.442346 ProcessException: No such file or directory
+[custom_lint] 2026-03-04T22:09:00.442346   Command: dart lib/custom_lint_client.dart ::1 56745
+[custom_lint] 2026-03-04T22:09:00.442346 #0      _ProcessImpl._start (dart:io-patch/process_patch.dart:421)
+[custom_lint] 2026-03-04T22:09:00.442346 #1      Process.start (dart:io-patch/process_patch.dart:42)
+[custom_lint] 2026-03-04T22:09:00.442346 #2      SocketCustomLintServerToClientChannel._startProcess.<anonymous closure> (package:custom_lint/src/v2/server_to_client_channel.dart:155)
+[custom_lint] 2026-03-04T22:09:00.442346 #3      _asyncRetry (package:custom_lint/src/v2/server_to_client_channel.dart:24)
+[custom_lint] 2026-03-04T22:09:00.442346 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.442346 #4      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:111)
+[custom_lint] 2026-03-04T22:09:00.442346 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.442346 #5      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+[custom_lint] 2026-03-04T22:09:00.442346 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.442346 #6      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+[custom_lint] 2026-03-04T22:09:00.442346 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.442346 #7      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+[custom_lint] 2026-03-04T22:09:00.442346 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.442346 #8      CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+[custom_lint] 2026-03-04T22:09:00.442346 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.442346
+[custom_lint] 2026-03-04T22:09:00.458777 ProcessException: No such file or directory
+[custom_lint] 2026-03-04T22:09:00.458777   Command: dart lib/custom_lint_client.dart ::1 56745
+[custom_lint] 2026-03-04T22:09:00.458777 #0      _ProcessImpl._start (dart:io-patch/process_patch.dart:421)
+[custom_lint] 2026-03-04T22:09:00.458777 #1      Process.start (dart:io-patch/process_patch.dart:42)
+[custom_lint] 2026-03-04T22:09:00.458777 #2      SocketCustomLintServerToClientChannel._startProcess.<anonymous closure> (package:custom_lint/src/v2/server_to_client_channel.dart:155)
+[custom_lint] 2026-03-04T22:09:00.458777 #3      _asyncRetry (package:custom_lint/src/v2/server_to_client_channel.dart:24)
+[custom_lint] 2026-03-04T22:09:00.458777 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.458777 #4      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:111)
+[custom_lint] 2026-03-04T22:09:00.458777 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.458777 #5      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+[custom_lint] 2026-03-04T22:09:00.458777 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.458777 #6      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+[custom_lint] 2026-03-04T22:09:00.458777 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.458777 #7      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+[custom_lint] 2026-03-04T22:09:00.458777 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.458777 #8      CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+[custom_lint] 2026-03-04T22:09:00.458777 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.458777
+[custom_lint] 2026-03-04T22:09:00.475758 ProcessException: No such file or directory
+[custom_lint] 2026-03-04T22:09:00.475758   Command: dart lib/custom_lint_client.dart ::1 56745
+[custom_lint] 2026-03-04T22:09:00.475758 #0      _ProcessImpl._start (dart:io-patch/process_patch.dart:421)
+[custom_lint] 2026-03-04T22:09:00.475758 #1      Process.start (dart:io-patch/process_patch.dart:42)
+[custom_lint] 2026-03-04T22:09:00.475758 #2      SocketCustomLintServerToClientChannel._startProcess.<anonymous closure> (package:custom_lint/src/v2/server_to_client_channel.dart:155)
+[custom_lint] 2026-03-04T22:09:00.475758 #3      _asyncRetry (package:custom_lint/src/v2/server_to_client_channel.dart:24)
+[custom_lint] 2026-03-04T22:09:00.475758 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.475758 #4      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:111)
+[custom_lint] 2026-03-04T22:09:00.475758 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.475758 #5      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+[custom_lint] 2026-03-04T22:09:00.475758 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.475758 #6      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+[custom_lint] 2026-03-04T22:09:00.475758 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.475758 #7      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+[custom_lint] 2026-03-04T22:09:00.475758 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.475758 #8      CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+[custom_lint] 2026-03-04T22:09:00.475758 <asynchronous suspension>
+[custom_lint] 2026-03-04T22:09:00.475758
+The request analysis.setContextRoots failed with the following error:
+RequestErrorCode.PLUGIN_ERROR
+ProcessException: No such file or directory
+  Command: dart lib/custom_lint_client.dart ::1 56745
+at:
+#0      _ProcessImpl._start (dart:io-patch/process_patch.dart:421)
+#1      Process.start (dart:io-patch/process_patch.dart:42)
+#2      SocketCustomLintServerToClientChannel._startProcess.<anonymous closure> (package:custom_lint/src/v2/server_to_client_channel.dart:155)
+#3      _asyncRetry (package:custom_lint/src/v2/server_to_client_channel.dart:24)
+<asynchronous suspension>
+#4      SocketCustomLintServerToClientChannel.init (package:custom_lint/src/v2/server_to_client_channel.dart:111)
+<asynchronous suspension>
+#5      CustomLintServer._maybeSpawnCustomLintPlugin (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:396)
+<asynchronous suspension>
+#6      CustomLintServer._handleAnalysisSetContextRoots.<anonymous closure> (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:343)
+<asynchronous suspension>
+#7      PendingOperation.run (package:custom_lint/src/async_operation.dart:22)
+<asynchronous suspension>
+#8      CustomLintServer._handleRequest (package:custom_lint/src/v2/custom_lint_analyzer_plugin.dart:175)
+<asynchronous suspension>
+

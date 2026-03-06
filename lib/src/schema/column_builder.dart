@@ -2,7 +2,6 @@ import 'package:knex_dart/src/raw.dart';
 
 /// A fluent builder for a column definition in a CREATE TABLE or ALTER TABLE statement.
 ///
-/// All methods return `this` for chaining, mirroring the Knex.js chainable column API.
 ///
 /// Example:
 /// ```dart

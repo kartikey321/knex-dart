@@ -14,6 +14,8 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 | [knex_dart_postgres](https://pub.dev/packages/knex_dart_postgres) | PostgreSQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_postgres)](https://pub.dev/packages/knex_dart_postgres) |
 | [knex_dart_mysql](https://pub.dev/packages/knex_dart_mysql) | MySQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_mysql)](https://pub.dev/packages/knex_dart_mysql) |
 | [knex_dart_sqlite](https://pub.dev/packages/knex_dart_sqlite) | SQLite driver | [![pub](https://img.shields.io/pub/v/knex_dart_sqlite)](https://pub.dev/packages/knex_dart_sqlite) |
+| [knex_dart_capabilities](https://pub.dev/packages/knex_dart_capabilities) | Shared dialect capability matrix | [![pub](https://img.shields.io/pub/v/knex_dart_capabilities)](https://pub.dev/packages/knex_dart_capabilities) |
+| [knex_dart_lint](https://pub.dev/packages/knex_dart_lint) | Optional static dialect lint plugin | [![pub](https://img.shields.io/pub/v/knex_dart_lint)](https://pub.dev/packages/knex_dart_lint) |
 
 `knex_dart` is the core package — it contains the query builder, schema builder, and compiler logic but no database connectivity. Pick the driver package for your database.
 
@@ -23,6 +25,7 @@ Full documentation is available at:
 
 - https://docs.knex.mahawarkartikey.in/
 - Migrations: https://docs.knex.mahawarkartikey.in/migration/migrations
+- Dialect Lint (optional): https://docs.knex.mahawarkartikey.in/tooling/dialect-lint
 - Transactions: https://docs.knex.mahawarkartikey.in/query-building/transactions
 - Schema Builder: https://docs.knex.mahawarkartikey.in/query-building/schema-builder
 
@@ -30,7 +33,7 @@ Full documentation is available at:
 
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.1.0  # or mysql / sqlite
+  knex_dart_postgres: ^0.1.1  # or mysql / sqlite
 ```
 
 The driver package pulls in `knex_dart` automatically.
@@ -168,6 +171,7 @@ Knex Dart supports explicit migration source styles:
 
 - `fromCode(...)` for in-code migration units
 - `fromSqlDir(...)` for filesystem `*.up.sql` / `*.down.sql` migrations
+- `fromConfig()` to read `MigrationConfig.directory` (default `./migrations`)
 - `fromSchema(...)` for external schema input mapped to `KnexSchemaAst`
 
 ```dart
@@ -182,6 +186,9 @@ await db.migrate.fromCode([
 
 // 2) SQL directory
 await db.migrate.fromSqlDir('./migrations').latest();
+
+// 3) From config.migrations.directory
+await db.migrate.fromConfig().latest();
 ```
 
 Schema builder style is also supported by implementing a migration unit:
@@ -208,6 +215,30 @@ class CreateUsersMigration implements MigrationUnit {
     await schema.execute();
   }
 }
+```
+
+### Optional Dialect Lint Plugin
+
+`knex_dart_lint` is optional and provides static diagnostics for dialect-incompatible query APIs.
+
+Example warnings:
+- `.returning()` on MySQL/SQLite
+- `fullOuterJoin()` on SQLite/MySQL
+- `joinLateral()` on SQLite
+
+Setup:
+
+```yaml
+dev_dependencies:
+  custom_lint: ^0.8.1
+  knex_dart_lint: ^0.1.0
+```
+
+```yaml
+# analysis_options.yaml
+analyzer:
+  plugins:
+    - custom_lint
 ```
 
 ## Side-by-Side: Knex.js vs knex_dart
