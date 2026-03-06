@@ -20,11 +20,11 @@ void main() {
     final password = Platform.environment['MYSQL_PASSWORD'] ?? 'test';
     final database = Platform.environment['MYSQL_DATABASE'] ?? 'knex_test';
 
-    MySQLClient? _globalClient;
+    MySQLClient? globalClient;
 
     setUpAll(() async {
       try {
-        _globalClient = await MySQLClient.connect(
+        globalClient = await MySQLClient.connect(
           host: host,
           port: port,
           user: user,
@@ -32,7 +32,7 @@ void main() {
           database: database,
         );
         // Purge any stale rows left by previous test runs
-        await _globalClient!.raw(
+        await globalClient!.raw(
           "DELETE FROM users WHERE email LIKE '%write@example.com' "
           "OR email LIKE '%trx%@example.com' "
           "OR email LIKE '%update@example.com' "
@@ -46,8 +46,8 @@ void main() {
     });
 
     tearDownAll(() async {
-      if (_globalClient != null && !_globalClient!.isClosed) {
-        await _globalClient!.close();
+      if (globalClient != null && !globalClient!.isClosed) {
+        await globalClient!.close();
       }
     });
 
