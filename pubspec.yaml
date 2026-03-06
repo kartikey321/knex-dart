@@ -40,7 +40,9 @@ melos:
     analyze:
       run: dart analyze --fatal-warnings
       exec:
-        concurrency: 4
+        # Run sequentially to avoid analyzer plugin cache race conditions
+        # (custom_lint plugin AOT snapshot truncation in CI).
+        concurrency: 1
     test:
       run: dart test
       exec:
