@@ -22,5 +22,4 @@ dependencies:
 
 dev_dependencies:
   custom_lint: ^0.8.1
-  knex_dart_lint:
-    path: ../../packages/knex_dart_lint
+  knex_dart_lint: ^0.1.0

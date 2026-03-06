@@ -10,7 +10,7 @@ Future<void> mysqlWarnings() async {
     host: 'localhost',
     database: 'demo',
     user: 'root',
-    password: 'root',
+    password: 'example_password',
   );
 
   // expect: dialect_unsupported_returning
@@ -60,7 +60,7 @@ Future<void> badOperatorWarnings() async {
     host: 'localhost',
     database: 'demo',
     user: 'root',
-    password: 'root',
+    password: 'example_password',
   );
 
   // expect: invalid_where_operator  ('==' is JS equality, not SQL)
@@ -110,7 +110,7 @@ Future<void> supportedNoWarnings() async {
     host: 'localhost',
     database: 'demo',
     username: 'postgres',
-    password: 'postgres',
+    password: 'example_password',
   );
 
   // postgres supports all of these — no dialect warnings.

@@ -160,7 +160,7 @@ void main() {
 
     test('whereExists - subquery existence check', () {
       final query = QueryBuilder(client).table('users').whereExists((qb) {
-        (qb as QueryBuilder)
+        qb
             .select(['*'])
             .from('orders')
             .where(client.raw('orders.user_id = users.id'));
@@ -178,7 +178,7 @@ void main() {
 
     test('whereNotExists - negative existence check', () {
       final query = QueryBuilder(client).table('products').whereNotExists((qb) {
-        (qb as QueryBuilder)
+        qb
             .select(['*'])
             .from('inventory')
             .where(client.raw('inventory.product_id = products.id'));
@@ -199,7 +199,7 @@ void main() {
           .table('users')
           .where('active', '=', true)
           .orWhereExists((qb) {
-            (qb as QueryBuilder)
+            qb
                 .select(['*'])
                 .from('orders')
                 .where(client.raw('orders.user_id = users.id'));
@@ -220,7 +220,7 @@ void main() {
           .table('users')
           .where('active', '=', true)
           .orWhereNotExists((qb) {
-            (qb as QueryBuilder)
+            qb
                 .select(['*'])
                 .from('banned_users')
                 .where(client.raw('banned_users.user_id = users.id'));
@@ -241,7 +241,7 @@ void main() {
           .table('users')
           .where('active', '=', true)
           .whereWrapped((qb) {
-            (qb as QueryBuilder)
+            qb
                 .where('age', '>', 18)
                 .orWhere('verified', '=', true);
           });
@@ -262,7 +262,7 @@ void main() {
           .whereBetween('age', [18, 65])
           .whereNotNull('email')
           .whereExists((qb) {
-            (qb as QueryBuilder)
+            qb
                 .select(['*'])
                 .from('orders')
                 .where(client.raw('orders.user_id = users.id'));
