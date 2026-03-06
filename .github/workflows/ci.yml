@@ -200,10 +200,34 @@ jobs:
           MYSQL_USER: knex
           MYSQL_PASSWORD: knex
 
-  # ── 6. Publish all packages to pub.dev (version tags only) ───────────────────
+  # ── 6. Package tests (capabilities + lint) ───────────────────────────────────
+  test-packages:
+    name: Test (packages)
+    needs: analyze
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run capabilities package tests
+        working-directory: packages/knex_dart_capabilities
+        run: dart test
+
+      - name: Run lint package tests
+        working-directory: packages/knex_dart_lint
+        run: dart test
+
+  # ── 7. Publish package to pub.dev (version tags only) ───────────────────────
   publish:
     name: Publish to pub.dev
-    needs: [test-core, test-sqlite, test-postgres, test-mysql]
+    needs: [test-core, test-sqlite, test-postgres, test-mysql, test-packages]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/knex_dart-') || startsWith(github.ref, 'refs/tags/knex_dart_postgres-') || startsWith(github.ref, 'refs/tags/knex_dart_mysql-') || startsWith(github.ref, 'refs/tags/knex_dart_sqlite-') || startsWith(github.ref, 'refs/tags/knex_dart_capabilities-') || startsWith(github.ref, 'refs/tags/knex_dart_lint-')
     environment: pub.dev
