@@ -27,10 +27,9 @@ Query-argument correctness rules:
 
 ## Install
 
-```yaml
-dev_dependencies:
-  custom_lint: ^0.8.1
-  knex_dart_lint: ^0.1.0
+```bash
+dart pub add --dev custom_lint
+dart pub add --dev knex_dart_lint
 ```
 
 Enable the plugin:

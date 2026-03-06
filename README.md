@@ -14,6 +14,8 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 | [knex_dart_postgres](https://pub.dev/packages/knex_dart_postgres) | PostgreSQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_postgres)](https://pub.dev/packages/knex_dart_postgres) |
 | [knex_dart_mysql](https://pub.dev/packages/knex_dart_mysql) | MySQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_mysql)](https://pub.dev/packages/knex_dart_mysql) |
 | [knex_dart_sqlite](https://pub.dev/packages/knex_dart_sqlite) | SQLite driver | [![pub](https://img.shields.io/pub/v/knex_dart_sqlite)](https://pub.dev/packages/knex_dart_sqlite) |
+| [knex_dart_capabilities](https://pub.dev/packages/knex_dart_capabilities) | Shared dialect capability matrix | [![pub](https://img.shields.io/pub/v/knex_dart_capabilities)](https://pub.dev/packages/knex_dart_capabilities) |
+| [knex_dart_lint](https://pub.dev/packages/knex_dart_lint) | Optional static dialect lint plugin | [![pub](https://img.shields.io/pub/v/knex_dart_lint)](https://pub.dev/packages/knex_dart_lint) |
 
 `knex_dart` is the core package — it contains the query builder, schema builder, and compiler logic but no database connectivity. Pick the driver package for your database.
 
@@ -31,7 +33,7 @@ Full documentation is available at:
 
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.1.0  # or mysql / sqlite
+  knex_dart_postgres: ^0.1.1  # or mysql / sqlite
 ```
 
 The driver package pulls in `knex_dart` automatically.

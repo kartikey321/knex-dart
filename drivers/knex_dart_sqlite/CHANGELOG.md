@@ -1,3 +1,8 @@
+## 0.1.1
+
+- Updated dependency to `knex_dart: ^1.1.0`.
+- Uses core `runInTransaction(...)` migration transaction path with SQLite-safe behavior.
+
 ## 0.1.0
 
 - Initial release.

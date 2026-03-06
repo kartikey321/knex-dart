@@ -26,18 +26,15 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 
 Pick your database driver:
 
-```yaml
+```bash
 # PostgreSQL
-dependencies:
-  knex_dart_postgres: ^0.1.0
+dart pub add knex_dart_postgres
 
 # MySQL
-dependencies:
-  knex_dart_mysql: ^0.1.0
+dart pub add knex_dart_mysql
 
 # SQLite
-dependencies:
-  knex_dart_sqlite: ^0.1.0
+dart pub add knex_dart_sqlite
 ```
 
 Connect and query:
