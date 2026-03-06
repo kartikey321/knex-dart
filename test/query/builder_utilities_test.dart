@@ -6,6 +6,8 @@
 /// JS Baseline: knex-js/test/js_comparison/querycompiler_step20_builder_utilities.js
 /// Run baseline:  cd knex-js && node test/js_comparison/querycompiler_step20_builder_utilities.js
 /// Run this test: cd knex-dart && dart test test/query/builder_utilities_test.dart
+library;
+
 import 'package:test/test.dart';
 import 'package:knex_dart/knex_dart.dart';
 import '../mocks/mock_client.dart';

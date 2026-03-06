@@ -1,6 +1,4 @@
-import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/raw.dart';
-import 'package:knex_dart/src/schema/schema_builder.dart';
+import 'package:knex_dart/knex_dart.dart';
 
 import 'sqlite_client.dart';
 

@@ -16,5 +16,7 @@
 /// final rows = await db.select(db.queryBuilder().table('users'));
 /// await db.close();
 /// ```
+library;
+
 export 'src/sqlite_client.dart';
 export 'src/knex_sqlite.dart';

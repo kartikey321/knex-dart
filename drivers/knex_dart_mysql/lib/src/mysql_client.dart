@@ -1,8 +1,7 @@
 import 'dart:async';
 
 import 'package:mysql_client/mysql_client.dart';
-import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/client/knex_config.dart';
+import 'package:knex_dart/knex_dart.dart';
 
 import 'pool.dart';
 

@@ -1,15 +1,7 @@
 import 'dart:async';
 import 'package:sqlite3/sqlite3.dart';
 
-import 'package:knex_dart/src/client/client.dart';
-import 'package:knex_dart/src/client/knex_config.dart';
-import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/query/query_compiler.dart';
-import 'package:knex_dart/src/raw.dart';
-import 'package:knex_dart/src/formatter/formatter.dart';
-import 'package:knex_dart/src/schema/schema_builder.dart';
-import 'package:knex_dart/src/schema/schema_compiler.dart';
-import 'package:knex_dart/src/transaction/transaction.dart';
+import 'package:knex_dart/knex_dart.dart';
 
 /// SQLite database client.
 class SQLiteClient extends Client {

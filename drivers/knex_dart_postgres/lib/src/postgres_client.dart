@@ -1,6 +1,5 @@
 import 'package:postgres/postgres.dart';
-import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/client/knex_config.dart';
+import 'package:knex_dart/knex_dart.dart';
 
 /// PostgreSQL database client backed by a connection pool.
 ///

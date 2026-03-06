@@ -3,6 +3,8 @@
 /// JS Baseline: knex-js/test/js_comparison/querycompiler_step21_schema.js
 /// Run baseline: cd knex-js && node test/js_comparison/querycompiler_step21_schema.js
 /// Run this test: cd knex-dart && dart test test/schema/schema_builder_test.dart
+library;
+
 import 'package:test/test.dart';
 import '../mocks/mock_client.dart';
 

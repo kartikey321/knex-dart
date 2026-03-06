@@ -17,5 +17,7 @@
 ///
 /// await db.close();
 /// ```
+library;
+
 export 'src/postgres_client.dart';
 export 'src/knex_postgres.dart';

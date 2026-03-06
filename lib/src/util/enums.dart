@@ -1,6 +1,7 @@
 /// Enums for type-safe Knex operations
 ///
 /// to provide better type safety and IDE support in Dart.
+library;
 
 /// Query method types
 enum QueryMethod { select, insert, update, delete, first, pluck, truncate }
