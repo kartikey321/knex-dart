@@ -4,7 +4,6 @@ import 'table_builder.dart';
 
 /// Compiles SchemaBuilder DDL operations into SQL statements.
 ///
-/// JS Reference: lib/schema/compiler.js
 class SchemaCompiler {
   final Client client;
   final SchemaBuilder builder;

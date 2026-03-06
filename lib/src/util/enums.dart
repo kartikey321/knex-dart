@@ -1,6 +1,5 @@
 /// Enums for type-safe Knex operations
 ///
-/// These enums replace string literals used in JavaScript Knex.js
 /// to provide better type safety and IDE support in Dart.
 
 /// Query method types

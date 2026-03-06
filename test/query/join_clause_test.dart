@@ -1,17 +1,21 @@
 import 'package:knex_dart/knex_dart.dart';
 import 'package:test/test.dart';
 
+import '../mocks/mock_client.dart';
 import '../mocks/sqlite_mock_client.dart';
 
 void main() {
   late Knex db;
+  late Knex pgDb;
 
   setUpAll(() {
     db = Knex(SqliteMockClient());
+    pgDb = Knex(MockClient());
   });
 
   tearDownAll(() async {
     await db.destroy();
+    await pgDb.destroy();
   });
 
   group('JoinClause coverage tests', () {
@@ -79,7 +83,7 @@ void main() {
     });
 
     test('onExists, onNotExists, etc', () {
-      final q = db('users').fullOuterJoin('accounts', (j) {
+      final q = db('users').leftJoin('accounts', (j) {
         j
             .onExists(
               (q) => q
@@ -154,7 +158,9 @@ void main() {
       final result = q.toSQL();
       expect(
         result.sql,
-        contains('json_extract("users"."meta", ?) = json_extract("accounts"."meta", ?)'),
+        contains(
+          'json_extract("users"."meta", ?) = json_extract("accounts"."meta", ?)',
+        ),
       );
       expect(result.bindings, containsAllInOrder([r'$.id', r'$.user_id']));
     });
@@ -194,20 +200,22 @@ void main() {
   // ─── Lateral joins ─────────────────────────────────────────────────────────
 
   group('LATERAL joins', () {
-    test('joinLateral with callback subquery emits join lateral ... on true',
-        () {
-      final q = db('users').joinLateral('latest_order', (sub) {
-        sub.table('orders').where('orders.user_id', 1).limit(1);
-      });
-      final compiled = q.toSQL();
-      expect(compiled.sql, contains('join lateral ('));
-      expect(compiled.sql, contains(') as "latest_order" on true'));
-      expect(compiled.sql, contains('"orders"'));
-      expect(compiled.bindings, containsAll([1, 1])); // where value + limit
-    });
+    test(
+      'joinLateral with callback subquery emits join lateral ... on true',
+      () {
+        final q = pgDb('users').joinLateral('latest_order', (sub) {
+          sub.table('orders').where('orders.user_id', 1).limit(1);
+        });
+        final compiled = q.toSQL();
+        expect(compiled.sql, contains('join lateral ('));
+        expect(compiled.sql, contains(') as "latest_order" on true'));
+        expect(compiled.sql, contains('"orders"'));
+        expect(compiled.bindings, containsAll([1, 1])); // where value + limit
+      },
+    );
 
     test('leftJoinLateral emits left join lateral ... on true', () {
-      final q = db('users').leftJoinLateral('recent_event', (sub) {
+      final q = pgDb('users').leftJoinLateral('recent_event', (sub) {
         sub.table('events').where('events.user_id', 99).limit(5);
       });
       final compiled = q.toSQL();
@@ -217,7 +225,7 @@ void main() {
     });
 
     test('crossJoinLateral emits cross join lateral without ON clause', () {
-      final q = db('users').crossJoinLateral('stats', (sub) {
+      final q = pgDb('users').crossJoinLateral('stats', (sub) {
         sub.table('metrics').where('user_id', 7);
       });
       final sql = q.toSQL().sql;
@@ -227,8 +235,8 @@ void main() {
     });
 
     test('joinLateral with pre-built QueryBuilder', () {
-      final sub = db().table('orders').where('active', true).limit(1);
-      final q = db('users').joinLateral('first_order', sub);
+      final sub = pgDb().table('orders').where('active', true).limit(1);
+      final q = pgDb('users').joinLateral('first_order', sub);
       final compiled = q.toSQL();
       expect(compiled.sql, contains('join lateral ('));
       expect(compiled.sql, contains('"orders"'));
@@ -237,9 +245,11 @@ void main() {
     });
 
     test('joinLateral with Raw subquery', () {
-      final q = db('users').joinLateral(
+      final q = pgDb('users').joinLateral(
         'top_score',
-        db.raw('select max(score) as score from scores where user_id = users.id'),
+        pgDb.raw(
+          'select max(score) as score from scores where user_id = users.id',
+        ),
       );
       final sql = q.toSQL().sql;
       expect(sql, contains('join lateral ('));
@@ -247,24 +257,29 @@ void main() {
       expect(sql, contains(') as "top_score" on true'));
     });
 
-    test('bindings from lateral subquery are collected alongside outer bindings',
-        () {
-      final q = db('users')
-          .where('active', true)
-          .joinLateral('latest', (sub) {
-            sub.table('orders').where('user_id', 999).limit(3);
-          });
-      final compiled = q.toSQL();
-      // Joins are compiled before WHERE, so lateral bindings (999, 3) come
-      // first in the collected list; the outer WHERE binding (true) follows.
-      expect(compiled.bindings, equals([999, 3, true]));
-    });
+    test(
+      'bindings from lateral subquery are collected alongside outer bindings',
+      () {
+        final q = pgDb('users').where('active', true).joinLateral('latest', (
+          sub,
+        ) {
+          sub.table('orders').where('user_id', 999).limit(3);
+        });
+        final compiled = q.toSQL();
+        // Joins are compiled before WHERE, so lateral bindings (999, 3) come
+        // first in the collected list; the outer WHERE binding (true) follows.
+        expect(compiled.bindings, equals([999, 3, true]));
+      },
+    );
 
     test('lateral join full SQL structure', () {
-      final q = db('users')
+      final q = pgDb('users')
           .select(['users.id', 'users.name', 'lo.total'])
           .leftJoinLateral('lo', (sub) {
-            sub.table('orders').where('orders.user_id', 42).sum('amount as total');
+            sub
+                .table('orders')
+                .where('orders.user_id', 42)
+                .sum('amount as total');
           })
           .where('users.active', true);
       final compiled = q.toSQL();
@@ -272,6 +287,38 @@ void main() {
       expect(compiled.sql, contains('left join lateral ('));
       expect(compiled.sql, contains(') as "lo" on true'));
       expect(compiled.sql, contains('where "users"."active" ='));
+    });
+  });
+
+  group('Dialect guards', () {
+    test('fullOuterJoin throws on SQLite dialect', () {
+      expect(
+        () => db(
+          'users',
+        ).fullOuterJoin('accounts', 'users.id', 'accounts.user_id').toSQL(),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('FULL OUTER JOIN is not supported'),
+          ),
+        ),
+      );
+    });
+
+    test('joinLateral throws on SQLite dialect', () {
+      expect(
+        () => db('users').joinLateral('latest', (sub) {
+          sub.table('orders').limit(1);
+        }).toSQL(),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('LATERAL JOIN is not supported'),
+          ),
+        ),
+      );
     });
   });
 }

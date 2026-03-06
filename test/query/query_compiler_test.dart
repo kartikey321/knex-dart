@@ -4,6 +4,7 @@ import 'package:knex_dart/src/query/query_compiler.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
 import '../mocks/mock_client.dart';
 import '../mocks/mysql_mock_client.dart';
+import '../mocks/sqlite_mock_client.dart';
 
 void main() {
   late MockClient client;
@@ -1701,9 +1702,7 @@ void main() {
     });
 
     test('forShare() with table list on postgres-like client', () {
-      final builder = QueryBuilder(
-        client,
-      ).table('users').forShare(['users']);
+      final builder = QueryBuilder(client).table('users').forShare(['users']);
       final sql = builder.toSQL();
 
       expect(sql.sql, 'select * from "users" for share of "users"');
@@ -1734,7 +1733,9 @@ void main() {
         () => QueryBuilder(client).table('users').skipLocked(),
         throwsA(
           predicate(
-            (e) => e is StateError && e.message.toString().contains('.forShare() or .forUpdate()'),
+            (e) =>
+                e is StateError &&
+                e.message.toString().contains('.forShare() or .forUpdate()'),
           ),
         ),
       );
@@ -1742,7 +1743,9 @@ void main() {
 
     test('noWait() and skipLocked() are mutually exclusive', () {
       expect(
-        () => QueryBuilder(client).table('users').forUpdate().noWait().skipLocked(),
+        () => QueryBuilder(
+          client,
+        ).table('users').forUpdate().noWait().skipLocked(),
         throwsA(
           predicate(
             (e) =>
@@ -1773,11 +1776,9 @@ void main() {
   group('QueryCompiler Step 16 - Advanced JOIN ON clauses', () {
     test('Join onVal adds bound parameter in ON clause', () {
       final builder = QueryBuilder(client).table('users').join('orders', (j) {
-        j.on('users.id', 'orders.user_id').andOnVal(
-          'orders.status',
-          '=',
-          'completed',
-        );
+        j
+            .on('users.id', 'orders.user_id')
+            .andOnVal('orders.status', '=', 'completed');
       });
       final sql = builder.toSQL();
 
@@ -1806,7 +1807,8 @@ void main() {
 
     test('Join onNull and onNotNull compile NULL checks', () {
       final builder = QueryBuilder(client).table('users').join('orders', (j) {
-        j.on('users.id', 'orders.user_id')
+        j
+            .on('users.id', 'orders.user_id')
             .andOnNull('orders.deleted_at')
             .orOnNotNull('orders.archived_at');
       });
@@ -1821,7 +1823,8 @@ void main() {
 
     test('Join onBetween and onNotBetween compile ranges', () {
       final builder = QueryBuilder(client).table('users').join('orders', (j) {
-        j.on('users.id', 'orders.user_id')
+        j
+            .on('users.id', 'orders.user_id')
             .andOnBetween('orders.total', [10, 100])
             .orOnNotBetween('orders.discount', [5, 20]);
       });
@@ -1836,20 +1839,19 @@ void main() {
 
     test('Join onExists and onNotExists compile subqueries', () {
       final builder = QueryBuilder(client).table('users').join('orders', (j) {
-        j.on('users.id', 'orders.user_id')
+        j
+            .on('users.id', 'orders.user_id')
             .andOnExists((qb) {
-              qb.select(['id']).from('payments').whereColumn(
-                'payments.order_id',
-                '=',
-                'orders.id',
-              );
+              qb
+                  .select(['id'])
+                  .from('payments')
+                  .whereColumn('payments.order_id', '=', 'orders.id');
             })
             .orOnNotExists((qb) {
-              qb.select(['id']).from('refunds').whereColumn(
-                'refunds.order_id',
-                '=',
-                'orders.id',
-              );
+              qb
+                  .select(['id'])
+                  .from('refunds')
+                  .whereColumn('refunds.order_id', '=', 'orders.id');
             });
       });
       final sql = builder.toSQL();
@@ -1893,10 +1895,13 @@ void main() {
 
     test('Join onIn with multi-column tuple values', () {
       final builder = QueryBuilder(client).table('users').join('orders', (j) {
-        j.onIn(['orders.type', 'orders.state'], [
-          ['online', 'paid'],
-          ['retail', 'pending'],
-        ]);
+        j.onIn(
+          ['orders.type', 'orders.state'],
+          [
+            ['online', 'paid'],
+            ['retail', 'pending'],
+          ],
+        );
       });
       final sql = builder.toSQL();
 
@@ -1909,12 +1914,7 @@ void main() {
 
     test('Join onJsonPathEquals for postgres-like client', () {
       final builder = QueryBuilder(client).table('users').join('orders', (j) {
-        j.onJsonPathEquals(
-          'users.meta',
-          r'$.id',
-          'orders.meta',
-          r'$.user_id',
-        );
+        j.onJsonPathEquals('users.meta', r'$.id', 'orders.meta', r'$.user_id');
       });
       final sql = builder.toSQL();
 
@@ -1928,12 +1928,7 @@ void main() {
     test('Join onJsonPathEquals for mysql client uses json_extract', () {
       final my = MySQLMockClient();
       final builder = QueryBuilder(my).table('users').join('orders', (j) {
-        j.onJsonPathEquals(
-          'users.meta',
-          r'$.id',
-          'orders.meta',
-          r'$.user_id',
-        );
+        j.onJsonPathEquals('users.meta', r'$.id', 'orders.meta', r'$.user_id');
       });
       final sql = builder.toSQL();
 
@@ -1942,6 +1937,57 @@ void main() {
         'select * from `users` inner join `orders` on json_extract(`users`.`meta`, ?) = json_extract(`orders`.`meta`, ?)',
       );
       expect(sql.bindings, [r'$.id', r'$.user_id']);
+    });
+  });
+
+  group('Dialect capability guards', () {
+    test('RETURNING throws on mysql dialect', () {
+      final my = MySQLMockClient();
+      expect(
+        () => QueryBuilder(
+          my,
+        ).table('users').insert({'name': 'John'}).returning(['id']).toSQL(),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('RETURNING is not supported'),
+          ),
+        ),
+      );
+    });
+
+    test('RETURNING throws on sqlite dialect', () {
+      final sqlite = SqliteMockClient();
+      expect(
+        () => QueryBuilder(
+          sqlite,
+        ).table('users').insert({'name': 'John'}).returning(['id']).toSQL(),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('RETURNING is not supported'),
+          ),
+        ),
+      );
+    });
+
+    test('fullOuterJoin throws on sqlite dialect', () {
+      final sqlite = SqliteMockClient();
+      expect(
+        () => QueryBuilder(sqlite)
+            .table('users')
+            .fullOuterJoin('profiles', 'users.id', 'profiles.user_id')
+            .toSQL(),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('FULL OUTER JOIN is not supported'),
+          ),
+        ),
+      );
     });
   });
 }

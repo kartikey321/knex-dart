@@ -5,6 +5,7 @@ import 'package:knex_dart/src/client/client.dart';
 import 'package:knex_dart/src/client/knex_config.dart';
 import 'package:knex_dart/src/query/query_builder.dart';
 import 'package:knex_dart/src/query/query_compiler.dart';
+import 'package:knex_dart/src/raw.dart';
 import 'package:knex_dart/src/formatter/formatter.dart';
 import 'package:knex_dart/src/schema/schema_builder.dart';
 import 'package:knex_dart/src/schema/schema_compiler.dart';
@@ -40,6 +41,7 @@ class SQLiteClient extends Client {
     return client;
   }
 
+  /// Creates and opens a SQLite client for [filename].
   static Future<SQLiteClient> connect({required String filename}) async {
     final config = KnexConfig(
       client: 'sqlite3',
@@ -50,6 +52,7 @@ class SQLiteClient extends Client {
     return client;
   }
 
+  /// Opens the underlying SQLite database file.
   Future<void> initialize() async {
     _db = sqlite3.open(_filename);
   }
@@ -146,6 +149,7 @@ class SQLiteClient extends Client {
     return trx((_) => action());
   }
 
+  /// Executes [callback] in a transaction/savepoint scope.
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
     if (_transactionDepth > 0) {
       final sp = _savepointId();
@@ -180,6 +184,7 @@ class SQLiteClient extends Client {
   String _savepointId() =>
       'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
 
+  /// Executes raw SQL with positional [bindings].
   @override
   Future<dynamic> rawQuery(String sql, List<dynamic> bindings) async {
     return _execute(sql, bindings);
@@ -275,4 +280,10 @@ class SQLiteClient extends Client {
   /// Execute a DELETE query.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder queryBuilder) =>
       select(queryBuilder);
+
+  /// Creates a raw SQL fragment with optional [bindings].
+  ///
+  /// This is useful for embedding SQL snippets into QueryBuilder chains.
+  @override
+  Raw raw(String sql, [dynamic bindings]) => super.raw(sql, bindings);
 }

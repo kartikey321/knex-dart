@@ -6,12 +6,16 @@ import '../util/knex_exception.dart';
 import 'migration.dart';
 import 'migration_source.dart';
 
+/// Orchestrates migration discovery, execution, rollback, and status reporting.
 class Migrator {
   final Knex _knex;
   final List<MigrationUnit> _migrations;
   final List<MigrationSource> _sources;
   final MigrationConfig _config;
 
+  /// Creates a migrator with explicit in-memory [migrations] and/or [sources].
+  ///
+  /// If [config] is omitted, defaults to [MigrationConfig].
   Migrator(
     this._knex, {
     List<MigrationUnit> migrations = const [],
@@ -60,7 +64,6 @@ class Migrator {
 
   /// Use the migration directory from [MigrationConfig] as the SQL source.
   ///
-  /// Equivalent to `fromSqlDir(config.directory)`. Mirrors the knex.js default
   /// where `knex.migrate.latest()` reads from the configured directory
   /// (default `./migrations`).
   Migrator fromConfig() => fromSqlDir(_config.directory);
@@ -235,6 +238,10 @@ class Migrator {
     ]);
   }
 
+  /// Runs one migration step with optional transaction wrapping.
+  ///
+  /// Transaction wrapping is enabled when `disableTransactions == false`.
+  /// Errors are wrapped into [KnexMigrationException] with migration metadata.
   Future<void> _runWithOptionalTx(
     Future<void> Function() action,
     String migrationName, {

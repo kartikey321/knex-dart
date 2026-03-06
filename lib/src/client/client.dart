@@ -69,7 +69,6 @@ abstract class Client {
 
   /// Get a formatter for the given builder
   ///
-  /// JS Reference: client.js - formatter(builder)
   ///
   /// The formatter handles identifier wrapping, column formatting,
   /// and SQL component generation.
@@ -207,7 +206,6 @@ abstract class Client {
 
   /// Add a value to bindings and return the parameter placeholder
   ///
-  /// JS Reference: client.js parameter() method
   ///
   /// This is used by the QueryCompiler to add bound parameters
   /// to queries while building the SQL string.

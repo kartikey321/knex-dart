@@ -53,18 +53,23 @@ class KnexPostgres {
     return KnexPostgres._(client);
   }
 
+  /// Executes a SELECT-style query and returns rows.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
       _pgClient.select(query);
 
+  /// Executes any compiled query and returns rows/result payload.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
       _pgClient.execute(query);
 
+  /// Executes an INSERT query.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
       _pgClient.insert(query);
 
+  /// Executes an UPDATE query.
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
       _pgClient.update(query);
 
+  /// Executes a DELETE query.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
       _pgClient.delete(query);
 

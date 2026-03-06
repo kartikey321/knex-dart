@@ -278,18 +278,23 @@ class MySQLTrxClient {
 
   MySQLTrxClient._(this._connection);
 
+  /// Executes a SELECT-style query inside this transaction.
   Future<List<Map<String, dynamic>>> select(QueryBuilder queryBuilder) =>
       _run(queryBuilder);
 
+  /// Executes any compiled query inside this transaction.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder queryBuilder) =>
       _run(queryBuilder);
 
+  /// Executes an INSERT query inside this transaction.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder queryBuilder) =>
       _run(queryBuilder);
 
+  /// Executes an UPDATE query inside this transaction.
   Future<List<Map<String, dynamic>>> update(QueryBuilder queryBuilder) =>
       _run(queryBuilder);
 
+  /// Executes a DELETE query inside this transaction.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder queryBuilder) =>
       _run(queryBuilder);
 

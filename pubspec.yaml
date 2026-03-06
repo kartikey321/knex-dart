@@ -18,13 +18,19 @@ workspace:
   - drivers/knex_dart_postgres
   - drivers/knex_dart_mysql
   - drivers/knex_dart_sqlite
+  - packages/knex_dart_capabilities
+  - packages/knex_dart_lint
 
 dependencies:
   logging: ^1.2.0
   meta: ^1.11.0
   collection: ^1.18.0
+  knex_dart_capabilities: ^0.1.0
 
 dev_dependencies:
+  custom_lint: ^0.8.1
+  knex_dart_lint:
+    path: packages/knex_dart_lint
   lints: ^6.0.0
   test: ^1.25.6
   melos: ^7.0.0

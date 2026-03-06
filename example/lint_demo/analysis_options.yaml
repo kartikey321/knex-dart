@@ -1,0 +1,7 @@
+analyzer:
+  plugins:
+    - custom_lint
+
+linter:
+  rules:
+    - avoid_print

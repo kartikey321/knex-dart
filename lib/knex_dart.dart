@@ -28,15 +28,16 @@ export 'src/knex.dart';
 export 'src/client/client.dart';
 export 'src/client/knex_config.dart';
 
+// Raw and Ref
+export 'src/raw.dart';
+export 'src/ref.dart';
+
 // Query builder
 export 'src/query/query_builder.dart';
 export 'src/query/query_compiler.dart';
 export 'src/query/join_clause.dart';
 export 'src/query/sql_string.dart';
-
-// Raw and Ref
-export 'src/raw.dart';
-export 'src/ref.dart';
+export 'src/query/op.dart';
 
 // Schema builder
 export 'src/schema/schema_builder.dart';

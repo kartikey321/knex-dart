@@ -234,12 +234,22 @@ class PostgresTrxClient {
 
   PostgresTrxClient._(this._session);
 
+  /// Executes a SELECT-style query inside this transaction.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) => _run(query);
+
+  /// Executes any compiled query inside this transaction.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) => _run(query);
+
+  /// Executes an INSERT query inside this transaction.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) => _run(query);
+
+  /// Executes an UPDATE query inside this transaction.
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) => _run(query);
+
+  /// Executes a DELETE query inside this transaction.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) => _run(query);
 
+  /// Executes raw SQL inside this transaction.
   Future<List<Map<String, dynamic>>> rawSql(
     String sql, [
     List<dynamic>? bindings,

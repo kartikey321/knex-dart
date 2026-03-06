@@ -10,11 +10,9 @@ class FormattedSql {
 
 /// Raw SQL formatter - handles binding replacement
 ///
-/// JS Reference: lib/formatter/rawFormatter.js
 class RawFormatter {
   /// Replace positional bindings (? and ??)
   ///
-  /// JS Reference: lib/formatter/rawFormatter.js lines 3-35
   ///
   /// Handles:
   /// - `?` → parameter placeholder ($1, $2, etc.)
@@ -73,7 +71,6 @@ class RawFormatter {
 
   /// Replace named bindings (:key and :key:)
   ///
-  /// JS Reference: lib/formatter/rawFormatter.js lines 37-79
   ///
   /// Handles:
   /// - `:key` → parameter placeholder ($1, $2, etc.)

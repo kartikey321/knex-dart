@@ -4,13 +4,11 @@ import 'column_builder.dart';
 
 /// Table builder for defining table schema through a callback.
 ///
-/// Mirrors Knex.js TableBuilder. The callback receives this builder,
 /// and each column type method creates a [ColumnBuilder] and records it.
 ///
 /// Column types are dialect-aware: PG uses `serial`, `bytea`, `timestamptz`;
 /// SQLite uses `integer`, `blob`, `datetime`; MySQL uses `int auto_increment`, etc.
 ///
-/// JS Reference: lib/schema/tablebuilder.js
 class TableBuilder {
   final Client client;
   final String method; // 'create', 'alter', 'createIfNot'
@@ -338,7 +336,6 @@ class TableBuilder {
 
   /// Timestamps helper — adds created_at and updated_at columns.
   ///
-  /// [useTimestamps] is kept for Knex.js API parity (currently unused here).
   ///
   /// For PostgreSQL:
   /// - `useTz = true`  -> `timestamptz` (default)

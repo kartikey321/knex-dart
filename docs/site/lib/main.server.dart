@@ -87,6 +87,7 @@ void main() {
                   SidebarLink(text: "Home", href: '/'),
                   SidebarLink(text: "Installation", href: '/getting-started/installation'),
                   SidebarLink(text: "Quick Start", href: '/getting-started/quick-start'),
+                  SidebarLink(text: "About", href: '/about'),
                 ],
               ),
               SidebarGroup(
@@ -107,6 +108,12 @@ void main() {
                 links: [
                   SidebarLink(text: "Migrations", href: '/migration/migrations'),
                   SidebarLink(text: "From Knex.js", href: '/migration/from-knex-js'),
+                ],
+              ),
+              SidebarGroup(
+                title: 'Tooling',
+                links: [
+                  SidebarLink(text: "Dialect Lint", href: '/tooling/dialect-lint'),
                 ],
               ),
               SidebarGroup(

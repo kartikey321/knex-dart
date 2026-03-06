@@ -93,6 +93,7 @@ Leverages Dart's strong typing while maintaining the flexibility of dynamic quer
 - [Transactions](/query-building/transactions) — Atomic multi-query operations
 - [Schema Builder](/query-building/schema-builder) — CREATE TABLE, ALTER TABLE, indexes, foreign keys
 - [Migrations](/migration/migrations) — Code-first, SQL-directory, and external-schema migration sources
+- [Dialect Lint](/tooling/dialect-lint) — Optional static checks for dialect-incompatible query APIs
 - [Subqueries](/query-building/subqueries) — Nested queries
 - [CTEs (WITH)](/query-building/ctes) — Common table expressions
 - [Migration Guide](/migration/from-knex-js) — Coming from Knex.js?

@@ -40,7 +40,6 @@ class Raw {
 
   /// Set the SQL and bindings for this raw query
   ///
-  /// JS Reference: lib/raw.js lines 40-48
   Raw set(String sql, [dynamic bindings]) {
     _sql = sql;
 
@@ -68,7 +67,6 @@ class Raw {
 
   /// Wrap this raw query with before/after strings
   ///
-  /// JS Reference: lib/raw.js lines 62-66
   /// Stores wrapping values to be applied during toSQL() compilation.
   /// This allows the same Raw object to be compiled multiple times.
   ///
@@ -85,7 +83,6 @@ class Raw {
 
   /// Compile to SQL with bindings
   ///
-  /// JS Reference: lib/raw.js lines 74-128
   /// Returns SqlString object with compiled SQL, bindings, and metadata.
   /// This implementation covers basic behavior - binding replacement
   /// will be added in Steps 3-5.
@@ -96,7 +93,6 @@ class Raw {
   ///   // Returns: SqlString(sql: '(SELECT 1)', bindings: [], method: 'raw')
   /// ```
   SqlString toSQL() {
-    // JS Reference: lib/raw.js lines 74-128
     String compiledSql = _sql;
     List<dynamic> compiledBindings;
 
@@ -159,7 +155,6 @@ class Raw {
 
   /// Validate bindings don't contain null values
   ///
-  /// JS Reference: lib/util/helpers.js lines 16-42 (containsUndefined)
   /// Throws KnexException if any binding is null (Dart) / undefined (JS)
   void _validateBindings(List<dynamic> bindings) {
     if (_containsNull(bindings)) {
@@ -172,7 +167,6 @@ class Raw {
 
   /// Recursively check if value contains null
   ///
-  /// JS Reference: lib/util/helpers.js lines 16-42
   /// Dart: null ≈ JS undefined
   bool _containsNull(dynamic value) {
     if (value is List) {
@@ -185,7 +179,6 @@ class Raw {
 
   /// Get indices/keys of null values
   ///
-  /// JS Reference: lib/util/helpers.js lines 44-64
   List<dynamic> _getNullIndices(dynamic bindings) {
     final indices = <dynamic>[];
     if (bindings is List) {
