@@ -1,5 +1,9 @@
 .PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage
 
+# Local development only — not used in CI.
+# CI uses `dart test --tags=<driver>` directly against GitHub Actions service containers.
+# See .github/workflows/ci.yml for the canonical test commands.
+
 help: ## List available targets
 	@grep -E '^[a-zA-Z0-9_.-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "%-18s %s\n", $$1, $$2}'
 
