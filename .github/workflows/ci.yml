@@ -34,9 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - run: dart pub global activate melos
       - run: melos run analyze
 
@@ -49,9 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Run unit tests with coverage
         run: dart test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql,duckdb,d1,snowflake --coverage=coverage
       - name: Format coverage
@@ -85,8 +85,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
 
       - name: Install libsqlite3 (Linux)
         if: runner.os == 'Linux'
@@ -102,7 +102,7 @@ jobs:
           Invoke-WebRequest $url -OutFile sqlite.zip
           Expand-Archive sqlite.zip -DestinationPath $env:SystemRoot\System32 -Force
 
-      - run: dart pub get
+      - run: flutter pub get
       - name: Run SQLite tests
         working-directory: drivers/knex_dart_sqlite
         run: dart test
@@ -122,8 +122,8 @@ jobs:
       DUCKDB_VERSION: v1.2.2
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
 
       - name: Install DuckDB (Linux)
         if: runner.os == 'Linux'
@@ -146,7 +146,7 @@ jobs:
           Invoke-WebRequest $url -OutFile duckdb.zip
           Expand-Archive duckdb.zip -DestinationPath $env:SystemRoot\System32 -Force
 
-      - run: dart pub get
+      - run: flutter pub get
       - name: Run DuckDB tests
         working-directory: drivers/knex_dart_duckdb
         run: dart test
@@ -160,9 +160,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
 
       # DuckDB WASM — dart_duckdb includes WASM support for web.
       # The package's barrel conditional-exports 'src/web/duckdb_web.dart'
@@ -196,9 +196,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Turso mock tests
         working-directory: drivers/knex_dart_turso
         run: dart test test/turso_test.dart
@@ -222,9 +222,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
 
       - name: Turso mock tests (Chrome)
         working-directory: drivers/knex_dart_turso
@@ -262,9 +262,9 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Load schema + seed
         working-directory: drivers/knex_dart_postgres
         run: |
@@ -304,9 +304,9 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Load schema + seed
         working-directory: drivers/knex_dart_mysql
         run: |
@@ -348,11 +348,11 @@ jobs:
           --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
       - name: Install FreeTDS runtime
         run: sudo apt-get update && sudo apt-get install -y libsybdb5 freetds-dev freetds-bin
-      - run: dart pub get
+      - run: flutter pub get
       - name: Create knex_test database
         run: |
           # sqlcmd lives inside the service container — use docker exec
@@ -389,9 +389,9 @@ jobs:
           --health-start-period 10s
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Run Turso mock tests
         working-directory: drivers/knex_dart_turso
         run: dart test test/turso_test.dart
@@ -412,9 +412,9 @@ jobs:
     # --dataset args, so we start it as a background step instead.
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
 
       - name: Start BigQuery emulator
         run: |
@@ -460,9 +460,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - working-directory: drivers/knex_dart_d1
         run: dart test
 
@@ -476,9 +476,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - working-directory: drivers/knex_dart_snowflake
         run: dart test
 
@@ -491,9 +491,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: capabilities
         working-directory: packages/knex_dart_capabilities
         run: dart test
@@ -528,9 +528,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
-        with: { sdk: stable }
-      - run: dart pub get
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Resolve package directory from tag
         id: resolve
         run: |
