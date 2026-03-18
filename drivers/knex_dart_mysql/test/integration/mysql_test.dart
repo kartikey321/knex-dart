@@ -1,7 +1,7 @@
 @Tags(['mysql'])
 library;
 
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_mysql/knex_dart_mysql.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';

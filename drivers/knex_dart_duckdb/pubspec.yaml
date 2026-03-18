@@ -21,6 +21,8 @@ resolution: workspace
 dependencies:
   knex_dart: ^1.1.0
   dart_duckdb: ^1.4.4
+  wasm_ffi: ^2.3.0
+  universal_io: ^2.2.2
 
 dev_dependencies:
   test: ^1.25.6

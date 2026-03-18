@@ -20,6 +20,7 @@ resolution: workspace
 dependencies:
   knex_dart: ^1.1.0
   mssql_connection: ^3.0.0
+  universal_io: ^2.3.1
 
 dependency_overrides:
   mssql_connection:

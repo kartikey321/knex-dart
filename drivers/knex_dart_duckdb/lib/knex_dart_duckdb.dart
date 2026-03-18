@@ -26,5 +26,6 @@
 /// ```
 library;
 
-export 'src/duckdb_client.dart';
+export 'src/duckdb_client.dart'
+    if (dart.library.js_interop) 'src/duckdb_client_web.dart';
 export 'src/knex_duckdb.dart';

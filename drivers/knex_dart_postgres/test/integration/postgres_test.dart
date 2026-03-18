@@ -1,7 +1,7 @@
 @Tags(['postgres'])
 library;
 
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:knex_dart/src/query/json_builder.dart';

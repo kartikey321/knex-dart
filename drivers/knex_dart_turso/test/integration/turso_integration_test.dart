@@ -7,7 +7,7 @@
 @Tags(['turso'])
 library;
 
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_turso/knex_dart_turso.dart';
 import 'package:test/test.dart';

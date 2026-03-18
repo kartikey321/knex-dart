@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import '../knex.dart';
 import '../util/knex_exception.dart';

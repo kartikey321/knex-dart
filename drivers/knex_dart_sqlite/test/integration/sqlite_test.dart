@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';

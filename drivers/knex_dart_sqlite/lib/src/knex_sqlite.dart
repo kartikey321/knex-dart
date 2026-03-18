@@ -1,6 +1,7 @@
 import 'package:knex_dart/knex_dart.dart';
 
-import 'sqlite_client.dart';
+import 'sqlite_client.dart'
+    if (dart.library.js_interop) 'sqlite_client_web.dart';
 
 /// SQLite-specific Knex wrapper.
 class KnexSQLite {

@@ -25,3 +25,4 @@ dependencies:
 dev_dependencies:
   test: ^1.25.6
   lints: ^6.0.0
+  universal_io: ^2.2.2

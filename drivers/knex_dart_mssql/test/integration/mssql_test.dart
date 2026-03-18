@@ -1,8 +1,7 @@
 @Tags(['mssql'])
 library;
 
-import 'dart:io';
-
+import 'package:universal_io/io.dart';
 import 'package:knex_dart_mssql/knex_dart_mssql.dart';
 import 'package:test/test.dart';
 

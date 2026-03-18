@@ -7,7 +7,7 @@
 @Tags(['bigquery'])
 library;
 
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_bigquery/knex_dart_bigquery.dart';
 import 'package:test/test.dart';

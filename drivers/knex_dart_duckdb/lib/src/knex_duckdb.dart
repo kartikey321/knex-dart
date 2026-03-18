@@ -1,6 +1,7 @@
 import 'package:knex_dart/knex_dart.dart';
 
-import 'duckdb_client.dart';
+import 'duckdb_client.dart'
+    if (dart.library.js_interop) 'duckdb_client_web.dart';
 
 /// DuckDB Knex wrapper.
 ///

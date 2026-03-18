@@ -32,6 +32,7 @@ dependencies:
   meta: ^1.11.0
   collection: ^1.18.0
   knex_dart_capabilities: ^0.1.0
+  universal_io: ^2.2.2
 
 dev_dependencies:
   custom_lint: ^0.8.1

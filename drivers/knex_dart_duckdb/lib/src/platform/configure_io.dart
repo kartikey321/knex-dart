@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:dart_duckdb/open.dart' as ddb_open;
 import 'package:dart_duckdb/dart_duckdb.dart' show OperatingSystem;
