@@ -74,8 +74,8 @@ void main() {
         t.string('status').nullable();
       });
     });
-    await db!.raw('DELETE FROM orders');
-    await db!.raw('DELETE FROM users');
+    await db!.execute(db!.queryBuilder().table('orders').delete());
+    await db!.execute(db!.queryBuilder().table('users').delete());
   });
 
   tearDown(() async {
@@ -87,9 +87,8 @@ void main() {
     test('insert and select', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        'INSERT INTO users (id, name, score) VALUES (1, ?, ?)',
-        ['Alice', 9.5],
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Alice', 'score': 9.5}),
       );
 
       final rows = await db!.select(
@@ -102,15 +101,11 @@ void main() {
     test('update changes a value', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        'INSERT INTO users (id, name, score) VALUES (1, ?, ?)',
-        ['Bob', 7.0],
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Bob', 'score': 7.0}),
       );
       await db!.execute(
-        db!.queryBuilder()
-            .table('users')
-            .where('id', '=', 1)
-            .update({'score': 8.0}),
+        db!.queryBuilder().table('users').where('id', '=', 1).update({'score': 8.0}),
       );
 
       final rows = await db!.select(
@@ -122,9 +117,8 @@ void main() {
     test('delete removes a row', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        'INSERT INTO users (id, name) VALUES (1, ?)',
-        ['Carol'],
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Carol'}),
       );
       await db!.execute(
         db!.queryBuilder().table('users').where('id', '=', 1).delete(),
@@ -139,9 +133,8 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       await db!.trx((trx) async {
-        await trx.raw(
-          'INSERT INTO users (id, name) VALUES (1, ?)',
-          ['Frank'],
+        await trx.execute(
+          db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Frank'}),
         );
       });
 
@@ -154,9 +147,8 @@ void main() {
 
       await expectLater(
         db!.trx((trx) async {
-          await trx.raw(
-            'INSERT INTO users (id, name) VALUES (1, ?)',
-            ['Ghost'],
+          await trx.execute(
+            db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Ghost'}),
           );
           throw Exception('force rollback');
         }),
@@ -172,15 +164,13 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       await db!.trx((outer) async {
-        await outer.raw(
-          'INSERT INTO users (id, name) VALUES (1, ?)',
-          ['Outer'],
+        await outer.execute(
+          db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Outer'}),
         );
         try {
           await outer.trx((inner) async {
-            await inner.raw(
-              'INSERT INTO users (id, name) VALUES (2, ?)',
-              ['Inner'],
+            await inner.execute(
+              db!.queryBuilder().table('users').insert({'id': 2, 'name': 'Inner'}),
             );
             throw Exception('inner fails');
           });
@@ -198,20 +188,24 @@ void main() {
   group('MssqlClient — analytical SQL', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw('''
-        INSERT INTO users (id, name, role, score) VALUES
-          (1, \'Alice\', \'admin\', 90),
-          (2, \'Bob\',   \'user\',  70),
-          (3, \'Carol\', \'admin\', 85),
-          (4, \'Dave\',  \'user\',  60)
-      ''');
+      await db!.execute(db!.queryBuilder().table('users').insert([
+        {'id': 1, 'name': 'Alice', 'role': 'admin', 'score': 90.0},
+        {'id': 2, 'name': 'Bob',   'role': 'user',  'score': 70.0},
+        {'id': 3, 'name': 'Carol', 'role': 'admin', 'score': 85.0},
+        {'id': 4, 'name': 'Dave',  'role': 'user',  'score': 60.0},
+      ]));
     });
 
     test('GROUP BY + AVG aggregate', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      final rows = await db!.raw(
-        'SELECT role, AVG(score) as avg_score FROM users GROUP BY role ORDER BY role',
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['role', db!.raw('AVG(score) as avg_score')])
+            .groupBy('role')
+            .orderBy('role'),
       );
       final adminRow = rows.firstWhere((r) => r['role'] == 'admin');
       expect((adminRow['avg_score'] as num), closeTo(87.5, 0.01));
@@ -220,12 +214,14 @@ void main() {
     test('window function — RANK() OVER', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      final rows = await db!.raw('''
-        SELECT name, score,
-               RANK() OVER (ORDER BY score DESC) AS rnk
-        FROM users
-        ORDER BY rnk
-      ''');
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['name', 'score'])
+            .rank('rnk', db!.raw('"score" desc'))
+            .orderBy('rnk'),
+      );
       expect(rows.first['name'], 'Alice');
       expect(rows.first['rnk'], 1);
     });
@@ -233,17 +229,18 @@ void main() {
     test('JOIN between tables', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        'INSERT INTO orders VALUES (1, 1, 99.99, ?), (2, 2, 49.99, ?)',
-        ['open', 'closed'],
-      );
+      await db!.execute(db!.queryBuilder().table('orders').insert([
+        {'id': 1, 'user_id': 1, 'amount': 99.99, 'status': 'open'},
+        {'id': 2, 'user_id': 2, 'amount': 49.99, 'status': 'closed'},
+      ]));
 
-      final rows = await db!.raw('''
-        SELECT u.name, o.amount
-        FROM users u
-        JOIN orders o ON u.id = o.user_id
-        WHERE o.status = \'open\'
-      ''');
+      final rows = await db!.select(
+        db!.queryBuilder()
+            .from('users')
+            .join('orders', 'users.id', 'orders.user_id')
+            .where('orders.status', '=', 'open')
+            .select(['users.name', 'orders.amount']),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Alice');
     });
@@ -252,15 +249,19 @@ void main() {
   group('MssqlClient — filtering variants', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw(
-        'INSERT INTO users (id, name, role, score) VALUES (1, ?, ?, ?), (2, ?, ?, ?), (3, ?, ?, ?), (4, ?, ?, ?)',
-        ['Alice', 'admin', 90.0, 'Bob', 'user', 70.0, 'Carol', 'admin', 85.0, 'Dave', 'user', null],
-      );
+      await db!.execute(db!.queryBuilder().table('users').insert([
+        {'id': 1, 'name': 'Alice', 'role': 'admin', 'score': 90.0},
+        {'id': 2, 'name': 'Bob',   'role': 'user',  'score': 70.0},
+        {'id': 3, 'name': 'Carol', 'role': 'admin', 'score': 85.0},
+        {'id': 4, 'name': 'Dave',  'role': 'user',  'score': null},
+      ]));
     });
 
-    test('WHERE with single ? binding', () async {
+    test('WHERE with single binding', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('SELECT name FROM users WHERE name = ?', ['Alice']);
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').where('name', '=', 'Alice').select(['name']),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Alice');
     });
@@ -274,24 +275,31 @@ void main() {
       expect(rows.every((r) => r['role'] == 'admin'), isTrue);
     });
 
-    test('IS NULL check via raw', () async {
+    test('whereNull check', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('SELECT name FROM users WHERE score IS NULL');
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').whereNull('score').select(['name']),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Dave');
     });
 
-    test('IS NOT NULL check via raw', () async {
+    test('whereNotNull check', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('SELECT name FROM users WHERE score IS NOT NULL');
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').whereNotNull('score').select(['name']),
+      );
       expect(rows, hasLength(3));
     });
 
     test('multiple WHERE conditions with AND', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw(
-        'SELECT name FROM users WHERE role = ? AND score > ?',
-        ['admin', 87.0],
+      final rows = await db!.select(
+        db!.queryBuilder()
+            .from('users')
+            .where('role', '=', 'admin')
+            .where('score', '>', 87.0)
+            .select(['name']),
       );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Alice');
@@ -299,8 +307,13 @@ void main() {
 
     test('ORDER BY multiple columns', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw(
-        'SELECT name, role FROM users WHERE score IS NOT NULL ORDER BY role ASC, score DESC',
+      final rows = await db!.select(
+        db!.queryBuilder()
+            .from('users')
+            .whereNotNull('score')
+            .orderBy('role', 'asc')
+            .orderBy('score', 'desc')
+            .select(['name', 'role']),
       );
       expect(rows.first['name'], 'Alice');   // admin, score 90
       expect(rows[1]['name'], 'Carol');       // admin, score 85
@@ -310,22 +323,32 @@ void main() {
   group('MssqlClient — pagination (TOP / OFFSET-FETCH)', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw(
-        'INSERT INTO users (id, name) VALUES (1, ?), (2, ?), (3, ?), (4, ?), (5, ?)',
-        ['A', 'B', 'C', 'D', 'E'],
-      );
+      await db!.execute(db!.queryBuilder().table('users').insert([
+        {'id': 1, 'name': 'A'},
+        {'id': 2, 'name': 'B'},
+        {'id': 3, 'name': 'C'},
+        {'id': 4, 'name': 'D'},
+        {'id': 5, 'name': 'E'},
+      ]));
     });
 
     test('TOP N limits results', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('SELECT TOP 3 name FROM users ORDER BY id');
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['name'])
+            .orderBy('id')
+            .limit(3),
+      );
       expect(rows, hasLength(3));
     });
 
     test('OFFSET-FETCH paginates correctly', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw(
-        'SELECT name FROM users ORDER BY id OFFSET 2 ROWS FETCH NEXT 2 ROWS ONLY',
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').orderBy('id').offset(2).limit(2).select(['name']),
       );
       expect(rows, hasLength(2));
       expect(rows.first['name'], 'C'); // skipped A, B
@@ -335,16 +358,23 @@ void main() {
   group('MssqlClient — GROUP BY / HAVING', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw(
-        'INSERT INTO users (id, name, role, score) VALUES (1, ?, ?, ?), (2, ?, ?, ?), (3, ?, ?, ?), (4, ?, ?, ?)',
-        ['Alice', 'admin', 90.0, 'Bob', 'user', 70.0, 'Carol', 'admin', 85.0, 'Dave', 'user', 60.0],
-      );
+      await db!.execute(db!.queryBuilder().table('users').insert([
+        {'id': 1, 'name': 'Alice', 'role': 'admin', 'score': 90.0},
+        {'id': 2, 'name': 'Bob',   'role': 'user',  'score': 70.0},
+        {'id': 3, 'name': 'Carol', 'role': 'admin', 'score': 85.0},
+        {'id': 4, 'name': 'Dave',  'role': 'user',  'score': 60.0},
+      ]));
     });
 
     test('GROUP BY role with COUNT', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw(
-        'SELECT role, COUNT(*) AS cnt FROM users GROUP BY role ORDER BY role',
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['role', db!.raw('COUNT(*) AS cnt')])
+            .groupBy('role')
+            .orderBy('role'),
       );
       expect(rows, hasLength(2));
       final adminRow = rows.firstWhere((r) => r['role'] == 'admin');
@@ -353,56 +383,80 @@ void main() {
 
     test('HAVING filters groups', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw(
-        'SELECT role, AVG(score) AS avg_s FROM users GROUP BY role HAVING AVG(score) > 80 ORDER BY role',
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['role', db!.raw('AVG(score) AS avg_s')])
+            .groupBy('role')
+            .havingRaw('AVG(score) > ?', [80])
+            .orderBy('role'),
       );
       expect(rows, hasLength(1));
-      expect(rows.first['role'], 'admin'); // avg 87.5; users avg 65 fails
+      expect(rows.first['role'], 'admin');
     });
   });
 
   group('MssqlClient — CTEs and subqueries', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw(
-        'INSERT INTO users (id, name, role, score) VALUES (1, ?, ?, ?), (2, ?, ?, ?), (3, ?, ?, ?)',
-        ['Alice', 'admin', 90.0, 'Bob', 'user', 70.0, 'Carol', 'admin', 85.0],
-      );
-      await db!.raw(
-        'INSERT INTO orders (id, user_id, amount, status) VALUES (1, 1, 99.99, ?), (2, 2, 49.99, ?), (3, 1, 29.99, ?)',
-        ['open', 'closed', 'open'],
-      );
+      await db!.execute(db!.queryBuilder().table('users').insert([
+        {'id': 1, 'name': 'Alice', 'role': 'admin', 'score': 90.0},
+        {'id': 2, 'name': 'Bob',   'role': 'user',  'score': 70.0},
+        {'id': 3, 'name': 'Carol', 'role': 'admin', 'score': 85.0},
+      ]));
+      await db!.execute(db!.queryBuilder().table('orders').insert([
+        {'id': 1, 'user_id': 1, 'amount': 99.99, 'status': 'open'},
+        {'id': 2, 'user_id': 2, 'amount': 49.99, 'status': 'closed'},
+        {'id': 3, 'user_id': 1, 'amount': 29.99, 'status': 'open'},
+      ]));
     });
 
     test('subquery in WHERE IN', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('''
-        SELECT name FROM users
-        WHERE id IN (SELECT user_id FROM orders WHERE status = 'open')
-        ORDER BY name
-      ''');
+      final rows = await db!.select(
+        db!.queryBuilder()
+            .from('users')
+            .whereIn('id', (qb) => qb.from('orders').where('status', '=', 'open').select(['user_id']))
+            .orderBy('name')
+            .select(['name']),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Alice');
     });
 
     test('CTE (WITH clause)', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('''
-        WITH top_users AS (SELECT id, name FROM users WHERE score > 80)
-        SELECT name FROM top_users ORDER BY name
-      ''');
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .withQuery(
+              'top_users',
+              db!.queryBuilder().from('users').select(['id', 'name']).where('score', '>', 80),
+            )
+            .from('top_users')
+            .select(['name'])
+            .orderBy('name'),
+      );
       expect(rows.map((r) => r['name']).toList(), ['Alice', 'Carol']);
     });
 
     test('EXISTS correlated subquery', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      final rows = await db!.raw('''
-        SELECT name FROM users u
-        WHERE EXISTS (
-          SELECT 1 FROM orders o WHERE o.user_id = u.id AND o.status = 'open'
-        )
-        ORDER BY name
-      ''');
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users as u')
+            .select(['u.name'])
+            .whereExists((qb) {
+              qb
+                  .from('orders as o')
+                  .select(['o.id'])
+                  .whereColumn('o.user_id', '=', 'u.id')
+                  .where('o.status', '=', 'open');
+            })
+            .orderBy('u.name'),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Alice');
     });
@@ -414,9 +468,13 @@ void main() {
 
       await expectLater(
         db!.trx((outer) async {
-          await outer.raw('INSERT INTO users (id, name) VALUES (1, ?)', ['Outer']);
+          await outer.execute(
+            db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Outer'}),
+          );
           await outer.trx((inner) async {
-            await inner.raw('INSERT INTO users (id, name) VALUES (2, ?)', ['Inner']);
+            await inner.execute(
+              db!.queryBuilder().table('users').insert({'id': 2, 'name': 'Inner'}),
+            );
           });
           throw Exception('outer fails');
         }),
@@ -432,10 +490,14 @@ void main() {
 
       await db!.trx((outer) async {
         await outer.trx((sp1) async {
-          await sp1.raw('INSERT INTO users (id, name) VALUES (1, ?)', ['SP1']);
+          await sp1.execute(
+            db!.queryBuilder().table('users').insert({'id': 1, 'name': 'SP1'}),
+          );
         });
         await outer.trx((sp2) async {
-          await sp2.raw('INSERT INTO users (id, name) VALUES (2, ?)', ['SP2']);
+          await sp2.execute(
+            db!.queryBuilder().table('users').insert({'id': 2, 'name': 'SP2'}),
+          );
         });
       });
 
@@ -449,13 +511,14 @@ void main() {
   });
 
   group('MssqlClient — type handling', () {
-    test('multiple ? bindings round-trip', () async {
+    test('multiple bindings round-trip', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      await db!.raw(
-        'INSERT INTO users (id, name, role, score) VALUES (?, ?, ?, ?)',
-        [42, 'Multi', 'user', 7.7],
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 42, 'name': 'Multi', 'role': 'user', 'score': 7.7}),
       );
-      final rows = await db!.raw('SELECT * FROM users WHERE id = ?', [42]);
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').where('id', '=', 42),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Multi');
       expect((rows.first['score'] as num).toDouble(), closeTo(7.7, 0.001));
@@ -463,18 +526,23 @@ void main() {
 
     test('NULL score returns null in Dart', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      await db!.raw('INSERT INTO users (id, name) VALUES (1, ?)', ['NullScore']);
-      final rows = await db!.raw('SELECT score FROM users WHERE id = 1');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 1, 'name': 'NullScore'}),
+      );
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').where('id', '=', 1).select(['score']),
+      );
       expect(rows.first['score'], isNull);
     });
 
     test('FLOAT precision round-trips', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      await db!.raw(
-        'INSERT INTO users (id, name, score) VALUES (1, ?, ?)',
-        ['Precise', 3.14159],
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Precise', 'score': 3.14159}),
       );
-      final rows = await db!.raw('SELECT score FROM users WHERE id = 1');
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').where('id', '=', 1).select(['score']),
+      );
       expect((rows.first['score'] as num).toDouble(), closeTo(3.14159, 0.0001));
     });
   });

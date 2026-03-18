@@ -93,8 +93,9 @@ void main() {
       expect(result.length, 3);
     });
 
-    test('should use raw queries', () async {
-      final result = await client!.raw('select 1 + 1 as result').execute();
+    test('should project expression results', () async {
+      final query = client!.queryBuilder().select([client!.raw('1 + 1 as result')]);
+      final result = await client!.select(query);
       expect(result.first['result'], 2);
     });
 
@@ -137,9 +138,11 @@ void main() {
     });
 
     test('should handle question marks in string literals', () async {
-      final result = await client!.raw("select 'Question?' as q, ? as v", [
-        'Answer',
-      ]).execute();
+      final query = client!.queryBuilder().select([
+        client!.raw("'Question?' as q"),
+        client!.raw('? as v', ['Answer']),
+      ]);
+      final result = await client!.select(query);
       expect(result.first['q'], 'Question?');
       expect(result.first['v'], 'Answer');
     });
@@ -325,15 +328,18 @@ void main() {
     });
 
     test('GROUP BY with HAVING filters groups', () async {
-      final result = await client!
-          .raw(
-            'SELECT user_id, SUM(logins) as total FROM accounts GROUP BY user_id HAVING total > 10',
-          )
-          .execute();
+      final result = await client!.select(
+        client!
+            .queryBuilder()
+            .from('accounts')
+            .select(['user_id', client!.raw('SUM(logins) as total')])
+            .groupBy('user_id')
+            .havingRaw('SUM(logins) > ?', [10]),
+      );
       // user_id 1 = 10 logins (not > 10), user_id 2 = 5, user_id 3 = 15
       // Only user_id 3 passes HAVING > 10
       expect(result.length, 1);
-      expect((result as List).first['user_id'], 3);
+      expect(result.first['user_id'], 3);
     });
 
     test('distinct removes duplicate values', () async {
@@ -341,9 +347,13 @@ void main() {
       await client!.execute(
         client!.queryBuilder().table('users').insert({'first_name': 'John'}),
       );
-      final result = await client!
-          .raw('SELECT DISTINCT first_name FROM users ORDER BY first_name')
-          .execute();
+      final result = await client!.select(
+        client!
+            .queryBuilder()
+            .from('users')
+            .distinct(['first_name'])
+            .orderBy('first_name'),
+      );
       expect(result.length, 3); // John, Alice, Bob deduplicated
     });
 
@@ -362,11 +372,19 @@ void main() {
 
     // ─── Subquery ────────────────────────────────────────────────────────────
 
-    test('raw subquery in WHERE clause', () async {
-      final result = await client!.raw(
-        'SELECT first_name FROM users WHERE id IN (SELECT user_id FROM accounts WHERE balance > ?)',
-        [150.0],
-      ).execute();
+    test('subquery in WHERE clause', () async {
+      final subquery = client!
+          .queryBuilder()
+          .from('accounts')
+          .select(['user_id'])
+          .where('balance', '>', 150.0);
+      final result = await client!.select(
+        client!
+            .queryBuilder()
+            .from('users')
+            .select(['first_name'])
+            .whereIn('id', subquery),
+      );
       expect(result.length, 2); // balance 200 (user 2) and 300 (user 3)
     });
 
@@ -379,11 +397,12 @@ void main() {
         t.string('label').notNullable();
       }).execute();
 
-      await client!.raw('INSERT INTO temp_items (label) VALUES (?)', [
-        'hello',
-      ]).execute();
-      final rows =
-          await client!.raw('SELECT * FROM temp_items').execute() as List;
+      await client!.execute(
+        client!.queryBuilder().table('temp_items').insert({'label': 'hello'}),
+      );
+      final rows = await client!.select(
+        client!.queryBuilder().from('temp_items'),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['label'], 'hello');
 
@@ -420,7 +439,7 @@ void main() {
 
     // ─── Self-join ───────────────────────────────────────────────────────────
 
-    test('self-join via raw SQL', () async {
+    test('self-join via QueryBuilder', () async {
       // Add a second account for user 1 to test self-join
       await client!.execute(
         client!.queryBuilder().table('accounts').insert({
@@ -429,13 +448,19 @@ void main() {
           'logins': 2,
         }),
       );
-      final result =
-          await client!.raw('''
-        SELECT a1.user_id, a1.balance as b1, a2.balance as b2
-        FROM accounts a1
-        JOIN accounts a2 ON a1.user_id = a2.user_id AND a1.id < a2.id
-      ''').execute()
-              as List;
+      final result = await client!.select(
+        client!
+            .queryBuilder()
+            .from('accounts as a1')
+            .join('accounts as a2', (j) {
+              j.on('a1.user_id', '=', 'a2.user_id').andOn('a1.id', '<', 'a2.id');
+            })
+            .select([
+              'a1.user_id',
+              client!.raw('a1.balance as b1'),
+              client!.raw('a2.balance as b2'),
+            ]),
+      );
       expect(result, hasLength(1));
       expect(result.first['user_id'], 1);
     });

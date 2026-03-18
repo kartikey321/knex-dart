@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:knex_dart/src/query/json_builder.dart';
+import 'package:knex_dart/src/schema/schema_builder.dart';
 import 'package:test/test.dart';
 
 import '../mocks/mock_client.dart';
@@ -38,6 +39,20 @@ void main() {
         .whereIn('email', testEmails)
         .delete();
     await pgClient.delete(deleteQuery);
+  }
+
+  Future<void> executeSchema(
+    void Function(SchemaBuilder schema) callback,
+  ) async {
+    final schema = mockClient.schemaBuilder();
+    callback(schema);
+    final statements = schema.toSQL();
+    for (final stmt in statements) {
+      await pgClient.rawSql(
+        stmt['sql'] as String,
+        stmt['bindings'] as List<dynamic>?,
+      );
+    }
   }
 
   // Initialize connection before tests
@@ -149,11 +164,7 @@ void main() {
       final query = mockClient
           .queryBuilder()
           .table('orders')
-          .join(
-            'users',
-            'users.id',
-            'orders.user_id',
-          )
+          .join('users', 'users.id', 'orders.user_id')
           .select(['users.name', 'orders.amount', 'orders.status']);
 
       final results = await pgClient.select(query);
@@ -284,10 +295,7 @@ void main() {
 
       expect(results.length, greaterThan(0));
       expect(results.any((r) => r['name'] == 'Alice Johnson'), true);
-      expect(
-        results.any((r) => r['name'] == 'Diana Prince'),
-        true,
-      );
+      expect(results.any((r) => r['name'] == 'Diana Prince'), true);
     });
   });
 
@@ -310,9 +318,15 @@ void main() {
     });
 
     test('JSON Operators: superset and subset', () async {
-      await pgClient.rawSql(
-        'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "metadata" jsonb DEFAULT \'{}\';',
-      );
+      try {
+        await executeSchema((schema) {
+          schema.alterTable('users', (t) {
+            t.jsonb('metadata').defaultTo('{}');
+          });
+        });
+      } catch (_) {
+        // Ignore if column already exists
+      }
 
       final insertQuery = mockClient.queryBuilder().table('users').insert({
         'name': 'JSON Tester',
@@ -357,10 +371,7 @@ void main() {
 
       final query = mockClient
           .queryBuilder()
-          .withQuery(
-            'user_totals',
-            cte,
-          )
+          .withQuery('user_totals', cte)
           .table('user_totals')
           .where('total', '>', 500);
 
@@ -614,10 +625,10 @@ void main() {
       expect(innerRows.length, 1);
 
       await pgClient.delete(
-        mockClient
-            .queryBuilder()
-            .table('users')
-            .whereIn('email', ['outer_sp@example.com', 'inner_sp@example.com']),
+        mockClient.queryBuilder().table('users').whereIn('email', [
+          'outer_sp@example.com',
+          'inner_sp@example.com',
+        ]),
       );
     });
 

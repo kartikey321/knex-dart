@@ -241,6 +241,23 @@ class SchemaCompiler {
               : '${tableName}_${cols.join('_')}_index';
           _pushQuery('create index ${_wrap(indexName)} on $tableRef ($colStr)');
           break;
+        case 'fulltext':
+          final cols = args[0] is List ? args[0] as List : [args[0]];
+          final colStr = cols.map((c) => _wrap(c)).join(', ');
+          final indexName = args.length > 1 && args[1] != null ? args[1] : null;
+          if (client.driverName == 'mysql' ||
+              client.driverName == 'mysql2' ||
+              client.driverName == 'mariadb') {
+            final indexPart = indexName != null ? ' ${_wrap(indexName)}' : '';
+            _pushQuery(
+              'alter table $tableRef add fulltext$indexPart ($colStr)',
+            );
+          } else {
+            throw UnsupportedError(
+              'fulltext index is only supported for mysql/mariadb dialects',
+            );
+          }
+          break;
         case 'dropIndex':
           final indexName = args.length > 1 && args[1] != null ? args[1] : null;
           if (indexName != null) {

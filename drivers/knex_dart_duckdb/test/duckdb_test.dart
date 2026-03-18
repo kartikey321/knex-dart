@@ -85,10 +85,13 @@ void main() {
     test('update changes a value', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('INSERT INTO users (id, name, score) VALUES (1, ?, ?)', [
-        'Bob',
-        7.0,
-      ]);
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({
+          'id': 1,
+          'name': 'Bob',
+          'score': 7.0,
+        }),
+      );
 
       await db!.execute(
         db!.queryBuilder().table('users').where('id', '=', 1).update({
@@ -105,7 +108,9 @@ void main() {
     test('delete removes a row', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('INSERT INTO users (id, name) VALUES (1, ?)', ['Carol']);
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Carol'}),
+      );
       await db!.execute(
         db!.queryBuilder().table('users').where('id', '=', 1).delete(),
       );
@@ -116,9 +121,12 @@ void main() {
     test('select with limit and orderBy', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        'INSERT INTO users (id, name, score) VALUES (1, ?, ?), (2, ?, ?), (3, ?, ?)',
-        ['A', 5.0, 'B', 9.0, 'C', 3.0],
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'A', 'score': 5.0},
+          {'id': 2, 'name': 'B', 'score': 9.0},
+          {'id': 3, 'name': 'C', 'score': 3.0},
+        ]),
       );
 
       final rows = await db!.select(
@@ -133,9 +141,13 @@ void main() {
     test('null value round-trips correctly', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('INSERT INTO users (id, name, score) VALUES (1, ?, NULL)', [
-        'Dave',
-      ]);
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({
+          'id': 1,
+          'name': 'Dave',
+          'score': null,
+        }),
+      );
       final rows = await db!.select(
         db!.queryBuilder().from('users').where('id', '=', 1),
       );
@@ -145,10 +157,13 @@ void main() {
     test('boolean values round-trip', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('INSERT INTO users (id, name, active) VALUES (1, ?, ?)', [
-        'Eve',
-        true,
-      ]);
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({
+          'id': 1,
+          'name': 'Eve',
+          'active': true,
+        }),
+      );
       final rows = await db!.select(db!.queryBuilder().from('users'));
       expect(rows.first['active'], isTrue);
     });
@@ -244,13 +259,14 @@ void main() {
   group('DuckDB — analytical SQL', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw('''
-        INSERT INTO users (id, name, role, score) VALUES
-          (1, 'Alice', 'admin', 90),
-          (2, 'Bob',   'user',  70),
-          (3, 'Carol', 'admin', 85),
-          (4, 'Dave',  'user',  60)
-      ''');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice', 'role': 'admin', 'score': 90},
+          {'id': 2, 'name': 'Bob', 'role': 'user', 'score': 70},
+          {'id': 3, 'name': 'Carol', 'role': 'admin', 'score': 85},
+          {'id': 4, 'name': 'Dave', 'role': 'user', 'score': 60},
+        ]),
+      );
     });
 
     test('GROUP BY + aggregate', () async {
@@ -291,17 +307,21 @@ void main() {
     test('JOIN between tables', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        'INSERT INTO orders VALUES (1, 1, 99.99, ?), (2, 2, 49.99, ?)',
-        ['open', 'closed'],
+      await db!.execute(
+        db!.queryBuilder().table('orders').insert([
+          {'id': 1, 'user_id': 1, 'amount': 99.99, 'status': 'open'},
+          {'id': 2, 'user_id': 2, 'amount': 49.99, 'status': 'closed'},
+        ]),
       );
 
-      final rows = await db!.raw('''
-        SELECT u.name, o.amount
-        FROM users u
-        JOIN orders o ON u.id = o.user_id
-        WHERE o.status = 'open'
-      ''');
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users as u')
+            .join('orders as o', 'u.id', 'o.user_id')
+            .where('o.status', '=', 'open')
+            .select(['u.name', 'o.amount']),
+      );
       expect(rows, hasLength(1));
       expect(rows.first['name'], 'Alice');
     });
@@ -319,10 +339,14 @@ void main() {
         });
       });
 
-      await db!.raw(
-        "INSERT INTO products (id, sku, price) VALUES (1, 'ABC', 9.99)",
+      await db!.execute(
+        db!.queryBuilder().table('products').insert({
+          'id': 1,
+          'sku': 'ABC',
+          'price': 9.99,
+        }),
       );
-      final rows = await db!.raw('SELECT * FROM products');
+      final rows = await db!.select(db!.queryBuilder().from('products'));
       expect(rows, hasLength(1));
       expect(rows.first['sku'], 'ABC');
     });
@@ -335,13 +359,14 @@ void main() {
   group('DuckDB — filtering with QueryBuilder', () {
     setUp(() async {
       if (skipReason != null) return;
-      await db!.raw('''
-        INSERT INTO users (id, name, role, score) VALUES
-          (1, 'Alice', 'admin', 90),
-          (2, 'Bob',   'user',  70),
-          (3, 'Carol', 'admin', 85),
-          (4, 'Dave',  'user',  NULL)
-      ''');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice', 'role': 'admin', 'score': 90},
+          {'id': 2, 'name': 'Bob', 'role': 'user', 'score': 70},
+          {'id': 3, 'name': 'Carol', 'role': 'admin', 'score': 85},
+          {'id': 4, 'name': 'Dave', 'role': 'user', 'score': null},
+        ]),
+      );
     });
 
     test('whereIn filters by list', () async {
@@ -616,10 +641,13 @@ void main() {
 
     test('UPDATE via QueryBuilder', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      await db!.raw('INSERT INTO users (id, name, score) VALUES (1, ?, ?)', [
-        'Original',
-        50.0,
-      ]);
+      await db!.execute(
+        db!.queryBuilder().table('users').insert({
+          'id': 1,
+          'name': 'Original',
+          'score': 50.0,
+        }),
+      );
       await db!.execute(
         db!.queryBuilder().table('users').where('id', '=', 1).update({
           'score': 99.0,
@@ -633,10 +661,12 @@ void main() {
 
     test('DELETE via QueryBuilder removes correct row', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
-      await db!.raw('INSERT INTO users (id, name) VALUES (1, ?), (2, ?)', [
-        'Keep',
-        'Remove',
-      ]);
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Keep'},
+          {'id': 2, 'name': 'Remove'},
+        ]),
+      );
       await db!.execute(
         db!.queryBuilder().table('users').where('name', 'Remove').delete(),
       );
@@ -664,11 +694,19 @@ void main() {
     test('inner join between in-memory tables', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        "INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob')",
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice'},
+          {'id': 2, 'name': 'Bob'},
+        ]),
       );
-      await db!.raw(
-        "INSERT INTO orders (id, user_id, amount, status) VALUES (1, 1, 99.99, 'open')",
+      await db!.execute(
+        db!.queryBuilder().table('orders').insert({
+          'id': 1,
+          'user_id': 1,
+          'amount': 99.99,
+          'status': 'open',
+        }),
       );
 
       final rows = await db!.select(
@@ -688,11 +726,19 @@ void main() {
     test('left join between in-memory tables', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw(
-        "INSERT INTO users (id, name) VALUES (1, 'Alice'), (2, 'Bob')",
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice'},
+          {'id': 2, 'name': 'Bob'},
+        ]),
       );
-      await db!.raw(
-        "INSERT INTO orders (id, user_id, amount, status) VALUES (1, 1, 50.00, 'open')",
+      await db!.execute(
+        db!.queryBuilder().table('orders').insert({
+          'id': 1,
+          'user_id': 1,
+          'amount': 50.00,
+          'status': 'open',
+        }),
       );
 
       final rows = await db!.select(
@@ -715,12 +761,13 @@ void main() {
     test('groupBy + havingRaw filters grouped rows', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('''
-        INSERT INTO users (id, name, role) VALUES
-          (1, 'Alice', 'admin'),
-          (2, 'Bob', 'user'),
-          (3, 'Carol', 'admin')
-      ''');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice', 'role': 'admin'},
+          {'id': 2, 'name': 'Bob', 'role': 'user'},
+          {'id': 3, 'name': 'Carol', 'role': 'admin'},
+        ]),
+      );
 
       final rows = await db!.select(
         db!
@@ -741,12 +788,13 @@ void main() {
     test('distinct() returns unique role values', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('''
-        INSERT INTO users (id, name, role) VALUES
-          (1, 'Alice', 'admin'),
-          (2, 'Bob', 'admin'),
-          (3, 'Carol', 'user')
-      ''');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice', 'role': 'admin'},
+          {'id': 2, 'name': 'Bob', 'role': 'admin'},
+          {'id': 3, 'name': 'Carol', 'role': 'user'},
+        ]),
+      );
 
       final rows = await db!.select(
         db!.queryBuilder().from('users').distinct(['role']).orderBy('role'),
@@ -761,13 +809,14 @@ void main() {
     test('whereBetween filters by score range', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('''
-        INSERT INTO users (id, name, score) VALUES
-          (1, 'Alice', 60),
-          (2, 'Bob', 70),
-          (3, 'Carol', 85),
-          (4, 'Dave', 95)
-      ''');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice', 'score': 60},
+          {'id': 2, 'name': 'Bob', 'score': 70},
+          {'id': 3, 'name': 'Carol', 'score': 85},
+          {'id': 4, 'name': 'Dave', 'score': 95},
+        ]),
+      );
 
       final rows = await db!.select(
         db!
@@ -784,12 +833,13 @@ void main() {
     test('whereNotIn excludes selected names', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      await db!.raw('''
-        INSERT INTO users (id, name) VALUES
-          (1, 'Alice'),
-          (2, 'Bob'),
-          (3, 'Carol')
-      ''');
+      await db!.execute(
+        db!.queryBuilder().table('users').insert([
+          {'id': 1, 'name': 'Alice'},
+          {'id': 2, 'name': 'Bob'},
+          {'id': 3, 'name': 'Carol'},
+        ]),
+      );
 
       final rows = await db!.select(
         db!

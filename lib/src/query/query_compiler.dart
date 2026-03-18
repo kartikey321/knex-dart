@@ -547,6 +547,10 @@ class QueryCompiler {
     if (values is QueryBuilder) {
       // Subquery
       valueClause = _compileSubquery(values);
+    } else if (values is Function) {
+      final subBuilder = QueryBuilder(client);
+      values(subBuilder);
+      valueClause = _compileSubquery(subBuilder);
     } else {
       // Array of values
       final valuesList = values as List;
@@ -1110,6 +1114,14 @@ class QueryCompiler {
     final limit = single['limit'];
     if (limit == null) return '';
 
+    if (client.driverName == 'mssql') {
+      final offset = single['offset'];
+      if (offset == null) {
+        return 'OFFSET 0 ROWS FETCH NEXT ${client.parameter(limit, bindings)} ROWS ONLY';
+      }
+      return '';
+    }
+
     // Add limit value to bindings and get placeholder
     return 'limit ${client.parameter(limit, bindings)}';
   }
@@ -1121,6 +1133,14 @@ class QueryCompiler {
   String _offset() {
     final offset = single['offset'];
     if (offset == null) return '';
+
+    if (client.driverName == 'mssql') {
+      final limit = single['limit'];
+      if (limit == null) {
+        return 'OFFSET ${client.parameter(offset, bindings)} ROWS';
+      }
+      return 'OFFSET ${client.parameter(offset, bindings)} ROWS FETCH NEXT ${client.parameter(limit, bindings)} ROWS ONLY';
+    }
 
     // Add offset value to bindings and get placeholder
     return 'offset ${client.parameter(offset, bindings)}';

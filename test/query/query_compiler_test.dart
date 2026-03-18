@@ -370,6 +370,32 @@ void main() {
       expect(sql.bindings, [10, 20]);
     });
 
+    test('MSSQL LIMIT only uses OFFSET/FETCH', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final builder = QueryBuilder(mssql).table('users').orderBy('id').limit(10);
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" order by "id" asc OFFSET 0 ROWS FETCH NEXT \$1 ROWS ONLY',
+      );
+      expect(sql.bindings, [10]);
+    });
+
+    test('MSSQL OFFSET + LIMIT uses OFFSET/FETCH with both params', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final builder = QueryBuilder(
+        mssql,
+      ).table('users').orderBy('id').offset(20).limit(10);
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" order by "id" asc OFFSET \$1 ROWS FETCH NEXT \$2 ROWS ONLY',
+      );
+      expect(sql.bindings, [20, 10]);
+    });
+
     test('LIMIT with WHERE', () {
       // JS: select * from "users" where "status" = ? limit ?
       final builder = QueryBuilder(
@@ -501,6 +527,22 @@ void main() {
         'select * from "users" where "id" in (\$1, \$2, \$3, \$4, \$5)',
       );
       expect(sql.bindings, [1, 2, 3, 4, 5]);
+    });
+
+    test('whereIn with callback subquery', () {
+      final builder = QueryBuilder(client)
+          .table('users')
+          .where('status', 'active')
+          .whereIn('id', (QueryBuilder qb) {
+            qb.table('accounts').select(['user_id']).where('type', 'premium');
+          });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" where "status" = \$1 and "id" in (select "user_id" from "accounts" where "type" = \$2)',
+      );
+      expect(sql.bindings, ['active', 'premium']);
     });
 
     test('whereNotIn', () {
