@@ -53,8 +53,14 @@ class KnexTurso {
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
       _client.delete(query);
 
-  /// Execute a raw SQL string directly.
-  Future<List<Map<String, dynamic>>> raw(
+  /// Create a raw SQL fragment for use inside QueryBuilder clauses.
+  Raw raw(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) => _TursoSchemaClient().raw(sql, bindings);
+
+  /// Execute a raw SQL statement directly.
+  Future<List<Map<String, dynamic>>> executeRaw(
     String sql, [
     List<dynamic>? bindings,
   ]) => _client.raw(sql, bindings);

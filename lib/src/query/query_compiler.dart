@@ -1323,18 +1323,17 @@ class QueryCompiler {
     var sql = '$funcCall over (';
 
     if (raw != null && raw is Raw) {
-      // Raw OVER clause — JS resolves ?? identifiers via formatter
       final rawSQL = raw.toSQL();
-      // Replace ?? with quoted column identifiers from bindings
-      var resolved = rawSQL.sql;
-      final rawBindings = rawSQL.bindings;
-      for (final binding in rawBindings) {
-        resolved = resolved.replaceFirst(
-          '??',
-          formatter.wrap(binding.toString()),
-        );
+      bindings.addAll(rawSQL.bindings);
+
+      // If caller passes only an order expression (e.g. `"score" desc`),
+      // normalize it to `order by ...` inside OVER(...).
+      var overClause = rawSQL.sql.trim();
+      if (overClause.isNotEmpty &&
+          !_isCompleteAnalyticOverClause(overClause)) {
+        overClause = 'order by $overClause';
       }
-      sql += resolved;
+      sql += overClause;
     } else {
       final partitions = (stmt['partitions'] as List?) ?? [];
       final order = (stmt['order'] as List?) ?? [];
@@ -1382,6 +1381,25 @@ class QueryCompiler {
     }
 
     return sql;
+  }
+
+  bool _isCompleteAnalyticOverClause(String clause) {
+    final trimmed = clause.trim();
+    final lower = trimmed.toLowerCase();
+
+    if (lower.startsWith('partition by ')) return true;
+    if (lower.startsWith('order by ')) return true;
+    if (lower.startsWith('rows ')) return true;
+    if (lower.startsWith('range ')) return true;
+    if (lower.startsWith('groups ')) return true;
+    if (lower.startsWith('exclude ')) return true;
+
+    // Window name reference: OVER(window_name)
+    if (RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(trimmed)) return true;
+    if (RegExp(r'^"[^"]+"$').hasMatch(trimmed)) return true;
+    if (RegExp(r'^\[[^\]]+\]$').hasMatch(trimmed)) return true;
+
+    return false;
   }
 
   /// Compile WITH clauses (CTEs)

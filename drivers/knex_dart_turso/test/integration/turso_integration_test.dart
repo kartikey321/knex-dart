@@ -24,7 +24,7 @@ Future<KnexTurso?> _tryOpen() async {
   try {
     final client = KnexTurso(url: _url, authToken: _token ?? '');
     // Probe with a simple query
-    await client.raw('SELECT 1');
+    await client.executeRaw('SELECT 1');
     return client;
   } catch (e) {
     return null;
