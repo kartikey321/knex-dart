@@ -117,6 +117,8 @@ class ColumnBuilder {
 
     if (!_nullable) {
       parts.add('not null');
+    } else if (dialect == 'mssql') {
+      parts.add('null');
     }
 
     if (_hasDefault) {

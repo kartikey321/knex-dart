@@ -190,12 +190,143 @@ KnexDialect? _resolveDialectFromExpression(Expression expression) {
     return _resolveDialectFromExpression(value.expression);
   }
 
-  if (value is MethodInvocation && value.methodName.name == 'connect') {
+  if (value is InstanceCreationExpression) {
+    return _resolveFromConstructorCall(value);
+  }
+
+  if (value is MethodInvocation) {
+    final methodName = value.methodName.name;
     final target = value.target;
-    return _dialectFromConnectTarget(target);
+
+    // KnexQuery.forDialect(KnexDialect.xxx)
+    if (methodName == 'forDialect') {
+      return _resolveFromForDialectArg(value);
+    }
+
+    // KnexQuery.forClient('pg') / KnexQuery.forClient('mysql2') etc.
+    if (methodName == 'forClient') {
+      return _resolveFromForClientArg(value);
+    }
+
+    // KnexPostgres.connect(...) / KnexMySQL.connect(...) / KnexSQLite.connect(...)
+    if (methodName == 'connect') {
+      return _dialectFromConnectTarget(target);
+    }
+
+    // Named constructors: .cockroachdb(), .redshift(), .mariadb()
+    return _dialectFromNamedConstructor(target, methodName);
   }
 
   return null;
+}
+
+/// Extract dialect from `KnexQuery.forDialect(KnexDialect.xxx)`.
+KnexDialect? _resolveFromForDialectArg(MethodInvocation node) {
+  final args = node.argumentList.arguments;
+  if (args.isEmpty) return null;
+
+  final arg = args.first;
+  // KnexDialect.postgres  →  PrefixedIdentifier or PropertyAccess
+  String? enumValue;
+  if (arg is PrefixedIdentifier) {
+    enumValue = arg.identifier.name; // e.g. 'postgres'
+  } else if (arg is PropertyAccess) {
+    enumValue = arg.propertyName.name;
+  }
+  if (enumValue == null) return null;
+
+  switch (enumValue) {
+    case 'postgres':
+      return KnexDialect.postgres;
+    case 'mysql':
+      return KnexDialect.mysql;
+    case 'sqlite':
+      return KnexDialect.sqlite;
+    case 'mariadb':
+      return KnexDialect.mariadb;
+    case 'redshift':
+      return KnexDialect.redshift;
+    case 'turso':
+      return KnexDialect.turso;
+    case 'd1':
+      return KnexDialect.d1;
+    case 'duckdb':
+      return KnexDialect.duckdb;
+    case 'snowflake':
+      return KnexDialect.snowflake;
+    case 'bigquery':
+      return KnexDialect.bigquery;
+    default:
+      return null;
+  }
+}
+
+/// Extract dialect from `KnexQuery.forClient('pg')`.
+KnexDialect? _resolveFromForClientArg(MethodInvocation node) {
+  final args = node.argumentList.arguments;
+  if (args.isEmpty) return null;
+  final arg = args.first;
+  if (arg is! StringLiteral) return null;
+  return dialectFromDriverName(arg.stringValue);
+}
+
+/// Extract dialect from named constructors:
+///   KnexPostgres.cockroachdb(...) → postgres
+///   KnexPostgres.redshift(...)    → redshift
+///   KnexMySQL.mariadb(...)        → mariadb
+KnexDialect? _dialectFromNamedConstructor(
+  Expression? target,
+  String methodName,
+) {
+  if (target == null) return null;
+
+  String? className;
+  if (target is SimpleIdentifier) {
+    className = target.name;
+  } else if (target is PrefixedIdentifier) {
+    className = target.identifier.name;
+  } else if (target is PropertyAccess) {
+    className = target.propertyName.name;
+  }
+
+  switch (className) {
+    case 'KnexPostgres':
+      switch (methodName) {
+        case 'cockroachdb':
+          return KnexDialect.postgres; // wire-identical to postgres
+        case 'redshift':
+          return KnexDialect.redshift;
+        default:
+          return null;
+      }
+    case 'KnexMySQL':
+      switch (methodName) {
+        case 'mariadb':
+          return KnexDialect.mariadb;
+        default:
+          return null;
+      }
+    default:
+      return null;
+  }
+}
+
+/// Resolve dialect from `InstanceCreationExpression` constructor calls.
+/// e.g. `KnexTurso(...)`, `KnexD1(...)`, `KnexSnowflake(...)`, etc.
+KnexDialect? _resolveFromConstructorCall(InstanceCreationExpression node) {
+  final typeName = node.constructorName.type.name.lexeme;
+  switch (typeName) {
+    case 'KnexTurso':
+      return KnexDialect.turso;
+    case 'KnexD1':
+      return KnexDialect.d1;
+    case 'KnexSnowflake':
+      return KnexDialect.snowflake;
+    case 'KnexBigQuery':
+      return KnexDialect.bigquery;
+    default:
+      return null;
+  }
 }
 
 KnexDialect? _dialectFromConnectTarget(Expression? target) {
@@ -217,6 +348,8 @@ KnexDialect? _dialectFromConnectTarget(Expression? target) {
       return KnexDialect.mysql;
     case 'KnexSQLite':
       return KnexDialect.sqlite;
+    case 'KnexDuckDB':
+      return KnexDialect.duckdb;
     default:
       return null;
   }

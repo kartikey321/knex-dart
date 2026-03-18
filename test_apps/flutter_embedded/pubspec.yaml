@@ -1,0 +1,36 @@
+name: flutter_embedded_test
+description: Flutter integration tests for embedded DB drivers (SQLite, DuckDB).
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Driver packages — resolved from the local monorepo
+  knex_dart_sqlite:
+    path: ../../drivers/knex_dart_sqlite
+  knex_dart_duckdb:
+    path: ../../drivers/knex_dart_duckdb
+
+  # Bundles the SQLite shared library for Android and iOS.
+  # On macOS / Linux / Windows sqlite3 is already on the system.
+  sqlite3_flutter_libs: ^0.5.24
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+# The driver packages have a workspace-resolution dependency on knex_dart.
+# Provide explicit path overrides so pub can resolve them in standalone mode.
+dependency_overrides:
+  knex_dart:
+    path: ../..
+  knex_dart_capabilities:
+    path: ../../packages/knex_dart_capabilities

@@ -1,0 +1,12 @@
+FROM dart:stable
+
+WORKDIR /workspace
+COPY . .
+RUN dart pub get
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/drivers/knex_dart_sqlite
+CMD ["dart", "test"]

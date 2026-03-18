@@ -3,28 +3,23 @@ import 'package:knex_dart/knex_dart.dart';
 import 'mysql_client.dart';
 
 /// MySQL-specific Knex wrapper.
+///
+/// Also supports MariaDB via the named constructor — MariaDB is wire-compatible
+/// with MySQL so no separate package is needed:
+///
+/// ```dart
+/// final db = await KnexMySQL.mariadb(
+///   host: 'localhost', database: 'myapp', user: 'user', password: 'password',
+/// );
+/// ```
 class KnexMySQL {
   final MySQLClient _client;
+  final String _dialectName;
 
-  KnexMySQL._(this._client);
+  KnexMySQL._(this._client, {String dialectName = 'mysql2'})
+    : _dialectName = dialectName;
 
   /// Create a Knex instance connected to MySQL.
-  ///
-  /// Example:
-  /// ```dart
-  /// final db = await KnexMySQL.connect(
-  ///   host: 'localhost',
-  ///   database: 'myapp',
-  ///   user: 'user',
-  ///   password: 'password',
-  /// );
-  ///
-  /// final users = await db.select(
-  ///   db.queryBuilder().from('users').where('active', '=', true)
-  /// );
-  ///
-  /// await db.close();
-  /// ```
   static Future<KnexMySQL> connect({
     required String host,
     int port = 3306,
@@ -44,6 +39,36 @@ class KnexMySQL {
       poolConfig: poolConfig,
     );
     return KnexMySQL._(client);
+  }
+
+  /// Create a Knex instance connected to MariaDB.
+  ///
+  /// MariaDB is wire-compatible with MySQL. Compared to MySQL, MariaDB adds:
+  /// - `RETURNING` clause (10.5+)
+  /// - `FULL OUTER JOIN` support
+  /// - `INTERSECT` / `EXCEPT` (10.3+)
+  ///
+  /// The `driverName` is set to `'mariadb'` so capability checks in
+  /// `knex_dart_lint` and `knex_dart_capabilities` reflect the correct dialect.
+  static Future<KnexMySQL> mariadb({
+    required String host,
+    int port = 3306,
+    required String user,
+    String? password,
+    required String database,
+    bool useSSL = false,
+    PoolConfig poolConfig = const PoolConfig(),
+  }) async {
+    final client = await MySQLClient.connect(
+      host: host,
+      port: port,
+      user: user,
+      password: password,
+      database: database,
+      useSSL: useSSL,
+      poolConfig: poolConfig,
+    );
+    return KnexMySQL._(client, dialectName: 'mariadb');
   }
 
   /// Executes a SELECT-style query and returns rows.
@@ -74,8 +99,8 @@ class KnexMySQL {
     return _client.raw(sql, bindings);
   }
 
-  /// Create a query builder.
-  QueryBuilder queryBuilder() => _MySQLSchemaClient().queryBuilder();
+  /// Create a query builder scoped to the active dialect.
+  QueryBuilder queryBuilder() => _MySQLSchemaClient(_dialectName).queryBuilder();
 
   /// Run a transaction. See [MySQLClient.trx].
   Future<T> trx<T>(Future<T> Function(MySQLTrxClient trx) callback) =>
@@ -85,7 +110,7 @@ class KnexMySQL {
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,
   ) async {
-    final mysqlMock = _MySQLSchemaClient();
+    final mysqlMock = _MySQLSchemaClient(_dialectName);
     final builder = mysqlMock.schemaBuilder();
     callback(builder);
     final statements = builder.toSQL();
@@ -108,11 +133,17 @@ class KnexMySQL {
 // ============================================================================
 
 /// Internal MySQL-flavored schema client for SQL generation only.
+///
+/// Accepts a [dialectName] so MariaDB callers get correct capability checks.
 class _MySQLSchemaClient extends Client {
-  _MySQLSchemaClient() : super(KnexConfig(client: 'mysql2', connection: {}));
+  final String _dialectName;
+
+  _MySQLSchemaClient([String dialectName = 'mysql2'])
+    : _dialectName = dialectName,
+      super(KnexConfig(client: dialectName, connection: {}));
 
   @override
-  String get driverName => 'mysql2';
+  String get driverName => _dialectName;
 
   @override
   SchemaCompiler schemaCompiler(SchemaBuilder builder) =>

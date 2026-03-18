@@ -22,3 +22,6 @@ coverage/
 
 # Build artifacts
 build/
+custom_lint.log
+example/lint_demo/custom_lint.log
+mssql_connection_issue.md

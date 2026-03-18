@@ -13,6 +13,20 @@ String dialectLabel(KnexDialect dialect) {
       return 'mysql';
     case KnexDialect.sqlite:
       return 'sqlite';
+    case KnexDialect.mariadb:
+      return 'mariadb';
+    case KnexDialect.redshift:
+      return 'redshift';
+    case KnexDialect.turso:
+      return 'turso';
+    case KnexDialect.d1:
+      return 'cloudflare-d1';
+    case KnexDialect.duckdb:
+      return 'duckdb';
+    case KnexDialect.snowflake:
+      return 'snowflake';
+    case KnexDialect.bigquery:
+      return 'bigquery';
   }
 }
 

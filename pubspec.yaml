@@ -18,6 +18,12 @@ workspace:
   - drivers/knex_dart_postgres
   - drivers/knex_dart_mysql
   - drivers/knex_dart_sqlite
+  - drivers/knex_dart_turso
+  - drivers/knex_dart_d1
+  - drivers/knex_dart_duckdb
+  - drivers/knex_dart_snowflake
+  - drivers/knex_dart_bigquery
+  - drivers/knex_dart_mssql
   - packages/knex_dart_capabilities
   - packages/knex_dart_lint
 

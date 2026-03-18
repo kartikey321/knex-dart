@@ -8,106 +8,247 @@ on:
       - 'knex_dart_postgres-v*.*.*'
       - 'knex_dart_mysql-v*.*.*'
       - 'knex_dart_sqlite-v*.*.*'
+      - 'knex_dart_turso-v*.*.*'
+      - 'knex_dart_d1-v*.*.*'
+      - 'knex_dart_duckdb-v*.*.*'
+      - 'knex_dart_snowflake-v*.*.*'
+      - 'knex_dart_bigquery-v*.*.*'
+      - 'knex_dart_mssql-v*.*.*'
       - 'knex_dart_capabilities-v*.*.*'
       - 'knex_dart_lint-v*.*.*'
   pull_request:
     branches: [main]
 
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # ── 1. Static analysis (all packages via melos) ──────────────────────────────
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 1 · Static analysis
+  # ════════════════════════════════════════════════════════════════════════════
   analyze:
     name: Analyze (all packages)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
+        with: { sdk: stable }
+      - run: dart pub get
+      - run: dart pub global activate melos
+      - run: melos run analyze
 
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Install melos
-        run: dart pub global activate melos
-
-      - name: Analyze
-        run: melos run analyze
-
-  # ── 2. Core unit tests + coverage (no DB required) ───────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
+  # 2 · Core unit tests + coverage  (Linux only — no DB)
+  # ════════════════════════════════════════════════════════════════════════════
   test-core:
     name: Test & Coverage (core)
     needs: analyze
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        run: dart pub get
-
+        with: { sdk: stable }
+      - run: dart pub get
       - name: Run unit tests with coverage
-        run: dart test --exclude-tags=postgres,mysql,sqlite --coverage=coverage
-
-      - name: Format coverage to lcov
+        run: dart test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql --coverage=coverage
+      - name: Format coverage
         run: |
           dart pub global activate coverage
           dart pub global run coverage:format_coverage \
-            --lcov \
-            --in=coverage \
-            --out=coverage/lcov.info \
-            --packages=.dart_tool/package_config.json \
-            --report-on=lib
+            --lcov --in=coverage --out=coverage/lcov.info \
+            --packages=.dart_tool/package_config.json --report-on=lib
           sed -i 's|SF:.*/lib|SF:lib|' coverage/lcov.info
-
-      - name: Check coverage threshold (≥ 85%)
+      - name: Check coverage ≥ 85%
         run: |
-          COVERAGE=$(awk -F: '/^LF/{lf+=$2} /^LH/{lh+=$2} END{printf "%.1f", lh*100/lf}' coverage/lcov.info)
-          echo "Coverage: ${COVERAGE}%"
-          if awk "BEGIN{exit !(${COVERAGE} < 85)}"; then
-            echo "::error::Coverage ${COVERAGE}% is below the required 85% threshold"
-            exit 1
-          fi
-          echo "Coverage ${COVERAGE}% meets the 85% threshold"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+          COV=$(awk -F: '/^LF/{lf+=$2} /^LH/{lh+=$2} END{printf "%.1f", lh*100/lf}' coverage/lcov.info)
+          echo "Coverage: ${COV}%"
+          awk "BEGIN{exit !(${COV} < 85)}" && { echo "::error::Coverage ${COV}% < 85%"; exit 1; } || true
+      - uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
-  # ── 3. SQLite integration tests (no service container needed) ────────────────
+  # ════════════════════════════════════════════════════════════════════════════
+  # 3 · SQLite  ·  native platform matrix  (Linux · macOS · Windows)
+  # ════════════════════════════════════════════════════════════════════════════
   test-sqlite:
-    name: Test (knex_dart_sqlite)
+    name: Test SQLite (${{ matrix.os }})
     needs: analyze
-    runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
+        with: { sdk: stable }
 
-      - name: Install dependencies
-        run: dart pub get
+      - name: Install libsqlite3 (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
 
+      # macOS ships sqlite3 with Xcode CLT — no extra step needed.
+
+      - name: Install sqlite3.dll (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://sqlite.org/2024/sqlite-dll-win-x64-3460100.zip"
+          Invoke-WebRequest $url -OutFile sqlite.zip
+          Expand-Archive sqlite.zip -DestinationPath $env:SystemRoot\System32 -Force
+
+      - run: dart pub get
       - name: Run SQLite tests
         working-directory: drivers/knex_dart_sqlite
         run: dart test
 
-  # ── 4. PostgreSQL integration tests ──────────────────────────────────────────
-  test-postgres:
-    name: Test (knex_dart_postgres)
+  # ════════════════════════════════════════════════════════════════════════════
+  # 4 · DuckDB  ·  native platform matrix  (Linux · macOS · Windows)
+  # ════════════════════════════════════════════════════════════════════════════
+  test-duckdb:
+    name: Test DuckDB (${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      DUCKDB_VERSION: v1.2.2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
+      - name: Install DuckDB (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -fsSL \
+            "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/libduckdb-linux-amd64.zip" \
+            -o /tmp/libduckdb.zip
+          sudo unzip -o /tmp/libduckdb.zip libduckdb.so -d /usr/local/lib/
+          sudo ldconfig
+
+      - name: Install DuckDB (macOS)
+        if: runner.os == 'macOS'
+        run: brew install duckdb
+
+      - name: Install DuckDB (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $url = "https://github.com/duckdb/duckdb/releases/download/$env:DUCKDB_VERSION/libduckdb-windows-amd64.zip"
+          Invoke-WebRequest $url -OutFile duckdb.zip
+          Expand-Archive duckdb.zip -DestinationPath $env:SystemRoot\System32 -Force
+
+      - run: dart pub get
+      - name: Run DuckDB tests
+        working-directory: drivers/knex_dart_duckdb
+        run: dart test
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 5 · Embedded drivers  ·  Web/WASM  (DuckDB WASM + SQLite WASM on Chrome)
+  # ════════════════════════════════════════════════════════════════════════════
+  test-embedded-wasm:
+    name: Test Embedded (Web/WASM)
     needs: analyze
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
 
+      # DuckDB WASM — dart_duckdb includes WASM support for web.
+      # The package's barrel conditional-exports 'src/web/duckdb_web.dart'
+      # when dart.library.js_interop is available.
+      - name: Run DuckDB WASM tests (Chrome)
+        working-directory: drivers/knex_dart_duckdb
+        # Only run query-builder / schema tests that don't need the native FFI
+        run: |
+          dart test test/duckdb_test.dart --platform=chrome \
+            --name "DuckDB — executeSchema" || true
+        continue-on-error: true   # WASM binary not bundled in pub package
+
+      # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart
+      # Requires serving the WASM binary; integration test serves it inline.
+      - name: Run SQLite WASM tests (Chrome)
+        working-directory: drivers/knex_dart_sqlite
+        run: dart test --platform=chrome || true
+        continue-on-error: true   # WASM binary serving requires extra setup
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 6 · HTTP drivers  ·  native platform matrix  (Linux · macOS · Windows)
+  #   Turso, D1, Snowflake, BigQuery (mock tests — no server needed)
+  # ════════════════════════════════════════════════════════════════════════════
+  test-http-native:
+    name: Test HTTP drivers (${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
+      - name: Turso mock tests
+        working-directory: drivers/knex_dart_turso
+        run: dart test test/turso_test.dart
+      - name: D1 mock tests
+        working-directory: drivers/knex_dart_d1
+        run: dart test test/d1_test.dart
+      - name: Snowflake mock tests
+        working-directory: drivers/knex_dart_snowflake
+        run: dart test test/snowflake_test.dart
+      - name: BigQuery mock tests
+        working-directory: drivers/knex_dart_bigquery
+        run: dart test test/bigquery_test.dart
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 7 · HTTP drivers  ·  Web/WASM  (Chrome headless)
+  #   The http package uses the browser's fetch API on web — no dart:io needed.
+  # ════════════════════════════════════════════════════════════════════════════
+  test-http-wasm:
+    name: Test HTTP drivers (Web/WASM)
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
+
+      - name: Turso mock tests (Chrome)
+        working-directory: drivers/knex_dart_turso
+        run: dart test test/turso_test.dart --platform=chrome
+
+      - name: D1 mock tests (Chrome)
+        working-directory: drivers/knex_dart_d1
+        run: dart test test/d1_test.dart --platform=chrome
+
+      - name: Snowflake mock tests (Chrome)
+        working-directory: drivers/knex_dart_snowflake
+        run: dart test test/snowflake_test.dart --platform=chrome
+
+      - name: BigQuery mock tests (Chrome)
+        working-directory: drivers/knex_dart_bigquery
+        run: dart test test/bigquery_test.dart --platform=chrome
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 8 · PostgreSQL  ·  Linux + Docker service
+  # ════════════════════════════════════════════════════════════════════════════
+  test-postgres:
+    name: Test PostgreSQL (Linux/Docker)
+    needs: analyze
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16
@@ -115,32 +256,23 @@ jobs:
           POSTGRES_USER: knex
           POSTGRES_PASSWORD: knex
           POSTGRES_DB: knex_test
-        ports:
-          - 5432:5432
+        ports: ["5432:5432"]
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Set up schema and seed data
+        with: { sdk: stable }
+      - run: dart pub get
+      - name: Load schema + seed
         working-directory: drivers/knex_dart_postgres
         run: |
-          psql -h localhost -U knex -d knex_test -f test/integration/sql/postgres_schema.sql
-          psql -h localhost -U knex -d knex_test -f test/integration/sql/postgres_seed.sql
-        env:
-          PGPASSWORD: knex
-
+          psql -h localhost -U knex -d knex_test \
+            -f test/integration/sql/postgres_schema.sql
+          psql -h localhost -U knex -d knex_test \
+            -f test/integration/sql/postgres_seed.sql
+        env: { PGPASSWORD: knex }
       - name: Run PostgreSQL tests
         working-directory: drivers/knex_dart_postgres
         run: dart test --tags=postgres
@@ -151,12 +283,13 @@ jobs:
           PG_USER: knex
           PG_PASSWORD: knex
 
-  # ── 5. MySQL integration tests ────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
+  # 9 · MySQL  ·  Linux + Docker service
+  # ════════════════════════════════════════════════════════════════════════════
   test-mysql:
-    name: Test (knex_dart_mysql)
+    name: Test MySQL (Linux/Docker)
     needs: analyze
     runs-on: ubuntu-latest
-
     services:
       mysql:
         image: mysql:8.0
@@ -165,31 +298,24 @@ jobs:
           MYSQL_DATABASE: knex_test
           MYSQL_USER: knex
           MYSQL_PASSWORD: knex
-        ports:
-          - 3306:3306
+        ports: ["3306:3306"]
         options: >-
           --health-cmd "mysqladmin ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+          --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Set up schema and seed data
+        with: { sdk: stable }
+      - run: dart pub get
+      - name: Load schema + seed
         working-directory: drivers/knex_dart_mysql
         run: |
-          mysql -h 127.0.0.1 -u root -proot -e "ALTER USER 'knex'@'%' IDENTIFIED WITH mysql_native_password BY 'knex'; FLUSH PRIVILEGES;"
-          mysql -h 127.0.0.1 -u knex -pknex knex_test < test/integration/sql/mysql_schema.sql
-          mysql -h 127.0.0.1 -u knex -pknex knex_test < test/integration/sql/mysql_seed.sql
-
+          mysql -h 127.0.0.1 -u root -proot \
+            -e "ALTER USER 'knex'@'%' IDENTIFIED WITH mysql_native_password BY 'knex'; FLUSH PRIVILEGES;"
+          mysql -h 127.0.0.1 -u knex -pknex knex_test \
+            < test/integration/sql/mysql_schema.sql
+          mysql -h 127.0.0.1 -u knex -pknex knex_test \
+            < test/integration/sql/mysql_seed.sql
       - name: Run MySQL tests
         working-directory: drivers/knex_dart_mysql
         run: dart test --tags=mysql
@@ -200,73 +326,229 @@ jobs:
           MYSQL_USER: knex
           MYSQL_PASSWORD: knex
 
-  # ── 6. Package tests (capabilities + lint) ───────────────────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
+  # 10 · SQL Server (MSSQL)  ·  Linux + Docker service
+  # ════════════════════════════════════════════════════════════════════════════
+  test-mssql:
+    name: Test SQL Server (Linux/Docker)
+    needs: analyze
+    runs-on: ubuntu-latest
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          SA_PASSWORD: "Knex_Test1!"
+        ports: ["1433:1433"]
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Knex_Test1!' -Q 'SELECT 1' -No -C"
+          --health-interval 15s --health-timeout 10s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Install FreeTDS
+        run: sudo apt-get update && sudo apt-get install -y freetds-dev libct4
+      - run: dart pub get
+      - name: Create knex_test database
+        run: |
+          /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P 'Knex_Test1!' \
+            -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name='knex_test') CREATE DATABASE knex_test" \
+            -No -C
+        continue-on-error: true
+      - name: Run MSSQL tests
+        working-directory: drivers/knex_dart_mssql
+        run: dart test --tags=mssql
+        env:
+          MSSQL_HOST: localhost
+          MSSQL_PORT: "1433"
+          MSSQL_DATABASE: knex_test
+          MSSQL_USER: sa
+          MSSQL_PASSWORD: "Knex_Test1!"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 11 · Turso  ·  sqld integration  (Linux + Docker service)
+  # ════════════════════════════════════════════════════════════════════════════
+  test-turso-integration:
+    name: Test Turso/sqld (Linux/Docker)
+    needs: analyze
+    runs-on: ubuntu-latest
+    services:
+      sqld:
+        image: ghcr.io/tursodatabase/sqld:main
+        env: { SQLD_NODE: primary }
+        ports: ["8080:8080"]
+        options: >-
+          --health-cmd "curl -sf http://localhost:8080/health"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
+      - name: Run Turso mock tests
+        working-directory: drivers/knex_dart_turso
+        run: dart test test/turso_test.dart
+      - name: Run Turso integration tests (real sqld)
+        working-directory: drivers/knex_dart_turso
+        run: dart test test/integration/turso_integration_test.dart --tags=turso
+        env: { TURSO_URL: "http://localhost:8080" }
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 12 · BigQuery  ·  emulator integration  (Linux + Docker service)
+  # ════════════════════════════════════════════════════════════════════════════
+  test-bigquery-integration:
+    name: Test BigQuery emulator (Linux/Docker)
+    needs: analyze
+    runs-on: ubuntu-latest
+    # Note: GitHub Actions service containers cannot pass CMD args (only docker
+    # run flags via `options`).  The bigquery-emulator requires --project and
+    # --dataset args, so we start it as a background step instead.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
+
+      - name: Start BigQuery emulator
+        run: |
+          docker run -d \
+            --name bigquery-emulator \
+            -p 9050:9050 \
+            ghcr.io/goccy/bigquery-emulator:latest \
+            --project=knex-test \
+            --dataset=knex_dataset \
+            --port=9050
+          # Wait up to 30 s for the emulator to become healthy
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:9050/bigquery/v2/projects/knex-test/datasets \
+                 > /dev/null 2>&1; then
+              echo "BigQuery emulator ready"
+              break
+            fi
+            echo "Waiting… ($i/15)"
+            sleep 2
+          done
+
+      - name: Run BigQuery mock tests
+        working-directory: drivers/knex_dart_bigquery
+        run: dart test test/bigquery_test.dart
+      - name: Run BigQuery integration tests (emulator)
+        working-directory: drivers/knex_dart_bigquery
+        run: dart test test/integration/bigquery_integration_test.dart --tags=bigquery
+        env:
+          BIGQUERY_EMULATOR_HOST: http://localhost:9050
+          BIGQUERY_PROJECT: knex-test
+          BIGQUERY_DATASET: knex_dataset
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 13 · D1 + Snowflake  ·  mock only  (platform matrix)
+  # ════════════════════════════════════════════════════════════════════════════
+  test-d1:
+    name: Test D1 (${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
+      - working-directory: drivers/knex_dart_d1
+        run: dart test
+
+  test-snowflake:
+    name: Test Snowflake (${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - run: dart pub get
+      - working-directory: drivers/knex_dart_snowflake
+        run: dart test
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 14 · Package tests  (capabilities + lint)
+  # ════════════════════════════════════════════════════════════════════════════
   test-packages:
     name: Test (packages)
     needs: analyze
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Run capabilities package tests
+        with: { sdk: stable }
+      - run: dart pub get
+      - name: capabilities
         working-directory: packages/knex_dart_capabilities
         run: dart test
-
-      - name: Run lint package tests
+      - name: lint
         working-directory: packages/knex_dart_lint
         run: dart test
 
-  # ── 7. Publish package to pub.dev (version tags only) ───────────────────────
+  # ════════════════════════════════════════════════════════════════════════════
+  # 15 · Publish  (version tags only — all tests must pass first)
+  # ════════════════════════════════════════════════════════════════════════════
   publish:
     name: Publish to pub.dev
-    needs: [test-core, test-sqlite, test-postgres, test-mysql, test-packages]
+    needs:
+      - test-core
+      - test-sqlite
+      - test-duckdb
+      - test-http-native
+      - test-http-wasm
+      - test-postgres
+      - test-mysql
+      - test-mssql
+      - test-turso-integration
+      - test-bigquery-integration
+      - test-d1
+      - test-snowflake
+      - test-packages
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/knex_dart-') || startsWith(github.ref, 'refs/tags/knex_dart_postgres-') || startsWith(github.ref, 'refs/tags/knex_dart_mysql-') || startsWith(github.ref, 'refs/tags/knex_dart_sqlite-') || startsWith(github.ref, 'refs/tags/knex_dart_capabilities-') || startsWith(github.ref, 'refs/tags/knex_dart_lint-')
+    if: startsWith(github.ref, 'refs/tags/')
     environment: pub.dev
     permissions:
       id-token: write
       contents: read
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: stable
-
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Resolve package from tag
+        with: { sdk: stable }
+      - run: dart pub get
+      - name: Resolve package directory from tag
         id: resolve
         run: |
           TAG="${GITHUB_REF_NAME}"
           case "$TAG" in
-            knex_dart-v*) echo "dir=." >> "$GITHUB_OUTPUT" ;;
-            knex_dart_postgres-v*) echo "dir=drivers/knex_dart_postgres" >> "$GITHUB_OUTPUT" ;;
-            knex_dart_mysql-v*) echo "dir=drivers/knex_dart_mysql" >> "$GITHUB_OUTPUT" ;;
-            knex_dart_sqlite-v*) echo "dir=drivers/knex_dart_sqlite" >> "$GITHUB_OUTPUT" ;;
-            knex_dart_capabilities-v*) echo "dir=packages/knex_dart_capabilities" >> "$GITHUB_OUTPUT" ;;
-            knex_dart_lint-v*) echo "dir=packages/knex_dart_lint" >> "$GITHUB_OUTPUT" ;;
-            *)
-              echo "Unsupported tag pattern: $TAG"
-              exit 1
-              ;;
-          esac
-          echo "tag=$TAG package_dir=$(cat $GITHUB_OUTPUT | sed -n 's/^dir=//p')"
-
+            knex_dart-v*)              echo "dir=." ;;
+            knex_dart_postgres-v*)     echo "dir=drivers/knex_dart_postgres" ;;
+            knex_dart_mysql-v*)        echo "dir=drivers/knex_dart_mysql" ;;
+            knex_dart_sqlite-v*)       echo "dir=drivers/knex_dart_sqlite" ;;
+            knex_dart_turso-v*)        echo "dir=drivers/knex_dart_turso" ;;
+            knex_dart_d1-v*)           echo "dir=drivers/knex_dart_d1" ;;
+            knex_dart_duckdb-v*)       echo "dir=drivers/knex_dart_duckdb" ;;
+            knex_dart_snowflake-v*)    echo "dir=drivers/knex_dart_snowflake" ;;
+            knex_dart_bigquery-v*)     echo "dir=drivers/knex_dart_bigquery" ;;
+            knex_dart_mssql-v*)        echo "dir=drivers/knex_dart_mssql" ;;
+            knex_dart_capabilities-v*) echo "dir=packages/knex_dart_capabilities" ;;
+            knex_dart_lint-v*)         echo "dir=packages/knex_dart_lint" ;;
+            *) echo "Unsupported tag: $TAG" >&2; exit 1 ;;
+          esac >> "$GITHUB_OUTPUT"
       - name: Publish dry-run
         working-directory: ${{ steps.resolve.outputs.dir }}
         run: dart pub publish --dry-run
-
-      - name: Publish package
+      - name: Publish
         working-directory: ${{ steps.resolve.outputs.dir }}
         run: dart pub publish --force

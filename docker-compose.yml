@@ -1,33 +1,60 @@
 version: '3.8'
 
+# Local development stack for knex-dart.
+#
+# ── Start database servers only ──────────────────────────────────────────────
+#   docker compose up postgres mysql mssql sqld bigquery -d
+#   docker compose up --profile db -d          # all DB services
+#
+# ── Run tests inside Docker (no local Dart needed) ───────────────────────────
+#   docker compose --profile test run --rm dart-test-http
+#   docker compose --profile test run --rm dart-test-sqlite
+#   docker compose --profile test run --rm dart-test-duckdb
+#   docker compose --profile test run --rm dart-test-postgres
+#   docker compose --profile test run --rm dart-test-mysql
+#   docker compose --profile test run --rm dart-test-mssql
+#   docker compose --profile test run --rm dart-test-turso
+#   docker compose --profile test run --rm dart-test-bigquery
+#
+# ── Tear everything down ─────────────────────────────────────────────────────
+#   docker compose down -v
+
+# =============================================================================
+# DATABASE SERVICES  (profile: db)
+# =============================================================================
+
 services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: knex_dart_postgres
+    profiles: [db, postgres]
     environment:
       POSTGRES_DB: knex_test
-      POSTGRES_USER: test
-      POSTGRES_PASSWORD: test
+      POSTGRES_USER: knex
+      POSTGRES_PASSWORD: knex
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U test -d knex_test"]
+      test: ["CMD-SHELL", "pg_isready -U knex -d knex_test"]
       interval: 5s
       timeout: 5s
       retries: 5
     volumes:
-      - ./test/integration/sql/postgres_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./test/integration/sql/postgres_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+      - ./drivers/knex_dart_postgres/test/integration/sql/postgres_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./drivers/knex_dart_postgres/test/integration/sql/postgres_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
 
-  # MySQL - Coming in Phase 2
+  # ── MySQL ──────────────────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: knex_dart_mysql
+    profiles: [db, mysql]
     command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_DATABASE: knex_test
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
+      MYSQL_USER: knex
+      MYSQL_PASSWORD: knex
       MYSQL_ROOT_PASSWORD: root
     ports:
       - "3306:3306"
@@ -37,5 +64,204 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - ./test/integration/sql/mysql_schema.sql:/docker-entrypoint-initdb.d/00_schema.sql
-      - ./test/integration/sql/mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+      - ./drivers/knex_dart_mysql/test/integration/sql/mysql_schema.sql:/docker-entrypoint-initdb.d/00_schema.sql
+      - ./drivers/knex_dart_mysql/test/integration/sql/mysql_seed.sql:/docker-entrypoint-initdb.d/01_seed.sql
+
+  # ── Microsoft SQL Server ───────────────────────────────────────────────────
+  mssql:
+    # Azure SQL Edge has native ARM64 support — use it on Apple Silicon.
+    # On x86 CI you can swap back to mcr.microsoft.com/mssql/server:2022-latest.
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    container_name: knex_dart_mssql
+    profiles: [db, mssql]
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "Knex_Test1!"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    healthcheck:
+      # Azure SQL Edge doesn't ship sqlcmd. Checking the TCP port alone is prone to crashing if the engine
+      # isn't fully ready. Instead, verify both the TCP port and that recovery finished in the error log.
+      test: ["CMD-SHELL", 'bash -c "exec 3<>/dev/tcp/localhost/1433 && grep -q ''Recovery is complete'' /var/opt/mssql/log/errorlog"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── SQL Server schema init (one-shot) ─────────────────────────────────────
+  mssql-init:
+    # mssql/server:2022-latest ships sqlcmd at /opt/mssql-tools18/bin/sqlcmd.
+    # The old mcr.microsoft.com/mssql-tools image has a 2018-era sqlcmd that
+    # cannot connect to Azure SQL Edge. mssql/server:2022 is amd64, runs via
+    # Rosetta on Apple Silicon, and its sqlcmd works reliably with Azure SQL Edge.
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: knex_dart_mssql_init
+    profiles: [db, mssql, test]
+    depends_on:
+      mssql:
+        condition: service_healthy
+    volumes:
+      - ./drivers/knex_dart_mssql/test/integration/sql:/sql:ro
+    entrypoint:
+      - /bin/bash
+      - -ceu
+      - |
+        for i in $(seq 1 30); do
+          /opt/mssql-tools18/bin/sqlcmd \
+            -S mssql -U sa -P 'Knex_Test1!' \
+            -Q 'SELECT 1' -C -No >/dev/null 2>&1 && break
+          echo "Waiting for SQL Server... ($${i}/30)"
+          sleep 2
+        done
+        /opt/mssql-tools18/bin/sqlcmd \
+          -S mssql -U sa -P 'Knex_Test1!' \
+          -d master \
+          -i /sql/mssql_schema.sql \
+          -C -No
+        if [ -f /sql/mssql_seed.sql ]; then
+          /opt/mssql-tools18/bin/sqlcmd \
+            -S mssql -U sa -P 'Knex_Test1!' \
+            -d knex_test \
+            -i /sql/mssql_seed.sql \
+            -C -No
+        fi
+    restart: "no"
+
+
+  # ── sqld — Turso / libSQL ──────────────────────────────────────────────────
+  sqld:
+    image: ghcr.io/libsql/sqld:latest
+    container_name: knex_dart_sqld
+    profiles: [db, turso]
+    environment:
+      SQLD_NODE: primary
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080 && echo OK >&3' 2>/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── BigQuery emulator ──────────────────────────────────────────────────────
+  bigquery:
+    image: ghcr.io/goccy/bigquery-emulator:latest
+    platform: linux/amd64
+    container_name: knex_dart_bigquery
+    profiles: [db, bigquery]
+    command:
+      - "--project=knex-test"
+      - "--dataset=knex_dataset"
+      - "--port=9050"
+    ports:
+      - "9050:9050"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/9050' 2>/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+# =============================================================================
+# TEST RUNNER SERVICES  (profile: test)
+# Each service builds the matching per-driver Dockerfile and runs tests against
+# the corresponding DB service.  Use `docker compose run --rm <service>`.
+# =============================================================================
+
+  # ── HTTP drivers (no DB service needed) ────────────────────────────────────
+  dart-test-http:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.http
+    profiles: [test]
+
+  # ── SQLite ─────────────────────────────────────────────────────────────────
+  dart-test-sqlite:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.sqlite
+    profiles: [test]
+
+  # ── DuckDB ─────────────────────────────────────────────────────────────────
+  dart-test-duckdb:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.duckdb
+    profiles: [test]
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  dart-test-postgres:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.postgres
+    profiles: [test]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DATABASE: knex_test
+      PG_USER: knex
+      PG_PASSWORD: knex
+
+  # ── MySQL ──────────────────────────────────────────────────────────────────
+  dart-test-mysql:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.mysql
+    profiles: [test]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: knex_test
+      MYSQL_USER: knex
+      MYSQL_PASSWORD: knex
+
+  # ── SQL Server ─────────────────────────────────────────────────────────────
+  dart-test-mssql:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.mssql
+    profiles: [test]
+    depends_on:
+      mssql:
+        condition: service_healthy
+      mssql-init:
+        condition: service_completed_successfully
+    environment:
+      MSSQL_HOST: mssql
+      MSSQL_PORT: "1433"
+      MSSQL_DATABASE: knex_test
+      MSSQL_USER: sa
+      MSSQL_PASSWORD: "Knex_Test1!"
+
+  # ── Turso / sqld integration ───────────────────────────────────────────────
+  dart-test-turso:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.turso
+    profiles: [test]
+    depends_on:
+      sqld:
+        condition: service_healthy
+    environment:
+      TURSO_URL: http://sqld:8080
+
+  # ── BigQuery emulator integration ──────────────────────────────────────────
+  dart-test-bigquery:
+    build:
+      context: .
+      dockerfile: docker/drivers/Dockerfile.bigquery
+    profiles: [test]
+    depends_on:
+      bigquery:
+        condition: service_healthy
+    environment:
+      BIGQUERY_EMULATOR_HOST: http://bigquery:9050
+      BIGQUERY_PROJECT: knex-test
+      BIGQUERY_DATASET: knex_dataset
