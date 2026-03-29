@@ -1,0 +1,8 @@
+secrets:
+  ignored_paths:
+    # CI uses intentionally fake credentials for ephemeral test services.
+    - ".github/workflows/ci.yml"
+    # Docs and READMEs contain illustrative placeholder credentials.
+    - "README.md"
+    - "docs/site/content/**/*.md"
+    - "drivers/**/README.md"

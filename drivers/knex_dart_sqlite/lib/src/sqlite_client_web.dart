@@ -16,10 +16,10 @@ class SQLiteClient extends Client {
   SQLiteClient._(this._filename, this._wasmUri, KnexConfig config)
     : super(config);
 
-  static final Uri _defaultWasmUri = Uri.parse(
+  static final Uri _defaultWasmUri = Uri.parse('sqlite3.wasm');
+  static final Uri _legacyWasmUri = Uri.parse(
     'packages/sqlite3/src/wasm/sqlite3.wasm',
   );
-  static final Uri _legacyWasmUri = Uri.parse('sqlite3.wasm');
 
   /// Create a SQLite client directly from [KnexConfig].
   ///

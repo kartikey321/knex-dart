@@ -181,7 +181,28 @@ jobs:
       - run: flutter pub get
 
       # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart
-      # Requires serving the WASM binary; integration test serves it inline.
+      # The sqlite3.wasm binary must be present in the package root when tests run.
+      - name: Download SQLite WASM asset
+        working-directory: drivers/knex_dart_sqlite
+        run: |
+          SQLITE3_VERSION="$(ruby -rjson -e '
+            cfg = JSON.parse(File.read("../../.dart_tool/package_config.json"))
+            pkg = cfg["packages"].find { |p| p["name"] == "sqlite3" }
+            abort("sqlite3 package not found in package_config") unless pkg
+            root = pkg["rootUri"]
+            root = root.sub(%r{\Afile://}, "") if root.start_with?("file://")
+            root = File.expand_path(root, "../../.dart_tool") unless root.start_with?("/")
+            version = File.basename(root)[/^sqlite3-(.+)$/, 1]
+            abort("Could not infer sqlite3 version from #{root}") unless version
+            puts version
+          ')"
+
+          URL_PRIMARY="https://github.com/simolus3/sqlite3.dart/releases/download/v${SQLITE3_VERSION}/sqlite3.wasm"
+          URL_FALLBACK="https://github.com/simolus3/sqlite3.dart/releases/download/${SQLITE3_VERSION}/sqlite3.wasm"
+
+          curl -fL "$URL_PRIMARY" -o sqlite3.wasm || curl -fL "$URL_FALLBACK" -o sqlite3.wasm
+          ls -lh sqlite3.wasm
+
       - name: Run SQLite WASM tests (Chrome)
         working-directory: drivers/knex_dart_sqlite
         run: dart test --platform=chrome
