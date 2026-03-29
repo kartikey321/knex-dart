@@ -65,7 +65,10 @@ jobs:
         run: |
           COV=$(awk -F: '/^LF/{lf+=$2} /^LH/{lh+=$2} END{printf "%.1f", lh*100/lf}' coverage/lcov.info)
           echo "Coverage: ${COV}%"
-          awk "BEGIN{exit !(${COV} < 85)}" && { echo "::error::Coverage ${COV}% < 85%"; exit 1; } || true
+          if awk "BEGIN{exit !(${COV} < 85)}"; then
+            echo "::error::Coverage ${COV}% < 85%"
+            exit 1
+          fi
       - uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -151,11 +154,24 @@ jobs:
         working-directory: drivers/knex_dart_duckdb
         run: dart test
 
+      - name: Download DuckDB WASM assets
+        if: runner.os == 'Linux'
+        working-directory: drivers/knex_dart_duckdb
+        run: dart run tool/download_wasm.dart
+
+      - name: Run DuckDB WASM tests (Chrome)
+        if: runner.os == 'Linux'
+        working-directory: drivers/knex_dart_duckdb
+        # Only run query-builder / schema tests that don't need the native FFI.
+        run: |
+          dart test test/duckdb_test.dart --platform=chrome \
+            --name "DuckDB — executeSchema"
+
   # ════════════════════════════════════════════════════════════════════════════
-  # 5 · Embedded drivers  ·  Web/WASM  (DuckDB WASM + SQLite WASM on Chrome)
+  # 5 · Embedded drivers  ·  Web/WASM  (SQLite WASM on Chrome)
   # ════════════════════════════════════════════════════════════════════════════
   test-embedded-wasm:
-    name: Test Embedded (Web/WASM)
+    name: Test SQLite (Web/WASM)
     needs: analyze
     runs-on: ubuntu-latest
     steps:
@@ -164,30 +180,18 @@ jobs:
         with: { channel: stable }
       - run: flutter pub get
 
-      # DuckDB WASM — dart_duckdb includes WASM support for web.
-      # The package's barrel conditional-exports 'src/web/duckdb_web.dart'
-      # when dart.library.js_interop is available.
-      - name: Run DuckDB WASM tests (Chrome)
-        working-directory: drivers/knex_dart_duckdb
-        # Only run query-builder / schema tests that don't need the native FFI
-        run: |
-          dart test test/duckdb_test.dart --platform=chrome \
-            --name "DuckDB — executeSchema" || true
-        continue-on-error: true   # WASM binary not bundled in pub package
-
       # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart
       # Requires serving the WASM binary; integration test serves it inline.
       - name: Run SQLite WASM tests (Chrome)
         working-directory: drivers/knex_dart_sqlite
-        run: dart test --platform=chrome || true
-        continue-on-error: true   # WASM binary serving requires extra setup
+        run: dart test --platform=chrome
 
   # ════════════════════════════════════════════════════════════════════════════
   # 6 · HTTP drivers  ·  native platform matrix  (Linux · macOS · Windows)
-  #   Turso, D1, Snowflake, BigQuery (mock tests — no server needed)
+  #   Split by driver so one failure doesn't block the others.
   # ════════════════════════════════════════════════════════════════════════════
-  test-http-native:
-    name: Test HTTP drivers (${{ matrix.os }})
+  test-http-native-turso:
+    name: Test Turso (native, ${{ matrix.os }})
     needs: analyze
     strategy:
       fail-fast: false
@@ -202,12 +206,54 @@ jobs:
       - name: Turso mock tests
         working-directory: drivers/knex_dart_turso
         run: dart test test/turso_test.dart
+
+  test-http-native-d1:
+    name: Test D1 (native, ${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: D1 mock tests
         working-directory: drivers/knex_dart_d1
         run: dart test test/d1_test.dart
+
+  test-http-native-snowflake:
+    name: Test Snowflake (native, ${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: Snowflake mock tests
         working-directory: drivers/knex_dart_snowflake
         run: dart test test/snowflake_test.dart
+
+  test-http-native-bigquery:
+    name: Test BigQuery (native, ${{ matrix.os }})
+    needs: analyze
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable }
+      - run: flutter pub get
       - name: BigQuery mock tests
         working-directory: drivers/knex_dart_bigquery
         run: dart test test/bigquery_test.dart
@@ -448,42 +494,7 @@ jobs:
           BIGQUERY_DATASET: knex_dataset
 
   # ════════════════════════════════════════════════════════════════════════════
-  # 13 · D1 + Snowflake  ·  mock only  (platform matrix)
-  # ════════════════════════════════════════════════════════════════════════════
-  test-d1:
-    name: Test D1 (${{ matrix.os }})
-    needs: analyze
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
-      - working-directory: drivers/knex_dart_d1
-        run: dart test
-
-  test-snowflake:
-    name: Test Snowflake (${{ matrix.os }})
-    needs: analyze
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
-      - working-directory: drivers/knex_dart_snowflake
-        run: dart test
-
-  # ════════════════════════════════════════════════════════════════════════════
-  # 14 · Package tests  (capabilities + lint)
+  # 13 · Package tests  (capabilities + lint)
   # ════════════════════════════════════════════════════════════════════════════
   test-packages:
     name: Test (packages)
@@ -502,7 +513,7 @@ jobs:
         run: dart test
 
   # ════════════════════════════════════════════════════════════════════════════
-  # 15 · Publish  (version tags only — all tests must pass first)
+  # 14 · Publish  (version tags only — all tests must pass first)
   # ════════════════════════════════════════════════════════════════════════════
   publish:
     name: Publish to pub.dev
@@ -510,15 +521,16 @@ jobs:
       - test-core
       - test-sqlite
       - test-duckdb
-      - test-http-native
+      - test-http-native-turso
+      - test-http-native-d1
+      - test-http-native-snowflake
+      - test-http-native-bigquery
       - test-http-wasm
       - test-postgres
       - test-mysql
       - test-mssql
       - test-turso-integration
       - test-bigquery-integration
-      - test-d1
-      - test-snowflake
       - test-packages
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')

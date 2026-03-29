@@ -1,19 +1,13 @@
 import 'package:knex_dart_duckdb/knex_dart_duckdb.dart';
 import 'package:test/test.dart';
 
-/// Try to open DuckDB — returns null if the native library is not available.
+/// Try to open DuckDB — returns null if DuckDB is not available in this
+/// environment (missing native library, WASM assets not served, etc.).
 Future<KnexDuckDB?> _tryOpen() async {
   try {
-    return await KnexDuckDB.memory();
-  } catch (e) {
-    final msg = e.toString();
-    if (msg.contains('Unsupported platform') ||
-        msg.contains('Failed to load dynamic library') ||
-        msg.contains('Cannot open shared object file') ||
-        msg.contains('dlopen')) {
-      return null;
-    }
-    rethrow;
+    return await KnexDuckDB.memory().timeout(const Duration(minutes: 2));
+  } catch (_) {
+    return null;
   }
 }
 

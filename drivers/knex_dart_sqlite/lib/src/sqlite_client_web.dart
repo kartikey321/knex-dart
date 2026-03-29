@@ -16,7 +16,10 @@ class SQLiteClient extends Client {
   SQLiteClient._(this._filename, this._wasmUri, KnexConfig config)
     : super(config);
 
-  static final Uri _defaultWasmUri = Uri.parse('sqlite3.wasm');
+  static final Uri _defaultWasmUri = Uri.parse(
+    'packages/sqlite3/src/wasm/sqlite3.wasm',
+  );
+  static final Uri _legacyWasmUri = Uri.parse('sqlite3.wasm');
 
   /// Create a SQLite client directly from [KnexConfig].
   ///
@@ -64,7 +67,7 @@ class SQLiteClient extends Client {
   }
 
   Future<void> _initializeImpl() async {
-    final sqlite = await WasmSqlite3.loadFromUrl(_wasmUri);
+    final sqlite = await _loadSqlite3();
     sqlite.registerVirtualFileSystem(InMemoryFileSystem(), makeDefault: true);
 
     final opened = sqlite.open(_filename);
@@ -75,13 +78,23 @@ class SQLiteClient extends Client {
     _db = opened;
   }
 
+  Future<WasmSqlite3> _loadSqlite3() async {
+    try {
+      return await WasmSqlite3.loadFromUrl(_wasmUri);
+    } on Object {
+      if (_wasmUri != _defaultWasmUri) rethrow;
+      return WasmSqlite3.loadFromUrl(_legacyWasmUri);
+    }
+  }
+
   Future<CommonDatabase> _ensureDb() async {
     if (_isClosed) throw StateError('SQLiteClient is closed');
     await initialize();
     final db = _db;
     if (db == null) {
       throw StateError(
-        'SQLiteClient failed to initialize. Ensure sqlite3.wasm is available.',
+        'SQLiteClient failed to initialize. Ensure sqlite3.wasm is served '
+        'or set connection["wasmUri"].',
       );
     }
     return db;

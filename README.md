@@ -14,6 +14,12 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 | [knex_dart_postgres](https://pub.dev/packages/knex_dart_postgres) | PostgreSQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_postgres)](https://pub.dev/packages/knex_dart_postgres) |
 | [knex_dart_mysql](https://pub.dev/packages/knex_dart_mysql) | MySQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_mysql)](https://pub.dev/packages/knex_dart_mysql) |
 | [knex_dart_sqlite](https://pub.dev/packages/knex_dart_sqlite) | SQLite driver | [![pub](https://img.shields.io/pub/v/knex_dart_sqlite)](https://pub.dev/packages/knex_dart_sqlite) |
+| [knex_dart_duckdb](https://pub.dev/packages/knex_dart_duckdb) | DuckDB driver | [![pub](https://img.shields.io/pub/v/knex_dart_duckdb)](https://pub.dev/packages/knex_dart_duckdb) |
+| [knex_dart_mssql](https://pub.dev/packages/knex_dart_mssql) | Microsoft SQL Server driver | [![pub](https://img.shields.io/pub/v/knex_dart_mssql)](https://pub.dev/packages/knex_dart_mssql) |
+| [knex_dart_bigquery](https://pub.dev/packages/knex_dart_bigquery) | Google BigQuery driver | [![pub](https://img.shields.io/pub/v/knex_dart_bigquery)](https://pub.dev/packages/knex_dart_bigquery) |
+| [knex_dart_snowflake](https://pub.dev/packages/knex_dart_snowflake) | Snowflake driver | [![pub](https://img.shields.io/pub/v/knex_dart_snowflake)](https://pub.dev/packages/knex_dart_snowflake) |
+| [knex_dart_turso](https://pub.dev/packages/knex_dart_turso) | Turso (libSQL) driver | [![pub](https://img.shields.io/pub/v/knex_dart_turso)](https://pub.dev/packages/knex_dart_turso) |
+| [knex_dart_d1](https://pub.dev/packages/knex_dart_d1) | Cloudflare D1 driver | [![pub](https://img.shields.io/pub/v/knex_dart_d1)](https://pub.dev/packages/knex_dart_d1) |
 | [knex_dart_capabilities](https://pub.dev/packages/knex_dart_capabilities) | Shared dialect capability matrix | [![pub](https://img.shields.io/pub/v/knex_dart_capabilities)](https://pub.dev/packages/knex_dart_capabilities) |
 | [knex_dart_lint](https://pub.dev/packages/knex_dart_lint) | Optional static dialect lint plugin | [![pub](https://img.shields.io/pub/v/knex_dart_lint)](https://pub.dev/packages/knex_dart_lint) |
 
@@ -268,6 +274,7 @@ db('users')
 - JOINs — INNER, LEFT, RIGHT, FULL OUTER, CROSS, with callback builder
 - Aggregates — COUNT, SUM, AVG, MIN, MAX with DISTINCT variants
 - ORDER BY, GROUP BY, HAVING, LIMIT, OFFSET
+- Value window functions — `lead()`, `lag()`, `firstValue()`, `lastValue()`, `nthValue()` with frame clauses
 - Raw queries with `?`, `:name`, `??` binding formats
 - RETURNING clause (PostgreSQL)
 - CTEs (WITH / WITH RECURSIVE)
@@ -275,8 +282,12 @@ db('users')
 - Subqueries
 - JSON operators (`whereJsonPath`, `whereJsonSupersetOf`, etc.)
 - Full-text search (`whereFullText`)
+- FULLTEXT index DDL via schema builder (`t.fulltext([...])`, MySQL/MariaDB)
 - Upserts (`onConflict().merge()`)
 - Schema builder — createTable, alterTable, dropTable, foreign keys, indexes
+- Connection pooling via `PoolConfig` (`min`, `max`, `idleTimeoutMillis`, `reapIntervalMillis`)
+- MSSQL `OFFSET ... FETCH` pagination support
+- Web/WASM support — `sqlite3_web` for SQLite and `universal_io` across drivers
 - Migrations — code-first, SQL-directory, and external-schema sources
 - Dialect-aware SQL (PostgreSQL `$1`, MySQL/SQLite `?`)
 

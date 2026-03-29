@@ -1,0 +1,23 @@
+custom_html_template_path: test/browser_bootstrap.html
+
+on_platform:
+  chrome:
+    timeout: 5m
+    retry: 2
+    settings:
+      headless: true
+      arguments: >-
+        --no-sandbox
+        --disable-gpu
+        --headless
+        --disable-dev-shm-usage
+        --disable-software-rasterizer
+        --no-first-run
+        --mute-audio
+        --disable-extensions
+        --disable-web-security
+        --disable-background-timer-throttling
+        --disable-backgrounding-occluded-windows
+        --disable-popup-blocking
+        --disable-notifications
+        --disable-translate

@@ -212,6 +212,32 @@ db.schema.createTable('orders', (t) {
 });
 ```
 
+### FULLTEXT Index (MySQL/MariaDB)
+
+Use `t.fulltext(columns, [indexName])` to add a FULLTEXT index.
+
+```dart
+await db.executeSchema(
+  db.schema.alterTable('users', (t) {
+    t.fulltext(['first_name', 'last_name']);
+  }),
+);
+```
+
+Generated SQL (MySQL):
+
+```sql
+alter table `users` add fulltext (`first_name`, `last_name`)
+```
+
+Equivalent MySQL form with explicit `INDEX` keyword:
+
+```sql
+ALTER TABLE users ADD FULLTEXT INDEX (first_name, last_name)
+```
+
+`fulltext` is only supported for MySQL/MariaDB dialects. Other dialects throw an error at compile time.
+
 ### Unique Constraint
 
 ```dart

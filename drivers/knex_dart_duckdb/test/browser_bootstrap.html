@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>knex_dart_duckdb browser tests</title>
+
+    <!--
+      DuckDB WASM bootstrap for dart test --platform=chrome.
+
+      The 32 MB WASM binary + worker are served locally from lib/web_assets/
+      (populated by: dart run tool/download_wasm.dart).
+
+      The duckdb-wasm and apache-arrow JS modules (~250 KB combined) are loaded
+      from jsDelivr via a <script type="module"> — same approach as dart_duckdb's
+      own test template. Native ES module loading (not dynamic import()) is
+      required; dynamic import() hangs in headless Chrome.
+
+      dart_duckdb bug: database.dart calls pthreadWorker.toString() even when
+      null, passing "null" (string) to db.instantiate(). We patch
+      AsyncDuckDB.prototype.instantiate to convert "null"/"undefined" strings
+      back to real undefined.
+    -->
+    <script type="importmap">
+    {
+      "imports": {
+        "apache-arrow": "https://cdn.jsdelivr.net/npm/apache-arrow@17.0.0/+esm"
+      }
+    }
+    </script>
+
+    <script type="module">
+      import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.1-dev222.0/+esm';
+      import * as arrow from 'apache-arrow';
+
+      const localBase   = '/packages/knex_dart_duckdb/web_assets';
+      const localWasm   = localBase + '/duckdb-eh.wasm';
+      const localWorker = localBase + '/duckdb-browser-eh.worker.js';
+
+      // Patch AsyncDuckDB.prototype.instantiate to fix dart_duckdb's bug:
+      // database.dart calls pthreadWorker.toString() on null, passing "null"
+      // (a string) to db.instantiate() which makes duckdb-wasm fail.
+      if (duckdb.AsyncDuckDB && duckdb.AsyncDuckDB.prototype) {
+        const orig = duckdb.AsyncDuckDB.prototype.instantiate;
+        duckdb.AsyncDuckDB.prototype.instantiate = function (mainModule, pthreadWorker) {
+          if (pthreadWorker === 'null' || pthreadWorker === 'undefined') {
+            pthreadWorker = undefined;
+          }
+          return orig.call(this, mainModule, pthreadWorker);
+        };
+      }
+
+      window.duckdbduckdbWasm = duckdb;
+
+      // Override bundle getter so the WASM binary + worker load from local files.
+      window.duckdbduckdbWasm.getJsDelivrBundles = function () {
+        return {
+          mvp: { mainModule: localWasm, mainWorker: localWorker },
+          eh:  { mainModule: localWasm, mainWorker: localWorker },
+        };
+      };
+
+      window.ArrowTable = arrow.Table;
+
+      // Resolve the ready signal that dart_duckdb awaits before using globals.
+      window.duckdbduckdbWasmReady = Promise.resolve();
+    </script>
+
+    {{testScript}}
+    <script src="packages/test/dart.js"></script>
+  </head>
+  <body></body>
+</html>

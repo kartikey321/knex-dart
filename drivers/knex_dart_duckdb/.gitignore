@@ -1,0 +1,2 @@
+# DuckDB WASM assets — downloaded via: dart run tool/download_wasm.dart
+lib/web_assets/

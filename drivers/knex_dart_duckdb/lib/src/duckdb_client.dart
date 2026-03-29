@@ -114,6 +114,13 @@ class DuckDBClient {
       return _parseResult(result);
     }
 
+    // dart_duckdb's web PreparedStatement only supports ≤10 parameters.
+    // For larger binding lists, inline values as SQL literals.
+    if (bindings.length > 10) {
+      final result = await _conn.query(_inlineBindings(sql, bindings));
+      return _parseResult(result);
+    }
+
     final stmt = await _conn.prepare(sql);
     try {
       for (var i = 0; i < bindings.length; i++) {
@@ -124,6 +131,75 @@ class DuckDBClient {
     } finally {
       await stmt.dispose();
     }
+  }
+
+  /// Stream query results row by row, memory-efficient for large result sets.
+  Stream<Map<String, dynamic>> stream(QueryBuilder q) {
+    final compiled = q.toSQL();
+    return _streamExecute(compiled.sql, compiled.bindings);
+  }
+
+  Stream<Map<String, dynamic>> _streamExecute(
+    String sql,
+    List<dynamic> bindings,
+  ) async* {
+    if (_isClosed) throw StateError('DuckDBClient is closed');
+
+    ddb.ResultSet result;
+    ddb.PreparedStatement? stmt;
+
+    if (bindings.isEmpty) {
+      result = await _conn.query(sql);
+    } else if (bindings.length > 10) {
+      result = await _conn.query(_inlineBindings(sql, bindings));
+    } else {
+      stmt = await _conn.prepare(sql);
+      for (var i = 0; i < bindings.length; i++) {
+        stmt.bind(bindings[i], i + 1);
+      }
+      result = await stmt.execute();
+    }
+
+    try {
+      final columnNames = result.columnNames;
+      await for (final row in result.fetchAllStream()) {
+        final map = <String, dynamic>{};
+        for (var i = 0; i < columnNames.length; i++) {
+          map[columnNames[i]] = row[i];
+        }
+        yield map;
+      }
+    } finally {
+      await result.dispose();
+      await stmt?.dispose();
+    }
+  }
+
+  /// Substitute `$N` placeholders with literal SQL values.
+  ///
+  /// Used as a fallback when [bindings] exceeds dart_duckdb's web
+  /// PreparedStatement limit of 10 parameters.
+  static String _inlineBindings(String sql, List<dynamic> bindings) {
+    var result = sql;
+    // Replace from highest index to lowest so that `$1` doesn't match inside
+    // `$10`, `$11`, etc. The `(?!\d)` negative lookahead ensures we only match
+    // exact `$N` placeholders, not prefixes of larger numbers.
+    for (var i = bindings.length; i >= 1; i--) {
+      result = result.replaceAll(
+        RegExp('\\\$$i(?!\\d)'),
+        _formatLiteral(bindings[i - 1]),
+      );
+    }
+    return result;
+  }
+
+  static String _formatLiteral(dynamic value) {
+    if (value == null) return 'NULL';
+    if (value is bool) return value ? 'TRUE' : 'FALSE';
+    if (value is int) return '$value';
+    if (value is double) return '$value';
+    if (value is String) return "'${value.replaceAll("'", "''")}'";
+    return "'${value.toString().replaceAll("'", "''")}'";
   }
 
   List<Map<String, dynamic>> _parseResult(ddb.ResultSet result) {
@@ -159,6 +235,12 @@ class DuckDBTrxClient {
     String sql, [
     List<dynamic>? bindings,
   ]) => _client._execute(sql, bindings ?? []);
+
+  /// Stream query results row by row within this transaction.
+  Stream<Map<String, dynamic>> stream(QueryBuilder q) {
+    final compiled = q.toSQL();
+    return _client._streamExecute(compiled.sql, compiled.bindings);
+  }
 
   Future<List<Map<String, dynamic>>> _run(QueryBuilder q) {
     final compiled = q.toSQL();
