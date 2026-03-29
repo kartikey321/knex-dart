@@ -197,10 +197,15 @@ jobs:
             puts version
           ')"
 
-          URL_PRIMARY="https://github.com/simolus3/sqlite3.dart/releases/download/v${SQLITE3_VERSION}/sqlite3.wasm"
-          URL_FALLBACK="https://github.com/simolus3/sqlite3.dart/releases/download/${SQLITE3_VERSION}/sqlite3.wasm"
+          URL_TAGGED="https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-${SQLITE3_VERSION}/sqlite3.wasm"
+          URL_LATEST="https://github.com/simolus3/sqlite3.dart/releases/latest/download/sqlite3.wasm"
+          URL_VERSIONED_V="https://github.com/simolus3/sqlite3.dart/releases/download/v${SQLITE3_VERSION}/sqlite3.wasm"
+          URL_VERSIONED_RAW="https://github.com/simolus3/sqlite3.dart/releases/download/${SQLITE3_VERSION}/sqlite3.wasm"
 
-          curl -fL "$URL_PRIMARY" -o sqlite3.wasm || curl -fL "$URL_FALLBACK" -o sqlite3.wasm
+          curl -fL "$URL_TAGGED" -o sqlite3.wasm \
+            || curl -fL "$URL_LATEST" -o sqlite3.wasm \
+            || curl -fL "$URL_VERSIONED_V" -o sqlite3.wasm \
+            || curl -fL "$URL_VERSIONED_RAW" -o sqlite3.wasm
           ls -lh sqlite3.wasm
 
       - name: Run SQLite WASM tests (Chrome)
