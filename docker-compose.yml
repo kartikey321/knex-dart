@@ -6,6 +6,12 @@ version: '3.8'
 #   docker compose up postgres mysql mssql sqld bigquery -d
 #   docker compose up --profile db -d          # all DB services
 #
+# Required environment variables (test-only local credentials):
+#   export POSTGRES_PASSWORD=knex
+#   export MYSQL_PASSWORD=knex
+#   export MYSQL_ROOT_PASSWORD=root
+#   export MSSQL_SA_PASSWORD='Knex_Test1!'
+#
 # ── Run tests inside Docker (no local Dart needed) ───────────────────────────
 #   docker compose --profile test run --rm dart-test-http
 #   docker compose --profile test run --rm dart-test-sqlite
@@ -33,7 +39,7 @@ services:
     environment:
       POSTGRES_DB: knex_test
       POSTGRES_USER: knex
-      POSTGRES_PASSWORD: knex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     healthcheck:
@@ -54,8 +60,8 @@ services:
     environment:
       MYSQL_DATABASE: knex_test
       MYSQL_USER: knex
-      MYSQL_PASSWORD: knex
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
     ports:
       - "3306:3306"
     healthcheck:
@@ -76,7 +82,7 @@ services:
     profiles: [db, mssql]
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: "Knex_Test1!"
+      SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
       MSSQL_PID: Developer
     ports:
       - "1433:1433"
@@ -102,6 +108,8 @@ services:
     depends_on:
       mssql:
         condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
     volumes:
       - ./drivers/knex_dart_mssql/test/integration/sql:/sql:ro
     entrypoint:
@@ -110,19 +118,19 @@ services:
       - |
         for i in $(seq 1 30); do
           /opt/mssql-tools18/bin/sqlcmd \
-            -S mssql -U sa -P 'Knex_Test1!' \
+            -S mssql -U sa -P "$${MSSQL_SA_PASSWORD}" \
             -Q 'SELECT 1' -C -No >/dev/null 2>&1 && break
           echo "Waiting for SQL Server... ($${i}/30)"
           sleep 2
         done
         /opt/mssql-tools18/bin/sqlcmd \
-          -S mssql -U sa -P 'Knex_Test1!' \
+          -S mssql -U sa -P "$${MSSQL_SA_PASSWORD}" \
           -d master \
           -i /sql/mssql_schema.sql \
           -C -No
         if [ -f /sql/mssql_seed.sql ]; then
           /opt/mssql-tools18/bin/sqlcmd \
-            -S mssql -U sa -P 'Knex_Test1!' \
+            -S mssql -U sa -P "$${MSSQL_SA_PASSWORD}" \
             -d knex_test \
             -i /sql/mssql_seed.sql \
             -C -No
@@ -204,7 +212,7 @@ services:
       PG_PORT: 5432
       PG_DATABASE: knex_test
       PG_USER: knex
-      PG_PASSWORD: knex
+      PG_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
 
   # ── MySQL ──────────────────────────────────────────────────────────────────
   dart-test-mysql:
@@ -220,7 +228,7 @@ services:
       MYSQL_PORT: 3306
       MYSQL_DATABASE: knex_test
       MYSQL_USER: knex
-      MYSQL_PASSWORD: knex
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
 
   # ── SQL Server ─────────────────────────────────────────────────────────────
   dart-test-mssql:
@@ -238,7 +246,7 @@ services:
       MSSQL_PORT: "1433"
       MSSQL_DATABASE: knex_test
       MSSQL_USER: sa
-      MSSQL_PASSWORD: "Knex_Test1!"
+      MSSQL_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
 
   # ── Turso / sqld integration ───────────────────────────────────────────────
   dart-test-turso:

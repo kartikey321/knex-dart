@@ -8,7 +8,7 @@
 ///   host: 'localhost',
 ///   database: 'AdventureWorks',
 ///   username: 'sa',
-///   password: 's3cr3t!',
+///   password: const String.fromEnvironment('MSSQL_PASSWORD'),
 /// );
 ///
 /// final rows = await db.select(
