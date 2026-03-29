@@ -83,6 +83,18 @@ class MySQLClient {
     return _execute(compiled.sql, compiled.bindings);
   }
 
+  /// Streams a SELECT query row-by-row.
+  ///
+  /// Uses mysql_client `rowsStream` and yields each row as `typedAssoc()`.
+  Stream<Map<String, dynamic>> streamQuery(QueryBuilder queryBuilder) async* {
+    if (_isClosed) {
+      throw StateError('Cannot execute query on closed pool');
+    }
+
+    final compiled = queryBuilder.toSQL();
+    yield* _streamExecute(compiled.sql, compiled.bindings);
+  }
+
   /// Executes a raw SQL query
   Future<List<Map<String, dynamic>>> raw(
     String sql, [
@@ -120,6 +132,32 @@ class MySQLClient {
     }
   }
 
+  Stream<Map<String, dynamic>> _streamExecute(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) async* {
+    // Route through pinned transaction connection when active.
+    if (_txConn != null) {
+      yield* _streamOnConn(_txConn!, sql, bindings);
+      return;
+    }
+
+    final conn = await _pool.acquire();
+    bool success = false;
+    try {
+      await for (final row in _streamOnConn(conn, sql, bindings)) {
+        yield row;
+      }
+      success = true;
+    } finally {
+      if (success) {
+        _pool.release(conn);
+      } else {
+        _pool.discard(conn);
+      }
+    }
+  }
+
   /// Execute [sql] on [conn] without any pool acquire/release.
   Future<List<Map<String, dynamic>>> _executeOnConn(
     MySQLConnection conn,
@@ -134,6 +172,30 @@ class MySQLClient {
     try {
       final res = await stmt.execute(bindings);
       return _mapResults(res);
+    } finally {
+      await stmt.deallocate();
+    }
+  }
+
+  Stream<Map<String, dynamic>> _streamOnConn(
+    MySQLConnection conn,
+    String sql, [
+    List<dynamic>? bindings,
+  ]) async* {
+    if (bindings == null || bindings.isEmpty) {
+      final res = await conn.execute(sql, null, true);
+      await for (final row in res.rowsStream) {
+        yield row.typedAssoc();
+      }
+      return;
+    }
+
+    final stmt = await conn.prepare(sql, true);
+    try {
+      final res = await stmt.execute(bindings);
+      await for (final row in res.rowsStream) {
+        yield row.typedAssoc();
+      }
     } finally {
       await stmt.deallocate();
     }

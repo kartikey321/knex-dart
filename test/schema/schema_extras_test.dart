@@ -90,6 +90,17 @@ void main() {
       ]);
     });
 
+    test('MYSQL fulltext index', () {
+      final mysql = MockClient(driverName: 'mysql');
+      final sql = mysql.schemaBuilder().alterTable('users', (t) {
+        t.fulltext('first_name');
+      }).toSQL();
+
+      expect(sql.map((q) => q['sql']).toList(), [
+        'alter table `users` add fulltext (`first_name`)',
+      ]);
+    });
+
     test('PG createTableIfNotExists', () {
       final pg = MockClient(driverName: 'pg');
       final sql = pg.schemaBuilder().createTableIfNotExists('users', (t) {

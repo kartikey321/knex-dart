@@ -1,0 +1,27 @@
+name: knex_dart_d1
+description: Cloudflare D1 driver for knex_dart — execute queries against a Cloudflare D1 SQLite database via the Cloudflare REST API using the knex_dart query builder.
+version: 0.1.0
+repository: https://github.com/kartikey321/knex-dart
+homepage: https://github.com/kartikey321/knex-dart
+issue_tracker: https://github.com/kartikey321/knex-dart/issues
+topics:
+  - sql
+  - query-builder
+  - database
+  - cloudflare
+  - d1
+  - sqlite
+  - knex
+
+environment:
+  sdk: ^3.10.0
+
+resolution: workspace
+
+dependencies:
+  knex_dart: ^1.1.0
+  http: ^1.2.0
+
+dev_dependencies:
+  test: ^1.25.6
+  lints: ^6.0.0

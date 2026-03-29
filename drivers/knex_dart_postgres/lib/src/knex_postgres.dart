@@ -3,28 +3,30 @@ import 'package:knex_dart/knex_dart.dart';
 import 'postgres_client.dart';
 
 /// PostgreSQL-specific Knex wrapper.
+///
+/// Also supports CockroachDB and Amazon Redshift via named constructors —
+/// both speak the PostgreSQL wire protocol so no separate package is needed:
+///
+/// ```dart
+/// // CockroachDB (port 26257, insecure dev mode)
+/// final db = await KnexPostgres.cockroachdb(
+///   host: 'localhost', database: 'defaultdb', username: 'root', useSSL: false,
+/// );
+///
+/// // Amazon Redshift (port 5439)
+/// final db = await KnexPostgres.redshift(
+///   host: 'my-cluster.us-east-1.redshift.amazonaws.com',
+///   database: 'dev', username: 'awsuser', password: 'secret',
+/// );
+/// ```
 class KnexPostgres {
   final PostgresClient _pgClient;
+  final String _dialectName;
 
-  KnexPostgres._(this._pgClient);
+  KnexPostgres._(this._pgClient, {String dialectName = 'pg'})
+    : _dialectName = dialectName;
 
   /// Create a Knex instance connected to PostgreSQL.
-  ///
-  /// Example:
-  /// ```dart
-  /// final db = await KnexPostgres.connect(
-  ///   host: 'localhost',
-  ///   database: 'myapp',
-  ///   username: 'user',
-  ///   password: 'password',
-  /// );
-  ///
-  /// final users = await db.select(
-  ///   db.queryBuilder().from('users').where('active', '=', true)
-  /// );
-  ///
-  /// await db.close();
-  /// ```
   static Future<KnexPostgres> connect({
     required String host,
     int port = 5432,
@@ -44,6 +46,61 @@ class KnexPostgres {
       poolConfig: poolConfig,
     );
     return KnexPostgres._(client);
+  }
+
+  /// Create a Knex instance connected to CockroachDB.
+  ///
+  /// CockroachDB is wire-compatible with PostgreSQL. Default port: 26257.
+  /// TLS is disabled by default for local/dev clusters (`--insecure` mode).
+  /// Set [useSSL] to `true` for production deployments.
+  static Future<KnexPostgres> cockroachdb({
+    required String host,
+    int port = 26257,
+    required String database,
+    required String username,
+    String? password,
+    bool useSSL = false,
+    PoolConfig poolConfig = const PoolConfig(),
+  }) async {
+    final client = await PostgresClient.connect(
+      host: host,
+      port: port,
+      database: database,
+      username: username,
+      password: password,
+      useSSL: useSSL,
+      poolConfig: poolConfig,
+    );
+    return KnexPostgres._(client); // 'pg' dialect — capabilities identical to postgres
+  }
+
+  /// Create a Knex instance connected to Amazon Redshift.
+  ///
+  /// Redshift is wire-compatible with PostgreSQL. Default port: 5439.
+  ///
+  /// Redshift dialect notes — avoid these features (not supported):
+  /// - `.returning()` — Redshift has no RETURNING clause.
+  /// - `.joinLateral()` — LATERAL joins are not supported.
+  /// - JSONB operators (`@>`, `<@`, etc.) — use plain JSON functions instead.
+  static Future<KnexPostgres> redshift({
+    required String host,
+    int port = 5439,
+    required String database,
+    required String username,
+    String? password,
+    bool useSSL = true,
+    PoolConfig poolConfig = const PoolConfig(),
+  }) async {
+    final client = await PostgresClient.connect(
+      host: host,
+      port: port,
+      database: database,
+      username: username,
+      password: password,
+      useSSL: useSSL,
+      poolConfig: poolConfig,
+    );
+    return KnexPostgres._(client, dialectName: 'redshift');
   }
 
   /// Executes a SELECT-style query and returns rows.
@@ -72,8 +129,8 @@ class KnexPostgres {
     List<dynamic>? bindings,
   ]) => _pgClient.rawSql(sql, bindings);
 
-  /// Create a query builder.
-  QueryBuilder queryBuilder() => _PgSchemaClient().queryBuilder();
+  /// Create a query builder scoped to the active dialect.
+  QueryBuilder queryBuilder() => _PgSchemaClient(_dialectName).queryBuilder();
 
   /// Run a transaction. See [PostgresClient.trx].
   Future<T> trx<T>(Future<T> Function(PostgresTrxClient trx) callback) =>
@@ -86,7 +143,7 @@ class KnexPostgres {
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,
   ) async {
-    final pgMock = _PgSchemaClient();
+    final pgMock = _PgSchemaClient(_dialectName);
     final builder = pgMock.schemaBuilder();
     callback(builder);
     final statements = builder.toSQL();
@@ -108,11 +165,18 @@ class KnexPostgres {
 // ============================================================================
 
 /// Internal PG-flavored schema client for SQL generation only.
+///
+/// Accepts a [dialectName] so CockroachDB and Redshift callers get
+/// dialect-aware capability checks without a separate package.
 class _PgSchemaClient extends Client {
-  _PgSchemaClient() : super(KnexConfig(client: 'pg', connection: {}));
+  final String _dialectName;
+
+  _PgSchemaClient([String dialectName = 'pg'])
+    : _dialectName = dialectName,
+      super(KnexConfig(client: dialectName, connection: {}));
 
   @override
-  String get driverName => 'pg';
+  String get driverName => _dialectName;
 
   @override
   SchemaCompiler schemaCompiler(SchemaBuilder builder) =>

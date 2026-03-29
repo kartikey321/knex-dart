@@ -395,6 +395,14 @@ class TableBuilder {
     });
   }
 
+  /// Add fulltext index (MySQL/MariaDB only).
+  void fulltext(dynamic columns, [String? indexName]) {
+    _alterStatements.add({
+      'method': 'fulltext',
+      'args': [columns, indexName],
+    });
+  }
+
   /// Add primary key constraint
   void primary(dynamic columns, [String? constraintName]) {
     _alterStatements.add({

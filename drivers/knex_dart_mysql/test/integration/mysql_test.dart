@@ -1,10 +1,11 @@
 @Tags(['mysql'])
 library;
 
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_mysql/knex_dart_mysql.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
+import 'package:knex_dart/src/schema/schema_builder.dart';
 import 'package:test/test.dart';
 
 import '../mocks/mysql_mock_client.dart';
@@ -22,6 +23,20 @@ void main() {
 
     MySQLClient? globalClient;
 
+    Future<void> executeSchema(
+      void Function(SchemaBuilder schema) callback,
+    ) async {
+      final schema = mockClient.schemaBuilder();
+      callback(schema);
+      final statements = schema.toSQL();
+      for (final stmt in statements) {
+        await client!.raw(
+          stmt['sql'] as String,
+          stmt['bindings'] as List<dynamic>?,
+        );
+      }
+    }
+
     setUpAll(() async {
       try {
         globalClient = await MySQLClient.connect(
@@ -32,13 +47,17 @@ void main() {
           database: database,
         );
         // Purge any stale rows left by previous test runs
-        await globalClient!.raw(
-          "DELETE FROM users WHERE email LIKE '%write@example.com' "
-          "OR email LIKE '%trx%@example.com' "
-          "OR email LIKE '%update@example.com' "
-          "OR email LIKE '%delete@example.com' "
-          "OR email LIKE '%json_test%@example.com' "
-          "OR email LIKE '%_sp@example.com'",
+        await globalClient!.delete(
+          mockClient
+              .queryBuilder()
+              .table('users')
+              .where('email', 'like', '%write@example.com')
+              .orWhere('email', 'like', '%trx%@example.com')
+              .orWhere('email', 'like', '%update@example.com')
+              .orWhere('email', 'like', '%delete@example.com')
+              .orWhere('email', 'like', '%json_test%@example.com')
+              .orWhere('email', 'like', '%_sp@example.com')
+              .delete(),
         );
       } catch (e) {
         print('Warning: could not purge stale test data: $e');
@@ -118,8 +137,11 @@ void main() {
       expect(result.length, 3);
     });
 
-    test('should use raw queries', () async {
-      final result = await client!.raw('select 1 + 1 as result');
+    test('should project expression results', () async {
+      final query = mockClient.queryBuilder().select([
+        mockClient.raw('1 + 1 as result'),
+      ]);
+      final result = await client!.select(query);
       expect(result.first['result'], 2);
     });
 
@@ -162,9 +184,11 @@ void main() {
     });
 
     test('should handle question marks in string literals', () async {
-      final result = await client!.raw("select 'Question?' as q, ? as v", [
-        'Answer',
+      final query = mockClient.queryBuilder().select([
+        mockClient.raw("'Question?' as q"),
+        mockClient.raw('? as v', ['Answer']),
       ]);
+      final result = await client!.select(query);
       expect(result.first['q'], 'Question?');
       expect(result.first['v'], 'Answer');
     });
@@ -345,10 +369,10 @@ void main() {
         expect(innerRows.length, 1);
 
         await client!.delete(
-          mockClient
-              .queryBuilder()
-              .table('users')
-              .whereIn('email', ['outer_sp@example.com', 'inner_sp@example.com']),
+          mockClient.queryBuilder().table('users').whereIn('email', [
+            'outer_sp@example.com',
+            'inner_sp@example.com',
+          ]),
         );
       });
 
@@ -451,7 +475,11 @@ void main() {
         await client!.insert(insertQuery);
 
         try {
-          await client!.raw('ALTER TABLE users ADD FULLTEXT(first_name)');
+          await executeSchema((schema) {
+            schema.alterTable('users', (t) {
+              t.fulltext('first_name');
+            });
+          });
         } catch (_) {
           // Ignore if already exists
         }
@@ -468,7 +496,11 @@ void main() {
 
       test('JSON Operators: superset and subset', () async {
         try {
-          await client!.raw('ALTER TABLE users ADD COLUMN metadata JSON NULL');
+          await executeSchema((schema) {
+            schema.alterTable('users', (t) {
+              t.json('metadata').nullable();
+            });
+          });
         } catch (_) {
           // Ignore if exists
         }
@@ -498,9 +530,13 @@ void main() {
 
       test('Advanced HAVING clauses: havingRaw', () async {
         try {
-          await client!.raw(
-            'CREATE TABLE IF NOT EXISTS orders (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT, amount DECIMAL(10,2))',
-          );
+          await executeSchema((schema) {
+            schema.createTableIfNotExists('orders', (t) {
+              t.increments('id');
+              t.integer('user_id').nullable();
+              t.decimal('amount', 10, 2).nullable();
+            });
+          });
           final insertQ = mockClient.queryBuilder().table('orders').insert([
             {'user_id': 1, 'amount': 100},
             {'user_id': 1, 'amount': 200},
@@ -523,7 +559,9 @@ void main() {
         expect(results.first['total'], greaterThan(1));
 
         try {
-          await client!.raw('DROP TABLE orders');
+          await executeSchema((schema) {
+            schema.dropTable('orders');
+          });
         } catch (_) {}
       });
     });

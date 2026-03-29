@@ -13,6 +13,10 @@
   links:
     - text: Joins
       href: /query-building/joins
+    - text: Aggregation
+      href: /query-building/aggregation
+    - text: Window Functions
+      href: /query-building/window-functions
     - text: WHERE Clauses
       href: /query-building/where-clauses
     - text: Write Operations
@@ -27,6 +31,11 @@
       href: /query-building/unions
     - text: CTEs (WITH)
       href: /query-building/ctes
+
+- title: Connections
+  links:
+    - text: Pooling
+      href: /connections/pooling
 
 - title: Migration
   links:

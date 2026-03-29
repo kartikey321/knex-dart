@@ -1,0 +1,8 @@
+FROM dart:stable
+
+WORKDIR /workspace
+COPY . .
+RUN dart pub get
+
+WORKDIR /workspace/drivers/knex_dart_turso
+CMD ["sh", "-c", "dart test --exclude-tags=turso && dart test --tags=turso"]

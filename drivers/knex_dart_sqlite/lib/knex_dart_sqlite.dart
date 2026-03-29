@@ -18,5 +18,6 @@
 /// ```
 library;
 
-export 'src/sqlite_client.dart';
+export 'src/sqlite_client.dart'
+    if (dart.library.js_interop) 'src/sqlite_client_web.dart';
 export 'src/knex_sqlite.dart';

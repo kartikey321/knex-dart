@@ -197,7 +197,24 @@ class SQLiteClient extends Client {
     String sql,
     List<dynamic> bindings,
   ) {
-    throw UnimplementedError('Stream query not supported for SQLite yet');
+    final stmt = _db.prepare(sql);
+    final cursor = stmt.selectCursor(bindings.cast<Object?>());
+
+    Iterable<Map<String, dynamic>> rows() sync* {
+      try {
+        while (cursor.moveNext()) {
+          final row = cursor.current;
+          yield Map<String, dynamic>.fromIterables(
+            row.keys,
+            row.values.cast<dynamic>(),
+          );
+        }
+      } finally {
+        stmt.dispose();
+      }
+    }
+
+    return Stream.fromIterable(rows());
   }
 
   @override

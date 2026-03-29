@@ -1,0 +1,8 @@
+FROM dart:stable
+
+WORKDIR /workspace
+COPY . .
+RUN dart pub get
+
+WORKDIR /workspace/drivers/knex_dart_d1
+CMD ["sh", "-c", "dart test && cd /workspace/drivers/knex_dart_snowflake && dart test"]

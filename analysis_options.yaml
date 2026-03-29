@@ -25,6 +25,7 @@ analyzer:
   exclude:
     - docs/site/**
     - example/basic_usage.dart
+    - test_apps/**
 
 # For more information about the core and recommended set of lints, see
 # https://dart.dev/go/core-lints

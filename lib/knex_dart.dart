@@ -26,6 +26,7 @@ library;
 
 // Core exports
 export 'src/knex.dart';
+export 'src/knex_query.dart';
 export 'src/client/client.dart';
 export 'src/client/knex_config.dart';
 

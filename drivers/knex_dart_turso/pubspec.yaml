@@ -1,0 +1,27 @@
+name: knex_dart_turso
+description: Turso (libSQL) driver for knex_dart — connect and execute queries against a Turso database over the libSQL HTTP API using the knex_dart query builder.
+version: 0.1.0
+repository: https://github.com/kartikey321/knex-dart
+homepage: https://github.com/kartikey321/knex-dart
+issue_tracker: https://github.com/kartikey321/knex-dart/issues
+topics:
+  - sql
+  - query-builder
+  - database
+  - turso
+  - libsql
+  - knex
+
+environment:
+  sdk: ^3.10.0
+
+resolution: workspace
+
+dependencies:
+  knex_dart: ^1.1.0
+  http: ^1.2.0
+  universal_io: ^2.3.1
+
+dev_dependencies:
+  test: ^1.25.6
+  lints: ^6.0.0

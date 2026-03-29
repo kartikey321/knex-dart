@@ -1,8 +1,12 @@
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:test/test.dart';
+
+const _isWeb =
+    bool.fromEnvironment('dart.library.html') ||
+    bool.fromEnvironment('dart.library.js_interop');
 
 void main() {
   // ── Knex with SQLiteClient ────────────────────────────────────────────────
@@ -398,6 +402,6 @@ void main() {
         [],
       ) as List;
       expect(tablesAfter, isEmpty);
-    });
+    }, skip: _isWeb);
   });
 }
