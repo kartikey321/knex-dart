@@ -181,7 +181,7 @@ jobs:
       - run: flutter pub get
 
       # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart
-      # The sqlite3.wasm binary must be present in the package root when tests run.
+      # dart test serves package assets from lib/ under relative packages/<pkg>/...
       - name: Download SQLite WASM asset
         working-directory: drivers/knex_dart_sqlite
         run: |
@@ -202,11 +202,12 @@ jobs:
           URL_VERSIONED_V="https://github.com/simolus3/sqlite3.dart/releases/download/v${SQLITE3_VERSION}/sqlite3.wasm"
           URL_VERSIONED_RAW="https://github.com/simolus3/sqlite3.dart/releases/download/${SQLITE3_VERSION}/sqlite3.wasm"
 
-          curl -fL "$URL_TAGGED" -o sqlite3.wasm \
-            || curl -fL "$URL_LATEST" -o sqlite3.wasm \
-            || curl -fL "$URL_VERSIONED_V" -o sqlite3.wasm \
-            || curl -fL "$URL_VERSIONED_RAW" -o sqlite3.wasm
-          ls -lh sqlite3.wasm
+          mkdir -p lib/web_assets
+          curl -fL "$URL_TAGGED" -o lib/web_assets/sqlite3.wasm \
+            || curl -fL "$URL_LATEST" -o lib/web_assets/sqlite3.wasm \
+            || curl -fL "$URL_VERSIONED_V" -o lib/web_assets/sqlite3.wasm \
+            || curl -fL "$URL_VERSIONED_RAW" -o lib/web_assets/sqlite3.wasm
+          ls -lh lib/web_assets/sqlite3.wasm
 
       - name: Run SQLite WASM tests (Chrome)
         working-directory: drivers/knex_dart_sqlite
