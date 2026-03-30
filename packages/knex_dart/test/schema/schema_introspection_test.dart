@@ -87,7 +87,17 @@ class _IntrospectionClient extends Client {
   }
 
   @override
-  String parameterPlaceholder(int index) => '?';
+  String parameterPlaceholder(int index) {
+    if (_driver == 'pg' ||
+        _driver == 'postgres' ||
+        _driver == 'postgresql' ||
+        _driver == 'cockroachdb' ||
+        _driver == 'redshift' ||
+        _driver == 'duckdb') {
+      return '\$$index';
+    }
+    return '?';
+  }
 
   @override
   String formatValue(dynamic value) => value.toString();
@@ -105,7 +115,7 @@ void main() {
       expect(exists, isTrue);
       expect(
         client.lastSql,
-        'select * from information_schema.tables where table_name = ? and table_schema = current_schema()',
+        'select * from information_schema.tables where table_name = \$1 and table_schema = current_schema()',
       );
       expect(client.lastBindings, ['users']);
     });
@@ -123,7 +133,7 @@ void main() {
       expect(exists, isTrue);
       expect(
         client.lastSql,
-        'select * from information_schema.tables where table_name = ? and table_schema = ?',
+        'select * from information_schema.tables where table_name = \$1 and table_schema = \$2',
       );
       expect(client.lastBindings, ['events', 'audit']);
     });
@@ -164,7 +174,7 @@ void main() {
       expect(exists, isTrue);
       expect(
         client.lastSql,
-        'select * from information_schema.columns where table_name = ? and column_name = ? and table_schema = current_schema()',
+        'select * from information_schema.columns where table_name = \$1 and column_name = \$2 and table_schema = current_schema()',
       );
       expect(client.lastBindings, ['users', 'email']);
     });

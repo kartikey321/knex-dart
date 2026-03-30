@@ -115,6 +115,10 @@ void main() {
     await cleanup();
   });
 
+  setUp(() async {
+    await cleanup();
+  });
+
   tearDownAll(() async {
     await cleanup();
     await db.close();
@@ -138,6 +142,13 @@ void main() {
     });
 
     test('createTableLike with callback then renameTable', () async {
+      await db.executeSchema((s) {
+        s.createTable(sourceTable, (t) {
+          t.increments('id');
+          t.string('name').notNullable();
+        });
+      });
+
       await db.executeSchema((s) {
         s.createTableLike(copiedTable, sourceTable, (t) {
           t.string('nickname').nullable();
@@ -183,6 +194,13 @@ void main() {
     });
 
     test('dropTableIfExists is idempotent', () async {
+      await db.executeSchema((s) {
+        s.createTable(sourceTable, (t) {
+          t.increments('id');
+          t.string('name').notNullable();
+        });
+      });
+
       await db.executeSchema((s) {
         s.dropTableIfExists(sourceTable);
         s.dropTableIfExists(sourceTable);

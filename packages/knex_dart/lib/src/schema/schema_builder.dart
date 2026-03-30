@@ -297,6 +297,8 @@ class SchemaBuilder {
   Future<bool> hasTable(String tableName) async {
     final resolved = _resolveSchemaAndTable(tableName);
     final driver = _client.driverName.toLowerCase();
+    final p1 = _client.parameterPlaceholder(1);
+    final p2 = _client.parameterPlaceholder(2);
 
     late final String sql;
     late final List<dynamic> bindings;
@@ -310,8 +312,8 @@ class SchemaBuilder {
       bindings = [resolved.table];
     } else if (_isPostgresLike(driver)) {
       sql =
-          'select * from information_schema.tables where table_name = ?'
-          '${resolved.schema != null ? ' and table_schema = ?' : ' and table_schema = current_schema()'}';
+          'select * from information_schema.tables where table_name = $p1'
+          '${resolved.schema != null ? ' and table_schema = $p2' : ' and table_schema = current_schema()'}';
       bindings = resolved.schema != null
           ? [resolved.table, resolved.schema]
           : [resolved.table];
@@ -350,6 +352,9 @@ class SchemaBuilder {
   Future<bool> hasColumn(String tableName, String columnName) async {
     final resolved = _resolveSchemaAndTable(tableName);
     final driver = _client.driverName.toLowerCase();
+    final p1 = _client.parameterPlaceholder(1);
+    final p2 = _client.parameterPlaceholder(2);
+    final p3 = _client.parameterPlaceholder(3);
 
     late final String sql;
     late final List<dynamic> bindings;
@@ -369,9 +374,9 @@ class SchemaBuilder {
       });
     } else if (_isPostgresLike(driver)) {
       sql =
-          'select * from information_schema.columns where table_name = ? and column_name = ?'
+          'select * from information_schema.columns where table_name = $p1 and column_name = $p2'
           '${resolved.schema != null
-              ? ' and table_schema = ?'
+              ? ' and table_schema = $p3'
               : _isPostgresLike(driver)
               ? ' and table_schema = current_schema()'
               : ''}';

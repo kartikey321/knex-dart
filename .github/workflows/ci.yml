@@ -437,7 +437,11 @@ jobs:
             -No -C
       - name: Run MSSQL tests
         working-directory: drivers/knex_dart_mssql
-        run: dart test --tags=mssql
+        run: |
+          # mssql_connection uses global FFI callbacks; keep one test process
+          # per file to avoid cross-isolate callback crashes in CI.
+          dart test test/integration/mssql_test.dart --concurrency=1
+          dart test test/integration/schema_api_integration_test.dart --concurrency=1
         env:
           MSSQL_HOST: localhost
           MSSQL_PORT: "1433"
