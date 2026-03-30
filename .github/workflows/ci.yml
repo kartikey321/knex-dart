@@ -17,7 +17,8 @@ on:
       - 'knex_dart_capabilities-v*.*.*'
       - 'knex_dart_lint-v*.*.*'
   pull_request:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 # Cancel in-progress runs for the same branch/PR
 concurrency:
