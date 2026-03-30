@@ -174,10 +174,55 @@ Future<void> transfer({
 }
 ```
 
-## Limitations
+## Nested Transactions (Savepoints)
 
-- Nested transactions are supported using savepoints (`SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, `RELEASE SAVEPOINT`).
+Calling `trx()` inside an already-open transaction creates a **savepoint** instead of a new `BEGIN`. This allows partial rollback without rolling back the entire outer transaction.
+
+```dart
+await db.trx((outer) async {
+  // Outer insert
+  await outer.insert(
+    outer('accounts').insert({'owner': 'Alice', 'balance': 1000}),
+  );
+
+  try {
+    await outer.trx((inner) async {
+      await inner.insert(
+        inner('accounts').insert({'owner': 'Bob', 'balance': 500}),
+      );
+      throw Exception('something went wrong');  // inner rolls back to savepoint
+    });
+  } catch (_) {
+    // inner rolled back — outer is still open
+  }
+
+  // Alice's row is still there; Bob's row was rolled back
+  await outer.insert(
+    outer('audit_log').insert({'action': 'partial_rollback_demo'}),
+  );
+  // COMMIT — only Alice's row and the audit log entry are written
+});
+```
+
+If the inner exception is **not caught**, it propagates to the outer callback and rolls back everything:
+
+```dart
+// Everything rolled back — both Alice and Bob rows are gone
+await db.trx((outer) async {
+  await outer.insert(outer('accounts').insert({'owner': 'Alice', 'balance': 1000}));
+  await outer.trx((inner) async {
+    await inner.insert(inner('accounts').insert({'owner': 'Bob', 'balance': 500}));
+    throw Exception('bubble up');  // not caught → outer also rolls back
+  });
+});
+```
+
+Savepoints are supported on PostgreSQL, MySQL, SQLite, and DuckDB. The savepoint name is generated automatically (`sp_` + microseconds in base-36).
+
+## Notes
+
 - Transactions are connection-pinned: each outer `trx()` acquires one pooled connection for its full scope.
+- Nesting depth is unlimited — each nested call adds one more savepoint level.
 
 ## Next Steps
 

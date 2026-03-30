@@ -1,6 +1,6 @@
 # knex_dart
 
-A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent SQL query builder for Dart backends.
+A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent SQL query builder supporting 9 databases.
 
 [![Pub Version](https://img.shields.io/pub/v/knex_dart)](https://pub.dev/packages/knex_dart)
 [![codecov](https://codecov.io/gh/kartikey321/knex-dart/branch/main/graph/badge.svg)](https://codecov.io/gh/kartikey321/knex-dart)
@@ -14,7 +14,7 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 | [knex_dart_postgres](https://pub.dev/packages/knex_dart_postgres) | PostgreSQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_postgres)](https://pub.dev/packages/knex_dart_postgres) |
 | [knex_dart_mysql](https://pub.dev/packages/knex_dart_mysql) | MySQL driver | [![pub](https://img.shields.io/pub/v/knex_dart_mysql)](https://pub.dev/packages/knex_dart_mysql) |
 | [knex_dart_sqlite](https://pub.dev/packages/knex_dart_sqlite) | SQLite driver | [![pub](https://img.shields.io/pub/v/knex_dart_sqlite)](https://pub.dev/packages/knex_dart_sqlite) |
-| [knex_dart_duckdb](https://pub.dev/packages/knex_dart_duckdb) | DuckDB driver | [![pub](https://img.shields.io/pub/v/knex_dart_duckdb)](https://pub.dev/packages/knex_dart_duckdb) |
+| [knex_dart_duckdb](https://pub.dev/packages/knex_dart_duckdb) | DuckDB driver (OLAP + WASM) | [![pub](https://img.shields.io/pub/v/knex_dart_duckdb)](https://pub.dev/packages/knex_dart_duckdb) |
 | [knex_dart_mssql](https://pub.dev/packages/knex_dart_mssql) | Microsoft SQL Server driver | [![pub](https://img.shields.io/pub/v/knex_dart_mssql)](https://pub.dev/packages/knex_dart_mssql) |
 | [knex_dart_bigquery](https://pub.dev/packages/knex_dart_bigquery) | Google BigQuery driver | [![pub](https://img.shields.io/pub/v/knex_dart_bigquery)](https://pub.dev/packages/knex_dart_bigquery) |
 | [knex_dart_snowflake](https://pub.dev/packages/knex_dart_snowflake) | Snowflake driver | [![pub](https://img.shields.io/pub/v/knex_dart_snowflake)](https://pub.dev/packages/knex_dart_snowflake) |
@@ -23,26 +23,40 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 | [knex_dart_capabilities](https://pub.dev/packages/knex_dart_capabilities) | Shared dialect capability matrix | [![pub](https://img.shields.io/pub/v/knex_dart_capabilities)](https://pub.dev/packages/knex_dart_capabilities) |
 | [knex_dart_lint](https://pub.dev/packages/knex_dart_lint) | Optional static dialect lint plugin | [![pub](https://img.shields.io/pub/v/knex_dart_lint)](https://pub.dev/packages/knex_dart_lint) |
 
-`knex_dart` is the core package — it contains the query builder, schema builder, and compiler logic but no database connectivity. Pick the driver package for your database.
+`knex_dart` is the core package — query builder, schema builder, and compiler with no database connectivity. Add the driver for your database.
 
 ## Documentation
 
-Full documentation is available at:
+Full documentation: **https://docs.knex.mahawarkartikey.in/**
 
-- https://docs.knex.mahawarkartikey.in/
-- Migrations: https://docs.knex.mahawarkartikey.in/migration/migrations
-- Dialect Lint (optional): https://docs.knex.mahawarkartikey.in/tooling/dialect-lint
-- Transactions: https://docs.knex.mahawarkartikey.in/query-building/transactions
-- Schema Builder: https://docs.knex.mahawarkartikey.in/query-building/schema-builder
+- [Database Support](https://docs.knex.mahawarkartikey.in/database-support) — all 9 databases with connection examples
+- [WHERE Clauses](https://docs.knex.mahawarkartikey.in/query-building/where-clauses) — 29 filtering methods
+- [Joins](https://docs.knex.mahawarkartikey.in/query-building/joins) — INNER, LEFT, RIGHT, FULL OUTER, LATERAL
+- [Window Functions](https://docs.knex.mahawarkartikey.in/query-building/window-functions) — RANK, LEAD, LAG, frame clauses
+- [Transactions](https://docs.knex.mahawarkartikey.in/query-building/transactions) — atomic operations + nested savepoints
+- [Streaming](https://docs.knex.mahawarkartikey.in/connections/streaming) — memory-efficient large result sets
+- [Migrations](https://docs.knex.mahawarkartikey.in/migration/migrations) — code-first and SQL-directory sources
+- [Dialect Lint](https://docs.knex.mahawarkartikey.in/tooling/dialect-lint) — optional static analysis plugin
 
 ## Installation
 
+Add the driver for your database — it pulls in `knex_dart` automatically:
+
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.1.1  # or mysql / sqlite
+  knex_dart_postgres: ^0.1.0   # PostgreSQL
+  # knex_dart_mysql: ^0.1.0    # MySQL
+  # knex_dart_sqlite: ^0.1.0   # SQLite
+  # knex_dart_duckdb: ^0.1.0   # DuckDB (OLAP / browser WASM)
 ```
 
-The driver package pulls in `knex_dart` automatically.
+For SQL generation only (no live connection):
+
+```yaml
+dependencies:
+  knex_dart: ^0.1.0
+  knex_dart_capabilities: ^0.1.0
+```
 
 ## Quick Start
 
@@ -80,29 +94,54 @@ await db.executeSchema(
 );
 
 await db.insert(db('users').insert({'name': 'Alice'}));
+await db.destroy();
 ```
 
-### MySQL
+### DuckDB (OLAP / Browser WASM)
 
 ```dart
-import 'package:knex_dart_mysql/knex_dart_mysql.dart';
+import 'package:knex_dart_duckdb/knex_dart_duckdb.dart';
 
-final db = await KnexMySQL.connect(
-  host: 'localhost',
-  database: 'mydb',
-  user: 'user',
-  password: 'pass',
+final db = await KnexDuckDB.memory();  // or KnexDuckDB.file('path.db')
+
+final result = await db.select(
+  db.queryBuilder()
+    .from('sales')
+    .sum('amount as total')
+    .groupBy('region'),
 );
+
+await db.close();
 ```
 
-## Query Builder
+DuckDB runs natively on macOS/Linux/Windows and in the **browser via WASM** — same API on both platforms.
 
-All driver packages expose the same `Knex` query builder API.
+### Query Builder Only (No Connection)
+
+Generate dialect-correct SQL without any driver installed:
+
+```dart
+import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
+
+// PostgreSQL — double-quoted identifiers, $1 placeholders
+final q = KnexQuery.forDialect(KnexDialect.postgres);
+print(q.from('users').where('active', '=', true).toSQL().sql);
+// select * from "users" where "active" = $1
+
+// MySQL — backtick identifiers, ? placeholders
+final q2 = KnexQuery.forClient('mysql2');
+print(q2.from('users').where('active', '=', true).toSQL().sql);
+// select * from `users` where `active` = ?
+```
+
+Supported dialects: `pg`, `mysql2`, `sqlite3`, `duckdb`, `snowflake`, `bigquery`, `turso`, `d1`, `mariadb`, `redshift`.
+
+## Query Builder
 
 ### SELECT
 
 ```dart
-// Basic
 db('users').select(['id', 'name']).where('active', '=', true);
 
 // Joins
@@ -116,6 +155,14 @@ db('sales')
   .count('* as total')
   .sum('amount as revenue')
   .where('status', '=', 'completed');
+
+// LATERAL join (PostgreSQL / MySQL 8+)
+db('users').leftJoinLateral('latest', (sub) {
+  sub.table('orders')
+    .where('orders.user_id', db.raw('"users"."id"'))
+    .orderBy('created_at', 'desc')
+    .limit(1);
+});
 ```
 
 ### INSERT / UPDATE / DELETE
@@ -126,6 +173,12 @@ db('users').insert({'name': 'Alice', 'email': 'alice@example.com'});
 db('users').where('id', '=', 1).update({'name': 'Bob'});
 
 db('users').where('id', '=', 1).delete();
+
+// Upsert
+db('users')
+  .insert({'email': 'alice@example.com', 'name': 'Alice'})
+  .onConflict('email')
+  .merge();
 ```
 
 ### Advanced
@@ -136,11 +189,12 @@ db('active_users')
   .withRecursive('active_users', db('users').where('active', '=', true))
   .select(['*']);
 
-// Upsert
-db('users')
-  .insert({'email': 'alice@example.com', 'name': 'Alice'})
-  .onConflict('email')
-  .merge();
+// Window functions
+db.queryBuilder()
+  .table('employees')
+  .select(['id', 'department', 'salary'])
+  .rowNumber('row_num', (a) => a.partitionBy('department').orderBy('salary', 'desc'))
+  .lead('next_salary', 'salary', 'salary', 'department');
 
 // Raw
 db.raw('select * from users where id = ?', [1]);
@@ -169,19 +223,41 @@ await db.trx((trx) async {
 });
 ```
 
-Nested transactions are supported via savepoints (`SAVEPOINT`, `ROLLBACK TO SAVEPOINT`, `RELEASE SAVEPOINT`).
+Nested transactions use savepoints automatically:
+
+```dart
+await db.trx((outer) async {
+  await outer.insert(outer('accounts').insert({'owner': 'Alice', 'balance': 1000}));
+
+  try {
+    await outer.trx((inner) async {
+      await inner.insert(inner('accounts').insert({'owner': 'Bob', 'balance': 500}));
+      throw Exception('rollback inner only');
+    });
+  } catch (_) {}
+
+  // Alice's row committed; Bob's row rolled back
+});
+```
+
+### Streaming
+
+```dart
+final stream = db.streamQuery(
+  db('events').where('processed', '=', false).orderBy('id'),
+);
+
+await for (final row in stream) {
+  await handleEvent(row);
+}
+```
+
+Supported on PostgreSQL, MySQL, SQLite, and DuckDB.
 
 ### Migrations
 
-Knex Dart supports explicit migration source styles:
-
-- `fromCode(...)` for in-code migration units
-- `fromSqlDir(...)` for filesystem `*.up.sql` / `*.down.sql` migrations
-- `fromConfig()` to read `MigrationConfig.directory` (default `./migrations`)
-- `fromSchema(...)` for external schema input mapped to `KnexSchemaAst`
-
 ```dart
-// 1) Code-first (SQL migration unit)
+// Code-first
 await db.migrate.fromCode([
   const SqlMigration(
     name: '001_create_users',
@@ -190,49 +266,13 @@ await db.migrate.fromCode([
   ),
 ]).latest();
 
-// 2) SQL directory
+// SQL directory (*.up.sql / *.down.sql files)
 await db.migrate.fromSqlDir('./migrations').latest();
-
-// 3) From config.migrations.directory
-await db.migrate.fromConfig().latest();
-```
-
-Schema builder style is also supported by implementing a migration unit:
-
-```dart
-class CreateUsersMigration implements MigrationUnit {
-  @override
-  String get name => '002_create_users_with_builder';
-
-  @override
-  Future<void> up(Knex db) async {
-    final schema = db.schema;
-    schema.createTable('users', (t) {
-      t.increments('id');
-      t.string('email', 255).notNullable().unique();
-    });
-    await schema.execute();
-  }
-
-  @override
-  Future<void> down(Knex db) async {
-    final schema = db.schema;
-    schema.dropTableIfExists('users');
-    await schema.execute();
-  }
-}
 ```
 
 ### Optional Dialect Lint Plugin
 
-`knex_dart_lint` is optional and provides static diagnostics for dialect-incompatible query APIs.
-
-Example warnings:
-- `.returning()` on MySQL/SQLite
-- `fullOuterJoin()` on SQLite/MySQL
-- `joinLateral()` on SQLite
-
-Setup:
+`knex_dart_lint` provides static diagnostics for dialect-incompatible API usage:
 
 ```yaml
 dev_dependencies:
@@ -246,6 +286,29 @@ analyzer:
   plugins:
     - custom_lint
 ```
+
+Catches: `.returning()` on MySQL/SQLite, `fullOuterJoin()` on MySQL/SQLite, `joinLateral()` on SQLite, `.onConflict().merge()` on unsupported dialects.
+
+## Features
+
+- SELECT, INSERT, UPDATE, DELETE
+- 29 WHERE methods — basic, IN, NULL, BETWEEN, EXISTS, OR, JSON, full-text
+- JOINs — INNER, LEFT, RIGHT, FULL OUTER, CROSS, LATERAL
+- Aggregates — COUNT, SUM, AVG, MIN, MAX with DISTINCT variants
+- Window functions — `rowNumber`, `rank`, `denseRank`, `lead`, `lag`, `firstValue`, `lastValue`, `nthValue` + frame clauses
+- CTEs — `WITH` and `WITH RECURSIVE`
+- UNION, INTERSECT, EXCEPT (with ALL variants)
+- Subqueries in WHERE IN, FROM, and SELECT
+- Upserts — `onConflict().merge()`
+- Schema builder — createTable, alterTable, dropTable, foreign keys, indexes
+- Transactions + nested savepoints on PostgreSQL, MySQL, SQLite, DuckDB
+- Streaming — `streamQuery()` for memory-efficient large result sets
+- Connection pooling — `PoolConfig` for PostgreSQL and MySQL
+- Migrations — code-first, SQL-directory, and JSON-schema sources
+- Dialect-aware SQL — correct quoting and placeholders per database
+- `KnexQuery.forDialect()` — generate SQL for any dialect without a driver
+- Web/WASM — DuckDB runs in Chrome/headless browser
+- 591+ tests, >85% line coverage
 
 ## Side-by-Side: Knex.js vs knex_dart
 
@@ -266,30 +329,6 @@ db('users')
   .orderBy('created_at', 'desc')
   .limit(10);
 ```
-
-## Features
-
-- SELECT, INSERT, UPDATE, DELETE
-- WHERE — basic, IN, NULL, BETWEEN, EXISTS, OR, raw
-- JOINs — INNER, LEFT, RIGHT, FULL OUTER, CROSS, with callback builder
-- Aggregates — COUNT, SUM, AVG, MIN, MAX with DISTINCT variants
-- ORDER BY, GROUP BY, HAVING, LIMIT, OFFSET
-- Value window functions — `lead()`, `lag()`, `firstValue()`, `lastValue()`, `nthValue()` with frame clauses
-- Raw queries with `?`, `:name`, `??` binding formats
-- RETURNING clause (PostgreSQL)
-- CTEs (WITH / WITH RECURSIVE)
-- UNIONs, INTERSECTs, EXCEPTs
-- Subqueries
-- JSON operators (`whereJsonPath`, `whereJsonSupersetOf`, etc.)
-- Full-text search (`whereFullText`)
-- FULLTEXT index DDL via schema builder (`t.fulltext([...])`, MySQL/MariaDB)
-- Upserts (`onConflict().merge()`)
-- Schema builder — createTable, alterTable, dropTable, foreign keys, indexes
-- Connection pooling via `PoolConfig` (`min`, `max`, `idleTimeoutMillis`, `reapIntervalMillis`)
-- MSSQL `OFFSET ... FETCH` pagination support
-- Web/WASM support — `sqlite3_web` for SQLite and `universal_io` across drivers
-- Migrations — code-first, SQL-directory, and external-schema sources
-- Dialect-aware SQL (PostgreSQL `$1`, MySQL/SQLite `?`)
 
 ## Acknowledgments
 

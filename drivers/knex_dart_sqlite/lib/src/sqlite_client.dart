@@ -12,6 +12,13 @@ class SQLiteClient extends Client {
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
 
+  /// Prepared statement cache keyed by SQL string.
+  ///
+  /// Avoids repeated `sqlite3_prepare` calls for identical SQL, which is the
+  /// dominant cost for short repeated queries (SELECT/INSERT/UPDATE/DELETE).
+  /// Statements are disposed when [close] is called.
+  final Map<String, PreparedStatement> _stmtCache = {};
+
   SQLiteClient._(this._filename, KnexConfig config) : super(config);
 
   /// Create a SQLite client directly from [KnexConfig].
@@ -73,6 +80,10 @@ class SQLiteClient extends Client {
   }
 
   Future<void> destroyPool() async {
+    for (final stmt in _stmtCache.values) {
+      stmt.dispose();
+    }
+    _stmtCache.clear();
     _db.dispose();
     _isClosed = true;
   }
@@ -242,21 +253,16 @@ class SQLiteClient extends Client {
     List<dynamic>? bindings,
   ]) async {
     final params = bindings ?? [];
-
-    final stmt = _db.prepare(sql);
-    try {
-      final upperSql = sql.trimLeft().toUpperCase();
-      if (upperSql.startsWith('SELECT') ||
-          upperSql.startsWith('PRAGMA') ||
-          upperSql.contains('RETURNING')) {
-        final result = stmt.select(params);
-        return _mapResults(result);
-      } else {
-        stmt.execute(params);
-        return [];
-      }
-    } finally {
-      stmt.dispose();
+    final stmt = _stmtCache.putIfAbsent(sql, () => _db.prepare(sql));
+    final upperSql = sql.trimLeft().toUpperCase();
+    if (upperSql.startsWith('SELECT') ||
+        upperSql.startsWith('PRAGMA') ||
+        upperSql.contains('RETURNING')) {
+      final result = stmt.select(params);
+      return _mapResults(result);
+    } else {
+      stmt.execute(params);
+      return [];
     }
   }
 

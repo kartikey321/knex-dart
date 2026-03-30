@@ -96,11 +96,20 @@ void main() {
                   SidebarLink(text: "Joins", href: '/query-building/joins'),
                   SidebarLink(text: "WHERE Clauses", href: '/query-building/where-clauses'),
                   SidebarLink(text: "Write Operations", href: '/query-building/write-operations'),
+                  SidebarLink(text: "Aggregation", href: '/query-building/aggregation'),
+                  SidebarLink(text: "Window Functions", href: '/query-building/window-functions'),
+                  SidebarLink(text: "Subqueries", href: '/query-building/subqueries'),
+                  SidebarLink(text: "CTEs (WITH)", href: '/query-building/ctes'),
+                  SidebarLink(text: "UNION / INTERSECT / EXCEPT", href: '/query-building/unions'),
                   SidebarLink(text: "Transactions", href: '/query-building/transactions'),
                   SidebarLink(text: "Schema Builder", href: '/query-building/schema-builder'),
-                  SidebarLink(text: "Subqueries", href: '/query-building/subqueries'),
-                  SidebarLink(text: "UNION Operations", href: '/query-building/unions'),
-                  SidebarLink(text: "CTEs (WITH)", href: '/query-building/ctes'),
+                ],
+              ),
+              SidebarGroup(
+                title: 'Connections',
+                links: [
+                  SidebarLink(text: "Connection Pooling", href: '/connections/pooling'),
+                  SidebarLink(text: "Streaming", href: '/connections/streaming'),
                 ],
               ),
               SidebarGroup(
