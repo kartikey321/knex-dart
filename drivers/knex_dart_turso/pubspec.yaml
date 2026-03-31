@@ -7,7 +7,6 @@ issue_tracker: https://github.com/kartikey321/knex-dart/issues
 topics:
   - sql
   - query-builder
-  - database
   - turso
   - libsql
   - knex
