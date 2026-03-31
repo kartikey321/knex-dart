@@ -9,7 +9,6 @@ topics:
   - query-builder
   - database
   - snowflake
-  - data-warehouse
   - knex
 
 environment:

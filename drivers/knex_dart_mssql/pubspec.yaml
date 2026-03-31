@@ -9,7 +9,6 @@ topics:
   - query-builder
   - database
   - mssql
-  - sqlserver
   - knex
 
 environment:

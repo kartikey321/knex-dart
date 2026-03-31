@@ -9,8 +9,6 @@ topics:
   - query-builder
   - database
   - duckdb
-  - analytics
-  - olap
   - knex
 
 environment:
