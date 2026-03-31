@@ -45,17 +45,17 @@ test-snowflake: ## Run Snowflake driver tests
 	./tool/run_tests.sh snowflake
 
 test-unit: ## Run core unit tests only
-	dart test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql,duckdb
+	dart test packages/knex_dart/test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql,duckdb
 
 analyze: ## Run static analysis across workspace
 	melos run analyze
 
-coverage: ## Generate coverage/lcov.info for root package
-	dart test --coverage=coverage
+coverage: ## Generate coverage/lcov.info for core package
+	dart test packages/knex_dart/test --coverage=coverage
 	dart pub global activate coverage
-	dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --packages=.dart_tool/package_config.json --report-on=lib
+	dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --packages=.dart_tool/package_config.json --report-on=packages/knex_dart/lib
 	@if [ "$(shell uname)" = "Darwin" ]; then \
-		sed -i '' 's|SF:.*/lib|SF:lib|' coverage/lcov.info; \
+		sed -i '' 's|SF:.*/packages/knex_dart/lib|SF:packages/knex_dart/lib|' coverage/lcov.info; \
 	else \
-		sed -i 's|SF:.*/lib|SF:lib|' coverage/lcov.info; \
+		sed -i 's|SF:.*/packages/knex_dart/lib|SF:packages/knex_dart/lib|' coverage/lcov.info; \
 	fi

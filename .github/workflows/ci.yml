@@ -17,7 +17,8 @@ on:
       - 'knex_dart_capabilities-v*.*.*'
       - 'knex_dart_lint-v*.*.*'
   pull_request:
-    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 # Cancel in-progress runs for the same branch/PR
 concurrency:
@@ -53,14 +54,14 @@ jobs:
         with: { channel: stable }
       - run: flutter pub get
       - name: Run unit tests with coverage
-        run: dart test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql,duckdb,d1,snowflake --coverage=coverage
+        run: dart test packages/knex_dart/test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql,duckdb,d1,snowflake --coverage=coverage
       - name: Format coverage
         run: |
           dart pub global activate coverage
           dart pub global run coverage:format_coverage \
             --lcov --in=coverage --out=coverage/lcov.info \
-            --packages=.dart_tool/package_config.json --report-on=lib
-          sed -i 's|SF:.*/lib|SF:lib|' coverage/lcov.info
+            --packages=.dart_tool/package_config.json --report-on=packages/knex_dart/lib
+          sed -i 's|SF:.*/packages/knex_dart/lib|SF:packages/knex_dart/lib|' coverage/lcov.info
       - name: Check coverage ≥ 85%
         run: |
           COV=$(awk -F: '/^LF/{lf+=$2} /^LH/{lh+=$2} END{printf "%.1f", lh*100/lf}' coverage/lcov.info)
@@ -436,7 +437,11 @@ jobs:
             -No -C
       - name: Run MSSQL tests
         working-directory: drivers/knex_dart_mssql
-        run: dart test --tags=mssql
+        run: |
+          # mssql_connection uses global FFI callbacks; keep one test process
+          # per file to avoid cross-isolate callback crashes in CI.
+          dart test test/integration/mssql_test.dart --concurrency=1
+          dart test test/integration/schema_api_integration_test.dart --concurrency=1
         env:
           MSSQL_HOST: localhost
           MSSQL_PORT: "1433"
@@ -575,7 +580,7 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           case "$TAG" in
-            knex_dart-v*)              echo "dir=." ;;
+            knex_dart-v*)              echo "dir=packages/knex_dart" ;;
             knex_dart_postgres-v*)     echo "dir=drivers/knex_dart_postgres" ;;
             knex_dart_mysql-v*)        echo "dir=drivers/knex_dart_mysql" ;;
             knex_dart_sqlite-v*)       echo "dir=drivers/knex_dart_sqlite" ;;

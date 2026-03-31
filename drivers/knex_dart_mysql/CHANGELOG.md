@@ -1,3 +1,11 @@
+## 0.2.0
+
+- Added `KnexMySQL.mariadb(...)` constructor for MariaDB connections.
+- Propagated dialect identity through schema/query builder generation so MariaDB capability
+  handling stays distinct from MySQL where needed.
+- Added streaming query support in `MySQLClient` via `streamQuery(...)`.
+- Added `universal_io` dependency for broader platform compatibility.
+
 ## 0.1.1
 
 - Updated dependency to `knex_dart: ^1.1.0`.

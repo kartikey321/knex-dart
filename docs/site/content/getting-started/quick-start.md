@@ -7,6 +7,47 @@ description: Connect to a database and build your first queries with Knex Dart
 
 Learn the basics of Knex Dart in a few minutes.
 
+## Query Builder Only (No Connection)
+
+If you only need SQL generation — for testing, logging, or ORM layers — use `KnexQuery` from the core package. No driver required.
+
+```bash
+dart pub add knex_dart
+```
+
+```dart
+import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
+
+// Target any dialect — produces dialect-correct SQL without a live connection
+final q = KnexQuery.forDialect(KnexDialect.postgres);
+
+final result = q.from('users')
+    .select(['id', 'email'])
+    .where('active', '=', true)
+    .orderBy('name')
+    .toSQL();
+
+print(result.sql);       // select "id", "email" from "users" where "active" = $1 order by "name" asc
+print(result.bindings);  // [true]
+```
+
+Or by driver name (knex.js-style):
+
+```dart
+final q = KnexQuery.forClient('mysql2');
+
+final result = q.from('orders')
+    .where('status', '=', 'open')
+    .toSQL();
+
+print(result.sql);  // select * from `orders` where `status` = ?
+```
+
+Supported dialect strings: `pg`, `postgres`, `mysql`, `mysql2`, `sqlite3`, `mariadb`, `duckdb`, `snowflake`, `bigquery`, `turso`, `d1`, `redshift`.
+
+---
+
 ## 1) Connect to a Database
 
 Each database has its own driver package with a typed connect factory.
@@ -47,9 +88,25 @@ final db = await KnexMySQL.connect(
 );
 ```
 
-## 2) Build and Execute Queries
+### DuckDB (OLAP / Analytics)
 
-`db` is a callable — `db('table')` returns a `QueryBuilder`.
+```dart
+import 'package:knex_dart_duckdb/knex_dart_duckdb.dart';
+
+// In-memory (no server required)
+final db = await KnexDuckDB.memory();
+
+// Or file-backed
+final db = await KnexDuckDB.file('/path/to/analytics.db');
+```
+
+DuckDB also runs in the **browser via WASM** — the same API works on native and web platforms.
+
+See [Database Support](/database-support) for all 9 supported databases.
+
+---
+
+## 2) Build and Execute Queries
 
 ```dart
 // SELECT
@@ -77,9 +134,9 @@ await db.delete(
 );
 ```
 
-## 3) Generate SQL Without Executing
+## 3) Inspect Generated SQL
 
-Call `.toSQL()` on any query builder to inspect the SQL and bindings:
+Call `.toSQL()` on any query builder to see the SQL and bindings without executing:
 
 ```dart
 final q = db('users')
@@ -141,8 +198,9 @@ await db.destroy();
 
 ## Next Steps
 
-- [WHERE Clauses](/query-building/where-clauses)
-- [Subqueries](/query-building/subqueries)
-- [CTEs (WITH)](/query-building/ctes)
-- [UNION / INTERSECT / EXCEPT](/query-building/unions)
+- [Database Support](/database-support) — Connection examples for all 9 databases
+- [WHERE Clauses](/query-building/where-clauses) — All 29 filtering methods
+- [Joins](/query-building/joins) — INNER, LEFT, RIGHT, FULL OUTER, LATERAL
+- [Transactions](/query-building/transactions) — Atomic operations and nested savepoints
+- [Streaming](/connections/streaming) — Memory-efficient large result sets
 - [Examples](/examples/basic-queries)

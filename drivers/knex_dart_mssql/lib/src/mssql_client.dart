@@ -18,8 +18,7 @@ import 'package:mssql_connection/mssql_connection.dart';
 ///
 /// **SQL dialect**: SQL Server uses square-bracket identifiers (`[col]`),
 /// `@p1`-style positional parameters, and `TOP n` instead of `LIMIT n`.
-/// The knex_dart query builder emits double-quoted identifiers — wrap them
-/// in `raw()` if you need square brackets.
+/// The knex_dart query builder emits bracketed identifiers for this driver.
 class MssqlClient {
   final MssqlConnection _conn;
   bool _isClosed = false;

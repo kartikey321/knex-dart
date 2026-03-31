@@ -1,12 +1,12 @@
-FROM dart:stable
+FROM ghcr.io/cirruslabs/flutter:stable
 
 WORKDIR /workspace
 COPY . .
-RUN dart pub get
+RUN flutter pub get
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends freetds-dev libct4 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/drivers/knex_dart_mssql
-CMD ["sh", "-c", "dart test --exclude-tags=mssql && dart test --tags=mssql"]
+CMD ["sh", "-c", "dart test test/integration/mssql_test.dart --concurrency=1 && dart test test/integration/schema_api_integration_test.dart --concurrency=1"]

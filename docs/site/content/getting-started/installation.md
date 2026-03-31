@@ -21,6 +21,12 @@ Get started with Knex Dart in your Dart or Flutter project.
 | PostgreSQL | `knex_dart_postgres` | `dart pub add knex_dart_postgres` |
 | MySQL | `knex_dart_mysql` | `dart pub add knex_dart_mysql` |
 | SQLite | `knex_dart_sqlite` | `dart pub add knex_dart_sqlite` |
+| DuckDB | `knex_dart_duckdb` | `dart pub add knex_dart_duckdb` |
+| SQL Server | `knex_dart_mssql` | `dart pub add knex_dart_mssql` |
+| Google BigQuery | `knex_dart_bigquery` | `dart pub add knex_dart_bigquery` |
+| Snowflake | `knex_dart_snowflake` | `dart pub add knex_dart_snowflake` |
+| Turso (libSQL) | `knex_dart_turso` | `dart pub add knex_dart_turso` |
+| Cloudflare D1 | `knex_dart_d1` | `dart pub add knex_dart_d1` |
 
 ## Add a Driver
 
@@ -43,6 +49,62 @@ dart pub add knex_dart_mysql
 ```bash
 dart pub add knex_dart_sqlite
 ```
+
+### DuckDB (OLAP / Analytics)
+
+```bash
+dart pub add knex_dart_duckdb
+```
+
+> **System dependency (native):** Requires the DuckDB shared library.
+> macOS: `brew install duckdb`
+> Linux: download `libduckdb.so` from [duckdb.org/docs/installation](https://duckdb.org/docs/installation)
+>
+> No setup needed for browser/WASM — DuckDB loads via WASM automatically.
+
+### SQL Server (MSSQL)
+
+```bash
+dart pub add knex_dart_mssql
+```
+
+> **System dependency:** Requires the FreeTDS shared library.
+> Linux: `sudo apt-get install libsybdb5`
+> macOS: `brew install freetds`
+
+### Google BigQuery
+
+```bash
+dart pub add knex_dart_bigquery
+```
+
+No system dependencies. Uses the BigQuery REST API.
+
+### Snowflake
+
+```bash
+dart pub add knex_dart_snowflake
+```
+
+No system dependencies. Uses the Snowflake SQL REST API.
+
+### Turso (libSQL)
+
+```bash
+dart pub add knex_dart_turso
+```
+
+No system dependencies. Uses the libSQL HTTP wire protocol.
+
+### Cloudflare D1
+
+```bash
+dart pub add knex_dart_d1
+```
+
+No system dependencies. Uses the Cloudflare D1 REST API.
+
+---
 
 ## Query Builder Only
 
@@ -73,16 +135,17 @@ Future<void> main() async {
 
 ```dart
 import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
 
 void main() {
-  // Use a mock client for query generation
-  final db = Knex(MockClient());
-  print(db('users').select(['id', 'name']).toSQL().sql);
+  final q = KnexQuery.forDialect(KnexDialect.postgres);
+  print(q.from('users').select(['id', 'name']).toSQL().sql);
+  // select "id", "name" from "users"
 }
 ```
 
 ## Next Steps
 
-- [Quick Start](./quick-start) - Connect and run your first query
-- [WHERE Clauses](/query-building/where-clauses) - Learn query filtering
-- [Examples](/examples/basic-queries) - Real-world patterns
+- [Quick Start](./quick-start) — Connect and run your first query
+- [Database Support](/database-support) — Connection examples for all 9 databases
+- [WHERE Clauses](/query-building/where-clauses) — Learn query filtering

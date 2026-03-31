@@ -1,0 +1,12 @@
+# Dart / Flutter tool state
+.dart_tool/
+
+# Build outputs
+build/
+
+# Library packages should not commit lockfiles.
+pubspec.lock
+
+# Flutter tool artifacts (if present)
+.flutter-plugins
+.flutter-plugins-dependencies

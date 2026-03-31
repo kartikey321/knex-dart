@@ -48,13 +48,79 @@ db.schema.dropTable('posts');
 db.schema.dropTableIfExists('posts');
 ```
 
-## hasTable / hasColumn
+## createTableLike
 
-Check existence (returns a SQL query — execute with `db.select`):
+Copy the structure of an existing table:
 
 ```dart
-db.schema.hasTable('users');
-db.schema.hasColumn('users', 'email');
+await db.executeSchema(
+  db.schema.createTableLike('users_archive', 'users'),
+);
+```
+
+Add extra columns while cloning:
+
+```dart
+await db.executeSchema(
+  db.schema.createTableLike('users_archive', 'users', (t) {
+    t.timestamp('archived_at').notNullable();
+  }),
+);
+```
+
+## renameTable / renameView
+
+```dart
+await db.executeSchema(db.schema.renameTable('users', 'app_users'));
+await db.executeSchema(db.schema.renameView('active_users', 'users_active'));
+```
+
+`renameView` is supported on PostgreSQL, MySQL-family, and MSSQL.
+
+## Views
+
+```dart
+await db.executeSchema(
+  db.schema.createView('active_users', db.queryBuilder()
+    .table('users')
+    .select(['id', 'email'])
+    .where('active', '=', true)),
+);
+
+await db.executeSchema(
+  db.schema.createViewOrReplace('active_users', db.queryBuilder()
+    .table('users')
+    .select(['id', 'email'])
+    .where('active', '=', true)),
+);
+
+await db.executeSchema(db.schema.dropViewIfExists('active_users'));
+```
+
+`createViewOrReplace` on SQLite compiles as `drop view if exists` + `create view`.
+
+## Materialized Views / Schemas / Extensions
+
+These APIs are PostgreSQL-only and throw `UnsupportedError` on other dialects:
+
+- `createMaterializedView`, `refreshMaterializedView`
+- `dropMaterializedView`, `dropMaterializedViewIfExists`
+- `createSchema`, `createSchemaIfNotExists`, `dropSchema`, `dropSchemaIfExists`
+- `createExtension`, `createExtensionIfNotExists`, `dropExtension`, `dropExtensionIfExists`
+
+## hasTable / hasColumn
+
+Check existence directly (async `bool`):
+
+```dart
+final hasUsers = await db.schema.hasTable('users');
+final hasEmail = await db.schema.hasColumn('users', 'email');
+```
+
+With schema namespace:
+
+```dart
+final exists = await db.schema.withSchema('public').hasTable('users');
 ```
 
 ---

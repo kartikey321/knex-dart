@@ -1,8 +1,8 @@
-FROM dart:stable
+FROM ghcr.io/cirruslabs/flutter:stable
 
 WORKDIR /workspace
 COPY . .
-RUN dart pub get
+RUN flutter pub get
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libsqlite3-dev \

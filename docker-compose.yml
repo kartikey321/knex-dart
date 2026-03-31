@@ -35,7 +35,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: knex_dart_postgres
-    profiles: [db, postgres]
+    profiles: [db, postgres, test]
     environment:
       POSTGRES_DB: knex_test
       POSTGRES_USER: knex
@@ -55,7 +55,7 @@ services:
   mysql:
     image: mysql:8.0
     container_name: knex_dart_mysql
-    profiles: [db, mysql]
+    profiles: [db, mysql, test]
     command: --default-authentication-plugin=mysql_native_password
     environment:
       MYSQL_DATABASE: knex_test
@@ -79,7 +79,7 @@ services:
     # On x86 CI you can swap back to mcr.microsoft.com/mssql/server:2022-latest.
     image: mcr.microsoft.com/azure-sql-edge:latest
     container_name: knex_dart_mssql
-    profiles: [db, mssql]
+    profiles: [db, mssql, test]
     environment:
       ACCEPT_EULA: "Y"
       SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
@@ -142,7 +142,7 @@ services:
   sqld:
     image: ghcr.io/libsql/sqld:latest
     container_name: knex_dart_sqld
-    profiles: [db, turso]
+    profiles: [db, turso, test]
     environment:
       SQLD_NODE: primary
     ports:
@@ -158,7 +158,7 @@ services:
     image: ghcr.io/goccy/bigquery-emulator:latest
     platform: linux/amd64
     container_name: knex_dart_bigquery
-    profiles: [db, bigquery]
+    profiles: [db, bigquery, test]
     command:
       - "--project=knex-test"
       - "--dataset=knex_dataset"

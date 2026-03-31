@@ -9,8 +9,6 @@ topics:
   - query-builder
   - database
   - bigquery
-  - google-cloud
-  - data-warehouse
   - knex
 
 environment:

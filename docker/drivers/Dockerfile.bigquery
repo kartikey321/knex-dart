@@ -1,8 +1,8 @@
-FROM dart:stable
+FROM ghcr.io/cirruslabs/flutter:stable
 
 WORKDIR /workspace
 COPY . .
-RUN dart pub get
+RUN flutter pub get
 
 WORKDIR /workspace/drivers/knex_dart_bigquery
-CMD ["sh", "-c", "dart test --exclude-tags=bigquery && dart test --tags=bigquery"]
+CMD ["dart", "test"]

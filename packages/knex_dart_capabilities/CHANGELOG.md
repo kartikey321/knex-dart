@@ -1,3 +1,10 @@
+## 0.2.0
+
+- Expanded dialect coverage to include `mariadb`, `redshift`, `turso`, `d1`,
+  `duckdb`, `snowflake`, and `bigquery`.
+- Extended capability matrix entries for new dialects and documented dialect-specific notes.
+- Added driver-name normalization and aliases for new dialects in capability resolution.
+
 ## 0.1.0
 
 - Initial release.

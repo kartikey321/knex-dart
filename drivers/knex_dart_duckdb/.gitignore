@@ -1,2 +1,15 @@
+# Dart / Flutter tool state
+.dart_tool/
+
+# Build outputs
+build/
+
+# Library packages should not commit lockfiles.
+pubspec.lock
+
+# Flutter tool artifacts (if present)
+.flutter-plugins
+.flutter-plugins-dependencies
+
 # DuckDB WASM assets — downloaded via: dart run tool/download_wasm.dart
 lib/web_assets/
