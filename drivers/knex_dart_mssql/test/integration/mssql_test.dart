@@ -547,7 +547,7 @@ void main() {
   });
 
   group('MssqlClient — QueryBuilder SQL shape', () {
-    test('queryBuilder generates double-quote identifiers', () {
+    test('queryBuilder generates bracket identifiers', () {
       if (skipReason != null) return markTestSkipped(skipReason!);
       final compiled = db!
           .queryBuilder()
@@ -555,8 +555,8 @@ void main() {
           .where('role', 'admin')
           .select(['name', 'score'])
           .toSQL();
-      expect(compiled.sql, contains('"users"'));
-      expect(compiled.sql, contains('"name"'));
+      expect(compiled.sql, contains('[users]'));
+      expect(compiled.sql, contains('[name]'));
       expect(compiled.sql, contains('?'));
       expect(compiled.bindings, ['admin']);
     });

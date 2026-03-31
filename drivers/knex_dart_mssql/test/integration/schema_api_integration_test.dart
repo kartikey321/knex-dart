@@ -69,7 +69,8 @@ class _MssqlLiveSchemaClient extends Client {
   Future<void> releaseConnection(connection) async {}
 
   @override
-  String wrapIdentifierImpl(String value) => value == '*' ? value : '"$value"';
+  String wrapIdentifierImpl(String value) =>
+      value == '*' ? value : '[${value.replaceAll(']', ']]')}]';
 
   @override
   String parameterPlaceholder(int index) => '?';

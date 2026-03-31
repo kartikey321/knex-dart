@@ -1,10 +1,10 @@
-FROM dart:stable
+FROM ghcr.io/cirruslabs/flutter:stable
 
 ARG DUCKDB_VERSION=v1.2.2
 
 WORKDIR /workspace
 COPY . .
-RUN dart pub get
+RUN flutter pub get
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl unzip \

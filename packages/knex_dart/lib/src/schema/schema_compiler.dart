@@ -426,14 +426,16 @@ class SchemaCompiler {
 
   /// Alter a table
   void _alterTable(String tableName, void Function(TableBuilder) callback) {
+    final driver = client.driverName.toLowerCase();
     final tb = TableBuilder(client, 'alter', tableName);
     callback(tb);
     final tableRef = _prefixedTableName(tableName);
 
     // Handle added columns
     for (final col in tb.columns) {
+      final addKeyword = driver == 'mssql' ? 'add' : 'add column';
       _pushQuery(
-        'alter table $tableRef add column ${col.toSQL(dialect: client.driverName, wrap: _wrap)}',
+        'alter table $tableRef $addKeyword ${col.toSQL(dialect: client.driverName, wrap: _wrap)}',
       );
     }
 

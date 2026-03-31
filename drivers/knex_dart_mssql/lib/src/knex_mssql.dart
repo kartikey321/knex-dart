@@ -81,7 +81,7 @@ class KnexMssql {
 
   /// Create a query builder scoped to the SQL Server dialect.
   ///
-  /// Uses double-quote identifiers and `?` positional parameters (rewritten
+  /// Uses square-bracket identifiers and `?` positional parameters (rewritten
   /// to `@p1`-style before sending to SQL Server).
   QueryBuilder queryBuilder() => _MssqlSchemaClient().queryBuilder();
 
@@ -173,10 +173,11 @@ class _MssqlSchemaClient extends Client {
   @override
   Future<void> releaseConnection(connection) => Future.value();
 
-  // SQL Server uses double-quote identifiers (ANSI mode) and ? params
+  // SQL Server uses bracketed identifiers and ? params
   // which we rewrite to @p1 style in MssqlClient._rewriteParams.
   @override
-  String wrapIdentifierImpl(String identifier) => '"$identifier"';
+  String wrapIdentifierImpl(String identifier) =>
+      '[${identifier.replaceAll(']', ']]')}]';
 
   @override
   String parameterPlaceholder(int index) => '?';
