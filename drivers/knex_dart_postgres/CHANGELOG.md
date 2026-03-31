@@ -1,3 +1,11 @@
+## 0.2.0
+
+- Added `KnexPostgres.cockroachdb(...)` constructor for CockroachDB connections.
+- Added `KnexPostgres.redshift(...)` constructor for Amazon Redshift connections.
+- Propagated dialect identity through schema/query builder generation so capability checks
+  stay dialect-aware for PostgreSQL wire-compatible variants.
+- Added `universal_io` dependency for broader platform compatibility.
+
 ## 0.1.1
 
 - Updated dependency to `knex_dart: ^1.1.0`.

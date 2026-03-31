@@ -1,3 +1,16 @@
+## 1.2.0
+
+- Added `KnexQuery` for dialect-only SQL generation via `KnexQuery.forDialect(...)` and `KnexQuery.forClient(...)`.
+- Added schema parity APIs in `SchemaBuilder` and `SchemaCompiler`, including:
+  `createTableLike`, `hasTable`, `hasColumn`, `renameView`, view/materialized-view operations,
+  schema operations, extension operations, and `schema.raw(...)`.
+- Improved cross-dialect schema SQL generation for MSSQL and MySQL-family paths
+  (dialect-specific `dropTableIfExists`, `renameTable`, and fulltext alter support).
+- Improved query compilation behavior for function-style subqueries, analytic `OVER(...)`
+  handling, and MSSQL `LIMIT/OFFSET` SQL generation.
+- Internal workspace refactor: core package moved under `packages/knex_dart`
+  with no user-facing import path change.
+
 ## 1.1.0
 
 - Added filesystem/config migration source support via `fromConfig()`.

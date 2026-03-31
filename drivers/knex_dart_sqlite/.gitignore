@@ -10,6 +10,3 @@ pubspec.lock
 # Flutter tool artifacts (if present)
 .flutter-plugins
 .flutter-plugins-dependencies
-
-# DuckDB WASM assets — downloaded via: dart run tool/download_wasm.dart
-lib/web_assets/
