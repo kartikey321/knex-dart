@@ -25,3 +25,7 @@ build/
 custom_lint.log
 example/lint_demo/custom_lint.log
 mssql_connection_issue.md
+
+# Playground
+playground/node_modules/
+playground/dist/

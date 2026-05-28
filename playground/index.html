@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>knex_dart playground</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content="Write Dart query builder code and run it live against an embedded PostgreSQL or SQLite database — right in your browser." />
+    <meta property="og:title" content="knex_dart playground" />
+    <meta property="og:description" content="Write Dart query builder code and run it live against an embedded PostgreSQL or SQLite database — right in your browser." />
+    <meta property="og:type" content="website" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <span class="topbar-title">knex_dart playground</span>
+        <div class="controls">
+          <label>
+            Examples
+            <select id="examples">
+              <option value="" disabled selected>— pick one —</option>
+            </select>
+          </label>
+          <label>
+            Dialect
+            <select id="dialect">
+              <option value="postgres" selected>postgres</option>
+              <option value="mysql">mysql</option>
+              <option value="sqlite">sqlite</option>
+            </select>
+          </label>
+          <label>
+            DB Engine
+            <select id="db-engine">
+              <option value="auto" selected>auto</option>
+              <option value="pglite">pglite</option>
+              <option value="sqlite">sqlite</option>
+              <option value="none">none (SQL only)</option>
+            </select>
+          </label>
+          <button id="run">
+            <span id="run-btn-spinner" class="spinner small hidden" aria-hidden="true"></span>
+            <span id="run-btn-text">▶ Run</span>
+          </button>
+          <button id="share" class="btn-topbar" title="Copy shareable link">⎘ Share</button>
+          <span id="timing" class="timing"></span>
+        </div>
+        <div id="run-status" class="run-status hidden">
+          <span class="spinner small" aria-hidden="true"></span>
+          <span id="run-status-text">Running…</span>
+        </div>
+      </header>
+
+      <main class="layout">
+        <!-- Left: Dart editor -->
+        <section class="pane editor-pane">
+          <div class="pane-header">
+            <span>Dart</span>
+            <ul id="diagnostics" class="diag-inline"></ul>
+          </div>
+          <div id="editor"></div>
+        </section>
+
+        <!-- Middle: Console output -->
+        <section class="pane output-pane">
+          <div class="pane-header">
+            <span>Output</span>
+            <button id="copy-output" class="btn-small" title="Copy output">Copy</button>
+          </div>
+          <pre id="output" class="console-output"></pre>
+        </section>
+
+        <!-- Right: Query results + schema -->
+        <section class="pane results-pane">
+          <div class="pane-header">
+            <span>Query Results</span>
+          </div>
+          <div id="db-table-wrap" class="db-table-wrap"></div>
+
+          <div class="pane-header pane-header-sep">
+            <span>Tables</span>
+            <div style="display:flex;gap:6px">
+              <button id="reset-db" class="btn-small" title="Reset DB to seed data">Reset</button>
+              <button id="refresh-db-viz" class="btn-small">Refresh</button>
+            </div>
+          </div>
+          <div id="db-visualizer" class="db-visualizer"></div>
+        </section>
+      </main>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

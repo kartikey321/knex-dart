@@ -1,0 +1,45 @@
+name: Deploy Playground to Cloudflare Pages
+
+on:
+  push:
+    tags:
+      - 'playground-v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  deploy_playground:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: playground/package-lock.json
+
+      - name: Install dependencies
+        working-directory: playground
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: playground
+        run: npm run check
+
+      - name: Build
+        working-directory: playground
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: knex-dart-playground
+          directory: playground/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
