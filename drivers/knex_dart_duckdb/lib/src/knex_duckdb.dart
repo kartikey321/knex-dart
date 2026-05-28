@@ -81,6 +81,12 @@ class KnexDuckDB {
   /// Uses double-quote identifiers and `$N` positional parameters.
   QueryBuilder queryBuilder() => _DuckDBSchemaClient().queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Run a transaction with full ACID guarantees.
   Future<T> trx<T>(Future<T> Function(DuckDBTrxClient trx) callback) =>
       _client.trx(callback);
@@ -103,6 +109,9 @@ class KnexDuckDB {
 
   /// Close the underlying DuckDB database connection.
   Future<void> close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  Future<void> destroy() => close();
 }
 
 // ============================================================================

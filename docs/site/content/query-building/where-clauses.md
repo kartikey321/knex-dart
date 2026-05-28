@@ -11,73 +11,88 @@ Knex Dart supports 23 WHERE methods covering the major Knex.js WHERE variants.
 
 ```dart
 // Simple equality
-knex('users').where('name', '=', 'John');
-// where "name" = $1
+final db = KnexQuery.forDialect(KnexDialect.postgres);
+
+print(db.from('users').where('name', '=', 'John').toSQL().sql);
+// select * from "users" where "name" = $1
 
 // Multiple WHERE (AND)
-knex('users')
-  .where('active', '=', true)
-  .where('role', '=', 'admin');
-// where "active" = $1 and "role" = $2
+print(
+  db.from('users')
+    .where('active', '=', true)
+    .where('role', '=', 'admin')
+    .toSQL().sql
+);
+// select * from "users" where "active" = $1 and "role" = $2
 ```
 
 ## OR WHERE
 
 ```dart
-knex('users')
-  .where('role', '=', 'admin')
-  .orWhere('role', '=', 'moderator');
-// where "role" = $1 or "role" = $2
+print(
+  db.from('users')
+    .where('role', '=', 'admin')
+    .orWhere('role', '=', 'moderator')
+    .toSQL().sql
+);
+// select * from "users" where "role" = $1 or "role" = $2
 ```
 
 ## WHERE IN
 
 ```dart
 // List of values
-knex('users').whereIn('id', [1, 2, 3]);
-// where "id" in ($1, $2, $3)
+print(db.from('users').whereIn('id', [1, 2, 3]).toSQL().sql);
+// select * from "users" where "id" in ($1, $2, $3)
 
 // Subquery
-knex('users').whereIn('id',
-  knex('orders').select(['user_id'])
+print(
+  db.from('users').whereIn('id',
+    db.from('orders').select(['user_id'])
+  ).toSQL().sql
 );
-// where "id" in (select "user_id" from "orders")
+// select * from "users" where "id" in (select "user_id" from "orders")
 ```
 
 ## WHERE NOT IN
 
 ```dart
-knex('users').whereNotIn('status', ['banned', 'deleted']);
-// where "status" not in ($1, $2)
+print(db.from('users').whereNotIn('status', ['banned', 'deleted']).toSQL().sql);
+// select * from "users" where "status" not in ($1, $2)
 
-knex('users').orWhereNotIn('id', [1, 2, 3]);
-// or "id" not in ($1, $2, $3)
+print(db.from('users').orWhereNotIn('id', [1, 2, 3]).toSQL().sql);
+// select * from "users" or "id" not in ($1, $2, $3)
 ```
 
 ## WHERE NULL
 
 ```dart
-knex('users').whereNull('deleted_at');
-// where "deleted_at" is null
+print(db.from('users').whereNull('deleted_at').toSQL().sql);
+// select * from "users" where "deleted_at" is null
 
-knex('users').whereNotNull('email');
-// where "email" is not null
+print(db.from('users').whereNotNull('email').toSQL().sql);
+// select * from "users" where "email" is not null
 
-knex('users').orWhereNull('middle_name');
-// or "middle_name" is null
+print(db.from('users').orWhereNull('middle_name').toSQL().sql);
+// select * from "users" or "middle_name" is null
 ```
 
 ## WHERE BETWEEN
 
 ```dart
-knex('users').whereBetween('age', [18, 65]);
-// where "age" between $1 and $2
+final q = db.from('users').whereBetween('age', [18, 65]).toSQL();
+print(q.sql);       // select * from "users" where "age" between $1 and $2
+print(q.bindings);  // [18, 65]
 
-knex('users').whereNotBetween('score', [0, 50]);
-// where "score" not between $1 and $2
+print(db.from('users').whereNotBetween('score', [0, 50]).toSQL().sql);
+// select * from "users" where "score" not between $1 and $2
 
-knex('users').orWhereBetween('created_at', ['2024-01-01', '2024-12-31']);
-// or "created_at" between $1 and $2
+print(
+  db.from('users')
+    .orWhereBetween('created_at', ['2024-01-01', '2024-12-31'])
+    .toSQL().sql
+);
+// select * from "users" or "created_at" between $1 and $2
 ```
 
 ## WHERE COLUMN
@@ -85,21 +100,21 @@ knex('users').orWhereBetween('created_at', ['2024-01-01', '2024-12-31']);
 Compare two columns:
 
 ```dart
-knex('users').whereColumn('updated_at', '>', 'created_at');
-// where "updated_at" > "created_at"
+print(db.from('users').whereColumn('updated_at', '>', 'created_at').toSQL().sql);
+// select * from "users" where "updated_at" > "created_at"
 
-knex('users').orWhereColumn('first_name', '=', 'last_name');
-// or "first_name" = "last_name"
+print(db.from('users').orWhereColumn('first_name', '=', 'last_name').toSQL().sql);
+// select * from "users" or "first_name" = "last_name"
 ```
 
 ## WHERE NOT
 
 ```dart
-knex('users').whereNot('status', '=', 'deleted');
-// where not "status" = $1
+print(db.from('users').whereNot('status', '=', 'deleted').toSQL().sql);
+// select * from "users" where not "status" = $1
 
-knex('users').orWhereNot('active', '=', false);
-// or not "active" = $1
+print(db.from('users').orWhereNot('active', '=', false).toSQL().sql);
+// select * from "users" or not "active" = $1
 ```
 
 ## WHERE EXISTS
@@ -107,17 +122,21 @@ knex('users').orWhereNot('active', '=', false);
 Check for existence of subquery results:
 
 ```dart
-knex('users').whereExists(
-  knex('orders')
-    .select([client.raw('1')])
-    .whereColumn('orders.user_id', '=', 'users.id')
+print(
+  db.from('users').whereExists(
+    db.from('orders')
+      .select([db.raw('1')])
+      .whereColumn('orders.user_id', '=', 'users.id')
+  ).toSQL().sql
 );
-// where exists (select 1 from "orders" where "orders"."user_id" = "users"."id")
+// select * from "users" where exists (select 1 from "orders" where "orders"."user_id" = "users"."id")
 
-knex('users').whereNotExists(
-  knex('orders').select([client.raw('1')])
+print(
+  db.from('users').whereNotExists(
+    db.from('orders').select([db.raw('1')])
+  ).toSQL().sql
 );
-// where not exists (select 1 from "orders")
+// select * from "users" where not exists (select 1 from "orders")
 ```
 
 ## WHERE WRAPPED
@@ -125,11 +144,13 @@ knex('users').whereNotExists(
 Group conditions:
 
 ```dart
-knex('users').whereWrapped((qb) {
-  qb.where('role', '=', 'admin')
-    .orWhere('role', '=', 'moderator');
-}).where('active', '=', true);
-// where ("role" = $1 or "role" = $2) and "active" = $3
+print(
+  db.from('users').whereWrapped((qb) {
+    qb.where('role', '=', 'admin')
+      .orWhere('role', '=', 'moderator');
+  }).where('active', '=', true).toSQL().sql
+);
+// select * from "users" where ("role" = $1 or "role" = $2) and "active" = $3
 ```
 
 ## Operators
@@ -146,8 +167,8 @@ Supported operators:
 - `ilike` - Case-insensitive pattern matching (PostgreSQL)
 
 ```dart
-knex('users').where('email', 'like', '%@gmail.com');
-// where "email" like $1
+print(db.from('users').where('email', 'like', '%@gmail.com').toSQL().sql);
+// select * from "users" where "email" like $1
 ```
 
 ## Full-Text Search (whereFullText)
@@ -155,10 +176,10 @@ knex('users').where('email', 'like', '%@gmail.com');
 Cross-dialect full text search. Compiles down to `to_tsvector` in PostgreSQL, `MATCH AGAINST` in MySQL, and `MATCH` in SQLite.
 
 ```dart
-knex('articles').whereFullText(['title', 'body'], 'flutter dart');
-// PG: where to_tsvector("title" || ' ' || "body") @@ to_tsquery($1)
-// MySQL: where match("title", "body") against($1)
-// SQLite: where "articles" match $1
+print(db.from('articles').whereFullText(['title', 'body'], 'flutter dart').toSQL().sql);
+// PG: select * from "articles" where to_tsvector("title" || ' ' || "body") @@ to_tsquery($1)
+// MySQL: select * from "articles" where match("title", "body") against($1)
+// SQLite: select * from "articles" where "articles" match $1
 ```
 
 ## JSON Operators (PostgreSQL)
@@ -166,17 +187,17 @@ knex('articles').whereFullText(['title', 'body'], 'flutter dart');
 If using the PostgresClient, you can use Native JSON operators:
 
 ```dart
-knex('users').whereJsonObject('metadata', {'theme': 'dark'});
-// where "metadata" @> $1::jsonb AND "metadata" <@ $1::jsonb
+print(db.from('users').whereJsonObject('metadata', {'theme': 'dark'}).toSQL().sql);
+// select * from "users" where "metadata" @> $1::jsonb AND "metadata" <@ $1::jsonb
 
-knex('users').whereJsonPath('metadata', '\$.name', 'John');
-// where jsonb_path_query_first("metadata", $1) = $2
+print(db.from('users').whereJsonPath('metadata', r'$.name', 'John').toSQL().sql);
+// select * from "users" where jsonb_path_query_first("metadata", $1) = $2
 
-knex('users').whereJsonSupersetOf('roles', ['admin', 'user']);
-// where "roles" @> $1::jsonb
+print(db.from('users').whereJsonSupersetOf('roles', ['admin', 'user']).toSQL().sql);
+// select * from "users" where "roles" @> $1::jsonb
 
-knex('users').whereJsonSubsetOf('roles', ['superadmin', 'admin', 'user']);
-// where "roles" <@ $1::jsonb
+print(db.from('users').whereJsonSubsetOf('roles', ['superadmin', 'admin', 'user']).toSQL().sql);
+// select * from "users" where "roles" <@ $1::jsonb
 ```
 
 ## All WHERE Methods

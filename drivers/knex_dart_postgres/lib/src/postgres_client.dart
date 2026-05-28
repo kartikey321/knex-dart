@@ -233,6 +233,12 @@ class PostgresTrxClient {
 
   PostgresTrxClient._(this._session);
 
+  /// Callable shorthand for `queryBuilder().table(name)` within the PG dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('pg').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Executes a SELECT-style query inside this transaction.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) => _run(query);
 

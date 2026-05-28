@@ -70,6 +70,12 @@ class KnexD1 {
   /// Create a query builder scoped to the D1/SQLite dialect.
   QueryBuilder queryBuilder() => _D1SchemaClient().queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Execute multiple statements as an atomic D1 batch.
   ///
   /// All statements in the callback are sent in a single REST API request
@@ -103,6 +109,9 @@ class KnexD1 {
 
   /// Close the underlying HTTP client.
   void close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  void destroy() => close();
 }
 
 // ============================================================================

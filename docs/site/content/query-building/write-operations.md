@@ -11,35 +11,49 @@ Knex Dart supports standard ANSI SQL write operations along with dialect-specifi
 
 ```dart
 // Basic Insert
-knex('users').insert({
+final db = KnexQuery.forDialect(KnexDialect.postgres);
+
+final insert = db.from('users').insert({
   'name': 'John',
   'email': 'john@example.com'
-});
+}).toSQL();
+print(insert.sql);
 // insert into "users" ("name", "email") values ($1, $2)
+print(insert.bindings);
+// [John, john@example.com]
 
 // Batch Insert
-knex('users').insert([
-  {'name': 'Alice'},
-  {'name': 'Bob'}
-]);
+print(
+  db.from('users').insert([
+    {'name': 'Alice'},
+    {'name': 'Bob'}
+  ]).toSQL().sql
+);
 // insert into "users" ("name") values ($1), ($2)
 ```
 
 ## Update
 
 ```dart
-knex('users')
+final update = db.from('users')
   .where('id', '=', 1)
-  .update({'name': 'Jane'});
+  .update({'name': 'Jane'})
+  .toSQL();
+print(update.sql);
 // update "users" set "name" = $1 where "id" = $2
+print(update.bindings);
+// [Jane, 1]
 ```
 
 ## Delete
 
 ```dart
-knex('users')
-  .where('status', '=', 'banned')
-  .delete();
+print(
+  db.from('users')
+    .where('status', '=', 'banned')
+    .delete()
+    .toSQL().sql
+);
 // delete from "users" where "status" = $1
 ```
 
@@ -48,9 +62,12 @@ knex('users')
 You can chain `.returning()` to get back the inserted/updated rows in PostgreSQL.
 
 ```dart
-knex('users')
-  .insert({'name': 'John'})
-  .returning(['id', 'name']);
+print(
+  db.from('users')
+    .insert({'name': 'John'})
+    .returning(['id', 'name'])
+    .toSQL().sql
+);
 // insert into "users" ("name") values ($1) returning "id", "name"
 ```
 
@@ -60,22 +77,30 @@ Knex Dart provides `onConflict()` to handle insert collisions elegantly natively
 
 ```dart
 // ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
-knex('users')
-  .insert({
-    'name': 'Updated Name',
-    'email': 'john@example.com'
-  })
-  .onConflict('email')
-  .merge(['name']);
+print(
+  db.from('users')
+    .insert({
+      'name': 'Updated Name',
+      'email': 'john@example.com'
+    })
+    .onConflict('email')
+    .merge(['name'])
+    .toSQL().sql
+);
+// insert into "users" ("name", "email") values ($1, $2) on conflict ("email") do update set "name" = excluded."name"
 
 // ON CONFLICT (email) DO NOTHING
-knex('users')
-  .insert({
-    'name': 'Duplicate',
-    'email': 'john@example.com'
-  })
-  .onConflict('email')
-  .ignore();
+print(
+  db.from('users')
+    .insert({
+      'name': 'Duplicate',
+      'email': 'john@example.com'
+    })
+    .onConflict('email')
+    .ignore()
+    .toSQL().sql
+);
+// insert into "users" ("name", "email") values ($1, $2) on conflict ("email") do nothing
 ```
 
 *Note: The generated SQL automatically adapts to dialect equivalents, e.g. `ON DUPLICATE KEY UPDATE` for MySQL.*

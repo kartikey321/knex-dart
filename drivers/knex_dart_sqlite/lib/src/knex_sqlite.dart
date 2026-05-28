@@ -56,6 +56,12 @@ class KnexSQLite {
   /// Creates a new query builder bound to this SQLite client.
   QueryBuilder queryBuilder() => _client.queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Get a schema builder for executing DDL against this SQLite database.
   SchemaBuilder get schema => _client.schemaBuilder();
 
@@ -74,4 +80,7 @@ class KnexSQLite {
 
   /// Closes the underlying SQLite database connection.
   Future<void> close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  Future<void> destroy() => close();
 }

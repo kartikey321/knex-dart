@@ -167,13 +167,15 @@ db('users').join('orders', (j) {
 
 ```dart
 await db.executeSchema(
-  db.schema.createTable('users', (t) {
-    t.increments('id');
-    t.string('name').notNullable();
-    t.string('email').unique();
-    t.boolean('active').defaultTo(true);
-    t.timestamps();
-  }),
+  (schema) {
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('name').notNullable();
+      t.string('email').unique();
+      t.boolean('active').defaultTo(true);
+      t.timestamps();
+    });
+  },
 );
 ```
 
@@ -182,10 +184,10 @@ await db.executeSchema(
 ```dart
 await db.trx((trx) async {
   final id = await trx.insert(
-    trx('accounts').insert({'owner': 'Alice', 'balance': 500}),
+    trx.queryBuilder().table('accounts').insert({'owner': 'Alice', 'balance': 500}),
   );
-  await trx.update(
-    trx('ledger').insert({'account_id': id, 'amount': 500}),
+  await trx.insert(
+    trx.queryBuilder().table('ledger').insert({'account_id': id, 'amount': 500}),
   );
 });
 ```

@@ -132,6 +132,12 @@ class KnexPostgres {
   /// Create a query builder scoped to the active dialect.
   QueryBuilder queryBuilder() => _PgSchemaClient(_dialectName).queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Run a transaction. See [PostgresClient.trx].
   Future<T> trx<T>(Future<T> Function(PostgresTrxClient trx) callback) =>
       _pgClient.trx(callback);
@@ -156,6 +162,9 @@ class KnexPostgres {
   }
 
   Future<void> close() => _pgClient.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  Future<void> destroy() => close();
 }
 
 // ============================================================================

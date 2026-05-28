@@ -70,6 +70,12 @@ class KnexTurso {
   /// Uses double-quote identifiers and `?` positional parameters.
   QueryBuilder queryBuilder() => _TursoSchemaClient().queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Run a transaction.
   ///
   /// Sends `BEGIN` before the callback and `COMMIT` on success, or
@@ -99,6 +105,9 @@ class KnexTurso {
 
   /// Close the underlying HTTP client.
   void close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  void destroy() => close();
 }
 
 // ============================================================================

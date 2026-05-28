@@ -339,6 +339,12 @@ class MySQLTrxClient {
 
   MySQLTrxClient._(this._connection);
 
+  /// Callable shorthand for `queryBuilder().table(name)` within the MySQL dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('mysql2').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Executes a SELECT-style query inside this transaction.
   Future<List<Map<String, dynamic>>> select(QueryBuilder queryBuilder) =>
       _run(queryBuilder);

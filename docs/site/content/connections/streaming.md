@@ -139,12 +139,13 @@ The driver-level `.stream()` method works inside transactions:
 ```dart
 await db.trx((trx) async {
   final stream = trx.stream(
-    trx('jobs').where('status', '=', 'pending').orderBy('id'),
+    trx.queryBuilder().table('jobs').where('status', '=', 'pending').orderBy('id'),
   );
 
   await for (final row in stream) {
     await trx.update(
-      trx('jobs')
+      trx.queryBuilder()
+        .table('jobs')
         .where('id', '=', row['id'])
         .update({'status': 'processing'}),
     );

@@ -85,6 +85,12 @@ class KnexMssql {
   /// to `@p1`-style before sending to SQL Server).
   QueryBuilder queryBuilder() => _MssqlSchemaClient().queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Run a transaction with ACID guarantees.
   Future<T> trx<T>(Future<T> Function(MssqlTrxClient trx) callback) =>
       _client.trx(callback);
@@ -106,6 +112,9 @@ class KnexMssql {
   }
 
   Future<void> close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  Future<void> destroy() => close();
 }
 
 // ============================================================================

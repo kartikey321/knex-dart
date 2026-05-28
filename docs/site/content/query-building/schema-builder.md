@@ -15,13 +15,15 @@ Use `db.executeSchema()` to generate and execute DDL:
 
 ```dart
 await db.executeSchema(
-  db.schema.createTable('users', (t) {
-    t.increments('id');
-    t.string('name').notNullable();
-    t.string('email').unique();
-    t.boolean('active').defaultTo(true);
-    t.timestamps();
-  }),
+  (schema) {
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('name').notNullable();
+      t.string('email').unique();
+      t.boolean('active').defaultTo(true);
+      t.timestamps();
+    });
+  },
 );
 ```
 
@@ -54,7 +56,9 @@ Copy the structure of an existing table:
 
 ```dart
 await db.executeSchema(
-  db.schema.createTableLike('users_archive', 'users'),
+  (schema) {
+    schema.createTableLike('users_archive', 'users');
+  },
 );
 ```
 
@@ -62,17 +66,23 @@ Add extra columns while cloning:
 
 ```dart
 await db.executeSchema(
-  db.schema.createTableLike('users_archive', 'users', (t) {
-    t.timestamp('archived_at').notNullable();
-  }),
+  (schema) {
+    schema.createTableLike('users_archive', 'users', (t) {
+      t.timestamp('archived_at').notNullable();
+    });
+  },
 );
 ```
 
 ## renameTable / renameView
 
 ```dart
-await db.executeSchema(db.schema.renameTable('users', 'app_users'));
-await db.executeSchema(db.schema.renameView('active_users', 'users_active'));
+await db.executeSchema((schema) {
+  schema.renameTable('users', 'app_users');
+});
+await db.executeSchema((schema) {
+  schema.renameView('active_users', 'users_active');
+});
 ```
 
 `renameView` is supported on PostgreSQL, MySQL-family, and MSSQL.
@@ -81,20 +91,32 @@ await db.executeSchema(db.schema.renameView('active_users', 'users_active'));
 
 ```dart
 await db.executeSchema(
-  db.schema.createView('active_users', db.queryBuilder()
-    .table('users')
-    .select(['id', 'email'])
-    .where('active', '=', true)),
+  (schema) {
+    schema.createView(
+      'active_users',
+      db.queryBuilder()
+          .table('users')
+          .select(['id', 'email'])
+          .where('active', '=', true),
+    );
+  },
 );
 
 await db.executeSchema(
-  db.schema.createViewOrReplace('active_users', db.queryBuilder()
-    .table('users')
-    .select(['id', 'email'])
-    .where('active', '=', true)),
+  (schema) {
+    schema.createViewOrReplace(
+      'active_users',
+      db.queryBuilder()
+          .table('users')
+          .select(['id', 'email'])
+          .where('active', '=', true),
+    );
+  },
 );
 
-await db.executeSchema(db.schema.dropViewIfExists('active_users'));
+await db.executeSchema((schema) {
+  schema.dropViewIfExists('active_users');
+});
 ```
 
 `createViewOrReplace` on SQLite compiles as `drop view if exists` + `create view`.

@@ -7,39 +7,44 @@ description: Complete guide to all JOIN types and advanced ON clause conditions 
 
 Knex Dart supports all standard SQL JOIN types plus an advanced callback-based API for complex ON conditions.
 
+```dart
+final db = KnexQuery.forDialect(KnexDialect.postgres);
+```
+
 ## Simple Join (INNER JOIN)
 
 The simplest form: `join(table, leftColumn, rightColumn)`.
 
 ```dart
-db('users').join('orders', 'users.id', 'orders.user_id');
+print(db.from('users').join('orders', 'users.id', 'orders.user_id').toSQL().sql);
 // inner join "orders" on "users"."id" = "orders"."user_id"
 ```
 
 You can also pass an explicit operator:
 
 ```dart
-db('users').join('orders', 'users.id', '=', 'orders.user_id');
+print(db.from('users').join('orders', 'users.id', '=', 'orders.user_id').toSQL().sql);
+// inner join "orders" on "users"."id" = "orders"."user_id"
 ```
 
 ## LEFT JOIN
 
 ```dart
-db('users').leftJoin('orders', 'users.id', 'orders.user_id');
+print(db.from('users').leftJoin('orders', 'users.id', 'orders.user_id').toSQL().sql);
 // left join "orders" on "users"."id" = "orders"."user_id"
 ```
 
 ## RIGHT JOIN
 
 ```dart
-db('orders').rightJoin('users', 'orders.user_id', 'users.id');
+print(db.from('orders').rightJoin('users', 'orders.user_id', 'users.id').toSQL().sql);
 // right join "users" on "orders"."user_id" = "users"."id"
 ```
 
 ## FULL OUTER JOIN
 
 ```dart
-db('users').fullOuterJoin('orders', 'users.id', 'orders.user_id');
+print(db.from('users').fullOuterJoin('orders', 'users.id', 'orders.user_id').toSQL().sql);
 // full outer join "orders" on "users"."id" = "orders"."user_id"
 ```
 
@@ -48,7 +53,7 @@ db('users').fullOuterJoin('orders', 'users.id', 'orders.user_id');
 No ON condition — produces every combination of rows:
 
 ```dart
-db('users').crossJoin('roles');
+print(db.from('users').crossJoin('roles').toSQL().sql);
 // cross join "roles"
 ```
 
@@ -67,13 +72,14 @@ A lateral join lets the subquery reference columns from tables that appear **ear
 Emits `JOIN LATERAL (…) AS alias ON true`. Rows from the left side that produce no matches in the lateral subquery are excluded.
 
 ```dart
-db('users').joinLateral('latest_order', (sub) {
+final q = db.from('users').joinLateral('latest_order', (sub) {
   sub
     .table('orders')
     .where('orders.user_id', db.raw('"users"."id"'))
     .orderBy('created_at', 'desc')
     .limit(1);
 });
+print(q.toSQL().sql);
 // join lateral (
 //   select * from "orders"
 //   where "orders"."user_id" = "users"."id"
@@ -86,13 +92,14 @@ db('users').joinLateral('latest_order', (sub) {
 Emits `LEFT JOIN LATERAL (…) AS alias ON true`. Rows from the left side that produce **no** lateral matches are preserved with `NULL` columns — equivalent to `LEFT JOIN` semantics.
 
 ```dart
-db('users').leftJoinLateral('recent_event', (sub) {
+final q = db.from('users').leftJoinLateral('recent_event', (sub) {
   sub
     .table('events')
     .where('events.user_id', db.raw('"users"."id"'))
     .orderBy('occurred_at', 'desc')
     .limit(5);
 });
+print(q.toSQL().sql);
 // left join lateral (...) as "recent_event" on true
 ```
 
@@ -101,12 +108,13 @@ db('users').leftJoinLateral('recent_event', (sub) {
 Emits `CROSS JOIN LATERAL (…) AS alias` (no `ON` clause). In PostgreSQL this is equivalent to `JOIN LATERAL … ON true`.
 
 ```dart
-db('users').crossJoinLateral('agg', (sub) {
+final q = db.from('users').crossJoinLateral('agg', (sub) {
   sub
     .table('orders')
     .where('orders.user_id', db.raw('"users"."id"'))
     .sum('amount as total');
 });
+print(q.toSQL().sql);
 // cross join lateral (...) as "agg"
 ```
 
@@ -116,14 +124,14 @@ All three methods accept the same subquery types:
 
 ```dart
 // 1. Callback (most common — new QueryBuilder created automatically)
-db('users').joinLateral('lo', (sub) { sub.table('orders').limit(1); });
+print(db.from('users').joinLateral('lo', (sub) { sub.table('orders').limit(1); }).toSQL().sql);
 
 // 2. Pre-built QueryBuilder
-final sub = db().table('orders').where('user_id', 1).limit(1);
-db('users').joinLateral('lo', sub);
+final sub = db.queryBuilder().table('orders').where('user_id', 1).limit(1);
+print(db.from('users').joinLateral('lo', sub).toSQL().sql);
 
 // 3. Raw SQL
-db('users').joinLateral('lo', db.raw('select 1 as n'));
+print(db.from('users').joinLateral('lo', db.raw('select 1 as n')).toSQL().sql);
 ```
 
 ### Parameter binding
@@ -131,11 +139,12 @@ db('users').joinLateral('lo', db.raw('select 1 as n'));
 Bindings inside the lateral subquery are collected correctly and parameter placeholders are renumbered to follow any outer bindings:
 
 ```dart
-db('users')
+final q = db.from('users')
   .select(['users.id', 'lo.amount'])
   .leftJoinLateral('lo', (sub) {
     sub.table('orders').where('user_id', 99).orderBy('amount', 'desc').limit(1);
   });
+print(q.toSQL().sql);
 // Bindings: [99, 1]  (subquery bindings; outer WHERE would follow after)
 ```
 
@@ -146,10 +155,15 @@ db('users')
 Chain as many joins as needed:
 
 ```dart
-db('orders')
+final q = db.from('orders')
   .join('users', 'orders.user_id', 'users.id')
   .join('products', 'orders.product_id', 'products.id')
   .select(['orders.id', 'users.name', 'products.name as product']);
+print(q.toSQL().sql);
+// select "orders"."id", "users"."name", "products"."name" as "product"
+// from "orders"
+// inner join "users" on "orders"."user_id" = "users"."id"
+// inner join "products" on "orders"."product_id" = "products"."id"
 ```
 
 ---
@@ -161,24 +175,24 @@ Pass a callback to build complex ON conditions. The callback receives a `JoinCla
 ### Basic callback
 
 ```dart
-db('users').join('orders', (j) {
+print(db.from('users').join('orders', (j) {
   j.on('users.id', '=', 'orders.user_id');
-});
+}).toSQL().sql);
 // inner join "orders" on "users"."id" = "orders"."user_id"
 ```
 
 ### AND ON / OR ON
 
 ```dart
-db('users').join('orders', (j) {
+print(db.from('users').join('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .andOn('users.region', '=', 'orders.region');   // AND
-});
+}).toSQL().sql);
 
-db('users').leftJoin('orders', (j) {
+print(db.from('users').leftJoin('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .orOn('users.backup_id', '=', 'orders.user_id'); // OR
-});
+}).toSQL().sql);
 ```
 
 ### onVal — bind a literal value
@@ -186,10 +200,10 @@ db('users').leftJoin('orders', (j) {
 `on()` compares two columns. Use `onVal()` when the right side is a value, not a column:
 
 ```dart
-db('users').join('orders', (j) {
+print(db.from('users').join('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .andOnVal('orders.status', '=', 'completed');
-});
+}).toSQL().sql);
 // inner join "orders" on "users"."id" = "orders"."user_id"
 //   and "orders"."status" = $1   (binding: 'completed')
 ```
@@ -199,10 +213,10 @@ Available variants: `onVal`, `andOnVal`, `orOnVal`.
 ### onIn / onNotIn
 
 ```dart
-db('users').join('orders', (j) {
+print(db.from('users').join('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .andOnIn('orders.status', ['completed', 'shipped']);
-});
+}).toSQL().sql);
 // and "orders"."status" in ($1, $2)
 ```
 
@@ -211,10 +225,10 @@ Available variants: `onIn`, `andOnIn`, `orOnIn`, `onNotIn`, `andOnNotIn`, `orOnN
 ### onNull / onNotNull
 
 ```dart
-db('users').leftJoin('orders', (j) {
+print(db.from('users').leftJoin('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .andOnNull('orders.deleted_at');
-});
+}).toSQL().sql);
 // and "orders"."deleted_at" is null
 ```
 
@@ -223,10 +237,10 @@ Available variants: `onNull`, `andOnNull`, `orOnNull`, `onNotNull`, `andOnNotNul
 ### onBetween / onNotBetween
 
 ```dart
-db('users').join('orders', (j) {
+print(db.from('users').join('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .andOnBetween('orders.amount', [100, 1000]);
-});
+}).toSQL().sql);
 // and "orders"."amount" between $1 and $2
 ```
 
@@ -235,13 +249,13 @@ Available variants: `onBetween`, `andOnBetween`, `orOnBetween`, `onNotBetween`.
 ### onExists
 
 ```dart
-db('users').join('accounts', (j) {
+print(db.from('users').join('accounts', (j) {
   j.on('users.id', '=', 'accounts.user_id')
    .andOnExists((qb) {
      qb.select(['1']).from('subscriptions')
        .whereColumn('subscriptions.account_id', '=', 'accounts.id');
    });
-});
+}).toSQL().sql);
 ```
 
 Available variants: `onExists`, `andOnExists`, `orOnExists`, `onNotExists`.
@@ -251,7 +265,7 @@ Available variants: `onExists`, `andOnExists`, `orOnExists`, `onNotExists`.
 When both tables share the same column name:
 
 ```dart
-db('orders').join('users', (j) => j.using(['user_id']));
+print(db.from('orders').join('users', (j) => j.using(['user_id'])).toSQL().sql);
 // inner join "users" using ("user_id")
 ```
 
@@ -260,9 +274,9 @@ db('orders').join('users', (j) => j.using(['user_id']));
 Join on matching JSON path values:
 
 ```dart
-db('users').join('settings', (j) {
+print(db.from('users').join('settings', (j) {
   j.onJsonPathEquals('users.meta', r'$.region', 'settings.meta', r'$.region');
-});
+}).toSQL().sql);
 ```
 
 ---
@@ -313,8 +327,9 @@ db('users').join('settings', (j) {
 ### Users with their latest order
 
 ```dart
+// Requires a connected driver (e.g. KnexPostgres)
 final results = await db.select(
-  db('users')
+  db.from('users')
     .select(['users.id', 'users.name', 'orders.amount', 'orders.created_at'])
     .leftJoin('orders', (j) {
       j.on('users.id', '=', 'orders.user_id')
@@ -327,8 +342,9 @@ final results = await db.select(
 ### Products with category filter in join
 
 ```dart
+// Requires a connected driver (e.g. KnexPostgres)
 final results = await db.select(
-  db('orders')
+  db.from('orders')
     .select(['orders.id', 'orders.amount', 'products.name', 'products.category'])
     .join('products', (j) {
       j.on('orders.product_id', '=', 'products.id')
@@ -340,8 +356,9 @@ final results = await db.select(
 ### Aggregate with LEFT JOIN (count orders per user)
 
 ```dart
+// Requires a connected driver (e.g. KnexPostgres)
 final usersWithOrders = await db.select(
-  db('users')
+  db.from('users')
     .select(['users.id', 'users.name'])
     .select([db.raw('count(orders.id) as order_count')])
     .leftJoin('orders', 'users.id', 'orders.user_id')
@@ -356,8 +373,9 @@ A lateral subquery is the cleanest way to fetch exactly one correlated row per o
 
 ```dart
 // PostgreSQL / MySQL 8+
+// Requires a connected driver (e.g. KnexPostgres)
 final usersWithLatest = await pgClient.select(
-  db('users')
+  db.from('users')
     .select(['users.id', 'users.name', 'lo.amount', 'lo.created_at'])
     .leftJoinLateral('lo', (sub) {
       sub

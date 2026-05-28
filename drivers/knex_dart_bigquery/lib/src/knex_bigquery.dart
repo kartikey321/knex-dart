@@ -70,6 +70,12 @@ class KnexBigQuery {
   /// (automatically converted to `@p1`, `@p2` in the HTTP transport).
   QueryBuilder queryBuilder() => _BigQuerySchemaClient().queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Execute schema DDL operations.
   ///
   /// Note: BigQuery DDL (CREATE TABLE, etc.) auto-commits — there are no
@@ -91,6 +97,9 @@ class KnexBigQuery {
 
   /// Close the underlying HTTP client.
   void close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  void destroy() => close();
 }
 
 // ============================================================================

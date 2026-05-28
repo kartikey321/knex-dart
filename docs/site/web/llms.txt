@@ -1,0 +1,56 @@
+# knex_dart
+
+> knex_dart is a Dart SQL query builder inspired by Knex.js. The core package generates dialect-correct SQL; live database access requires a driver package (knex_dart_postgres, knex_dart_sqlite, etc.).
+
+Important notes:
+- `knex_dart` is the core builder — it has no database connectivity on its own.
+- Install a driver package to execute queries against a real database.
+- SQL feature support varies by dialect; consult the database support page.
+- Bindings are always positional. Use `toSQL()` to inspect generated SQL without executing.
+
+## Getting Started
+
+- [Installation](https://docs.knex.mahawarkartikey.in/raw/getting-started/installation.md)
+- [Quick start](https://docs.knex.mahawarkartikey.in/raw/getting-started/quick-start.md)
+- [Database support & driver packages](https://docs.knex.mahawarkartikey.in/raw/database-support.md)
+
+## Query Building
+
+- [Where clauses](https://docs.knex.mahawarkartikey.in/raw/query-building/where-clauses.md)
+- [Joins](https://docs.knex.mahawarkartikey.in/raw/query-building/joins.md)
+- [Write operations (INSERT / UPDATE / DELETE)](https://docs.knex.mahawarkartikey.in/raw/query-building/write-operations.md)
+- [Aggregation](https://docs.knex.mahawarkartikey.in/raw/query-building/aggregation.md)
+- [Subqueries](https://docs.knex.mahawarkartikey.in/raw/query-building/subqueries.md)
+- [CTEs (Common Table Expressions)](https://docs.knex.mahawarkartikey.in/raw/query-building/ctes.md)
+- [Unions](https://docs.knex.mahawarkartikey.in/raw/query-building/unions.md)
+- [Window functions](https://docs.knex.mahawarkartikey.in/raw/query-building/window-functions.md)
+- [Schema builder (DDL)](https://docs.knex.mahawarkartikey.in/raw/query-building/schema-builder.md)
+- [Transactions](https://docs.knex.mahawarkartikey.in/raw/query-building/transactions.md)
+
+## Connections
+
+- [Connection pooling](https://docs.knex.mahawarkartikey.in/raw/connections/pooling.md)
+- [Streaming results](https://docs.knex.mahawarkartikey.in/raw/connections/streaming.md)
+
+## Schema & Migrations
+
+- [Migrations](https://docs.knex.mahawarkartikey.in/raw/migration/migrations.md)
+
+## Tooling
+
+- [Dialect lint (static analysis)](https://docs.knex.mahawarkartikey.in/raw/tooling/dialect-lint.md)
+
+## Examples
+
+- [Basic queries](https://docs.knex.mahawarkartikey.in/raw/examples/basic-queries.md)
+- [Interactive playground](https://playground.knex.mahawarkartikey.in)
+
+## Migration
+
+- [Migrating from Knex.js](https://docs.knex.mahawarkartikey.in/raw/migration/from-knex-js.md)
+
+## Optional
+
+- [About knex_dart](https://docs.knex.mahawarkartikey.in/raw/about.md)
+- [Contributor guide (AGENTS.md)](https://github.com/kartikey321/knex-dart/blob/main/AGENTS.md)
+- [Source on GitHub](https://github.com/kartikey321/knex-dart)

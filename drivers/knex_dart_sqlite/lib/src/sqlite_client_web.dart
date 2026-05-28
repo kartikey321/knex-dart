@@ -145,6 +145,12 @@ class SQLiteClient extends Client {
     return QueryBuilder(this);
   }
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   @override
   QueryCompiler queryCompiler(QueryBuilder builder) {
     return QueryCompiler(this, builder);

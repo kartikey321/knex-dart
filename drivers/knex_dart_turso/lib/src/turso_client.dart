@@ -260,6 +260,12 @@ class TursoTrxClient {
 
   TursoTrxClient._(this._session);
 
+  /// Callable shorthand for `queryBuilder().table(name)` within the Turso dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('turso').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   Future<List<Map<String, dynamic>>> select(QueryBuilder q) => _run(q);
   Future<List<Map<String, dynamic>>> execute(QueryBuilder q) => _run(q);
   Future<List<Map<String, dynamic>>> insert(QueryBuilder q) => _run(q);

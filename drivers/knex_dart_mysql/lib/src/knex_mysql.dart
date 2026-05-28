@@ -102,6 +102,12 @@ class KnexMySQL {
   /// Create a query builder scoped to the active dialect.
   QueryBuilder queryBuilder() => _MySQLSchemaClient(_dialectName).queryBuilder();
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   /// Run a transaction. See [MySQLClient.trx].
   Future<T> trx<T>(Future<T> Function(MySQLTrxClient trx) callback) =>
       _client.trx(callback);
@@ -124,6 +130,9 @@ class KnexMySQL {
 
   /// Closes the underlying MySQL connection pool.
   Future<void> close() => _client.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  Future<void> destroy() => close();
 }
 
 // ============================================================================
