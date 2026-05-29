@@ -223,11 +223,11 @@ class PostgresClient {
   }
 }
 
-/// A transaction-scoped Postgres client.
+/// Low-level transaction-scoped Postgres session executor.
 ///
-/// Wraps a [TxSession] and exposes the same execute/insert/update/delete/select
-/// API as [PostgresClient], so callbacks passed to [PostgresClient.trx] can
-/// use the exact same interface.
+/// This is an implementation detail of [KnexPostgres]. User code should
+/// interact with [KnexPostgresTransaction] received from [KnexPostgres.trx],
+/// which routes queries through the [KnexInterceptorPipeline].
 class PostgresTrxClient {
   final TxSession _session;
 

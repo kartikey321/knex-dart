@@ -62,6 +62,13 @@ class QueryBuilder {
   /// Get single values (table, etc.) - used by QueryCompiler
   Map<String, dynamic> get single => _single;
 
+  /// Primary table/collection name for this query (db.collection.name).
+  /// Returns null for subquery FROM clauses, raw queries, or unset tables.
+  String? get tableName {
+    final t = _single['table'];
+    return t is String ? t : null;
+  }
+
   /// Get statements list - used by QueryCompiler
   List<dynamic> get statements => _statements;
 

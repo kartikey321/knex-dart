@@ -5,34 +5,13 @@ import 'mssql_client.dart';
 export 'mssql_client.dart' show MssqlTrxClient;
 
 /// SQL Server Knex wrapper.
-///
-/// Example:
-/// ```dart
-/// import 'package:knex_dart_mssql/knex_dart_mssql.dart';
-///
-/// final db = await KnexMssql.connect(
-///   host: 'localhost',
-///   database: 'AdventureWorks',
-///   username: 'sa',
-///   password: 's3cr3t!',
-/// );
-///
-/// final rows = await db.select(
-///   db.queryBuilder().from('users').where('active', '=', 1).limit(10),
-/// );
-///
-/// await db.close();
-/// ```
-///
-/// **Note**: Requires FreeTDS to be installed:
-///   - macOS:  `brew install freetds`
-///   - Ubuntu: `sudo apt-get install -y freetds-dev libct4`
 class KnexMssql {
   final MssqlClient _client;
+  final KnexInterceptorPipeline _pipeline;
 
-  KnexMssql._(this._client);
+  KnexMssql._(this._client, {required KnexInterceptorPipeline pipeline})
+      : _pipeline = pipeline;
 
-  /// Connect to a SQL Server instance.
   static Future<KnexMssql> connect({
     required String host,
     String port = '1433',
@@ -40,6 +19,7 @@ class KnexMssql {
     required String username,
     required String password,
     int timeoutSeconds = 15,
+    List<QueryInterceptor> interceptors = const [],
   }) async {
     final client = await MssqlClient.connect(
       host: host,
@@ -49,53 +29,68 @@ class KnexMssql {
       password: password,
       timeoutSeconds: timeoutSeconds,
     );
-    return KnexMssql._(client);
+    return KnexMssql._(
+      client,
+      pipeline: KnexInterceptorPipeline(
+        dbSystem: 'mssql',
+        database: database,
+        serverAddress: host,
+        serverPort: int.tryParse(port),
+        interceptors: interceptors,
+      ),
+    );
   }
 
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
-      _client.select(query);
+      _pipeline.run(query, () => _client.select(query));
 
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
-      _client.execute(query);
+      _pipeline.run(query, () => _client.execute(query));
 
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
-      _client.insert(query);
+      _pipeline.run(query, () => _client.insert(query));
 
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
-      _client.update(query);
+      _pipeline.run(query, () => _client.update(query));
 
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
-      _client.delete(query);
+      _pipeline.run(query, () => _client.delete(query));
 
   /// Create a raw SQL fragment for use inside QueryBuilder clauses.
-  Raw raw(
-    String sql, [
-    List<dynamic>? bindings,
-  ]) => _MssqlSchemaClient().raw(sql, bindings);
+  Raw raw(String sql, [List<dynamic>? bindings]) =>
+      _MssqlSchemaClient().raw(sql, bindings);
 
   /// Execute a raw SQL statement directly.
+  Future<List<Map<String, dynamic>>> rawSql(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) =>
+      _pipeline.runRaw(
+        sql,
+        bindings ?? const [],
+        () => _client.raw(sql, bindings),
+      );
+
+  /// Alias for [rawSql].
   Future<List<Map<String, dynamic>>> executeRaw(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _client.raw(sql, bindings);
+  ]) =>
+      rawSql(sql, bindings);
 
-  /// Create a query builder scoped to the SQL Server dialect.
-  ///
-  /// Uses square-bracket identifiers and `?` positional parameters (rewritten
-  /// to `@p1`-style before sending to SQL Server).
   QueryBuilder queryBuilder() => _MssqlSchemaClient().queryBuilder();
 
-  /// Callable shorthand for `queryBuilder().table(name)`.
   QueryBuilder call([String? tableName]) {
     final builder = queryBuilder();
     return tableName != null ? builder.table(tableName) : builder;
   }
 
-  /// Run a transaction with ACID guarantees.
-  Future<T> trx<T>(Future<T> Function(MssqlTrxClient trx) callback) =>
-      _client.trx(callback);
+  Future<T> trx<T>(Future<T> Function(KnexMssqlTransaction tx) callback) =>
+      _client.trx((rawTrx) {
+        final txId = _pipeline.nextUid();
+        return callback(KnexMssqlTransaction._(rawTrx, _pipeline, txId));
+      });
 
-  /// Execute schema DDL operations.
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,
   ) async {
@@ -104,17 +99,88 @@ class KnexMssql {
     callback(builder);
     final statements = builder.toSQL();
     for (final stmt in statements) {
-      await _client.raw(
+      await _pipeline.runRaw(
         stmt['sql'] as String,
-        stmt['bindings'] as List<dynamic>?,
+        (stmt['bindings'] as List<dynamic>?) ?? const [],
+        () => _client.raw(
+          stmt['sql'] as String,
+          stmt['bindings'] as List<dynamic>?,
+        ),
       );
     }
   }
 
   Future<void> close() => _client.close();
 
-  /// Alias for [close], matching the core `Knex` API.
   Future<void> destroy() => close();
+}
+
+// ============================================================================
+// WRAPPER-LEVEL TRANSACTION FACADE
+// ============================================================================
+
+class KnexMssqlTransaction implements KnexTransaction {
+  final MssqlTrxClient _trx;
+  final KnexInterceptorPipeline _pipeline;
+
+  @override
+  final String txId;
+
+  KnexMssqlTransaction._(this._trx, this._pipeline, this.txId);
+
+  @override
+  QueryBuilder queryBuilder() => _MssqlSchemaClient().queryBuilder();
+
+  @override
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.select(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.execute(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.insert(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.update(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.delete(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> rawSql(String sql, [List<dynamic>? bindings]) =>
+      _pipeline.runRaw(
+        sql, bindings ?? const [],
+        () => _trx.raw(sql, bindings),
+        txId: txId,
+      );
+
+  // SQL Server savepoints: no explicit RELEASE, rolled back with ROLLBACK TRANSACTION <name>
+  @override
+  Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
+    final sp = 'sp${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+    final childTxId = '${txId}_$sp';
+    await rawSql('SAVE TRANSACTION $sp');
+    try {
+      final result = await callback(
+        KnexMssqlTransaction._(_trx, _pipeline, childTxId),
+      );
+      return result;
+    } catch (e) {
+      await rawSql('ROLLBACK TRANSACTION $sp');
+      rethrow;
+    }
+  }
 }
 
 // ============================================================================
@@ -122,8 +188,7 @@ class KnexMssql {
 // ============================================================================
 
 class _MssqlSchemaClient extends Client {
-  _MssqlSchemaClient()
-      : super(KnexConfig(client: 'mssql', connection: {}));
+  _MssqlSchemaClient() : super(KnexConfig(client: 'mssql', connection: {}));
 
   @override
   String get driverName => 'mssql';
@@ -182,8 +247,6 @@ class _MssqlSchemaClient extends Client {
   @override
   Future<void> releaseConnection(connection) => Future.value();
 
-  // SQL Server uses bracketed identifiers and ? params
-  // which we rewrite to @p1 style in MssqlClient._rewriteParams.
   @override
   String wrapIdentifierImpl(String identifier) =>
       '[${identifier.replaceAll(']', ']]')}]';

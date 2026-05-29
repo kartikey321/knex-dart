@@ -387,6 +387,20 @@ class MySQLTrxClient {
     return rows;
   }
 
+  /// Executes raw SQL inside this transaction.
+  Future<List<Map<String, dynamic>>> rawSql(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) async {
+    if (bindings == null || bindings.isEmpty) {
+      return _mapResults(await _connection.execute(sql));
+    }
+    final stmt = await _connection.prepare(sql);
+    final result = await stmt.execute(bindings);
+    await stmt.deallocate();
+    return _mapResults(result);
+  }
+
   // ─── Nested transactions (savepoints) ────────────────────────────────────
 
   /// Run [callback] inside a savepoint on this already-open transaction.

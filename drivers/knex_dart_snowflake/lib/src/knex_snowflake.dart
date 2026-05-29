@@ -3,32 +3,9 @@ import 'package:knex_dart/knex_dart.dart';
 import 'snowflake_client.dart';
 
 /// Snowflake Knex wrapper.
-///
-/// Snowflake is a cloud data warehouse. Queries are executed via the
-/// Snowflake SQL API v2. Uses double-quoted identifiers and `?` positional
-/// parameters.
-///
-/// **Authentication**: Provide an OAuth token or a Snowflake JWT token.
-/// For service accounts, use a key-pair JWT; for interactive apps, use OAuth.
-///
-/// Example:
-/// ```dart
-/// final db = KnexSnowflake(
-///   account: 'myorg-myaccount',
-///   token: 'oauth_token_or_jwt',
-///   database: 'MY_DATABASE',
-///   schema: 'PUBLIC',
-///   warehouse: 'COMPUTE_WH',
-/// );
-///
-/// final rows = await db.select(
-///   db.queryBuilder().from('SALES').where('region', '=', 'EMEA'),
-/// );
-///
-/// db.close();
-/// ```
 class KnexSnowflake {
   final SnowflakeClient _client;
+  final KnexInterceptorPipeline _pipeline;
 
   KnexSnowflake({
     required String account,
@@ -38,61 +15,66 @@ class KnexSnowflake {
     String? warehouse,
     String? role,
     bool asyncExecution = false,
-  }) : _client = SnowflakeClient(
-         account: account,
-         token: token,
-         database: database,
-         schema: schema,
-         warehouse: warehouse,
-         role: role,
-         asyncExecution: asyncExecution,
-       );
+    List<QueryInterceptor> interceptors = const [],
+  })  : _client = SnowflakeClient(
+          account: account,
+          token: token,
+          database: database,
+          schema: schema,
+          warehouse: warehouse,
+          role: role,
+          asyncExecution: asyncExecution,
+        ),
+        _pipeline = KnexInterceptorPipeline(
+          dbSystem: 'snowflake',
+          database: database,
+          serverAddress: '$account.snowflakecomputing.com',
+          interceptors: interceptors,
+        );
 
-  /// Executes a SELECT-style query and returns rows.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
-      _client.select(query);
+      _pipeline.run(query, () => _client.select(query));
 
-  /// Executes any compiled query and returns rows/result payload.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
-      _client.execute(query);
+      _pipeline.run(query, () => _client.execute(query));
 
-  /// Executes an INSERT query.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
-      _client.insert(query);
+      _pipeline.run(query, () => _client.insert(query));
 
-  /// Executes an UPDATE query.
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
-      _client.update(query);
+      _pipeline.run(query, () => _client.update(query));
 
-  /// Executes a DELETE query.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
-      _client.delete(query);
+      _pipeline.run(query, () => _client.delete(query));
 
   /// Execute a raw SQL string directly.
+  Future<List<Map<String, dynamic>>> rawSql(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) =>
+      _pipeline.runRaw(
+        sql,
+        bindings ?? const [],
+        () => _client.raw(sql, bindings),
+      );
+
+  /// Alias for [rawSql].
   Future<List<Map<String, dynamic>>> raw(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _client.raw(sql, bindings);
+  ]) =>
+      rawSql(sql, bindings);
 
-  /// Create a query builder scoped to the Snowflake dialect.
-  ///
-  /// Uses double-quote identifiers and `?` positional parameters.
   QueryBuilder queryBuilder() => _SnowflakeSchemaClient().queryBuilder();
 
-  /// Callable shorthand for `queryBuilder().table(name)`.
   QueryBuilder call([String? tableName]) {
     final builder = queryBuilder();
     return tableName != null ? builder.table(tableName) : builder;
   }
 
-  /// Poll for an async query result.
-  ///
-  /// Use when [asyncExecution] is `true` and a query returned a statement
-  /// handle instead of data.
   Future<List<Map<String, dynamic>>> getAsyncResult(String statementHandle) =>
       _client.getAsyncResult(statementHandle);
 
-  /// Execute schema DDL operations.
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,
   ) async {
@@ -101,17 +83,19 @@ class KnexSnowflake {
     callback(builder);
     final statements = builder.toSQL();
     for (final stmt in statements) {
-      await _client.raw(
+      await _pipeline.runRaw(
         stmt['sql'] as String,
-        stmt['bindings'] as List<dynamic>?,
+        (stmt['bindings'] as List<dynamic>?) ?? const [],
+        () => _client.raw(
+          stmt['sql'] as String,
+          stmt['bindings'] as List<dynamic>?,
+        ),
       );
     }
   }
 
-  /// Close the underlying HTTP client.
   void close() => _client.close();
 
-  /// Alias for [close], matching the core `Knex` API.
   void destroy() => close();
 }
 
@@ -119,12 +103,9 @@ class KnexSnowflake {
 // INTERNAL SCHEMA CLIENT
 // ============================================================================
 
-/// Internal Snowflake-flavored schema client for SQL generation only.
-///
-/// Snowflake uses double-quote identifiers and `?` positional parameters.
 class _SnowflakeSchemaClient extends Client {
   _SnowflakeSchemaClient()
-    : super(KnexConfig(client: 'snowflake', connection: {}));
+      : super(KnexConfig(client: 'snowflake', connection: {}));
 
   @override
   String get driverName => 'snowflake';

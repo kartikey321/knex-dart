@@ -6,6 +6,18 @@ library;
 /// Query method types
 enum QueryMethod { select, insert, update, delete, first, pluck, truncate }
 
+/// Returns the canonical SQL operation verb for a [QueryMethod].
+///
+/// `first` and `pluck` both compile to SELECT SQL — they are knex_dart-level
+/// abstractions, not distinct SQL operations. Use this instead of
+/// `method.name.toUpperCase()` to get an accurate `db.operation.name` for
+/// observability and logging.
+String queryMethodToSqlOperation(QueryMethod method) => switch (method) {
+      QueryMethod.first || QueryMethod.pluck => 'SELECT',
+      QueryMethod.truncate => 'TRUNCATE',
+      _ => method.name.toUpperCase(),
+    };
+
 /// Transaction isolation levels
 enum IsolationLevel {
   readUncommitted('read uncommitted'),
@@ -191,3 +203,26 @@ enum ColumnType {
 
 /// Conflict resolution strategies for ON CONFLICT
 enum ConflictAction { merge, ignore }
+
+/// Extracts the primary SQL operation verb from a raw SQL string.
+///
+/// Used when no [QueryMethod] is available (e.g. [rawSql] calls). Matches the
+/// leading keyword case-insensitively. Returns `'DB'` when unrecognised.
+String sqlOperationFromRaw(String sql) {
+  final upper = sql.trimLeft().toUpperCase();
+  const ops = [
+    'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+    'CREATE', 'DROP', 'ALTER', 'TRUNCATE',
+    'BEGIN', 'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'MERGE',
+  ];
+  for (final op in ops) {
+    if (!upper.startsWith(op)) continue;
+    // Word-boundary check: keyword must be followed by whitespace, '(', ';',
+    // or end-of-string.  Prevents 'SELECTIVITY' matching 'SELECT'.
+    if (upper.length == op.length) { return op; }
+    final next = upper[op.length];
+    if (next == ' ' || next == '\t' || next == '\n' || next == '\r' ||
+        next == '(' || next == ';') { return op; }
+  }
+  return 'DB';
+}

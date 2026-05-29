@@ -26,19 +26,32 @@ abstract class Client {
   /// Connection pool (lazy-initialized)
   dynamic _pool;
 
-  /// Event stream controllers
+  /// SQL compilation event stream controllers.
+  ///
+  /// These streams are legacy/passive observation hooks on [Client]. Live
+  /// driver wrappers route database execution through `QueryInterceptor`
+  /// instead, so these events should not be used as execution signals.
   final _queryController = StreamController<QueryEvent>.broadcast();
   final _queryErrorController = StreamController<QueryErrorEvent>.broadcast();
   final _queryResponseController =
       StreamController<QueryResponseEvent>.broadcast();
 
-  /// Stream of query events
+  /// Stream of SQL compilation events.
+  ///
+  /// Live driver execution is intercepted through `QueryInterceptor`, not this
+  /// stream.
   Stream<QueryEvent> get onQuery => _queryController.stream;
 
-  /// Stream of query error events
+  /// Stream of SQL compilation error events.
+  ///
+  /// Live driver execution is intercepted through `QueryInterceptor`, not this
+  /// stream.
   Stream<QueryErrorEvent> get onQueryError => _queryErrorController.stream;
 
-  /// Stream of query response events
+  /// Stream of SQL compilation response events.
+  ///
+  /// Live driver execution is intercepted through `QueryInterceptor`, not this
+  /// stream.
   Stream<QueryResponseEvent> get onQueryResponse =>
       _queryResponseController.stream;
 
@@ -311,7 +324,7 @@ class QueryEvent {
   final String uid;
   final String? txId;
 
-  const QueryEvent({
+  QueryEvent({
     required this.sql,
     required this.bindings,
     required this.uid,
