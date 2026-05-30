@@ -206,10 +206,11 @@ enum ConflictAction { merge, ignore }
 
 /// Extracts the primary SQL operation verb from a raw SQL string.
 ///
-/// Used when no [QueryMethod] is available (e.g. [rawSql] calls). Matches the
-/// leading keyword case-insensitively. Returns `'DB'` when unrecognised.
+/// Strips leading block comments (`/* … */`) and line comments (`-- …`) before
+/// matching, so `/* hint */ UPDATE t` correctly returns `UPDATE`.
+/// Returns `'DB'` when the verb is unrecognised.
 String sqlOperationFromRaw(String sql) {
-  final upper = sql.trimLeft().toUpperCase();
+  final upper = _stripLeadingComments(sql).trimLeft().toUpperCase();
   const ops = [
     'SELECT', 'INSERT', 'UPDATE', 'DELETE',
     'CREATE', 'DROP', 'ALTER', 'TRUNCATE',
@@ -217,12 +218,31 @@ String sqlOperationFromRaw(String sql) {
   ];
   for (final op in ops) {
     if (!upper.startsWith(op)) continue;
-    // Word-boundary check: keyword must be followed by whitespace, '(', ';',
-    // or end-of-string.  Prevents 'SELECTIVITY' matching 'SELECT'.
+    // Word-boundary: keyword must be followed by whitespace, '(', ';', or EOS.
     if (upper.length == op.length) { return op; }
     final next = upper[op.length];
     if (next == ' ' || next == '\t' || next == '\n' || next == '\r' ||
         next == '(' || next == ';') { return op; }
   }
   return 'DB';
+}
+
+String _stripLeadingComments(String sql) {
+  var s = sql.trimLeft();
+  bool stripped = true;
+  while (stripped) {
+    stripped = false;
+    if (s.startsWith('/*')) {
+      final end = s.indexOf('*/');
+      if (end != -1) {
+        s = s.substring(end + 2).trimLeft();
+        stripped = true;
+      }
+    } else if (s.startsWith('--')) {
+      final end = s.indexOf('\n');
+      s = end == -1 ? '' : s.substring(end + 1).trimLeft();
+      stripped = true;
+    }
+  }
+  return s;
 }

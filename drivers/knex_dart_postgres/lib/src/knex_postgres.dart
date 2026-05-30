@@ -231,7 +231,7 @@ class KnexPostgres {
 /// [QueryExecutionContext.txId] set for span correlation.
 ///
 /// Nested calls to [trx] create a savepoint, not a new physical transaction.
-class KnexPostgresTransaction implements KnexTransaction {
+class KnexPostgresTransaction extends KnexTransaction {
   final PostgresTrxClient _trx;
   final KnexInterceptorPipeline _pipeline;
   final String _dialectName;

@@ -81,12 +81,18 @@ void main() {
       });
     });
 
-    group('leading SQL comment is NOT skipped (documented limitation)', () {
-      test('block comment before UPDATE returns DB', () {
-        expect(sqlOperationFromRaw('/* comment */ UPDATE t SET x=1'), 'DB');
+    group('leading SQL comments are stripped before matching', () {
+      test('block comment before UPDATE returns UPDATE', () {
+        expect(sqlOperationFromRaw('/* comment */ UPDATE t SET x=1'), 'UPDATE');
       });
-      test('line comment before SELECT returns DB', () {
-        expect(sqlOperationFromRaw('-- hint\nSELECT 1'), 'DB');
+      test('line comment before SELECT returns SELECT', () {
+        expect(sqlOperationFromRaw('-- hint\nSELECT 1'), 'SELECT');
+      });
+      test('multiple block comments before INSERT', () {
+        expect(sqlOperationFromRaw('/* a */ /* b */ INSERT INTO t VALUES (1)'), 'INSERT');
+      });
+      test('block comment then line comment then SELECT', () {
+        expect(sqlOperationFromRaw('/* hint */\n-- note\nSELECT 1'), 'SELECT');
       });
     });
   });

@@ -95,7 +95,7 @@ class KnexTurso {
 // WRAPPER-LEVEL TRANSACTION FACADE
 // ============================================================================
 
-class KnexTursoTransaction implements KnexTransaction {
+class KnexTursoTransaction extends KnexTransaction {
   final TursoTrxClient _trx;
   final KnexInterceptorPipeline _pipeline;
 

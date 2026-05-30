@@ -72,8 +72,19 @@ class KnexSnowflake {
     return tableName != null ? builder.table(tableName) : builder;
   }
 
+  /// Poll for the result of an async Snowflake query.
+  ///
+  /// Routes through the interceptor pipeline as a `GET_ASYNC_RESULT`
+  /// operation so OTel spans capture the polling round-trip.
+  /// The statement handle is NOT included in `db.query.text` to avoid
+  /// high-cardinality span attributes.
   Future<List<Map<String, dynamic>>> getAsyncResult(String statementHandle) =>
-      _client.getAsyncResult(statementHandle);
+      _pipeline.runOperation(
+        operationName: 'GET_ASYNC_RESULT',
+        querySummary: 'GET_ASYNC_RESULT',
+        queryText: '<snowflake async result>',
+        execute: () => _client.getAsyncResult(statementHandle),
+      );
 
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,

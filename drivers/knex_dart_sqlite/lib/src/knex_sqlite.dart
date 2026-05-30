@@ -135,7 +135,7 @@ class KnexSQLite {
 // WRAPPER-LEVEL TRANSACTION FACADE
 // ============================================================================
 
-class KnexSQLiteTransaction implements KnexTransaction {
+class KnexSQLiteTransaction extends KnexTransaction {
   final SQLiteClient _client;
   final KnexInterceptorPipeline _pipeline;
 
@@ -185,6 +185,7 @@ class KnexSQLiteTransaction implements KnexTransaction {
       );
 
   /// Stream results inside this transaction.
+  @override
   Stream<Map<String, dynamic>> streamQuery(QueryBuilder query) =>
       _pipeline.runStream(query, () {
         final compiled = query.toSQL();

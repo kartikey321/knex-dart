@@ -112,7 +112,7 @@ class KnexDuckDB {
 // WRAPPER-LEVEL TRANSACTION FACADE
 // ============================================================================
 
-class KnexDuckDBTransaction implements KnexTransaction {
+class KnexDuckDBTransaction extends KnexTransaction {
   final DuckDBTrxClient _trx;
   final KnexInterceptorPipeline _pipeline;
 
@@ -161,6 +161,9 @@ class KnexDuckDBTransaction implements KnexTransaction {
   /// Streams results inside this transaction.
   Stream<Map<String, dynamic>> stream(QueryBuilder query) =>
       _pipeline.runStream(query, () => _trx.stream(query), txId: txId);
+
+  @override
+  Stream<Map<String, dynamic>> streamQuery(QueryBuilder query) => stream(query);
 
   @override
   Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {

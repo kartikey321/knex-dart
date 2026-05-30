@@ -185,7 +185,7 @@ class KnexMySQL {
 // WRAPPER-LEVEL TRANSACTION FACADE
 // ============================================================================
 
-class KnexMySQLTransaction implements KnexTransaction {
+class KnexMySQLTransaction extends KnexTransaction {
   final MySQLTrxClient _trx;
   final KnexInterceptorPipeline _pipeline;
   final String _dialectName;

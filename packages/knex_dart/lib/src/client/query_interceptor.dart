@@ -251,6 +251,45 @@ class KnexInterceptorPipeline {
     return _chainStream(ctx, 0, execute);
   }
 
+  // ── Explicit operation ─────────────────────────────────────────────────────
+
+  /// Runs [execute] through the pipeline with fully explicit OTel attributes.
+  ///
+  /// Use this for operations that are not standard SQL verbs and would
+  /// otherwise fall through to the `'DB'` catch-all in [sqlOperationFromRaw].
+  /// For example, Snowflake async result polling:
+  ///
+  /// ```dart
+  /// _pipeline.runOperation(
+  ///   operationName: 'GET_ASYNC_RESULT',
+  ///   querySummary: 'GET_ASYNC_RESULT',
+  ///   queryText: '<snowflake async result>',
+  ///   execute: () => _client.getAsyncResult(handle),
+  /// );
+  /// ```
+  Future<T> runOperation<T>({
+    required String operationName,
+    required String querySummary,
+    String queryText = '',
+    required Future<T> Function() execute,
+    String? txId,
+  }) {
+    if (!_active) return execute();
+    final ctx = QueryExecutionContext(
+      dbSystem: dbSystem,
+      database: database,
+      serverAddress: serverAddress,
+      serverPort: serverPort,
+      sql: queryText,
+      parameters: const [],
+      operationName: operationName,
+      collectionName: null,
+      querySummary: querySummary,
+      txId: txId,
+    );
+    return _chain(ctx, 0, execute);
+  }
+
   // ── Batch ──────────────────────────────────────────────────────────────────
 
   /// Runs a batch operation through the interceptor pipeline as a single span.
@@ -315,7 +354,7 @@ class KnexInterceptorPipeline {
 ///   await tx.insert(tx.queryBuilder().table('orders').insert({'user_id': 1}));
 /// });
 /// ```
-abstract interface class KnexTransaction {
+abstract class KnexTransaction {
   /// Opaque identifier for this transaction, included in every
   /// [QueryExecutionContext.txId] produced inside this scope.
   String get txId;
@@ -337,6 +376,15 @@ abstract interface class KnexTransaction {
     String sql, [
     List<dynamic>? bindings,
   ]);
+
+  /// Stream rows inside this transaction.
+  ///
+  /// Supported by SQLite and DuckDB transaction facades. Other drivers throw
+  /// [UnsupportedError] — check driver docs before calling.
+  Stream<Map<String, dynamic>> streamQuery(QueryBuilder query) =>
+      throw UnsupportedError(
+        '$runtimeType.streamQuery() is not supported by this driver.',
+      );
 
   /// Nest a transaction / savepoint inside this one.
   Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback);

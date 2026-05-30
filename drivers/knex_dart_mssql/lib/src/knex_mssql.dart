@@ -119,7 +119,7 @@ class KnexMssql {
 // WRAPPER-LEVEL TRANSACTION FACADE
 // ============================================================================
 
-class KnexMssqlTransaction implements KnexTransaction {
+class KnexMssqlTransaction extends KnexTransaction {
   final MssqlTrxClient _trx;
   final KnexInterceptorPipeline _pipeline;
 

@@ -107,12 +107,18 @@ class KnexOtelOptions {
   /// Called after execution (success or error).
   final KnexOtelResponseHook? responseHook;
 
-  const KnexOtelOptions({
+  KnexOtelOptions({
     this.captureQueryText = true,
-    this.maxQueryTextLength = 1024,
+    int maxQueryTextLength = 1024,
     this.requestHook,
     this.responseHook,
-  });
+  }) : maxQueryTextLength = maxQueryTextLength >= 0
+           ? maxQueryTextLength
+           : throw ArgumentError.value(
+               maxQueryTextLength,
+               'maxQueryTextLength',
+               'must be non-negative',
+             );
 }
 
 // ---------------------------------------------------------------------------
@@ -182,15 +188,22 @@ class KnexOtelInterceptor extends QueryInterceptor {
   final APIHistogram<double> _operationDuration;
   final KnexOtelOptions _options;
 
+  /// Creates a [KnexOtelInterceptor].
+  ///
+  /// **Important**: initialize your OTel SDK *before* constructing this
+  /// interceptor. The default [operationDurationHistogram] is created lazily
+  /// and cached; if the SDK is not yet installed, it will bind to a no-op
+  /// provider and stay no-op even after the SDK is installed later.
+  /// Pass an explicit [operationDurationHistogram] to avoid this.
   KnexOtelInterceptor({
     required APITracer tracer,
     APIHistogram<double>? operationDurationHistogram,
-    KnexOtelOptions options = const KnexOtelOptions(),
+    KnexOtelOptions? options,
   }) : _tracer = tracer,
        _operationDuration =
            operationDurationHistogram ??
            (_defaultHistogram ??= _createOperationDurationHistogram()),
-       _options = options;
+       _options = options ?? KnexOtelOptions();
 
   @override
   Future<T> intercept<T>(
@@ -237,7 +250,9 @@ class KnexOtelInterceptor extends QueryInterceptor {
 
     final sw = Stopwatch()..start();
     try {
-      final result = await next();
+      // Make the DB span current so any child spans (HTTP, TCP) created inside
+      // the driver are automatically parented to it.
+      final result = await _tracer.withSpanAsync(span, next);
       sw.stop();
 
 
@@ -386,7 +401,9 @@ class KnexOtelInterceptor extends QueryInterceptor {
         sw.start();
 
         try {
-          upstream = next().listen(
+          // Make the DB span current during listen() so any child spans created
+          // by stream setup or stream callbacks are parented to it.
+          upstream = _tracer.withSpan(span, () => next().listen(
             controller.add,
             onError: (Object e, StackTrace st) {
               finishOnce(isError: true, error: e, stackTrace: st);
@@ -396,7 +413,7 @@ class KnexOtelInterceptor extends QueryInterceptor {
               finishOnce();
               controller.close();
             },
-          );
+          ));
         } catch (e, st) {
           // next() threw synchronously — end span immediately and forward.
           finishOnce(isError: true, error: e, stackTrace: st);
