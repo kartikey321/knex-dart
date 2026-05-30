@@ -13,10 +13,7 @@ class RecordingInterceptor extends QueryInterceptor {
   RecordingInterceptor([this.label]);
 
   @override
-  Future<T> intercept<T>(
-    QueryExecutionContext ctx,
-    Future<T> Function() next,
-  ) {
+  Future<T> intercept<T>(QueryExecutionContext ctx, Future<T> Function() next) {
     futures.add(ctx);
     return next();
   }
@@ -63,23 +60,22 @@ KnexInterceptorPipeline _pipeline({
   String database = 'testdb',
   String serverAddress = 'localhost',
   int serverPort = 5432,
-}) =>
-    KnexInterceptorPipeline(
-      dbSystem: dbSystem,
-      database: database,
-      serverAddress: serverAddress,
-      serverPort: serverPort,
-      interceptors: interceptors,
-      instanceId: 'test', // deterministic for assertions
-    );
+}) => KnexInterceptorPipeline(
+  dbSystem: dbSystem,
+  database: database,
+  serverAddress: serverAddress,
+  serverPort: serverPort,
+  interceptors: interceptors,
+  instanceId: 'test', // deterministic for assertions
+);
 
 QueryExecutionContext _fakeCtx() => const QueryExecutionContext(
-      dbSystem: 'postgresql',
-      sql: 'SELECT 1',
-      parameters: [],
-      operationName: 'SELECT',
-      querySummary: 'SELECT',
-    );
+  dbSystem: 'postgresql',
+  sql: 'SELECT 1',
+  parameters: [],
+  operationName: 'SELECT',
+  querySummary: 'SELECT',
+);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -100,11 +96,9 @@ void main() {
     test('context fields populated from pipeline metadata', () async {
       final rec = RecordingInterceptor();
       final pipeline = _pipeline(interceptors: [rec]);
-      await pipeline.runRaw(
-        'INSERT INTO orders VALUES (?)',
-        [42],
-        () async => <Map<String, dynamic>>[],
-      );
+      await pipeline.runRaw('INSERT INTO orders VALUES (?)', [
+        42,
+      ], () async => <Map<String, dynamic>>[]);
       expect(rec.futures, hasLength(1));
       final ctx = rec.futures.first;
       expect(ctx.dbSystem, 'postgresql');
@@ -153,9 +147,64 @@ void main() {
       final rec = RecordingInterceptor();
       final pipeline = _pipeline(interceptors: [rec]);
       expect(
-        () => pipeline.runRaw('SELECT 1', [], () async => throw StateError('db down')),
-        throwsA(isA<StateError>().having((e) => e.message, 'message', 'db down')),
+        () => pipeline.runRaw(
+          'SELECT 1',
+          [],
+          () async => throw StateError('db down'),
+        ),
+        throwsA(
+          isA<StateError>().having((e) => e.message, 'message', 'db down'),
+        ),
       );
+    });
+  });
+
+  // ── runOperation ────────────────────────────────────────────────────────────
+
+  group('KnexInterceptorPipeline.runOperation', () {
+    test('uses explicit operation context fields', () async {
+      final rec = RecordingInterceptor();
+      final pipeline = _pipeline(interceptors: [rec]);
+
+      final result = await pipeline.runOperation<int>(
+        operationName: 'GET_ASYNC_RESULT',
+        querySummary: 'GET_ASYNC_RESULT',
+        queryText: '<snowflake async result>',
+        txId: 'tx-op',
+        execute: () async => 42,
+      );
+
+      expect(result, 42);
+      expect(rec.futures, hasLength(1));
+
+      final ctx = rec.futures.single;
+      expect(ctx.dbSystem, 'postgresql');
+      expect(ctx.database, 'testdb');
+      expect(ctx.serverAddress, 'localhost');
+      expect(ctx.serverPort, 5432);
+      expect(ctx.operationName, 'GET_ASYNC_RESULT');
+      expect(ctx.querySummary, 'GET_ASYNC_RESULT');
+      expect(ctx.sql, '<snowflake async result>');
+      expect(ctx.parameters, isEmpty);
+      expect(ctx.collectionName, isNull);
+      expect(ctx.txId, 'tx-op');
+    });
+
+    test('no interceptors -> execute called directly', () async {
+      final pipeline = _pipeline();
+      var called = false;
+
+      final result = await pipeline.runOperation<String>(
+        operationName: 'CUSTOM',
+        querySummary: 'CUSTOM',
+        execute: () async {
+          called = true;
+          return 'ok';
+        },
+      );
+
+      expect(called, isTrue);
+      expect(result, 'ok');
     });
   });
 
@@ -201,8 +250,10 @@ void main() {
       final ctx = _fakeCtx();
       // Chain manually: i1 wraps i2 wraps execute.
       final result = await i1
-          .interceptStream<int>(ctx,
-              () => i2.interceptStream(ctx, () => Stream.fromIterable([7, 8])))
+          .interceptStream<int>(
+            ctx,
+            () => i2.interceptStream(ctx, () => Stream.fromIterable([7, 8])),
+          )
           .toList();
       expect(result, [7, 8]);
       expect(i1.streams, hasLength(1));
@@ -215,13 +266,22 @@ void main() {
   group('interceptor ordering', () {
     test('interceptors called in index order (outer-first)', () async {
       final order = <String>[];
-      final pipeline = _pipeline(interceptors: [
-        OrderInterceptor(order, 'A'),
-        OrderInterceptor(order, 'B'),
-        OrderInterceptor(order, 'C'),
-      ]);
+      final pipeline = _pipeline(
+        interceptors: [
+          OrderInterceptor(order, 'A'),
+          OrderInterceptor(order, 'B'),
+          OrderInterceptor(order, 'C'),
+        ],
+      );
       await pipeline.runRaw('SELECT 1', [], () async => []);
-      expect(order, ['A:before', 'B:before', 'C:before', 'C:after', 'B:after', 'A:after']);
+      expect(order, [
+        'A:before',
+        'B:before',
+        'C:before',
+        'C:after',
+        'B:after',
+        'A:after',
+      ]);
     });
 
     test('all interceptors receive the same context object', () async {

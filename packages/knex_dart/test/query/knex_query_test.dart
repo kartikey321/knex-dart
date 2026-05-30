@@ -1,5 +1,4 @@
 import 'package:knex_dart/knex_dart.dart';
-import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -103,10 +102,7 @@ void main() {
       });
 
       test('throws on unknown client name', () {
-        expect(
-          () => KnexQuery.forClient('oracle_xyz'),
-          throwsArgumentError,
-        );
+        expect(() => KnexQuery.forClient('oracle_xyz'), throwsArgumentError);
       });
     });
 
