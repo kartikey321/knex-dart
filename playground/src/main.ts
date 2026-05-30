@@ -3,7 +3,7 @@ import editorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?url';
 import { lintInWorker } from './lint/client';
 import type { PlaygroundDiagnostic, PlaygroundDialect, PlaygroundSeverity } from './lint/types';
 import { executeEmbeddedQuery, getDbVisualizerSnapshot, seedEmbeddedDb, resetEmbeddedDb, type DbEngineMode, type DartRunner } from './db/embedded';
-import { initDartAnalyzer, analyzeDart, type DartDiagnostic } from './lint/dart_analyzer';
+import { initDartLsp, lspDidChange } from './lint/dart_lsp';
 import { initDartRuntime, runDart, parseSqlSentinels } from './wasm/dart_runtime';
 import { EXAMPLES } from './examples';
 import sampleCode from './sample.dart?raw';
@@ -123,11 +123,10 @@ examplesNode.addEventListener('change', () => {
 });
 
 // ── Background init ────────────────────────────────────────────────────────────
-let analyzerReady = false;
-initDartAnalyzer().then((ok) => {
-  analyzerReady = ok;
-  if (ok) runLint().catch(() => {});
-});
+initDartLsp(monaco, model, (markers) => {
+  monaco.editor.setModelMarkers(model, 'dart-lsp', markers);
+  runLint().catch(() => {});
+}, model.getValue());
 
 const dartRunner: DartRunner = async (source) => {
   const result = await runDart(source);
@@ -270,42 +269,34 @@ async function refreshDbVisualizer() {
 let lintTimer: number | undefined;
 let lintRunId = 0;
 
-function applyWasmMarkers(diags: DartDiagnostic[]) {
-  monaco.editor.setModelMarkers(model, 'dart-analyzer', diags.map((d) => ({
-    message: d.message,
-    source: `dart_analyzer [${d.code}]`,
-    severity: severityToMonaco(d.severity),
-    startLineNumber: d.startLine,
-    startColumn: d.startColumn,
-    endLineNumber: d.endLine,
-    endColumn: d.endColumn,
-  })));
-}
-
 async function runLint() {
   const text = model.getValue();
   const dialect = dialectNode.value as PlaygroundDialect;
   const runId = ++lintRunId;
-  const [regexDiags, wasmDiags] = await Promise.all([
-    lintInWorker({ text, dialect }),
-    analyzerReady ? analyzeDart(text) : Promise.resolve([] as DartDiagnostic[]),
-  ]);
+  const regexDiags = await lintInWorker({ text, dialect });
   if (runId !== lintRunId) return;
   if (text !== model.getValue()) return;
   if (dialect !== (dialectNode.value as PlaygroundDialect)) return;
   applyMonacoMarkers(text, regexDiags);
-  applyWasmMarkers(wasmDiags);
-  const wasmAsPanel: PlaygroundDiagnostic[] = wasmDiags.map((d) => ({
-    code: d.code, source: 'dart_analyzer', message: d.message,
-    severity: d.severity as PlaygroundSeverity,
+  const lspMarkers = monaco.editor.getModelMarkers({ owner: 'dart-lsp' });
+  const lspAsPanel: PlaygroundDiagnostic[] = lspMarkers.map((m) => ({
+    code: String(m.code ?? ''),
+    source: 'dart (LSP)',
+    message: m.message,
+    severity: m.severity === monaco.MarkerSeverity.Error ? 'error'
+      : m.severity === monaco.MarkerSeverity.Warning ? 'warning'
+        : 'info' as PlaygroundSeverity,
     startOffset: 0, endOffset: 0,
   }));
-  renderDiagnostics([...wasmAsPanel, ...regexDiags]);
+  renderDiagnostics([...lspAsPanel, ...regexDiags]);
 }
 
 model.onDidChangeContent(() => {
   clearTimeout(lintTimer);
-  lintTimer = window.setTimeout(() => runLint().catch(() => {}), 300);
+  lintTimer = window.setTimeout(() => {
+    lspDidChange(model.getValue());
+    runLint().catch(() => {});
+  }, 300);
   // Persist to localStorage
   localStorage.setItem('knex_playground_code', model.getValue());
 });
