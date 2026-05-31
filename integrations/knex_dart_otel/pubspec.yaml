@@ -1,5 +1,5 @@
 name: knex_dart_otel
-description: OpenTelemetry instrumentation for knex_dart — attaches traces to every query via the OTel API.
+description: OpenTelemetry instrumentation for knex_dart driver wrappers — query spans and DB client duration metrics via the OTel API.
 version: 0.1.0
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart

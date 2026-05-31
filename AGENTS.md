@@ -19,6 +19,8 @@ drivers/
   knex_dart_bigquery/      # BigQuery driver
   knex_dart_d1/            # Cloudflare D1 driver
   knex_dart_snowflake/     # Snowflake driver
+integrations/
+  knex_dart_otel/          # OpenTelemetry instrumentation for live driver wrappers
 docs/site/                 # Jaspr-based documentation site (served at docs.knex.mahawarkartikey.in)
 playground/                # Vite + TypeScript browser playground (deployed to Cloudflare Pages)
 tool/run_tests.sh          # Cross-driver test runner (wraps Docker + dart test)
@@ -38,7 +40,7 @@ All packages use `resolution: workspace` (melos monorepo). Root `pubspec.yaml` i
 
 ## Required Workflow
 
-- **Change the narrowest package possible.** Core SQL generation changes go in `packages/knex_dart/`. Driver-specific behavior goes in the relevant `drivers/` package.
+- **Change the narrowest package possible.** Core SQL generation changes go in `packages/knex_dart/`. Driver-specific behavior goes in the relevant `drivers/` package. Cross-cutting integrations such as OpenTelemetry go in `integrations/`.
 - For any core change that affects SQL output, add or update a unit test in `packages/knex_dart/test/`.
 - For any driver behavior change, add or update an integration test in `drivers/knex_dart_<name>/test/integration/`.
 - Keep `docs/site/content/` pages aligned with any API additions or behavior changes.

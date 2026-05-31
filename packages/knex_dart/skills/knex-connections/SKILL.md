@@ -119,4 +119,5 @@ final rs = await KnexPostgres.redshift(
 
 - Connections: `https://docs.knex.mahawarkartikey.in/raw/connections/connections.md`
 - Streaming: `https://docs.knex.mahawarkartikey.in/raw/connections/streaming.md`
+- OpenTelemetry: `https://docs.knex.mahawarkartikey.in/raw/tooling/opentelemetry.md`
 - Quick start: `https://docs.knex.mahawarkartikey.in/raw/getting-started/quick-start.md`

@@ -150,7 +150,7 @@ class KnexOtelOptions {
 ///       tracer: tracer,
 ///       options: KnexOtelOptions(
 ///         requestHook: (span, ctx) {
-///           span.setStringAttribute('tenant.id', currentTenantId());
+///           span.setStringAttribute('tenant.id', 'tenant-123');
 ///         },
 ///       ),
 ///     ),

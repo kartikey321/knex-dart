@@ -21,7 +21,7 @@ workspace:
   - drivers/knex_dart_mssql
   - packages/knex_dart_capabilities
   - packages/knex_dart_lint
-  - drivers/knex_dart_otel
+  - integrations/knex_dart_otel
 
 dev_dependencies:
   melos: ^7.0.0

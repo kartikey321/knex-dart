@@ -28,6 +28,13 @@ Get started with Knex Dart in your Dart or Flutter project.
 | Turso (libSQL) | `knex_dart_turso` | `dart pub add knex_dart_turso` |
 | Cloudflare D1 | `knex_dart_d1` | `dart pub add knex_dart_d1` |
 
+Optional tooling packages:
+
+| Use case | Package | Install |
+|---|---|---|
+| Dialect-aware static linting | `knex_dart_lint` | `dart pub add --dev knex_dart_lint custom_lint` |
+| OpenTelemetry instrumentation | `knex_dart_otel` | `dart pub add knex_dart_otel` |
+
 ## Add a Driver
 
 Pick the driver for your database:
@@ -149,3 +156,4 @@ void main() {
 - [Quick Start](./quick-start) — Connect and run your first query
 - [Database Support](/database-support) — Connection examples for all 9 databases
 - [WHERE Clauses](/query-building/where-clauses) — Learn query filtering
+- [OpenTelemetry](/tooling/opentelemetry) — Add query tracing and DB client duration metrics

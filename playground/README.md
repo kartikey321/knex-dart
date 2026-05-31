@@ -1,52 +1,85 @@
-# knex_dart Playground (Browser-only MVP)
+# knex_dart Playground
 
-This folder contains a standalone browser-only playground scaffold with:
+Browser playground for `knex_dart`, deployed at:
 
-- Monaco editor
-- Dart language registration
-- Custom browser lint worker (mirrors key `knex_dart_lint` rules)
-- Monaco marker mapping
-- Runtime selector (`wasm` or `dart_eval`)
-- Dart Wasm bridge package at `dart_wasm_bridge/` exporting JS-callable query builders
+https://playground.knex.mahawarkartikey.in/
 
-## Run
+## What It Does
+
+- Monaco editor with Dart language registration
+- Dart LSP diagnostics, hover, completions, and auto-imports via `dart_lsp.wasm`
+- Browser lint worker for lightweight dialect checks
+- In-browser Dart compile/run via dart-live CFE + VM WASM
+- Embedded execution against:
+  - PostgreSQL-compatible PGlite for the `postgres` dialect
+  - sql.js SQLite for `sqlite` and non-Postgres fallback
+- Query result table and embedded DB visualizer
+
+The playground executes SQL printed by helper functions in the snippet. For example:
+
+```dart
+void sql(SqlString s) =>
+    print(jsonEncode({'sql': s.sql, 'bindings': s.bindings}));
+
+void schema(List<Map<String, dynamic>> statements) {
+  for (final s in statements) {
+    print(jsonEncode({
+      'sql': s['sql'] as String,
+      'bindings': (s['bindings'] as List?)?.cast<dynamic>() ?? [],
+    }));
+  }
+}
+```
+
+Schema builders must be emitted explicitly:
+
+```dart
+schema(db.schemaBuilder().createTable('products', (t) {
+  t.increments('id');
+  t.string('name').notNullable();
+}).toSQL());
+```
+
+## Run Locally
 
 ```bash
-cd /Users/kartik/StudioProjects/knex/knex-dart-playground-web
-npm install
-./scripts/build_wasm.sh
+cd playground
+npm ci
 npm run dev
 ```
 
-Default URL: `http://localhost:5176`
+Default URL: `http://localhost:5177`
 
-## Current lint coverage
+## Build
 
-Implemented in-browser equivalents:
+```bash
+cd playground
+npm run check
+npm run build
+```
 
-- `invalid_where_operator`
-- `where_null_value`
-- `invalid_order_direction`
-- Dialect method guards:
-  - `returning`, `fullOuterJoin`, lateral join variants
-  - `with`, `withRecursive`
-  - `rowNumber`, `denseRank`, `rank`
-  - `jsonExtract`, `jsonSet`, `jsonInsert`
-  - `intersect`, `except`
+Static output goes to `playground/dist`.
 
-These are syntax-based checks, not full analyzer/type-inference checks.
+## Deploy Manually
 
-## Wasm wiring steps
+```bash
+cd playground
+npx wrangler pages deploy dist --project-name=knex-dart-playground --branch main
+```
 
-1. Edit `dart_wasm_bridge/web/main.dart` to adjust supported DSL/API.
-2. Run `./scripts/build_wasm.sh`.
-3. Confirm generated files exist:
-   - `public/wasm/main.wasm`
-   - `public/wasm/main.mjs`
-4. Use the `Execution Input (JSON)` panel and click `Run`.
+The CI workflow deploys on `playground-v*.*.*` tags.
 
-## Notes
+## Dart Assets
 
-- This browser-only MVP does not run official `dart analyze` or `custom_lint` plugin runtime.
-- The worker lints are heuristic and aligned to your rule IDs/messages where practical.
-- Monaco currently has Dart language registration + config; full semantic Dart tokenization can be added later.
+The `public/dart-live/` directory contains the browser Dart runtime/analyzer assets:
+
+- `dart_cfe.mjs` / `dart_cfe.wasm` — compiles Dart source to kernel bytes
+- `dart_il.mjs` / `dart_il.wasm` — runs compiled kernel bytes
+- `dart_lsp.mjs` / `dart_lsp.wasm` — Dart LSP server for Monaco diagnostics/completions
+- `dart_sdk.sum` — SDK summary used by the LSP server
+- `knex_dart.dill` — compiled package dill used by the runtime
+- `knex_dart_packages.bin` — DPKG source bundle used by the LSP server for package analysis
+- `vm_platform.dill` — VM platform dill used by the runtime
+
+If `knex_dart` public APIs change, rebuild both `knex_dart.dill` and `knex_dart_packages.bin` before deploying.
+

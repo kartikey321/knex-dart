@@ -590,6 +590,7 @@ jobs:
             knex_dart_snowflake-v*)    echo "dir=drivers/knex_dart_snowflake" ;;
             knex_dart_bigquery-v*)     echo "dir=drivers/knex_dart_bigquery" ;;
             knex_dart_mssql-v*)        echo "dir=drivers/knex_dart_mssql" ;;
+            knex_dart_otel-v*)         echo "dir=integrations/knex_dart_otel" ;;
             knex_dart_capabilities-v*) echo "dir=packages/knex_dart_capabilities" ;;
             knex_dart_lint-v*)         echo "dir=packages/knex_dart_lint" ;;
             *) echo "Unsupported tag: $TAG" >&2; exit 1 ;;

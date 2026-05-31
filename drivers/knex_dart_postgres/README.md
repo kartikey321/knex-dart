@@ -9,7 +9,7 @@ PostgreSQL driver for [knex_dart](https://pub.dev/packages/knex_dart) — execut
 
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.1.0
+  knex_dart_postgres: ^0.2.0
 ```
 
 ## Usage
@@ -47,12 +47,14 @@ await db.delete(
 
 // Schema
 await db.executeSchema(
-  db.schema.createTable('posts', (t) {
-    t.increments('id');
-    t.string('title').notNullable();
-    t.integer('user_id').references('id').inTable('users');
-    t.timestamps();
-  }),
+  (schema) {
+    schema.createTable('posts', (t) {
+      t.increments('id');
+      t.string('title').notNullable();
+      t.integer('user_id').references('id').inTable('users');
+      t.timestamps();
+    });
+  },
 );
 
 // Transactions

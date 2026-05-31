@@ -24,9 +24,11 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 - ✅ **Connection Pooling** — built-in pool for PostgreSQL and MySQL
 - ✅ **Streaming** — `streamQuery()` for memory-efficient large result sets
 - ✅ **Nested Transactions** — savepoint-based nesting on all drivers
+- ✅ **OpenTelemetry** — optional driver-wrapper spans and `db.client.operation.duration` metrics
+- ✅ **Browser Playground** — Dart LSP diagnostics, hover, auto-imports, and embedded SQL execution
 - ✅ **Web / WASM** — DuckDB runs in Chrome/headless browser via dart_duckdb WASM
 - ✅ **591+ Tests Passing** — comprehensive coverage with >85% line coverage
-- ✅ **10 Driver Packages** — install only what you need
+- ✅ **9 Driver Packages** — install only what you need
 
 ## 📦 Driver Packages
 
@@ -41,6 +43,13 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 | Snowflake | [`knex_dart_snowflake`](https://pub.dev/packages/knex_dart_snowflake) | HTTP-based |
 | Turso (libSQL) | [`knex_dart_turso`](https://pub.dev/packages/knex_dart_turso) | HTTP + sqld |
 | Cloudflare D1 | [`knex_dart_d1`](https://pub.dev/packages/knex_dart_d1) | HTTP-based |
+
+## 🛠️ Tooling Packages
+
+| Tooling | Package | Notes |
+|---|---|---|
+| Dialect linting | [`knex_dart_lint`](https://pub.dev/packages/knex_dart_lint) | Optional custom_lint plugin |
+| OpenTelemetry | [`knex_dart_otel`](https://pub.dev/packages/knex_dart_otel) | Optional instrumentation for driver wrappers |
 
 ## 🚀 Quick Start
 
@@ -108,6 +117,8 @@ Native (macOS/Linux/Windows), Flutter mobile, and browser/WASM (DuckDB).
 
 ## 📚 Documentation
 
+Try examples in the browser playground: **[playground.knex.mahawarkartikey.in](https://playground.knex.mahawarkartikey.in/)**
+
 **Getting Started**
 - [Installation](/getting-started/installation) — Add driver packages
 - [Quick Start](/getting-started/quick-start) — Connect and run your first query
@@ -132,6 +143,7 @@ Native (macOS/Linux/Windows), Flutter mobile, and browser/WASM (DuckDB).
 
 **Tooling**
 - [Dialect Lint](/tooling/dialect-lint) — Optional static checks for dialect-incompatible APIs
+- [OpenTelemetry](/tooling/opentelemetry) — Query spans, stream spans, transaction query spans, and DB client duration metrics
 
 **Migration Guide**
 - [From Knex.js](/migration/from-knex-js) — Differences and equivalents

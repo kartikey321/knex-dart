@@ -22,12 +22,15 @@ A faithful port of [Knex.js](https://knexjs.org/) to Dart — a powerful, fluent
 | [knex_dart_d1](https://pub.dev/packages/knex_dart_d1) | Cloudflare D1 driver | [![pub](https://img.shields.io/pub/v/knex_dart_d1)](https://pub.dev/packages/knex_dart_d1) |
 | [knex_dart_capabilities](https://pub.dev/packages/knex_dart_capabilities) | Shared dialect capability matrix | [![pub](https://img.shields.io/pub/v/knex_dart_capabilities)](https://pub.dev/packages/knex_dart_capabilities) |
 | [knex_dart_lint](https://pub.dev/packages/knex_dart_lint) | Optional static dialect lint plugin | [![pub](https://img.shields.io/pub/v/knex_dart_lint)](https://pub.dev/packages/knex_dart_lint) |
+| [knex_dart_otel](https://pub.dev/packages/knex_dart_otel) | OpenTelemetry query instrumentation | [![pub](https://img.shields.io/pub/v/knex_dart_otel)](https://pub.dev/packages/knex_dart_otel) |
 
 `knex_dart` is the core package — query builder, schema builder, and compiler with no database connectivity. Add the driver for your database.
 
 ## Documentation
 
 Full documentation: **https://docs.knex.mahawarkartikey.in/**
+
+Try queries in the browser playground: **https://playground.knex.mahawarkartikey.in/**
 
 - [Database Support](https://docs.knex.mahawarkartikey.in/database-support) — all 9 databases with connection examples
 - [WHERE Clauses](https://docs.knex.mahawarkartikey.in/query-building/where-clauses) — 29 filtering methods
@@ -37,6 +40,7 @@ Full documentation: **https://docs.knex.mahawarkartikey.in/**
 - [Streaming](https://docs.knex.mahawarkartikey.in/connections/streaming) — memory-efficient large result sets
 - [Migrations](https://docs.knex.mahawarkartikey.in/migration/migrations) — code-first and SQL-directory sources
 - [Dialect Lint](https://docs.knex.mahawarkartikey.in/tooling/dialect-lint) — optional static analysis plugin
+- [OpenTelemetry](https://docs.knex.mahawarkartikey.in/tooling/opentelemetry) — query spans and DB client duration metrics
 
 ## Installation
 
@@ -44,9 +48,9 @@ Add the driver for your database — it pulls in `knex_dart` automatically:
 
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.1.0   # PostgreSQL
-  # knex_dart_mysql: ^0.1.0    # MySQL
-  # knex_dart_sqlite: ^0.1.0   # SQLite
+  knex_dart_postgres: ^0.2.0   # PostgreSQL
+  # knex_dart_mysql: ^0.2.0    # MySQL
+  # knex_dart_sqlite: ^0.2.0   # SQLite
   # knex_dart_duckdb: ^0.1.0   # DuckDB (OLAP / browser WASM)
 ```
 
@@ -54,8 +58,8 @@ For SQL generation only (no live connection):
 
 ```yaml
 dependencies:
-  knex_dart: ^0.1.0
-  knex_dart_capabilities: ^0.1.0
+  knex_dart: ^1.2.0
+  knex_dart_capabilities: ^0.2.0
 ```
 
 ## Quick Start
@@ -87,10 +91,12 @@ import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 final db = await KnexSQLite.connect(filename: ':memory:');
 
 await db.executeSchema(
-  db.schema.createTable('users', (t) {
-    t.increments('id');
-    t.string('name');
-  }),
+  (schema) {
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('name');
+    });
+  },
 );
 
 await db.insert(db('users').insert({'name': 'Alice'}));
@@ -196,21 +202,23 @@ db.queryBuilder()
   .rowNumber('row_num', (a) => a.partitionBy('department').orderBy('salary', 'desc'))
   .lead('next_salary', 'salary', 'salary', 'department');
 
-// Raw
-db.raw('select * from users where id = ?', [1]);
+// Raw SQL execution on driver wrappers
+await db.rawSql('select * from users where id = ?', [1]);
 ```
 
 ### Schema Builder
 
 ```dart
 await db.executeSchema(
-  db.schema.createTable('posts', (t) {
-    t.increments('id');
-    t.string('title').notNullable();
-    t.text('body');
-    t.integer('user_id').references('id').inTable('users');
-    t.timestamps();
-  }),
+  (schema) {
+    schema.createTable('posts', (t) {
+      t.increments('id');
+      t.string('title').notNullable();
+      t.text('body');
+      t.integer('user_id').references('id').inTable('users');
+      t.timestamps();
+    });
+  },
 );
 ```
 
@@ -277,7 +285,7 @@ await db.migrate.fromSqlDir('./migrations').latest();
 ```yaml
 dev_dependencies:
   custom_lint: ^0.8.1
-  knex_dart_lint: ^0.1.0
+  knex_dart_lint: ^0.2.0
 ```
 
 ```yaml
@@ -305,8 +313,10 @@ Catches: `.returning()` on MySQL/SQLite, `fullOuterJoin()` on MySQL/SQLite, `joi
 - Streaming — `streamQuery()` for memory-efficient large result sets
 - Connection pooling — `PoolConfig` for PostgreSQL and MySQL
 - Migrations — code-first, SQL-directory, and JSON-schema sources
+- OpenTelemetry instrumentation — driver wrapper query spans, stream spans, transaction query spans, and `db.client.operation.duration`
 - Dialect-aware SQL — correct quoting and placeholders per database
 - `KnexQuery.forDialect()` — generate SQL for any dialect without a driver
+- Browser playground — Dart LSP diagnostics, hover, auto-import, embedded PostgreSQL/SQLite execution
 - Web/WASM — DuckDB runs in Chrome/headless browser
 - 591+ tests, >85% line coverage
 

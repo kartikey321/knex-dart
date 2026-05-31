@@ -9,7 +9,7 @@ SQLite driver for [knex_dart](https://pub.dev/packages/knex_dart) — execute qu
 
 ```yaml
 dependencies:
-  knex_dart_sqlite: ^0.1.0
+  knex_dart_sqlite: ^0.2.0
 ```
 
 ## Usage
@@ -25,12 +25,14 @@ final db = await KnexSQLite.connect(filename: ':memory:');
 
 // Schema
 await db.executeSchema(
-  db.schema.createTable('users', (t) {
-    t.increments('id');
-    t.string('name').notNullable();
-    t.string('email').unique();
-    t.timestamps();
-  }),
+  (schema) {
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('name').notNullable();
+      t.string('email').unique();
+      t.timestamps();
+    });
+  },
 );
 
 // INSERT
