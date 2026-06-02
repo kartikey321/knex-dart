@@ -264,8 +264,8 @@ run_driver_tests() {
       (
         cd "${package_dir}" && \
           dart test test/turso_test.dart && \
-          TURSO_URL=http://localhost:8080 \
-          dart test test/integration/turso_integration_test.dart --tags=turso
+          TURSO_URL=http://127.0.0.1:18080 \
+          dart test test/integration --tags=turso
       )
       ;;
     bigquery)

@@ -145,6 +145,12 @@ class SQLiteClient extends Client {
     return QueryBuilder(this);
   }
 
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   @override
   QueryCompiler queryCompiler(QueryBuilder builder) {
     return QueryCompiler(this, builder);
@@ -188,9 +194,11 @@ class SQLiteClient extends Client {
         final result = await callback(this);
         db.execute('RELEASE SAVEPOINT $sp');
         return result;
-      } catch (e) {
-        db.execute('ROLLBACK TO SAVEPOINT $sp');
-        rethrow;
+      } catch (e, st) {
+        try {
+          db.execute('ROLLBACK TO SAVEPOINT $sp');
+        } catch (_) {}
+        Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }
@@ -210,8 +218,8 @@ class SQLiteClient extends Client {
     }
   }
 
-  String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+  static var _spCount = 0;
+  String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 
   /// Executes raw SQL with positional [bindings].
   @override
@@ -233,8 +241,18 @@ class SQLiteClient extends Client {
     dynamic connection,
     String sql,
     List<dynamic> bindings,
-  ) {
-    throw UnimplementedError('Stream query not supported for SQLite yet');
+  ) async* {
+    final db = await _ensureDb();
+    final stmt = db.prepare(sql);
+    try {
+      final cursor = stmt.selectCursor(bindings.cast<Object?>());
+      while (cursor.moveNext()) {
+        final row = cursor.current;
+        yield Map<String, dynamic>.from(row);
+      }
+    } finally {
+      stmt.dispose();
+    }
   }
 
   @override

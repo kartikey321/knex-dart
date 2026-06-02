@@ -1,5 +1,4 @@
 import 'package:knex_dart/knex_dart.dart';
-import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -103,10 +102,7 @@ void main() {
       });
 
       test('throws on unknown client name', () {
-        expect(
-          () => KnexQuery.forClient('oracle_xyz'),
-          throwsArgumentError,
-        );
+        expect(() => KnexQuery.forClient('oracle_xyz'), throwsArgumentError);
       });
     });
 
@@ -125,6 +121,21 @@ void main() {
         expect(sql.sql, contains('from "users"'));
         expect(sql.sql, contains('order by "created_at" desc'));
         expect(sql.sql, contains('limit \$2'));
+      });
+
+      test('tableName returns string table names only', () {
+        final q = KnexQuery.forDialect(KnexDialect.postgres);
+
+        expect(q.from('users').tableName, 'users');
+        expect(q.queryBuilder().tableName, isNull);
+
+        final subquery = q.from('orders').select(['user_id']);
+        expect(q.queryBuilder().from(subquery).tableName, isNull);
+
+        final rawTable = q.queryBuilder().client.raw(
+          '(select * from users) as u',
+        );
+        expect(q.queryBuilder().from(rawTable).tableName, isNull);
       });
     });
 

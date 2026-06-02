@@ -10,16 +10,21 @@ Common Table Expressions (CTEs) allow you to break down complex queries into nam
 ## Basic CTE
 
 ```dart
-knex.withQuery('regional_sales',
-  knex('orders')
-    .select(['region'])
-    .sum('amount as total_sales')
-    .groupBy('region')
-)
-.select(['*'])
-.from('regional_sales');
+final db = KnexQuery.forDialect(KnexDialect.postgres);
+
+final q = db.queryBuilder()
+    .withQuery('regional_sales',
+      db.from('orders')
+        .select(['region'])
+        .sum('amount as total_sales')
+        .groupBy('region')
+    )
+    .from('regional_sales')
+    .select(['*'])
+    .toSQL();
+print(q.sql);
 // with "regional_sales" as (
-//   select "region", sum("amount") as "total_sales" 
+//   select "region", sum("amount") as "total_sales"
 //   from "orders" group by "region"
 // )
 // select * from "regional_sales"
@@ -32,19 +37,21 @@ knex.withQuery('regional_sales',
 Chain multiple `withQuery()` calls:
 
 ```dart
-knex
-  .withQuery('monthly_sales',
-    knex('orders')
-      .select(['month', 'sum(amount) as total'])
-      .groupBy('month')
-  )
-  .withQuery('avg_monthly',
-    knex('monthly_sales')
-      .select(['avg(total) as average'])
-  )
-  .select(['*'])
-  .from('monthly_sales')
-  .crossJoin('avg_monthly');
+final q = db.queryBuilder()
+    .withQuery('monthly_sales',
+      db.from('orders')
+        .select(['month', db.queryBuilder().client.raw('sum(amount) as total')])
+        .groupBy('month')
+    )
+    .withQuery('avg_monthly',
+      db.from('monthly_sales')
+        .select([db.queryBuilder().client.raw('avg(total) as average')])
+    )
+    .from('monthly_sales')
+    .crossJoin('avg_monthly')
+    .select(['*'])
+    .toSQL();
+print(q.sql);
 // with "monthly_sales" as (...),
 //      "avg_monthly" as (...)
 // select * from "monthly_sales" cross join "avg_monthly"
@@ -55,22 +62,25 @@ knex
 For hierarchical data (trees, graphs, etc.):
 
 ```dart
-final recursive = knex('nodes')
-  .select(['*'])
-  .where('parent_id', '=', null)
-  .union([
-    knex('nodes as n')
-      .select(['n.*'])
-      .join('tree as t', 'n.parent_id', 't.id')
-  ]);
+final recursive = db.from('nodes')
+    .select(['*'])
+    .where('parent_id', '=', null)
+    .union([
+      db.from('nodes as n')
+        .select(['n.*'])
+        .join('tree as t', 'n.parent_id', 't.id')
+    ]);
 
-knex.withRecursive('tree', recursive)
-  .select(['*'])
-  .from('tree');
+final q = db.queryBuilder()
+    .withRecursive('tree', recursive)
+    .from('tree')
+    .select(['*'])
+    .toSQL();
+print(q.sql);
 // with recursive "tree" as (
 //   select * from "nodes" where "parent_id" is null
 //   union
-//   select "n".* from "nodes" as "n" 
+//   select "n".* from "nodes" as "n"
 //   inner join "tree" as "t" on "n"."parent_id" = "t"."id"
 // )
 // select * from "tree"
@@ -79,23 +89,28 @@ knex.withRecursive('tree', recursive)
 ## CTE with Raw SQL
 
 ```dart
-knex.withQuery('sales',
-  client.raw('select * from orders where status = ?', ['completed'])
-)
-.select(['*'])
-.from('sales');
+final q = db.queryBuilder()
+    .withQuery('sales',
+      db.raw('select * from orders where status = ?', ['completed'])
+    )
+    .from('sales')
+    .select(['*'])
+    .toSQL();
+print(q.sql);
 ```
 
 ## Using CTEs in WHERE
 
 ```dart
-knex
-  .withQuery('active_users',
-    knex('users').select(['*']).where('active', '=', true)
-  )
-  .select(['id', 'name'])
-  .from('active_users')
-  .where('role', '=', 'admin');
+final q = db.queryBuilder()
+    .withQuery('active_users',
+      db.from('users').select(['*']).where('active', '=', true)
+    )
+    .from('active_users')
+    .select(['id', 'name'])
+    .where('role', '=', 'admin')
+    .toSQL();
+print(q.sql);
 // with "active_users" as (
 //   select * from "users" where "active" = $1
 // )
@@ -109,42 +124,47 @@ Break complex queries into logical steps:
 
 ```dart
 // Instead of nested subqueries...
-knex('users').whereIn('id',
-  knex('orders').whereIn('product_id',
-    knex('products').select(['id'])
+final q = db.from('users').whereIn('id',
+  db.from('orders').whereIn('product_id',
+    db.from('products').select(['id'])
   ).select(['user_id'])
-);
+).toSQL();
+print(q.sql);
 
 // Use CTEs for clarity:
-knex
-  .withQuery('electronics',
-    knex('products').select(['id']).where('category', '=', 'Electronics')
-  )
-  .withQuery('electronics_orders',
-    knex('orders').whereIn('product_id',
-      knex.from('electronics').select(['id'])
+final q2 = db.queryBuilder()
+    .withQuery('electronics',
+      db.from('products').select(['id']).where('category', '=', 'Electronics')
     )
-  )
-  .select(['*'])
-  .from('users')
-  .whereIn('id',
-    knex.from('electronics_orders').select(['user_id'])
-  );
+    .withQuery('electronics_orders',
+      db.from('orders').whereIn('product_id',
+        db.from('electronics').select(['id'])
+      )
+    )
+    .from('users')
+    .select(['*'])
+    .whereIn('id',
+      db.from('electronics_orders').select(['user_id'])
+    )
+    .toSQL();
+print(q2.sql);
 ```
 
 ### 2. Reusability
 Reference the same CTE multiple times:
 
 ```dart
-knex
-  .withQuery('high_value_orders',
-    knex('orders').select(['*']).where('amount', '>', 1000)
-  )
-  .select([
-    client.raw('count(distinct user_id) as customers'),
-    client.raw('sum(amount) as revenue')
-  ])
-  .from('high_value_orders');
+final q = db.queryBuilder()
+    .withQuery('high_value_orders',
+      db.from('orders').select(['*']).where('amount', '>', 1000)
+    )
+    .from('high_value_orders')
+    .select([
+      db.raw('count(distinct user_id) as customers'),
+      db.raw('sum(amount) as revenue')
+    ])
+    .toSQL();
+print(q.sql);
 ```
 
 ### 3. Performance
@@ -155,37 +175,43 @@ PostgreSQL can materialize CTEs for optimization.
 ### Organization Hierarchy
 
 ```dart
-final recursive = knex('employees')
-  .select(['id', 'name', 'manager_id', client.raw('1 as level')])
-  .where('manager_id', '=', null)
-  .union([
-    knex('employees as e')
-      .select(['e.id', 'e.name', 'e.manager_id', client.raw('o.level + 1')])
-      .join('org_tree as o', 'e.manager_id', 'o.id')
-  ]);
+final recursive = db.from('employees')
+    .select(['id', 'name', 'manager_id', db.raw('1 as level')])
+    .where('manager_id', '=', null)
+    .union([
+      db.from('employees as e')
+        .select(['e.id', 'e.name', 'e.manager_id', db.raw('o.level + 1')])
+        .join('org_tree as o', 'e.manager_id', 'o.id')
+    ]);
 
-knex.withRecursive('org_tree', recursive)
-  .select(['*'])
-  .from('org_tree')
-  .orderBy('level');
+final q = db.queryBuilder()
+    .withRecursive('org_tree', recursive)
+    .from('org_tree')
+    .select(['*'])
+    .orderBy('level')
+    .toSQL();
+print(q.sql);
 ```
 
 ### Graph Traversal
 
 ```dart
-final paths = knex('edges')
-  .select(['source', 'target', client.raw('ARRAY[source, target] as path')])
-  .where('source', '=', startNode)
-  .union([
-    knex('edges as e')
-      .select(['e.source', 'e.target', client.raw('p.path || e.target')])
-      .join('paths as p', 'p.target', 'e.source')
-      .where(client.raw('NOT e.target = ANY(p.path)'))  // Avoid cycles
-  ]);
+final paths = db.from('edges')
+    .select(['source', 'target', db.raw('ARRAY[source, target] as path')])
+    .where('source', '=', startNode)
+    .union([
+      db.from('edges as e')
+        .select(['e.source', 'e.target', db.raw('p.path || e.target')])
+        .join('paths as p', 'p.target', 'e.source')
+        .where(db.raw('NOT e.target = ANY(p.path)'))  // Avoid cycles
+    ]);
 
-knex.withRecursive('paths', paths)
-  .select(['*'])
-  .from('paths');
+final q = db.queryBuilder()
+    .withRecursive('paths', paths)
+    .from('paths')
+    .select(['*'])
+    .toSQL();
+print(q.sql);
 ```
 
 ## CTE vs Subqueries

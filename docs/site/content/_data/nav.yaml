@@ -48,6 +48,8 @@
   links:
     - text: Dialect Lint
       href: /tooling/dialect-lint
+    - text: OpenTelemetry
+      href: /tooling/opentelemetry
 
 - title: Database Support
   links:

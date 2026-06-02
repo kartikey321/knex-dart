@@ -12,10 +12,10 @@ Knex Dart supports database transactions through the `trx()` method on every dri
 ```dart
 await db.trx((trx) async {
   await trx.insert(
-    trx('accounts').insert({'owner': 'Alice', 'balance': 1000}),
+    trx.queryBuilder().table('accounts').insert({'owner': 'Alice', 'balance': 1000}),
   );
-  await trx.update(
-    trx('ledger').insert({'action': 'deposit', 'amount': 1000}),
+  await trx.insert(
+    trx.queryBuilder().table('ledger').insert({'action': 'deposit', 'amount': 1000}),
   );
   // Both succeed → automatic COMMIT
 });
@@ -29,14 +29,16 @@ If any statement inside throws, **both** are rolled back automatically — nothi
 try {
   await db.trx((trx) async {
     await trx.update(
-      trx('accounts')
+      trx.queryBuilder()
+        .table('accounts')
         .where('id', '=', fromId)
         .update({'balance': db.raw('balance - ?', [amount])}),
     );
 
     // This throws → triggers automatic ROLLBACK
     await trx.update(
-      trx('accounts')
+      trx.queryBuilder()
+        .table('accounts')
         .where('id', '=', toId)
         .update({'balance': db.raw('balance + ?', [amount])}),
     );
@@ -54,7 +56,11 @@ All queries — reads and writes — must go through `trx`, not the outer `db`, 
 await db.trx((trx) async {
   // READ inside transaction (sees uncommitted writes above)
   final balance = await trx.select(
-    trx('accounts').select(['balance']).where('id', '=', accountId).limit(1),
+    trx.queryBuilder()
+        .table('accounts')
+        .select(['balance'])
+        .where('id', '=', accountId)
+        .limit(1),
   );
 
   if (balance[0]['balance'] < amount) {
@@ -62,7 +68,8 @@ await db.trx((trx) async {
   }
 
   await trx.update(
-    trx('accounts')
+    trx.queryBuilder()
+      .table('accounts')
       .where('id', '=', accountId)
       .update({'balance': db.raw('balance - ?', [amount])}),
   );
@@ -75,13 +82,16 @@ await db.trx((trx) async {
 
 ```dart
 final newId = await db.trx((trx) async {
-  final rows = await trx.select(
-    trx('users')
+  final rows = await trx.insert(
+    trx.queryBuilder()
+      .table('users')
       .insert({'name': 'Alice', 'email': 'alice@example.com'})
       .returning(['id']),
   );
   await trx.insert(
-    trx('audit_log').insert({'user_id': rows[0]['id'], 'action': 'signup'}),
+    trx.queryBuilder()
+        .table('audit_log')
+        .insert({'user_id': rows[0]['id'], 'action': 'signup'}),
   );
   return rows[0]['id'];
 });
@@ -135,7 +145,8 @@ Future<void> transfer({
   await db.trx((trx) async {
     // Lock both rows and read balances
     final accounts = await trx.select(
-      trx('accounts')
+      trx.queryBuilder()
+        .table('accounts')
         .whereIn('id', [fromAccountId, toAccountId])
         .select(['id', 'balance']),
     );
@@ -149,21 +160,23 @@ Future<void> transfer({
 
     // Debit
     await trx.update(
-      trx('accounts')
+      trx.queryBuilder()
+        .table('accounts')
         .where('id', '=', fromAccountId)
         .update({'balance': db.raw('balance - ?', [amount])}),
     );
 
     // Credit
     await trx.update(
-      trx('accounts')
+      trx.queryBuilder()
+        .table('accounts')
         .where('id', '=', toAccountId)
         .update({'balance': db.raw('balance + ?', [amount])}),
     );
 
     // Audit
     await trx.insert(
-      trx('transfers').insert({
+      trx.queryBuilder().table('transfers').insert({
         'from_account_id': fromAccountId,
         'to_account_id': toAccountId,
         'amount': amount,
@@ -182,13 +195,13 @@ Calling `trx()` inside an already-open transaction creates a **savepoint** inste
 await db.trx((outer) async {
   // Outer insert
   await outer.insert(
-    outer('accounts').insert({'owner': 'Alice', 'balance': 1000}),
+    outer.queryBuilder().table('accounts').insert({'owner': 'Alice', 'balance': 1000}),
   );
 
   try {
     await outer.trx((inner) async {
       await inner.insert(
-        inner('accounts').insert({'owner': 'Bob', 'balance': 500}),
+        inner.queryBuilder().table('accounts').insert({'owner': 'Bob', 'balance': 500}),
       );
       throw Exception('something went wrong');  // inner rolls back to savepoint
     });
@@ -198,7 +211,7 @@ await db.trx((outer) async {
 
   // Alice's row is still there; Bob's row was rolled back
   await outer.insert(
-    outer('audit_log').insert({'action': 'partial_rollback_demo'}),
+    outer.queryBuilder().table('audit_log').insert({'action': 'partial_rollback_demo'}),
   );
   // COMMIT — only Alice's row and the audit log entry are written
 });
@@ -209,9 +222,13 @@ If the inner exception is **not caught**, it propagates to the outer callback an
 ```dart
 // Everything rolled back — both Alice and Bob rows are gone
 await db.trx((outer) async {
-  await outer.insert(outer('accounts').insert({'owner': 'Alice', 'balance': 1000}));
+  await outer.insert(
+    outer.queryBuilder().table('accounts').insert({'owner': 'Alice', 'balance': 1000}),
+  );
   await outer.trx((inner) async {
-    await inner.insert(inner('accounts').insert({'owner': 'Bob', 'balance': 500}));
+    await inner.insert(
+      inner.queryBuilder().table('accounts').insert({'owner': 'Bob', 'balance': 500}),
+    );
     throw Exception('bubble up');  // not caught → outer also rolls back
   });
 });

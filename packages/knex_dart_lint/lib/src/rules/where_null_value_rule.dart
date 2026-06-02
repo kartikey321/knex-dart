@@ -5,17 +5,16 @@ import 'package:custom_lint_builder/custom_lint_builder.dart';
 
 /// Lint rule: `where_null_value`
 ///
-/// Fires when `.where(col, null)` or `.where(col, '=', null)` is used.
-///
-/// This produces `WHERE col = NULL` which always returns 0 rows in SQL
-/// (the correct form is `WHERE col IS NULL`). Use `.whereNull(col)` instead.
+/// NOTE: knex_dart's `.where(col, null)` compiler delegates to `whereNull()`
+/// and correctly produces `WHERE col IS NULL`. This rule is therefore
+/// informational only — it nudges users toward the explicit `.whereNull(col)`
+/// form for clarity, not because the implicit form is incorrect.
 ///
 /// ```dart
-/// // ❌ Flagged — produces WHERE col = NULL (always false)
+/// // ⚠️ Works correctly but prefer the explicit form
 /// db('users').where('deleted_at', null);
-/// db('users').where('deleted_at', '=', null);
 ///
-/// // ✅ Correct
+/// // ✅ Preferred — intent is clearer
 /// db('users').whereNull('deleted_at');
 /// ```
 class WhereNullValueRule extends DartLintRule {
@@ -24,10 +23,10 @@ class WhereNullValueRule extends DartLintRule {
   static const LintCode _code = LintCode(
     name: 'where_null_value',
     problemMessage:
-        'Passing null to .where() produces `col = NULL` which is always false in SQL.',
+        'Prefer .whereNull(col) over .where(col, null) for explicit NULL checks.',
     correctionMessage:
-        'Use .whereNull(col) or .whereNotNull(col) to check for NULL values.',
-    errorSeverity: DiagnosticSeverity.WARNING,
+        'Use .whereNull(col) or .whereNotNull(col) — intent is clearer and matches SQL idiom.',
+    errorSeverity: DiagnosticSeverity.INFO,
   );
 
   static const _targetMethods = {'where', 'orWhere', 'andWhere'};

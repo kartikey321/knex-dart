@@ -22,9 +22,15 @@ import 'postgres_client.dart';
 class KnexPostgres {
   final PostgresClient _pgClient;
   final String _dialectName;
+  final KnexInterceptorPipeline _pipeline;
 
-  KnexPostgres._(this._pgClient, {String dialectName = 'pg'})
-    : _dialectName = dialectName;
+
+  KnexPostgres._(
+    this._pgClient, {
+    String dialectName = 'pg',
+    required KnexInterceptorPipeline pipeline,
+  })  : _dialectName = dialectName,
+        _pipeline = pipeline;
 
   /// Create a Knex instance connected to PostgreSQL.
   static Future<KnexPostgres> connect({
@@ -35,6 +41,7 @@ class KnexPostgres {
     String? password,
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
+    List<QueryInterceptor> interceptors = const [],
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -45,7 +52,16 @@ class KnexPostgres {
       useSSL: useSSL,
       poolConfig: poolConfig,
     );
-    return KnexPostgres._(client);
+    return KnexPostgres._(
+      client,
+      pipeline: KnexInterceptorPipeline(
+        dbSystem: 'postgresql',
+        database: database,
+        serverAddress: host,
+        serverPort: port,
+        interceptors: interceptors,
+      ),
+    );
   }
 
   /// Create a Knex instance connected to CockroachDB.
@@ -61,6 +77,7 @@ class KnexPostgres {
     String? password,
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
+    List<QueryInterceptor> interceptors = const [],
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -71,7 +88,17 @@ class KnexPostgres {
       useSSL: useSSL,
       poolConfig: poolConfig,
     );
-    return KnexPostgres._(client); // 'pg' dialect — capabilities identical to postgres
+    return KnexPostgres._(
+      client,
+      dialectName: 'cockroachdb',
+      pipeline: KnexInterceptorPipeline(
+        dbSystem: 'cockroachdb',
+        database: database,
+        serverAddress: host,
+        serverPort: port,
+        interceptors: interceptors,
+      ),
+    );
   }
 
   /// Create a Knex instance connected to Amazon Redshift.
@@ -90,6 +117,7 @@ class KnexPostgres {
     String? password,
     bool useSSL = true,
     PoolConfig poolConfig = const PoolConfig(),
+    List<QueryInterceptor> interceptors = const [],
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -100,46 +128,73 @@ class KnexPostgres {
       useSSL: useSSL,
       poolConfig: poolConfig,
     );
-    return KnexPostgres._(client, dialectName: 'redshift');
+    return KnexPostgres._(
+      client,
+      dialectName: 'redshift',
+      pipeline: KnexInterceptorPipeline(
+        dbSystem: 'redshift',
+        database: database,
+        serverAddress: host,
+        serverPort: port,
+        interceptors: interceptors,
+      ),
+    );
   }
 
   /// Executes a SELECT-style query and returns rows.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
-      _pgClient.select(query);
+      _pipeline.run(query, () => _pgClient.select(query));
 
   /// Executes any compiled query and returns rows/result payload.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
-      _pgClient.execute(query);
+      _pipeline.run(query, () => _pgClient.execute(query));
 
   /// Executes an INSERT query.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
-      _pgClient.insert(query);
+      _pipeline.run(query, () => _pgClient.insert(query));
 
   /// Executes an UPDATE query.
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
-      _pgClient.update(query);
+      _pipeline.run(query, () => _pgClient.update(query));
 
   /// Executes a DELETE query.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
-      _pgClient.delete(query);
+      _pipeline.run(query, () => _pgClient.delete(query));
 
   /// Execute a raw SQL string directly.
   Future<List<Map<String, dynamic>>> rawSql(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _pgClient.rawSql(sql, bindings);
+  ]) =>
+      _pipeline.runRaw(
+        sql,
+        bindings ?? const [],
+        () => _pgClient.rawSql(sql, bindings),
+      );
 
   /// Create a query builder scoped to the active dialect.
   QueryBuilder queryBuilder() => _PgSchemaClient(_dialectName).queryBuilder();
 
-  /// Run a transaction. See [PostgresClient.trx].
-  Future<T> trx<T>(Future<T> Function(PostgresTrxClient trx) callback) =>
-      _pgClient.trx(callback);
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
+  /// Run a transaction.
+  ///
+  /// The callback receives a [KnexPostgresTransaction] which exposes the same
+  /// query API as [KnexPostgres] and routes every query through the interceptor
+  /// pipeline with [QueryExecutionContext.txId] set.
+  Future<T> trx<T>(Future<T> Function(KnexPostgresTransaction tx) callback) =>
+      _pgClient.trx((rawTrx) {
+        final txId = _pipeline.nextUid();
+        return callback(
+          KnexPostgresTransaction._(rawTrx, _pipeline, _dialectName, txId),
+        );
+      });
 
   /// Execute schema DDL operations.
-  ///
-  /// Takes a [SchemaBuilder] callback, generates dialect-aware SQL, and runs
-  /// each statement against the database.
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,
   ) async {
@@ -148,26 +203,118 @@ class KnexPostgres {
     callback(builder);
     final statements = builder.toSQL();
     for (final stmt in statements) {
-      await _pgClient.rawSql(
+      await _pipeline.runRaw(
         stmt['sql'] as String,
-        stmt['bindings'] as List<dynamic>?,
+        (stmt['bindings'] as List<dynamic>?) ?? const [],
+        () => _pgClient.rawSql(
+          stmt['sql'] as String,
+          stmt['bindings'] as List<dynamic>?,
+        ),
       );
     }
   }
 
   Future<void> close() => _pgClient.close();
+
+  /// Alias for [close], matching the core `Knex` API.
+  Future<void> destroy() => close();
+}
+
+// ============================================================================
+// WRAPPER-LEVEL TRANSACTION FACADE
+// ============================================================================
+
+/// Transaction facade returned by [KnexPostgres.trx].
+///
+/// Implements [KnexTransaction] so queries run inside a transaction are routed
+/// through the same [KnexInterceptorPipeline] as top-level queries, with
+/// [QueryExecutionContext.txId] set for span correlation.
+///
+/// Nested calls to [trx] create a savepoint, not a new physical transaction.
+class KnexPostgresTransaction extends KnexTransaction {
+  final PostgresTrxClient _trx;
+  final KnexInterceptorPipeline _pipeline;
+  final String _dialectName;
+
+  @override
+  final String txId;
+
+  KnexPostgresTransaction._(
+    this._trx,
+    this._pipeline,
+    this._dialectName,
+    this.txId,
+  );
+
+  @override
+  QueryBuilder queryBuilder() => _PgSchemaClient(_dialectName).queryBuilder();
+
+  @override
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.select(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.execute(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.insert(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.update(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.delete(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> rawSql(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) =>
+      _pipeline.runRaw(
+        sql,
+        bindings ?? const [],
+        () => _trx.rawSql(sql, bindings),
+        txId: txId,
+      );
+
+  /// Creates a savepoint inside this transaction.
+  ///
+  /// The inner [KnexPostgresTransaction] shares the same session but gets a
+  /// child [txId] so spans can be correlated.
+  @override
+  Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
+    final sp = 'sp_${_pipeline.nextUid()}';
+    final childTxId = '${txId}_$sp';
+    await _pipeline.runRaw('SAVEPOINT $sp', const [], () => _trx.rawSql('SAVEPOINT $sp'), txId: childTxId);
+    try {
+      final result = await callback(
+        KnexPostgresTransaction._(_trx, _pipeline, _dialectName, childTxId),
+      );
+      await _pipeline.runRaw('RELEASE SAVEPOINT $sp', const [], () => _trx.rawSql('RELEASE SAVEPOINT $sp'), txId: childTxId);
+      return result;
+    } catch (e, st) {
+      try {
+        await _pipeline.runRaw('ROLLBACK TO SAVEPOINT $sp', const [], () => _trx.rawSql('ROLLBACK TO SAVEPOINT $sp'), txId: childTxId);
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
+    }
+  }
 }
 
 // ============================================================================
 // INTERNAL SCHEMA CLIENT
-// Lightweight "stub" client used only for SQL generation.
-// Does not connect to any database.
 // ============================================================================
 
-/// Internal PG-flavored schema client for SQL generation only.
-///
-/// Accepts a [dialectName] so CockroachDB and Redshift callers get
-/// dialect-aware capability checks without a separate package.
 class _PgSchemaClient extends Client {
   final String _dialectName;
 

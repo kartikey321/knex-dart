@@ -12,10 +12,13 @@ Combine results from multiple queries using UNION and UNION ALL.
 Combines results and removes duplicates:
 
 ```dart
-final query1 = knex('users').select(['name']).where('active', '=', true);
-final query2 = knex('users').select(['name']).where('role', '=', 'admin');
+final db = KnexQuery.forDialect(KnexDialect.postgres);
 
-knex.from(query1).union([query2]);
+final q1 = db.from('users').select(['name']).where('active', '=', true);
+final q = q1.union([
+  db.from('users').select(['name']).where('role', '=', 'admin')
+]).toSQL();
+print(q.sql);
 // select "name" from "users" where "active" = $1
 // union
 // select "name" from "users" where "role" = $2
@@ -24,12 +27,14 @@ knex.from(query1).union([query2]);
 Or chain directly:
 
 ```dart
-knex('users')
-  .select(['name'])
-  .where('active', '=', true)
-  .union([
-    knex('users').select(['name']).where('role', '=', 'admin')
-  ]);
+final q = db.from('users')
+    .select(['name'])
+    .where('active', '=', true)
+    .union([
+      db.from('users').select(['name']).where('role', '=', 'admin')
+    ])
+    .toSQL();
+print(q.sql);
 ```
 
 ## UNION ALL
@@ -37,12 +42,14 @@ knex('users')
 Keeps all rows including duplicates:
 
 ```dart
-knex('users')
-  .select(['name'])
-  .where('type', '=', 'customer')
-  .unionAll([
-    knex('users').select(['name']).where('type', '=', 'admin')
-  ]);
+final q = db.from('users')
+    .select(['name'])
+    .where('type', '=', 'customer')
+    .unionAll([
+      db.from('users').select(['name']).where('type', '=', 'admin')
+    ])
+    .toSQL();
+print(q.sql);
 // select "name" from "users" where "type" = $1
 // union all
 // select "name" from "users" where "type" = $2
@@ -53,12 +60,14 @@ knex('users')
 Combine more than two queries:
 
 ```dart
-knex('users')
-  .where('type', '=', 'customer')
-  .union([
-    knex('users').where('type', '=', 'admin'),
-    knex('users').where('type', '=', 'moderator')
-  ]);
+final q = db.from('users')
+    .where('type', '=', 'customer')
+    .union([
+      db.from('users').where('type', '=', 'admin'),
+      db.from('users').where('type', '=', 'moderator')
+    ])
+    .toSQL();
+print(q.sql);
 // select * from "users" where "type" = $1
 // union select * from "users" where "type" = $2
 // union select * from "users" where "type" = $3
@@ -69,13 +78,15 @@ knex('users')
 Apply ordering and limiting to final result:
 
 ```dart
-knex('users')
-  .where('active', '=', true)
-  .union([
-    knex('users').where('role', '=', 'admin')
-  ])
-  .orderBy('name')
-  .limit(10);
+final q = db.from('users')
+    .where('active', '=', true)
+    .union([
+      db.from('users').where('role', '=', 'admin')
+    ])
+    .orderBy('name')
+    .limit(10)
+    .toSQL();
+print(q.sql);
 // select * from "users" where "active" = $1
 // union select * from "users" where "role" = $2
 // order by "name" asc limit $3
@@ -87,16 +98,20 @@ All queries must have same number and type of columns:
 
 ```dart
 // ✅ Correct - same columns
-knex('users').select(['id', 'name'])
-  .union([
-    knex('admins').select(['id', 'name'])
-  ]);
+final q = db.from('users').select(['id', 'name'])
+    .union([
+      db.from('admins').select(['id', 'name'])
+    ])
+    .toSQL();
+print(q.sql);
 
 // ❌ Error - different columns
-knex('users').select(['id', 'name'])
-  .union([
-    knex('admins').select(['id'])  // Column mismatch!
-  ]);
+final q2 = db.from('users').select(['id', 'name'])
+    .union([
+      db.from('admins').select(['id'])  // Column mismatch!
+    ])
+    .toSQL();
+print(q2.sql);
 ```
 
 ## UNION vs UNION ALL
@@ -109,17 +124,21 @@ knex('users').select(['id', 'name'])
 
 ```dart
 // UNION - removes duplicate names
-knex('customers').select(['name'])
-  .union([
-    knex('employees').select(['name'])
-  ]);
+final q = db.from('customers').select(['name'])
+    .union([
+      db.from('employees').select(['name'])
+    ])
+    .toSQL();
+print(q.sql);
 // Result: ['John', 'Jane', 'Bob'] (unique)
 
 // UNION ALL - keeps all names
-knex('customers').select(['name'])
-  .unionAll([
-    knex('employees').select(['name'])
-  ]);
+final q2 = db.from('customers').select(['name'])
+    .unionAll([
+      db.from('employees').select(['name'])
+    ])
+    .toSQL();
+print(q2.sql);
 // Result: ['John', 'Jane', 'Bob', 'John'] (with duplicates)
 ```
 
@@ -127,22 +146,24 @@ knex('customers').select(['name'])
 
 ```dart
 // Get all active users from different sources
-final regularUsers = knex('users')
-  .select(['id', 'email', client.raw("'regular' as type")])
-  .where('active', '=', true);
+final regularUsers = db.from('users')
+    .select(['id', 'email', db.raw("'regular' as type")])
+    .where('active', '=', true);
 
-final adminUsers = knex('admins')
-  .select(['id', 'email', client.raw("'admin' as type")])
-  .where('active', '=', true);
+final adminUsers = db.from('admins')
+    .select(['id', 'email', db.raw("'admin' as type")])
+    .where('active', '=', true);
 
-final guestUsers = knex('guests')
-  .select(['id', 'email', client.raw("'guest' as type")])
-  .where('session_active', '=', true);
+final guestUsers = db.from('guests')
+    .select(['id', 'email', db.raw("'guest' as type")])
+    .where('session_active', '=', true);
 
-knex.from(regularUsers)
-  .unionAll([adminUsers, guestUsers])
-  .orderBy('type')
-  .orderBy('email');
+final q = regularUsers
+    .unionAll([adminUsers, guestUsers])
+    .orderBy('type')
+    .orderBy('email')
+    .toSQL();
+print(q.sql);
 ```
 
 ## UNION with CTEs
@@ -150,16 +171,18 @@ knex.from(regularUsers)
 Combine UNION with CTEs for complex queries:
 
 ```dart
-knex
-  .withQuery('all_users',
-    knex('customers').select(['id', 'name'])
-      .union([
-        knex('employees').select(['id', 'name'])
-      ])
-  )
-  .select(['*'])
-  .from('all_users')
-  .where('name', 'like', 'J%');
+final q = db.queryBuilder()
+    .withQuery('all_users',
+      db.from('customers').select(['id', 'name'])
+        .union([
+          db.from('employees').select(['id', 'name'])
+        ])
+    )
+    .from('all_users')
+    .select(['*'])
+    .where('name', 'like', 'J%')
+    .toSQL();
+print(q.sql);
 ```
 
 ## Parameter Handling
@@ -170,12 +193,14 @@ Knex Dart automatically:
 - ✅ Maintains parameter sequence
 
 ```dart
-knex('users')
-  .where('active', '=', true)   // $1
-  .union([
-    knex('users').where('role', '=', 'admin')  // $2 (not $1!)
-  ])
-  .limit(10);  // $3
+final q = db.from('users')
+    .where('active', '=', true)   // $1
+    .union([
+      db.from('users').where('role', '=', 'admin')  // $2 (not $1!)
+    ])
+    .limit(10)  // $3
+    .toSQL();
+print(q.sql);
 // Bindings: [true, 'admin', 10]
 ```
 
@@ -188,16 +213,20 @@ knex('users')
 
 ```dart
 // Good
-knex('table1').select(['id', 'name as full_name'])
-  .union([
-    knex('table2').select(['id', 'username as full_name'])
-  ]);
+final q = db.from('table1').select(['id', 'name as full_name'])
+    .union([
+      db.from('table2').select(['id', 'username as full_name'])
+    ])
+    .toSQL();
+print(q.sql);
 
 // Bad - inconsistent naming
-knex('table1').select(['id', 'name'])
-  .union([
-    knex('table2').select(['id', 'username'])
-  ]);
+final q2 = db.from('table1').select(['id', 'name'])
+    .union([
+      db.from('table2').select(['id', 'username'])
+    ])
+    .toSQL();
+print(q2.sql);
 ```
 
 ## Next Steps

@@ -80,12 +80,13 @@ class SQLiteClient extends Client {
   }
 
   Future<void> destroyPool() async {
+    if (_isClosed) return;
+    _isClosed = true;
     for (final stmt in _stmtCache.values) {
       stmt.dispose();
     }
     _stmtCache.clear();
     _db.dispose();
-    _isClosed = true;
   }
 
   /// Whether the connection is closed.
@@ -97,6 +98,12 @@ class SQLiteClient extends Client {
   @override
   QueryBuilder queryBuilder() {
     return QueryBuilder(this);
+  }
+
+  /// Callable shorthand for `queryBuilder().table(name)`.
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
   }
 
   @override
@@ -162,9 +169,11 @@ class SQLiteClient extends Client {
         final result = await callback(this);
         _db.execute('RELEASE SAVEPOINT $sp');
         return result;
-      } catch (e) {
-        _db.execute('ROLLBACK TO SAVEPOINT $sp');
-        rethrow;
+      } catch (e, st) {
+        try {
+          _db.execute('ROLLBACK TO SAVEPOINT $sp');
+        } catch (_) {}
+        Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }
@@ -184,8 +193,8 @@ class SQLiteClient extends Client {
     }
   }
 
-  String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+  static var _spCount = 0;
+  String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 
   /// Executes raw SQL with positional [bindings].
   @override
@@ -252,6 +261,7 @@ class SQLiteClient extends Client {
     String sql, [
     List<dynamic>? bindings,
   ]) async {
+    if (_isClosed) throw StateError('SQLiteClient is closed');
     final params = bindings ?? [];
     final stmt = _stmtCache.putIfAbsent(sql, () => _db.prepare(sql));
     final upperSql = sql.trimLeft().toUpperCase();

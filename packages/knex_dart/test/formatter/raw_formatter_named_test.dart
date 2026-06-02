@@ -114,5 +114,30 @@ void main() {
       expect(result.sql, 'SELECT * FROM users WHERE id = :id');
       expect(result.bindings, []);
     });
+
+    test('Test 9: Explicit null value binding emits positional placeholder', () {
+      // raw(':id IS NULL or id = :id', {'id': null}) → '$1 IS NULL or id = $1'
+      final result = RawFormatter.replaceNamedBindings(
+        'id = :id',
+        {'id': null},
+        client,
+      );
+
+      expect(result.sql, 'id = \$1');
+      expect(result.bindings, [null]);
+    });
+
+    test('Test 10: Explicit null identifier binding keeps placeholder unresolved', () {
+      // :table: is an identifier binding — null is not a valid identifier.
+      final result = RawFormatter.replaceNamedBindings(
+        'SELECT * FROM :table:',
+        {'table': null},
+        client,
+      );
+
+      // Placeholder must stay as-is; no parameter emitted.
+      expect(result.sql, 'SELECT * FROM :table:');
+      expect(result.bindings, []);
+    });
   });
 }

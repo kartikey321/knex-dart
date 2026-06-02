@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  # Keep the first rollout low-noise. Human maintainers still decide whether a
+  # finding blocks a PR.
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  collapse_walkthrough: false
+  poem: false
+  suggested_labels: true
+  suggested_reviewers: false
+  enable_prompt_for_ai_agents: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # Avoid reviewing generated/binary browser runtime assets and lockfile churn.
+  # Source files, docs, workflows, and package manifests remain in scope.
+  path_filters:
+    - "!playground/public/**/*.wasm"
+    - "!playground/public/**/*.dill"
+    - "!playground/public/**/*.sum"
+    - "!playground/public/**/*.bin"
+    - "!playground/package-lock.json"
+    - "!**/pubspec.lock"
+    - "!**/coverage/**"
+    - "!**/build/**"
+    - "!**/.dart_tool/**"
+    - "!**/node_modules/**"
+
+  path_instructions:
+    - path: "packages/knex_dart/lib/**/*.dart"
+      instructions: |
+        Focus on SQL generation correctness, public API compatibility, dialect-neutral behavior, and regression risk. For query/compiler changes, check whether tests adequately cover generated SQL, bindings, edge cases, and dialect differences. Explicitly call out missing or weak tests.
+
+    - path: "drivers/knex_dart_*/lib/**/*.dart"
+      instructions: |
+        Focus on live execution behavior, transaction semantics, resource cleanup, driver-specific API compatibility, and whether wrapper methods route through shared abstractions consistently. Check whether driver changes include the right unit/integration coverage for the affected database surface.
+
+    - path: "integrations/knex_dart_otel/**/*.dart"
+      instructions: |
+        Focus on OpenTelemetry correctness: span lifecycle, context propagation, stream cancellation, transaction txId propagation, no-interceptor overhead, metric cardinality, and ensuring instrumentation never changes query behavior. Check whether tests cover success, error, cancellation, transaction, metric, and no-op paths.
+
+    - path: "playground/src/**/*"
+      instructions: |
+        Focus on browser runtime behavior, Monaco/LSP integration, worker lifecycle, embedded database loading, large asset implications, and whether examples still execute correctly in both PostgreSQL and SQLite modes. Flag missing tests or manual verification needs when automated coverage is impractical.
+
+    - path: "docs/site/content/**/*.md"
+      instructions: |
+        Review docs for API correctness. Verify referenced APIs exist before suggesting examples. Prioritize incorrect code snippets, stale method names, broken playground assumptions, and mismatches with the current repo. For docs-only changes, ask whether examples are covered by existing tests or playground snippets where appropriate.
+
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        Focus on release safety, path correctness after monorepo moves, permissions, secrets exposure, cache invalidation, and whether workflows match the documented release process.
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "packages/knex_dart/AGENTS.md"

@@ -3,85 +3,70 @@ import 'package:knex_dart/knex_dart.dart';
 import 'turso_client.dart';
 
 /// Turso (libSQL) Knex wrapper.
-///
-/// Turso uses a SQLite-compatible SQL dialect over the libSQL HTTP API.
-/// Identifiers are double-quoted; parameters use `?` positional placeholders.
-///
-/// Example:
-/// ```dart
-/// final db = KnexTurso(
-///   url: 'https://my-db-org.turso.io',
-///   authToken: 'eyJ...',
-/// );
-///
-/// final users = await db.select(
-///   db.queryBuilder().from('users').where('active', '=', 1),
-/// );
-///
-/// await db.trx((trx) async {
-///   await trx.insert(db.queryBuilder().table('users').insert({'name': 'Alice'}));
-///   await trx.insert(db.queryBuilder().table('orders').insert({'user': 'Alice'}));
-/// });
-///
-/// db.close();
-/// ```
 class KnexTurso {
   final TursoClient _client;
+  final KnexInterceptorPipeline _pipeline;
 
   KnexTurso({
     required String url,
     String? authToken,
-  }) : _client = TursoClient(url: url, authToken: authToken);
+    List<QueryInterceptor> interceptors = const [],
+  })  : _client = TursoClient(url: url, authToken: authToken),
+        _pipeline = KnexInterceptorPipeline(
+          dbSystem: 'sqlite',
+          serverAddress: url,
+          interceptors: interceptors,
+        );
 
-  /// Executes a SELECT-style query and returns rows.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
-      _client.select(query);
+      _pipeline.run(query, () => _client.select(query));
 
-  /// Executes any compiled query and returns rows/result payload.
   Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
-      _client.execute(query);
+      _pipeline.run(query, () => _client.execute(query));
 
-  /// Executes an INSERT query.
   Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
-      _client.insert(query);
+      _pipeline.run(query, () => _client.insert(query));
 
-  /// Executes an UPDATE query.
   Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
-      _client.update(query);
+      _pipeline.run(query, () => _client.update(query));
 
-  /// Executes a DELETE query.
   Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
-      _client.delete(query);
+      _pipeline.run(query, () => _client.delete(query));
 
-  /// Create a raw SQL fragment for use inside QueryBuilder clauses.
-  Raw raw(
+  Raw raw(String sql, [List<dynamic>? bindings]) =>
+      _TursoSchemaClient().raw(sql, bindings);
+
+  /// Execute a raw SQL string directly.
+  Future<List<Map<String, dynamic>>> rawSql(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _TursoSchemaClient().raw(sql, bindings);
+  ]) =>
+      _pipeline.runRaw(
+        sql,
+        bindings ?? const [],
+        () => _client.raw(sql, bindings),
+      );
 
-  /// Execute a raw SQL statement directly.
+  /// Alias for [rawSql].
   Future<List<Map<String, dynamic>>> executeRaw(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _client.raw(sql, bindings);
+  ]) =>
+      rawSql(sql, bindings);
 
-  /// Create a query builder scoped to the Turso/SQLite dialect.
-  ///
-  /// Uses double-quote identifiers and `?` positional parameters.
   QueryBuilder queryBuilder() => _TursoSchemaClient().queryBuilder();
 
-  /// Run a transaction.
-  ///
-  /// Sends `BEGIN` before the callback and `COMMIT` on success, or
-  /// `ROLLBACK` on error. Nested calls inside the [TursoTrxClient] use
-  /// SAVEPOINTs for safe nesting.
-  Future<T> trx<T>(Future<T> Function(TursoTrxClient trx) callback) =>
-      _client.trx(callback);
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
 
-  /// Execute schema DDL operations.
-  ///
-  /// Takes a [SchemaBuilder] callback, generates SQLite-dialect DDL, and runs
-  /// each statement against the database.
+  Future<T> trx<T>(Future<T> Function(KnexTursoTransaction tx) callback) =>
+      _client.trx((rawTrx) {
+        final txId = _pipeline.nextUid();
+        return callback(KnexTursoTransaction._(rawTrx, _pipeline, txId));
+      });
+
   Future<void> executeSchema(
     void Function(SchemaBuilder schema) callback,
   ) async {
@@ -90,27 +75,98 @@ class KnexTurso {
     callback(builder);
     final statements = builder.toSQL();
     for (final stmt in statements) {
-      await _client.raw(
+      await _pipeline.runRaw(
         stmt['sql'] as String,
-        stmt['bindings'] as List<dynamic>?,
+        (stmt['bindings'] as List<dynamic>?) ?? const [],
+        () => _client.raw(
+          stmt['sql'] as String,
+          stmt['bindings'] as List<dynamic>?,
+        ),
       );
     }
   }
 
-  /// Close the underlying HTTP client.
   void close() => _client.close();
+
+  void destroy() => close();
+}
+
+// ============================================================================
+// WRAPPER-LEVEL TRANSACTION FACADE
+// ============================================================================
+
+class KnexTursoTransaction extends KnexTransaction {
+  final TursoTrxClient _trx;
+  final KnexInterceptorPipeline _pipeline;
+
+  @override
+  final String txId;
+
+  KnexTursoTransaction._(this._trx, this._pipeline, this.txId);
+
+  @override
+  QueryBuilder queryBuilder() => _TursoSchemaClient().queryBuilder();
+
+  @override
+  QueryBuilder call([String? tableName]) {
+    final builder = queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> select(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.select(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> execute(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.execute(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> insert(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.insert(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> update(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.update(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> delete(QueryBuilder query) =>
+      _pipeline.run(query, () => _trx.delete(query), txId: txId);
+
+  @override
+  Future<List<Map<String, dynamic>>> rawSql(String sql, [List<dynamic>? bindings]) =>
+      _pipeline.runRaw(
+        sql, bindings ?? const [],
+        () => _trx.raw(sql, bindings),
+        txId: txId,
+      );
+
+  @override
+  Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
+    final sp = 'sp_${_pipeline.nextUid()}';
+    final childTxId = '${txId}_$sp';
+    await _pipeline.runRaw('SAVEPOINT $sp', const [], () => _trx.raw('SAVEPOINT $sp'), txId: childTxId);
+    try {
+      final result = await callback(
+        KnexTursoTransaction._(_trx, _pipeline, childTxId),
+      );
+      await _pipeline.runRaw('RELEASE SAVEPOINT $sp', const [], () => _trx.raw('RELEASE SAVEPOINT $sp'), txId: childTxId);
+      return result;
+    } catch (e, st) {
+      try {
+        await _pipeline.runRaw('ROLLBACK TO SAVEPOINT $sp', const [], () => _trx.raw('ROLLBACK TO SAVEPOINT $sp'), txId: childTxId);
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
+    }
+  }
 }
 
 // ============================================================================
 // INTERNAL SCHEMA CLIENT
-// Lightweight "stub" client used only for SQL generation.
-// Does not connect to any database.
 // ============================================================================
 
-/// Internal Turso/SQLite-flavored schema client for SQL generation only.
 class _TursoSchemaClient extends Client {
-  _TursoSchemaClient()
-    : super(KnexConfig(client: 'turso', connection: {}));
+  _TursoSchemaClient() : super(KnexConfig(client: 'turso', connection: {}));
 
   @override
   String get driverName => 'turso';
@@ -169,7 +225,6 @@ class _TursoSchemaClient extends Client {
   @override
   Future<void> releaseConnection(connection) => Future.value();
 
-  // SQLite-compatible: double-quote identifiers, `?` parameters
   @override
   String wrapIdentifierImpl(String identifier) => '"$identifier"';
 

@@ -27,6 +27,8 @@ String dialectLabel(KnexDialect dialect) {
       return 'snowflake';
     case KnexDialect.bigquery:
       return 'bigquery';
+    case KnexDialect.mssql:
+      return 'mssql';
   }
 }
 

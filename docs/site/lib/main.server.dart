@@ -21,6 +21,7 @@ import 'components/toc_highlighter.dart';
 import 'components/safe_code_block.dart';
 import 'components/github_button.dart';
 import 'layouts/docs_layout_with_toc_highlighter.dart';
+import 'raw_markdown_output.dart';
 
 // This file is generated automatically by Jaspr, do not remove or edit.
 import 'main.server.options.dart';
@@ -36,118 +37,130 @@ void main() {
   // [ContentApp] spins up the content rendering pipeline from jaspr_content to render
   // your markdown files in the content/ directory to a beautiful documentation site.
   runApp(
-    ContentApp(
-      // Enables mustache templating inside the markdown files.
-      templateEngine: MustacheTemplateEngine(),
-      parsers: [
-        MarkdownParser(),
+    ContentApp.custom(
+      loaders: [
+        FilesystemLoader('content'),
       ],
-      extensions: [
-        // Adds heading anchors to each heading.
-        HeadingAnchorsExtension(),
-        // Generates a table of contents for each page.
-        TableOfContentsExtension(),
-      ],
-      components: [
-        // The <Info> block and other callouts.
-        Callout(),
-        // Adds syntax highlighting to code blocks with safe fallbacks.
-        SafeCodeBlock(
-          defaultLanguage: 'dart',
-          grammars: loadSafeGrammars(),
-        ),
-
-        // Adds zooming and caption support to images.
-        Image(zoom: true),
-        // Highlights the current TOC entry while scrolling.
-        CustomComponent(
-          pattern: 'TocHighlighter',
-          builder: (_, __, ___) => const TocHighlighter(),
-        ),
-      ],
-      layouts: [
-        // Out-of-the-box layout for documentation sites.
-        DocsLayoutWithTocHighlighter(
-          header: Header(
-            title: 'Knex Dart',
-            logo: '', // No logo for now
-            items: [
-              // Enables switching between light and dark mode.
-              ThemeToggle(),
-
-              // Shows github stats.
-              MyGitHubButton(repo: 'kartikey321/knex-dart'),
-            ],
-          ),
-          sidebar: Sidebar(
-            groups: [
-              SidebarGroup(
-                title: 'Getting Started',
-                links: [
-                  SidebarLink(text: "Home", href: '/'),
-                  SidebarLink(text: "Installation", href: '/getting-started/installation'),
-                  SidebarLink(text: "Quick Start", href: '/getting-started/quick-start'),
-                  SidebarLink(text: "About", href: '/about'),
-                ],
-              ),
-              SidebarGroup(
-                title: 'Query Building',
-                links: [
-                  SidebarLink(text: "Joins", href: '/query-building/joins'),
-                  SidebarLink(text: "WHERE Clauses", href: '/query-building/where-clauses'),
-                  SidebarLink(text: "Write Operations", href: '/query-building/write-operations'),
-                  SidebarLink(text: "Aggregation", href: '/query-building/aggregation'),
-                  SidebarLink(text: "Window Functions", href: '/query-building/window-functions'),
-                  SidebarLink(text: "Subqueries", href: '/query-building/subqueries'),
-                  SidebarLink(text: "CTEs (WITH)", href: '/query-building/ctes'),
-                  SidebarLink(text: "UNION / INTERSECT / EXCEPT", href: '/query-building/unions'),
-                  SidebarLink(text: "Transactions", href: '/query-building/transactions'),
-                  SidebarLink(text: "Schema Builder", href: '/query-building/schema-builder'),
-                ],
-              ),
-              SidebarGroup(
-                title: 'Connections',
-                links: [
-                  SidebarLink(text: "Connection Pooling", href: '/connections/pooling'),
-                  SidebarLink(text: "Streaming", href: '/connections/streaming'),
-                ],
-              ),
-              SidebarGroup(
-                title: 'Migration',
-                links: [
-                  SidebarLink(text: "Migrations", href: '/migration/migrations'),
-                  SidebarLink(text: "From Knex.js", href: '/migration/from-knex-js'),
-                ],
-              ),
-              SidebarGroup(
-                title: 'Tooling',
-                links: [
-                  SidebarLink(text: "Dialect Lint", href: '/tooling/dialect-lint'),
-                ],
-              ),
-              SidebarGroup(
-                title: 'Database Support',
-                links: [
-                  SidebarLink(text: "Databases", href: '/database-support'),
-                ],
-              ),
-              SidebarGroup(
-                title: 'Examples',
-                links: [
-                  SidebarLink(text: "Basic Queries", href: '/examples/basic-queries'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-      theme: ContentTheme(
-        // Customizes the default theme colors.
-        primary: ThemeColor(ThemeColors.blue.$500, dark: ThemeColors.blue.$300),
-        background: ThemeColor(ThemeColors.slate.$50, dark: ThemeColors.zinc.$950),
-        colors: [
-          ContentColors.quoteBorders.apply(ThemeColors.blue.$400),
+      configResolver: PageConfig.all(
+        enableFrontmatter: true,
+        dataLoaders: [
+          FilesystemDataLoader('content/_data'),
         ],
+        templateEngine: MustacheTemplateEngine(),
+        secondaryOutputs: [
+          RawMarkdownOutput(),
+        ],
+        parsers: [
+          MarkdownParser(),
+        ],
+        extensions: [
+          // Adds heading anchors to each heading.
+          HeadingAnchorsExtension(),
+          // Generates a table of contents for each page.
+          TableOfContentsExtension(),
+        ],
+        components: [
+          // The <Info> block and other callouts.
+          Callout(),
+          // Adds syntax highlighting to code blocks with safe fallbacks.
+          SafeCodeBlock(
+            defaultLanguage: 'dart',
+            grammars: loadSafeGrammars(),
+          ),
+
+          // Adds zooming and caption support to images.
+          Image(zoom: true),
+          // Highlights the current TOC entry while scrolling.
+          CustomComponent(
+            pattern: 'TocHighlighter',
+            builder: (_, __, ___) => const TocHighlighter(),
+          ),
+        ],
+        layouts: [
+          // Out-of-the-box layout for documentation sites.
+          DocsLayoutWithTocHighlighter(
+            header: Header(
+              title: 'Knex Dart',
+              logo: '', // No logo for now
+              items: [
+                // Enables switching between light and dark mode.
+                ThemeToggle(),
+
+                // Shows github stats.
+                MyGitHubButton(repo: 'kartikey321/knex-dart'),
+              ],
+            ),
+            sidebar: Sidebar(
+              groups: [
+                SidebarGroup(
+                  title: 'Getting Started',
+                  links: [
+                    SidebarLink(text: "Home", href: '/'),
+                    SidebarLink(text: "Installation", href: '/getting-started/installation'),
+                    SidebarLink(text: "Quick Start", href: '/getting-started/quick-start'),
+                    SidebarLink(text: "About", href: '/about'),
+                  ],
+                ),
+                SidebarGroup(
+                  title: 'Query Building',
+                  links: [
+                    SidebarLink(text: "Joins", href: '/query-building/joins'),
+                    SidebarLink(text: "WHERE Clauses", href: '/query-building/where-clauses'),
+                    SidebarLink(text: "Write Operations", href: '/query-building/write-operations'),
+                    SidebarLink(text: "Aggregation", href: '/query-building/aggregation'),
+                    SidebarLink(text: "Window Functions", href: '/query-building/window-functions'),
+                    SidebarLink(text: "Subqueries", href: '/query-building/subqueries'),
+                    SidebarLink(text: "CTEs (WITH)", href: '/query-building/ctes'),
+                    SidebarLink(text: "UNION / INTERSECT / EXCEPT", href: '/query-building/unions'),
+                    SidebarLink(text: "Transactions", href: '/query-building/transactions'),
+                    SidebarLink(text: "Schema Builder", href: '/query-building/schema-builder'),
+                  ],
+                ),
+                SidebarGroup(
+                  title: 'Connections',
+                  links: [
+                    SidebarLink(text: "Connection Pooling", href: '/connections/pooling'),
+                    SidebarLink(text: "Streaming", href: '/connections/streaming'),
+                  ],
+                ),
+                SidebarGroup(
+                  title: 'Migration',
+                  links: [
+                    SidebarLink(text: "Migrations", href: '/migration/migrations'),
+                    SidebarLink(text: "From Knex.js", href: '/migration/from-knex-js'),
+                  ],
+                ),
+                SidebarGroup(
+                  title: 'Tooling',
+                  links: [
+                    SidebarLink(text: "Dialect Lint", href: '/tooling/dialect-lint'),
+                    SidebarLink(text: "OpenTelemetry", href: '/tooling/opentelemetry'),
+                  ],
+                ),
+                SidebarGroup(
+                  title: 'Database Support',
+                  links: [
+                    SidebarLink(text: "Databases", href: '/database-support'),
+                  ],
+                ),
+                SidebarGroup(
+                  title: 'Examples',
+                  links: [
+                    SidebarLink(text: "Basic Queries", href: '/examples/basic-queries'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+        theme: ContentTheme(
+          // Customizes the default theme colors.
+          primary: ThemeColor(ThemeColors.blue.$500, dark: ThemeColors.blue.$300),
+          background: ThemeColor(ThemeColors.slate.$50, dark: ThemeColors.zinc.$950),
+          colors: [
+            ContentColors.quoteBorders.apply(ThemeColors.blue.$400),
+          ],
+        ),
       ),
     ),
   );

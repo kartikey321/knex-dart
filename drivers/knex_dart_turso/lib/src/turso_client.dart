@@ -122,11 +122,14 @@ class TursoClient {
       'Content-Type': 'application/json',
       if (_authToken != null) 'Authorization': 'Bearer $_authToken',
     };
-    final response = await _http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode(body),
-    );
+    final response = await _http
+        .post(uri, headers: headers, body: jsonEncode(body))
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException(
+            'Turso HTTP request timed out after 30 s',
+          ),
+        );
 
     if (response.statusCode != 200) {
       throw StateError(
@@ -260,6 +263,12 @@ class TursoTrxClient {
 
   TursoTrxClient._(this._session);
 
+  /// Callable shorthand for `queryBuilder().table(name)` within the Turso dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('turso').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   Future<List<Map<String, dynamic>>> select(QueryBuilder q) => _run(q);
   Future<List<Map<String, dynamic>>> execute(QueryBuilder q) => _run(q);
   Future<List<Map<String, dynamic>>> insert(QueryBuilder q) => _run(q);
@@ -284,12 +293,14 @@ class TursoTrxClient {
       final result = await callback(this);
       await raw('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await raw('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await raw('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 
-  String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+  static var _spCount = 0;
+  String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 }

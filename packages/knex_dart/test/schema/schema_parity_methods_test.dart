@@ -238,6 +238,29 @@ void main() {
       expect(sqls.first['bindings'], ['dbo.users', 'people']);
     });
 
+    test('renameColumn compiles for MSSQL using sp_rename with bindings', () {
+      final client = MockClient(driverName: 'mssql');
+      final sqls = client
+          .schemaBuilder()
+          .withSchema('myschema')
+          .alterTable('users', (t) => t.renameColumn('name', 'full_name'))
+          .toSQL();
+
+      expect(sqls.first['sql'], 'exec sp_rename ?, ?, ?');
+      expect(sqls.first['bindings'], ['myschema.users.name', 'full_name', 'COLUMN']);
+    });
+
+    test('renameColumn compiles for MSSQL without schema uses table.column', () {
+      final client = MockClient(driverName: 'mssql');
+      final sqls = client
+          .schemaBuilder()
+          .alterTable('users', (t) => t.renameColumn('name', 'full_name'))
+          .toSQL();
+
+      expect(sqls.first['sql'], 'exec sp_rename ?, ?, ?');
+      expect(sqls.first['bindings'], ['users.name', 'full_name', 'COLUMN']);
+    });
+
     test('drop-if-exists compiles with MSSQL object_id guards', () {
       final client = MockClient(driverName: 'mssql');
       final sqls = client

@@ -115,6 +115,8 @@ class _DialectClient extends Client {
         return 'snowflake';
       case KnexDialect.bigquery:
         return 'bigquery';
+      case KnexDialect.mssql:
+        return 'mssql';
     }
   }
 
@@ -129,9 +131,9 @@ class _DialectClient extends Client {
       case KnexDialect.mysql:
       case KnexDialect.mariadb:
       case KnexDialect.bigquery:
-        return '`$identifier`';
+        return '`${identifier.replaceAll('`', '``')}`';
       default:
-        return '"$identifier"';
+        return '"${identifier.replaceAll('"', '""')}"';
     }
   }
 

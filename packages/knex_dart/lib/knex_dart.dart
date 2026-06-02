@@ -25,10 +25,12 @@
 library;
 
 // Core exports
+export 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
 export 'src/knex.dart';
 export 'src/knex_query.dart';
 export 'src/client/client.dart';
 export 'src/client/knex_config.dart';
+export 'src/client/query_interceptor.dart';
 
 // Raw and Ref
 export 'src/raw.dart';

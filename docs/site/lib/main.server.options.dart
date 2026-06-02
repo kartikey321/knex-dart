@@ -16,6 +16,7 @@ import 'package:jaspr_content/components/sidebar_toggle_button.dart'
     as _sidebar_toggle_button;
 import 'package:jaspr_content/components/theme_toggle.dart' as _theme_toggle;
 import 'package:site/components/github_button.dart' as _github_button;
+import 'package:site/components/playground_link.dart' as _playground_link;
 import 'package:site/components/toc_highlighter.dart' as _toc_highlighter;
 
 /// Default [ServerOptions] for use with your Jaspr project.
@@ -60,12 +61,13 @@ ServerOptions get defaultServerOptions => ServerOptions(
         ClientTarget<_toc_highlighter.TocHighlighter>('toc_highlighter'),
   },
   styles: () => [
-    ..._zoomable_image.ZoomableImage.styles,
     ..._callout.Callout.styles,
     ..._code_block.CodeBlock.styles,
     ..._image.Image.styles,
     ..._theme_toggle.ThemeToggleState.styles,
+    ..._zoomable_image.ZoomableImage.styles,
     ..._github_button.MyGitHubButton.styles,
+    ..._playground_link.PlaygroundLink.styles,
     ..._toc_highlighter.TocHighlighter.styles,
   ],
 );

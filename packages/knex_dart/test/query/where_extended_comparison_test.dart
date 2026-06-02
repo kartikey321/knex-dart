@@ -11,6 +11,7 @@ void main() {
 
   group('Extended WHERE Clauses - Comparison with Knex.js', () {
     test('whereColumn - compare two columns', () {
+      
       final query = QueryBuilder(
         client,
       ).table('users').whereColumn('updated_at', '>', 'created_at');

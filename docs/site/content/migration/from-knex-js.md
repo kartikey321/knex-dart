@@ -28,6 +28,14 @@ final db = await KnexPostgres.connect(
 
 The driver package determines the dialect — no `client:` string needed.
 
+For query-building only (no live connection), use:
+
+```dart
+import 'package:knex_dart/knex_dart.dart';
+
+final db = KnexQuery.forDialect(KnexDialect.postgres);
+```
+
 ## Key Differences
 
 ### 1. Driver packages are separate
@@ -47,7 +55,7 @@ In Knex.js, the client is configured in one package. In Knex Dart, each database
 knex('users').select('id', 'name')
 
 // Knex Dart
-db('users').select(['id', 'name'])
+db.from('users').select(['id', 'name'])
 ```
 
 ### 3. `with` → `withQuery`
@@ -59,12 +67,11 @@ db('users').select(['id', 'name'])
 knex.with('cte', query).select('*').from('cte')
 
 // Knex Dart
-db().withQuery('cte', db('orders').where('amount', '>', 1000))
-  .select(['*'])
-  .from('cte')
+db.queryBuilder().withQuery('cte', db.from('orders').where('amount', '>', 1000))
+  .select(['*']).from('cte')
 ```
 
-### 4. `destroy()` not `destroy()`
+### 4. `destroy()` closes the connection
 
 ```dart
 // Knex.js
@@ -80,11 +87,11 @@ Both forms are supported:
 
 ```dart
 // implicit '='
-db('users').where('name', 'John');
+db.from('users').where('name', 'John');
 
 // explicit operator
-db('users').where('name', '=', 'John');
-db('users').where('age', '>', 18);
+db.from('users').where('name', '=', 'John');
+db.from('users').where('age', '>', 18);
 ```
 
 ## Query Parity Examples
@@ -101,7 +108,7 @@ knex('users')
 
 **Knex Dart**
 ```dart
-db('users')
+db.from('users')
   .select(['id', 'name'])
   .where('active', '=', true)
   .orderBy('name');
@@ -119,7 +126,7 @@ knex('users').join('orders', function() {
 
 **Knex Dart**
 ```dart
-db('users').join('orders', (j) {
+db.from('users').join('orders', (j) {
   j.on('users.id', '=', 'orders.user_id')
    .andOnVal('orders.status', '=', 'completed');
 });
@@ -135,7 +142,7 @@ knex.with('high_value', knex('orders').where('amount', '>', 1000))
 
 **Knex Dart**
 ```dart
-db().withQuery('high_value', db('orders').where('amount', '>', 1000))
+db.queryBuilder().withQuery('high_value', db.from('orders').where('amount', '>', 1000))
   .select(['*']).from('high_value')
 ```
 

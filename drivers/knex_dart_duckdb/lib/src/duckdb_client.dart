@@ -111,14 +111,22 @@ class DuckDBClient {
 
     if (bindings.isEmpty) {
       final result = await _conn.query(sql);
-      return _parseResult(result);
+      try {
+        return _parseResult(result);
+      } finally {
+        await result.dispose();
+      }
     }
 
     // dart_duckdb's web PreparedStatement only supports ≤10 parameters.
     // For larger binding lists, inline values as SQL literals.
     if (bindings.length > 10) {
       final result = await _conn.query(_inlineBindings(sql, bindings));
-      return _parseResult(result);
+      try {
+        return _parseResult(result);
+      } finally {
+        await result.dispose();
+      }
     }
 
     final stmt = await _conn.prepare(sql);
@@ -127,7 +135,11 @@ class DuckDBClient {
         stmt.bind(bindings[i], i + 1); // 1-based indexing
       }
       final result = await stmt.execute();
-      return _parseResult(result);
+      try {
+        return _parseResult(result);
+      } finally {
+        await result.dispose();
+      }
     } finally {
       await stmt.dispose();
     }
@@ -225,6 +237,12 @@ class DuckDBTrxClient {
 
   DuckDBTrxClient._(this._client);
 
+  /// Callable shorthand for `queryBuilder().table(name)` within the DuckDB dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('duckdb').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
+
   Future<List<Map<String, dynamic>>> select(QueryBuilder q) => _run(q);
   Future<List<Map<String, dynamic>>> execute(QueryBuilder q) => _run(q);
   Future<List<Map<String, dynamic>>> insert(QueryBuilder q) => _run(q);
@@ -257,12 +275,14 @@ class DuckDBTrxClient {
       final result = await callback(this);
       await raw('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await raw('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await raw('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 
-  String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+  static var _spCount = 0;
+  String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 }

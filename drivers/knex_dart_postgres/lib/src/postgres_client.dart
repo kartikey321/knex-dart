@@ -77,10 +77,6 @@ class PostgresClient {
 
     final compiled = query.toSQL();
 
-    // Debug: Print SQL and bindings
-    print('SQL: ${compiled.sql}');
-    print('Bindings: ${compiled.bindings}');
-
     if (_txSession != null) {
       final result = await _txSession!.execute(
         compiled.sql,
@@ -136,8 +132,6 @@ class PostgresClient {
     if (_isClosed) {
       throw StateError('Cannot execute query on closed pool');
     }
-    print('SQL: $sql');
-    print('Bindings: $bindings');
     final params = bindings ?? [];
     if (_txSession != null) {
       final result = await _txSession!.execute(sql, parameters: params);
@@ -223,15 +217,21 @@ class PostgresClient {
   }
 }
 
-/// A transaction-scoped Postgres client.
+/// Low-level transaction-scoped Postgres session executor.
 ///
-/// Wraps a [TxSession] and exposes the same execute/insert/update/delete/select
-/// API as [PostgresClient], so callbacks passed to [PostgresClient.trx] can
-/// use the exact same interface.
+/// This is an implementation detail of [KnexPostgres]. User code should
+/// interact with [KnexPostgresTransaction] received from [KnexPostgres.trx],
+/// which routes queries through the [KnexInterceptorPipeline].
 class PostgresTrxClient {
   final TxSession _session;
 
   PostgresTrxClient._(this._session);
+
+  /// Callable shorthand for `queryBuilder().table(name)` within the PG dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('pg').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
 
   /// Executes a SELECT-style query inside this transaction.
   Future<List<Map<String, dynamic>>> select(QueryBuilder query) => _run(query);
@@ -259,8 +259,6 @@ class PostgresTrxClient {
 
   Future<List<Map<String, dynamic>>> _run(QueryBuilder query) async {
     final compiled = query.toSQL();
-    print('TRX SQL: ${compiled.sql}');
-    print('TRX Bindings: ${compiled.bindings}');
     final result = await _session.execute(
       compiled.sql,
       parameters: compiled.bindings,
@@ -295,12 +293,14 @@ class PostgresTrxClient {
       final result = await callback(this);
       await rawSql('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await rawSql('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await rawSql('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 
-  String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+  static var _spCount = 0;
+  String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 }

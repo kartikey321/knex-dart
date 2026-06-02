@@ -76,10 +76,6 @@ class MySQLClient {
 
     final compiled = queryBuilder.toSQL();
 
-    // Debug: Print SQL and bindings
-    print('SQL: ${compiled.sql}');
-    print('Bindings: ${compiled.bindings}');
-
     return _execute(compiled.sql, compiled.bindings);
   }
 
@@ -313,18 +309,26 @@ class MySQLClient {
   Future<T> trx<T>(Future<T> Function(MySQLTrxClient trx) callback) async {
     if (_isClosed) throw StateError('Pool is closed');
     final conn = await _pool.acquire();
+    bool committed = false;
     try {
       await conn.execute('START TRANSACTION');
+      final result = await callback(MySQLTrxClient._(conn));
+      await conn.execute('COMMIT');
+      committed = true;
+      return result;
+    } catch (e, st) {
       try {
-        final result = await callback(MySQLTrxClient._(conn));
-        await conn.execute('COMMIT');
-        return result;
-      } catch (e) {
         await conn.execute('ROLLBACK');
-        rethrow;
-      }
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     } finally {
-      _pool.release(conn);
+      // Release healthy connections; discard connections that may be poisoned
+      // (e.g. START TRANSACTION failed, COMMIT failed, or ROLLBACK failed).
+      if (committed) {
+        _pool.release(conn);
+      } else {
+        _pool.discard(conn);
+      }
     }
   }
 }
@@ -338,6 +342,12 @@ class MySQLTrxClient {
   final MySQLConnection _connection;
 
   MySQLTrxClient._(this._connection);
+
+  /// Callable shorthand for `queryBuilder().table(name)` within the MySQL dialect.
+  QueryBuilder call([String? tableName]) {
+    final builder = KnexQuery.forClient('mysql2').queryBuilder();
+    return tableName != null ? builder.table(tableName) : builder;
+  }
 
   /// Executes a SELECT-style query inside this transaction.
   Future<List<Map<String, dynamic>>> select(QueryBuilder queryBuilder) =>
@@ -361,16 +371,17 @@ class MySQLTrxClient {
 
   Future<List<Map<String, dynamic>>> _run(QueryBuilder queryBuilder) async {
     final compiled = queryBuilder.toSQL();
-    print('TRX SQL: ${compiled.sql}');
-    print('TRX Bindings: ${compiled.bindings}');
     if (compiled.bindings.isEmpty) {
       final result = await _connection.execute(compiled.sql);
       return _mapResults(result);
     }
     final stmt = await _connection.prepare(compiled.sql);
-    final result = await stmt.execute(compiled.bindings);
-    await stmt.deallocate();
-    return _mapResults(result);
+    try {
+      final result = await stmt.execute(compiled.bindings);
+      return _mapResults(result);
+    } finally {
+      await stmt.deallocate();
+    }
   }
 
   List<Map<String, dynamic>> _mapResults(IResultSet results) {
@@ -379,6 +390,23 @@ class MySQLTrxClient {
       rows.add(row.typedAssoc());
     }
     return rows;
+  }
+
+  /// Executes raw SQL inside this transaction.
+  Future<List<Map<String, dynamic>>> rawSql(
+    String sql, [
+    List<dynamic>? bindings,
+  ]) async {
+    if (bindings == null || bindings.isEmpty) {
+      return _mapResults(await _connection.execute(sql));
+    }
+    final stmt = await _connection.prepare(sql);
+    try {
+      final result = await stmt.execute(bindings);
+      return _mapResults(result);
+    } finally {
+      await stmt.deallocate();
+    }
   }
 
   // ─── Nested transactions (savepoints) ────────────────────────────────────
@@ -394,12 +422,15 @@ class MySQLTrxClient {
       final result = await callback(this);
       await _connection.execute('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await _connection.execute('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await _connection.execute('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 
   String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+      'sp_${(++_spCount).toRadixString(36)}';
+  static var _spCount = 0;
 }

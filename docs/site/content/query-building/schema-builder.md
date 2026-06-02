@@ -15,13 +15,15 @@ Use `db.executeSchema()` to generate and execute DDL:
 
 ```dart
 await db.executeSchema(
-  db.schema.createTable('users', (t) {
-    t.increments('id');
-    t.string('name').notNullable();
-    t.string('email').unique();
-    t.boolean('active').defaultTo(true);
-    t.timestamps();
-  }),
+  (schema) {
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('name').notNullable();
+      t.string('email').unique();
+      t.boolean('active').defaultTo(true);
+      t.timestamps();
+    });
+  },
 );
 ```
 
@@ -54,7 +56,9 @@ Copy the structure of an existing table:
 
 ```dart
 await db.executeSchema(
-  db.schema.createTableLike('users_archive', 'users'),
+  (schema) {
+    schema.createTableLike('users_archive', 'users');
+  },
 );
 ```
 
@@ -62,17 +66,23 @@ Add extra columns while cloning:
 
 ```dart
 await db.executeSchema(
-  db.schema.createTableLike('users_archive', 'users', (t) {
-    t.timestamp('archived_at').notNullable();
-  }),
+  (schema) {
+    schema.createTableLike('users_archive', 'users', (t) {
+      t.timestamp('archived_at').notNullable();
+    });
+  },
 );
 ```
 
 ## renameTable / renameView
 
 ```dart
-await db.executeSchema(db.schema.renameTable('users', 'app_users'));
-await db.executeSchema(db.schema.renameView('active_users', 'users_active'));
+await db.executeSchema((schema) {
+  schema.renameTable('users', 'app_users');
+});
+await db.executeSchema((schema) {
+  schema.renameView('active_users', 'users_active');
+});
 ```
 
 `renameView` is supported on PostgreSQL, MySQL-family, and MSSQL.
@@ -81,20 +91,32 @@ await db.executeSchema(db.schema.renameView('active_users', 'users_active'));
 
 ```dart
 await db.executeSchema(
-  db.schema.createView('active_users', db.queryBuilder()
-    .table('users')
-    .select(['id', 'email'])
-    .where('active', '=', true)),
+  (schema) {
+    schema.createView(
+      'active_users',
+      db.queryBuilder()
+          .table('users')
+          .select(['id', 'email'])
+          .where('active', '=', true),
+    );
+  },
 );
 
 await db.executeSchema(
-  db.schema.createViewOrReplace('active_users', db.queryBuilder()
-    .table('users')
-    .select(['id', 'email'])
-    .where('active', '=', true)),
+  (schema) {
+    schema.createViewOrReplace(
+      'active_users',
+      db.queryBuilder()
+          .table('users')
+          .select(['id', 'email'])
+          .where('active', '=', true),
+    );
+  },
 );
 
-await db.executeSchema(db.schema.dropViewIfExists('active_users'));
+await db.executeSchema((schema) {
+  schema.dropViewIfExists('active_users');
+});
 ```
 
 `createViewOrReplace` on SQLite compiles as `drop view if exists` + `create view`.
@@ -284,9 +306,11 @@ Use `t.fulltext(columns, [indexName])` to add a FULLTEXT index.
 
 ```dart
 await db.executeSchema(
-  db.schema.alterTable('users', (t) {
-    t.fulltext(['first_name', 'last_name']);
-  }),
+  (schema) {
+    schema.alterTable('users', (t) {
+      t.fulltext(['first_name', 'last_name']);
+    });
+  },
 );
 ```
 
@@ -333,29 +357,31 @@ Modify existing tables without recreating them:
 
 ```dart
 await db.executeSchema(
-  db.schema.alterTable('users', (t) {
-    // Add columns
-    t.string('phone').nullable();
-    t.boolean('verified').defaultTo(false);
+  (schema) {
+    schema.alterTable('users', (t) {
+      // Add columns
+      t.string('phone').nullable();
+      t.boolean('verified').defaultTo(false);
 
-    // Drop columns
-    t.dropColumn('legacy_field');
-    t.dropColumns(['old_field_1', 'old_field_2']);
+      // Drop columns
+      t.dropColumn('legacy_field');
+      t.dropColumns(['old_field_1', 'old_field_2']);
 
-    // Rename
-    t.renameColumn('fullname', 'full_name');
+      // Rename
+      t.renameColumn('fullname', 'full_name');
 
-    // Add index
-    t.index(['phone']);
+      // Add index
+      t.index(['phone']);
 
-    // Drop constraints
-    t.dropIndex(['phone']);
-    t.dropUnique(['email']);
+      // Drop constraints
+      t.dropIndex(['phone']);
+      t.dropUnique(['email']);
 
-    // Nullability
-    t.setNullable('middle_name');    // DROP NOT NULL
-    t.dropNullable('email');         // SET NOT NULL
-  }),
+      // Nullability
+      t.setNullable('middle_name');    // DROP NOT NULL
+      t.dropNullable('email');         // SET NOT NULL
+    });
+  },
 );
 ```
 
@@ -367,46 +393,52 @@ await db.executeSchema(
 // Create all tables for a simple blog
 
 await db.executeSchema(
-  db.schema.createTable('users', (t) {
-    t.increments('id');
-    t.string('name').notNullable();
-    t.string('email').notNullable().unique();
-    t.string('password_hash').notNullable();
-    t.enu('role', ['admin', 'editor', 'viewer']).defaultTo('viewer');
-    t.boolean('active').defaultTo(true);
-    t.timestamps(false, true);
-  }),
+  (schema) {
+    schema.createTable('users', (t) {
+      t.increments('id');
+      t.string('name').notNullable();
+      t.string('email').notNullable().unique();
+      t.string('password_hash').notNullable();
+      t.enu('role', ['admin', 'editor', 'viewer']).defaultTo('viewer');
+      t.boolean('active').defaultTo(true);
+      t.timestamps(false, true);
+    });
+  },
 );
 
 await db.executeSchema(
-  db.schema.createTable('posts', (t) {
-    t.increments('id');
-    t.integer('author_id').notNullable()
-      .references('id').inTable('users').onDelete('CASCADE');
-    t.string('title').notNullable();
-    t.string('slug', 200).notNullable().unique();
-    t.text('body');
-    t.enu('status', ['draft', 'published', 'archived']).defaultTo('draft');
-    t.timestamp('published_at').nullable();
-    t.timestamps(false, true);
+  (schema) {
+    schema.createTable('posts', (t) {
+      t.increments('id');
+      t.integer('author_id').notNullable()
+        .references('id').inTable('users').onDelete('CASCADE');
+      t.string('title').notNullable();
+      t.string('slug', 200).notNullable().unique();
+      t.text('body');
+      t.enu('status', ['draft', 'published', 'archived']).defaultTo('draft');
+      t.timestamp('published_at').nullable();
+      t.timestamps(false, true);
 
-    t.index(['author_id']);
-    t.index(['status', 'published_at']);
-  }),
+      t.index(['author_id']);
+      t.index(['status', 'published_at']);
+    });
+  },
 );
 
 await db.executeSchema(
-  db.schema.createTable('comments', (t) {
-    t.increments('id');
-    t.integer('post_id').notNullable()
-      .references('id').inTable('posts').onDelete('CASCADE');
-    t.integer('user_id').notNullable()
-      .references('id').inTable('users').onDelete('CASCADE');
-    t.text('body').notNullable();
-    t.timestamps(false, true);
+  (schema) {
+    schema.createTable('comments', (t) {
+      t.increments('id');
+      t.integer('post_id').notNullable()
+        .references('id').inTable('posts').onDelete('CASCADE');
+      t.integer('user_id').notNullable()
+        .references('id').inTable('users').onDelete('CASCADE');
+      t.text('body').notNullable();
+      t.timestamps(false, true);
 
-    t.index(['post_id']);
-  }),
+      t.index(['post_id']);
+    });
+  },
 );
 ```
 

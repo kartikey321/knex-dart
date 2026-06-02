@@ -204,7 +204,7 @@ void main() {
 
   group('QueryEvent', () {
     test('constructs with required fields and null txId', () {
-      const e = QueryEvent(sql: 'select 1', bindings: [], uid: 'uid-1');
+      final e = QueryEvent(sql: 'select 1', bindings: [], uid: 'uid-1');
       expect(e.sql, equals('select 1'));
       expect(e.bindings, isEmpty);
       expect(e.uid, equals('uid-1'));
@@ -212,7 +212,7 @@ void main() {
     });
 
     test('constructs with optional txId', () {
-      const e = QueryEvent(
+      final e = QueryEvent(
         sql: 'select 1',
         bindings: [],
         uid: 'uid-1',
@@ -226,7 +226,7 @@ void main() {
     test('constructs with all required fields', () {
       final err = Exception('oops');
       final st = StackTrace.current;
-      const query = QueryEvent(sql: 'bad', bindings: [], uid: 'uid-1');
+      final query = QueryEvent(sql: 'bad', bindings: [], uid: 'uid-1');
 
       final event = QueryErrorEvent(error: err, stackTrace: st, query: query);
 
@@ -238,7 +238,7 @@ void main() {
 
   group('QueryResponseEvent', () {
     test('constructs with response and query, builder defaults to null', () {
-      const query = QueryEvent(sql: 'select 1', bindings: [], uid: 'uid-1');
+      final query = QueryEvent(sql: 'select 1', bindings: [], uid: 'uid-1');
       final event = QueryResponseEvent(
         response: [
           {'id': 1},

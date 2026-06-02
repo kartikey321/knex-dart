@@ -15,6 +15,7 @@ import 'src/rules/dialect_unsupported_intersect_except_rule.dart';
 import 'src/rules/invalid_where_operator_rule.dart';
 import 'src/rules/where_null_value_rule.dart';
 import 'src/rules/invalid_order_direction_rule.dart';
+import 'src/rules/raw_null_identifier_binding_rule.dart';
 
 // ── Type-inference rules ────────────────────────────────────────────────────
 import 'src/rules/value_type_check_rules.dart';
@@ -35,10 +36,11 @@ class _KnexDartLintPlugin extends PluginBase {
       DialectUnsupportedJsonRule(),
       DialectUnsupportedIntersectExceptRule(),
 
-      // Literal value rules (3)
+      // Literal value rules (4)
       InvalidWhereOperatorRule(),
       WhereNullValueRule(),
       InvalidOrderDirectionRule(),
+      RawNullIdentifierBindingRule(),
 
       // Type-inference rules (3) — WARNING severity
       LimitNonIntArgumentRule(),
