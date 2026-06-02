@@ -450,10 +450,12 @@ class SchemaCompiler {
           break;
         case 'renameColumn':
           if (client.driverName == 'mssql') {
-            // MSSQL uses sp_rename: 'schema.table.old' → 'new'
-            _pushQuery(
-              "exec sp_rename '$tableName.${args[0]}', '${args[1]}', 'COLUMN'",
-            );
+            // MSSQL uses sp_rename with bindings to avoid injection.
+            // Object name includes schema prefix when set (matches _renameTable).
+            final objectName = builder.schema != null
+                ? '${builder.schema}.$tableName.${args[0]}'
+                : '$tableName.${args[0]}';
+            _pushQuery('exec sp_rename ?, ?, ?', [objectName, args[1], 'COLUMN']);
           } else if (client.driverName == 'mysql' ||
               client.driverName == 'mysql2' ||
               client.driverName == 'mariadb') {
