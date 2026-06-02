@@ -255,10 +255,11 @@ class KnexOtelInterceptor extends QueryInterceptor {
     final sw = Stopwatch()..start();
     try {
       // Make the DB span current so any child spans (HTTP, TCP) created inside
-      // the driver are automatically parented to it.
-      final result = await _tracer.withSpanAsync(span, next);
+      // the driver are automatically parented to it. Use Context directly
+      // instead of tracer.withSpanAsync() because some SDKs also record thrown
+      // exceptions there; the interceptor owns DB exception recording below.
+      final result = await Context.current.withSpan(span).run(next);
       sw.stop();
-
 
       span.setStatus(SpanStatusCode.Ok);
 
@@ -411,17 +412,20 @@ class KnexOtelInterceptor extends QueryInterceptor {
         try {
           // Make the DB span current during listen() so any child spans created
           // by stream setup or stream callbacks are parented to it.
-          upstream = _tracer.withSpan(span, () => next().listen(
-            controller.add,
-            onError: (Object e, StackTrace st) {
-              finishOnce(isError: true, error: e, stackTrace: st);
-              controller.addError(e, st);
-            },
-            onDone: () {
-              finishOnce();
-              controller.close();
-            },
-          ));
+          upstream = _tracer.withSpan(
+            span,
+            () => next().listen(
+              controller.add,
+              onError: (Object e, StackTrace st) {
+                finishOnce(isError: true, error: e, stackTrace: st);
+                controller.addError(e, st);
+              },
+              onDone: () {
+                finishOnce();
+                controller.close();
+              },
+            ),
+          );
         } catch (e, st) {
           // next() threw synchronously — end span immediately and forward.
           finishOnce(isError: true, error: e, stackTrace: st);

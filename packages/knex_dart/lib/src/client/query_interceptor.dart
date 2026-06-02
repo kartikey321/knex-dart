@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../query/query_builder.dart';
+import '../query/sql_string.dart';
 import '../util/enums.dart';
 
 /// Metadata about a single query execution, passed through the interceptor
@@ -59,17 +60,17 @@ class QueryExecutionContext {
 
   /// Returns a copy with [txId] set.
   QueryExecutionContext withTxId(String txId) => QueryExecutionContext(
-        dbSystem: dbSystem,
-        sql: sql,
-        parameters: parameters,
-        operationName: operationName,
-        querySummary: querySummary,
-        database: database,
-        serverAddress: serverAddress,
-        serverPort: serverPort,
-        collectionName: collectionName,
-        txId: txId,
-      );
+    dbSystem: dbSystem,
+    sql: sql,
+    parameters: parameters,
+    operationName: operationName,
+    querySummary: querySummary,
+    database: database,
+    serverAddress: serverAddress,
+    serverPort: serverPort,
+    collectionName: collectionName,
+    txId: txId,
+  );
 }
 
 /// Intercepts query execution.
@@ -93,10 +94,7 @@ class QueryExecutionContext {
 /// ```
 abstract class QueryInterceptor {
   /// Intercepts a future-based query execution.
-  Future<T> intercept<T>(
-    QueryExecutionContext ctx,
-    Future<T> Function() next,
-  );
+  Future<T> intercept<T>(QueryExecutionContext ctx, Future<T> Function() next);
 
   /// Intercepts a streaming query execution.
   ///
@@ -109,8 +107,7 @@ abstract class QueryInterceptor {
   Stream<T> interceptStream<T>(
     QueryExecutionContext ctx,
     Stream<T> Function() next,
-  ) =>
-      next();
+  ) => next();
 }
 
 /// Holds connection-level metadata and the ordered list of [QueryInterceptor]s
@@ -175,6 +172,19 @@ class KnexInterceptorPipeline {
   }) {
     if (!_active) return execute();
     final compiled = query.toSQL();
+    return runCompiled(query, compiled, (_) => execute(), txId: txId);
+  }
+
+  /// Runs [execute] through the interceptor pipeline using an already compiled
+  /// query. Driver wrappers can use this to avoid calling `toSQL()` twice when
+  /// interceptors need SQL metadata before execution.
+  Future<T> runCompiled<T>(
+    QueryBuilder query,
+    SqlString compiled,
+    Future<T> Function(SqlString compiled) execute, {
+    String? txId,
+  }) {
+    if (!_active) return execute(compiled);
     final op = queryMethodToSqlOperation(query.method);
     final table = query.tableName;
     final ctx = QueryExecutionContext(
@@ -189,7 +199,7 @@ class KnexInterceptorPipeline {
       querySummary: table != null ? '$op $table' : op,
       txId: txId,
     );
-    return _chain(ctx, 0, execute);
+    return _chain(ctx, 0, () => execute(compiled));
   }
 
   // ── Raw SQL ────────────────────────────────────────────────────────────────

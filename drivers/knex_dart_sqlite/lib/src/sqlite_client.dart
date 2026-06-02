@@ -198,18 +198,15 @@ class SQLiteClient extends Client {
 
   /// Executes raw SQL with positional [bindings].
   @override
-  Future<dynamic> rawQuery(String sql, List<dynamic> bindings) async {
-    return _execute(sql, bindings);
-  }
+  Future<dynamic> rawQuery(String sql, List<dynamic> bindings) =>
+      _execute(sql, bindings);
 
   @override
   Future<List<Map<String, dynamic>>> query(
     dynamic connection,
     String sql,
     List<dynamic> bindings,
-  ) async {
-    return _execute(sql, bindings);
-  }
+  ) => _execute(sql, bindings);
 
   @override
   Stream<Map<String, dynamic>> streamQuery(
@@ -260,35 +257,48 @@ class SQLiteClient extends Client {
   Future<List<Map<String, dynamic>>> _execute(
     String sql, [
     List<dynamic>? bindings,
-  ]) async {
-    if (_isClosed) throw StateError('SQLiteClient is closed');
-    final params = bindings ?? [];
-    final stmt = _stmtCache.putIfAbsent(sql, () => _db.prepare(sql));
-    final upperSql = sql.trimLeft().toUpperCase();
-    if (upperSql.startsWith('SELECT') ||
-        upperSql.startsWith('PRAGMA') ||
-        upperSql.contains('RETURNING')) {
-      final result = stmt.select(params);
-      return _mapResults(result);
-    } else {
-      stmt.execute(params);
-      return [];
+  ]) {
+    try {
+      if (_isClosed) throw StateError('SQLiteClient is closed');
+      final params = bindings ?? [];
+      final stmt = _stmtCache.putIfAbsent(sql, () => _db.prepare(sql));
+      final upperSql = sql.trimLeft().toUpperCase();
+      if (upperSql.startsWith('SELECT') ||
+          upperSql.startsWith('PRAGMA') ||
+          upperSql.contains('RETURNING')) {
+        final result = stmt.select(params);
+        return Future.value(_mapResults(result));
+      } else {
+        stmt.execute(params);
+        return Future.value([]);
+      }
+    } catch (e, st) {
+      return Future.error(e, st);
     }
   }
 
   List<Map<String, dynamic>> _mapResults(ResultSet results) {
     final rows = <Map<String, dynamic>>[];
-    for (final row in results) {
-      rows.add(Map<String, dynamic>.from(row));
+    final columns = results.columnNames;
+    for (final row in results.rows) {
+      final mapped = <String, dynamic>{};
+      for (var i = 0; i < columns.length; i++) {
+        mapped[columns[i]] = row[i];
+      }
+      rows.add(mapped);
     }
     return rows;
   }
 
   /// Execute a SELECT query via QueryBuilder.
-  Future<List<Map<String, dynamic>>> select(QueryBuilder queryBuilder) async {
+  Future<List<Map<String, dynamic>>> select(QueryBuilder queryBuilder) {
     final compiled = queryBuilder.toSQL();
-    return query(null, compiled.sql, compiled.bindings);
+    return executeCompiled(compiled);
   }
+
+  /// Execute a precompiled query without calling QueryBuilder.toSQL() again.
+  Future<List<Map<String, dynamic>>> executeCompiled(SqlString compiled) =>
+      query(null, compiled.sql, compiled.bindings);
 
   /// Execute any QueryBuilder query (SELECT, INSERT, UPDATE, DELETE).
   Future<List<Map<String, dynamic>>> execute(QueryBuilder queryBuilder) =>

@@ -16,6 +16,8 @@ import 'sql_string.dart';
 /// - Manage bindings for parameterized queries
 /// - Generate unique query IDs
 class QueryCompiler {
+  static int _uidCounter = 0;
+
   final Client client;
   final QueryBuilder builder;
 
@@ -36,7 +38,7 @@ class QueryCompiler {
 
   QueryCompiler(this.client, this.builder) {
     // Get method from builder
-    method = builder.method.toString().split('.').last;
+    method = builder.method.name;
 
     // Get single values (table, etc.)
     single = Map<String, dynamic>.from(builder.single);
@@ -1329,8 +1331,7 @@ class QueryCompiler {
       // If caller passes only an order expression (e.g. `"score" desc`),
       // normalize it to `order by ...` inside OVER(...).
       var overClause = rawSQL.sql.trim();
-      if (overClause.isNotEmpty &&
-          !_isCompleteAnalyticOverClause(overClause)) {
+      if (overClause.isNotEmpty && !_isCompleteAnalyticOverClause(overClause)) {
         overClause = 'order by $overClause';
       }
       sql += overClause;
@@ -1450,16 +1451,10 @@ class QueryCompiler {
     return '$prefix ${ctes.join(', ')}';
   }
 
-  /// Generate unique query ID
-  ///
-  /// Same pattern as Raw._generateUid()
+  /// Generate unique query ID.
   String _generateUid() {
-    final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final random =
-        (DateTime.now().microsecond * 1000 + DateTime.now().millisecond)
-            .toRadixString(36);
-    final uid = '$timestamp$random';
-    return uid.substring(0, uid.length < 12 ? uid.length : 12);
+    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFFFFFFFFFF;
+    return 'q${_uidCounter.toRadixString(16).padLeft(11, '0')}';
   }
 
   /// Compile INSERT query

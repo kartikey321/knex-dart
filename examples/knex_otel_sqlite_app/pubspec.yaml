@@ -1,0 +1,27 @@
+name: knex_otel_sqlite_app
+description: Example app exporting knex_dart SQLite telemetry through OpenTelemetry.
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  dartastic_opentelemetry: ^0.9.5
+  knex_dart: ^1.2.0
+  knex_dart_otel: ^0.1.0
+  knex_dart_sqlite: ^0.2.0
+
+dev_dependencies:
+  lints: ^6.0.0
+
+dependency_overrides:
+  dartastic_opentelemetry_api: 1.0.0-beta.2
+  knex_dart:
+    path: ../../packages/knex_dart
+  knex_dart_capabilities:
+    path: ../../packages/knex_dart_capabilities
+  knex_dart_otel:
+    path: ../../integrations/knex_dart_otel
+  knex_dart_sqlite:
+    path: ../../drivers/knex_dart_sqlite
