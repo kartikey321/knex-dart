@@ -194,9 +194,11 @@ class SQLiteClient extends Client {
         final result = await callback(this);
         db.execute('RELEASE SAVEPOINT $sp');
         return result;
-      } catch (e) {
-        db.execute('ROLLBACK TO SAVEPOINT $sp');
-        rethrow;
+      } catch (e, st) {
+        try {
+          db.execute('ROLLBACK TO SAVEPOINT $sp');
+        } catch (_) {}
+        Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }

@@ -253,12 +253,16 @@ async function snapshotSqlite(limit: number): Promise<DbVisualizerSnapshot> {
     const rowCount = Number(countRes[0]?.values?.[0]?.[0] ?? 0);
 
     const stmt = db.prepare(`select * from "${name}" limit ${limit};`);
-    const columns = stmt.getColumnNames();
+    let columns: string[] = [];
     const rows: unknown[][] = [];
-    while (stmt.step()) {
-      rows.push(stmt.get());
+    try {
+      columns = stmt.getColumnNames();
+      while (stmt.step()) {
+        rows.push(stmt.get());
+      }
+    } finally {
+      stmt.free();
     }
-    stmt.free();
 
     tables.push({ name, rowCount, columns, rows });
   }

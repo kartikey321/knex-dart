@@ -80,12 +80,13 @@ class SQLiteClient extends Client {
   }
 
   Future<void> destroyPool() async {
+    if (_isClosed) return;
+    _isClosed = true;
     for (final stmt in _stmtCache.values) {
       stmt.dispose();
     }
     _stmtCache.clear();
     _db.dispose();
-    _isClosed = true;
   }
 
   /// Whether the connection is closed.
@@ -168,9 +169,11 @@ class SQLiteClient extends Client {
         final result = await callback(this);
         _db.execute('RELEASE SAVEPOINT $sp');
         return result;
-      } catch (e) {
-        _db.execute('ROLLBACK TO SAVEPOINT $sp');
-        rethrow;
+      } catch (e, st) {
+        try {
+          _db.execute('ROLLBACK TO SAVEPOINT $sp');
+        } catch (_) {}
+        Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }

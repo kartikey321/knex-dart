@@ -187,9 +187,11 @@ class MssqlTrxClient {
       // SQL Server uses COMMIT TRANSACTION for outer only; savepoints
       // are released implicitly on outer COMMIT. No explicit release needed.
       return result;
-    } catch (e) {
-      await raw('ROLLBACK TRANSACTION $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await raw('ROLLBACK TRANSACTION $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 

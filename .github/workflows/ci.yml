@@ -673,6 +673,7 @@ jobs:
       - test-bigquery-integration
       - test-packages
       - test-otel
+      - test-embedded-wasm
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_package != 'none')
     environment: pub.dev

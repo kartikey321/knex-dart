@@ -76,10 +76,6 @@ class MySQLClient {
 
     final compiled = queryBuilder.toSQL();
 
-    // Debug: Print SQL and bindings
-    print('SQL: ${compiled.sql}');
-    print('Bindings: ${compiled.bindings}');
-
     return _execute(compiled.sql, compiled.bindings);
   }
 
@@ -319,9 +315,11 @@ class MySQLClient {
         final result = await callback(MySQLTrxClient._(conn));
         await conn.execute('COMMIT');
         return result;
-      } catch (e) {
-        await conn.execute('ROLLBACK');
-        rethrow;
+      } catch (e, st) {
+        try {
+          await conn.execute('ROLLBACK');
+        } catch (_) {}
+        Error.throwWithStackTrace(e, st);
       }
     } finally {
       _pool.release(conn);
@@ -367,8 +365,6 @@ class MySQLTrxClient {
 
   Future<List<Map<String, dynamic>>> _run(QueryBuilder queryBuilder) async {
     final compiled = queryBuilder.toSQL();
-    print('TRX SQL: ${compiled.sql}');
-    print('TRX Bindings: ${compiled.bindings}');
     if (compiled.bindings.isEmpty) {
       final result = await _connection.execute(compiled.sql);
       return _mapResults(result);
@@ -420,9 +416,11 @@ class MySQLTrxClient {
       final result = await callback(this);
       await _connection.execute('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await _connection.execute('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await _connection.execute('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 

@@ -77,10 +77,6 @@ class PostgresClient {
 
     final compiled = query.toSQL();
 
-    // Debug: Print SQL and bindings
-    print('SQL: ${compiled.sql}');
-    print('Bindings: ${compiled.bindings}');
-
     if (_txSession != null) {
       final result = await _txSession!.execute(
         compiled.sql,
@@ -136,8 +132,6 @@ class PostgresClient {
     if (_isClosed) {
       throw StateError('Cannot execute query on closed pool');
     }
-    print('SQL: $sql');
-    print('Bindings: $bindings');
     final params = bindings ?? [];
     if (_txSession != null) {
       final result = await _txSession!.execute(sql, parameters: params);
@@ -265,8 +259,6 @@ class PostgresTrxClient {
 
   Future<List<Map<String, dynamic>>> _run(QueryBuilder query) async {
     final compiled = query.toSQL();
-    print('TRX SQL: ${compiled.sql}');
-    print('TRX Bindings: ${compiled.bindings}');
     final result = await _session.execute(
       compiled.sql,
       parameters: compiled.bindings,
@@ -301,9 +293,11 @@ class PostgresTrxClient {
       final result = await callback(this);
       await rawSql('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await rawSql('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await rawSql('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 

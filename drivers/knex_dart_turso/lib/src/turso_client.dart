@@ -290,9 +290,11 @@ class TursoTrxClient {
       final result = await callback(this);
       await raw('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await raw('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await raw('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 
