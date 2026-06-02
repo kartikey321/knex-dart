@@ -249,10 +249,11 @@ async function snapshotSqlite(limit: number): Promise<DbVisualizerSnapshot> {
   const tables: DbTableSnapshot[] = [];
 
   for (const name of tableNames) {
-    const countRes = db.exec(`select count(*) as c from "${name}";`);
+    const escapedName = name.replace(/"/g, '""');
+    const countRes = db.exec(`select count(*) as c from "${escapedName}";`);
     const rowCount = Number(countRes[0]?.values?.[0]?.[0] ?? 0);
 
-    const stmt = db.prepare(`select * from "${name}" limit ${limit};`);
+    const stmt = db.prepare(`select * from "${escapedName}" limit ${limit};`);
     let columns: string[] = [];
     const rows: unknown[][] = [];
     try {
@@ -282,10 +283,11 @@ async function snapshotPglite(limit: number): Promise<DbVisualizerSnapshot> {
 
   const tables: DbTableSnapshot[] = [];
   for (const name of tableNames) {
-    const countRes = await db.query(`select count(*)::int as c from "${name}";`);
+    const escapedName = name.replace(/"/g, '""');
+    const countRes = await db.query(`select count(*)::int as c from "${escapedName}";`);
     const rowCount = Number((countRes.rows as Array<{ c: number }>)[0]?.c ?? 0);
 
-    const result = await db.query(`select * from "${name}" limit ${limit};`);
+    const result = await db.query(`select * from "${escapedName}" limit ${limit};`);
     const columns = result.fields.map((f: any) => f.name);
     const rows = (result.rows as any[]).map((row) =>
       columns.map((c: string) => row[c]),

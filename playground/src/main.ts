@@ -375,7 +375,7 @@ shareBtn.addEventListener('click', () => {
 // ── Copy output ───────────────────────────────────────────────────────────────
 copyOutputBtn.addEventListener('click', () => {
   const text = outputNode.textContent ?? '';
-  navigator.clipboard.writeText(text).then(() => showToast('Output copied!'));
+  navigator.clipboard.writeText(text).then(() => showToast('Output copied!')).catch(() => showToast('Copy failed — check clipboard permissions'));
 });
 
 // ── Reset DB ──────────────────────────────────────────────────────────────────

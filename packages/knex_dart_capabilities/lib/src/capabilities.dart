@@ -1,7 +1,7 @@
 /// Canonical dialect keys used by capability checks.
-enum KnexDialect { postgres, mysql, sqlite, mariadb, 
-                  redshift, turso,d1, duckdb, snowflake, 
-                  bigquery }
+enum KnexDialect { postgres, mysql, sqlite, mariadb,
+                  redshift, turso, d1, duckdb, snowflake,
+                  bigquery, mssql }
 
 /// SQL features whose support varies by dialect in knex_dart.
 enum SqlCapability {
@@ -140,6 +140,15 @@ const Map<KnexDialect, Set<SqlCapability>> dialectCapabilities = {
   KnexDialect.bigquery: {
     SqlCapability.fullOuterJoin,
     SqlCapability.lateralJoin,
+    SqlCapability.cte,
+    SqlCapability.windowFunctions,
+    SqlCapability.json,
+    SqlCapability.intersectExcept,
+  },
+  // MSSQL (SQL Server): No RETURNING (uses OUTPUT instead), supports CTEs,
+  // window functions, FULL OUTER JOIN, INTERSECT/EXCEPT, JSON functions.
+  KnexDialect.mssql: {
+    SqlCapability.fullOuterJoin,
     SqlCapability.cte,
     SqlCapability.windowFunctions,
     SqlCapability.json,

@@ -309,20 +309,26 @@ class MySQLClient {
   Future<T> trx<T>(Future<T> Function(MySQLTrxClient trx) callback) async {
     if (_isClosed) throw StateError('Pool is closed');
     final conn = await _pool.acquire();
+    bool committed = false;
     try {
       await conn.execute('START TRANSACTION');
+      final result = await callback(MySQLTrxClient._(conn));
+      await conn.execute('COMMIT');
+      committed = true;
+      return result;
+    } catch (e, st) {
       try {
-        final result = await callback(MySQLTrxClient._(conn));
-        await conn.execute('COMMIT');
-        return result;
-      } catch (e, st) {
-        try {
-          await conn.execute('ROLLBACK');
-        } catch (_) {}
-        Error.throwWithStackTrace(e, st);
-      }
+        await conn.execute('ROLLBACK');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     } finally {
-      _pool.release(conn);
+      // Release healthy connections; discard connections that may be poisoned
+      // (e.g. START TRANSACTION failed, COMMIT failed, or ROLLBACK failed).
+      if (committed) {
+        _pool.release(conn);
+      } else {
+        _pool.discard(conn);
+      }
     }
   }
 }

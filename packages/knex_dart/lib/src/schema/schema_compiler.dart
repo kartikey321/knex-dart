@@ -449,10 +449,17 @@ class SchemaCompiler {
           _pushQuery('alter table $tableRef drop column ${_wrap(args[0])}');
           break;
         case 'renameColumn':
-          // JS PG: alter table "t" rename "from" to "to"
-          _pushQuery(
-            'alter table $tableRef rename ${_wrap(args[0])} to ${_wrap(args[1])}',
-          );
+          if (client.driverName == 'mssql') {
+            // MSSQL uses sp_rename: 'schema.table.old' → 'new'
+            _pushQuery(
+              "exec sp_rename '${tableName}.${args[0]}', '${args[1]}', 'COLUMN'",
+            );
+          } else {
+            // PostgreSQL, MySQL 8+, SQLite 3.25+, DuckDB, etc.
+            _pushQuery(
+              'alter table $tableRef rename column ${_wrap(args[0])} to ${_wrap(args[1])}',
+            );
+          }
           break;
         case 'unique':
           final cols = args[0] is List ? args[0] as List : [args[0]];
@@ -496,7 +503,14 @@ class SchemaCompiler {
         case 'dropIndex':
           final indexName = args.length > 1 && args[1] != null ? args[1] : null;
           if (indexName != null) {
-            _pushQuery('drop index ${_wrap(indexName)}');
+            if (client.driverName == 'mysql' ||
+                client.driverName == 'mysql2' ||
+                client.driverName == 'mariadb') {
+              // MySQL requires ON <table> to identify the index.
+              _pushQuery('drop index ${_wrap(indexName)} on $tableRef');
+            } else {
+              _pushQuery('drop index ${_wrap(indexName)}');
+            }
           }
           break;
         case 'dropForeign':
@@ -504,9 +518,17 @@ class SchemaCompiler {
           final constraintName = args.length > 1 && args[1] != null
               ? args[1]
               : '${tableName}_${cols.join('_')}_foreign';
-          _pushQuery(
-            'alter table $tableRef drop constraint ${_wrap(constraintName)}',
-          );
+          if (client.driverName == 'mysql' ||
+              client.driverName == 'mysql2' ||
+              client.driverName == 'mariadb') {
+            _pushQuery(
+              'alter table $tableRef drop foreign key ${_wrap(constraintName)}',
+            );
+          } else {
+            _pushQuery(
+              'alter table $tableRef drop constraint ${_wrap(constraintName)}',
+            );
+          }
           break;
         case 'foreign':
           // Fluent foreign key from table.foreign('col').references('id').inTable('t')
@@ -542,14 +564,59 @@ class SchemaCompiler {
             _pushQuery('alter table $tableRef $dropParts');
           }
           break;
+        case 'primary':
+          final cols = args[0] is List ? args[0] as List : [args[0]];
+          final colStr = cols.map((c) => _wrap(c)).join(', ');
+          _pushQuery('alter table $tableRef add primary key ($colStr)');
+          break;
+        case 'dropPrimary':
+          if (client.driverName == 'mysql' ||
+              client.driverName == 'mysql2' ||
+              client.driverName == 'mariadb') {
+            _pushQuery('alter table $tableRef drop primary key');
+          } else {
+            final constraintName =
+                args.isNotEmpty && args[0] != null ? args[0] : '${tableName}_pkey';
+            _pushQuery(
+              'alter table $tableRef drop constraint ${_wrap(constraintName)}',
+            );
+          }
+          break;
+        case 'dropUnique':
+          final cols = args[0] is List ? args[0] as List : [args[0]];
+          final constraintName = args.length > 1 && args[1] != null
+              ? args[1]
+              : '${tableName}_${(cols).join('_')}_unique';
+          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+            _pushQuery('drop index ${_wrap(constraintName)}');
+          } else if (client.driverName == 'mysql' ||
+              client.driverName == 'mysql2' ||
+              client.driverName == 'mariadb') {
+            _pushQuery(
+              'alter table $tableRef drop index ${_wrap(constraintName)}',
+            );
+          } else {
+            _pushQuery(
+              'alter table $tableRef drop constraint ${_wrap(constraintName)}',
+            );
+          }
+          break;
         case 'setNullable':
-          // JS PG: alter table "t" alter column "col" drop not null
+          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+            throw UnsupportedError(
+              'setNullable is not supported for SQLite — recreate the table instead',
+            );
+          }
           _pushQuery(
             'alter table $tableRef alter column ${_wrap(args[0])} drop not null',
           );
           break;
         case 'dropNullable':
-          // JS PG: alter table "t" alter column "col" set not null
+          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+            throw UnsupportedError(
+              'dropNullable is not supported for SQLite — recreate the table instead',
+            );
+          }
           _pushQuery(
             'alter table $tableRef alter column ${_wrap(args[0])} set not null',
           );

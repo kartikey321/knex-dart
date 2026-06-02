@@ -463,7 +463,7 @@ jobs:
             < test/integration/sql/mysql_seed.sql
       - name: Run MySQL tests
         working-directory: drivers/knex_dart_mysql
-        run: dart test --tags=mysql
+        run: dart test --tags=mysql && dart test test/pool test/mocks
         env:
           MYSQL_HOST: localhost
           MYSQL_PORT: 3306

@@ -218,26 +218,30 @@ class KnexOtelInterceptor extends QueryInterceptor {
     final span = _tracer.startSpan(spanName, kind: SpanKind.client);
 
     // Required / recommended OTel DB semantic convention attributes.
-    span.setStringAttribute('db.system.name', ctx.dbSystem);
-    span.setStringAttribute('db.operation.name', ctx.operationName);
-    if (ctx.database != null) {
-      span.setStringAttribute('db.namespace', ctx.database!);
-    }
-    if (ctx.collectionName != null) {
-      span.setStringAttribute('db.collection.name', ctx.collectionName!);
-    }
-    if (_options.captureQueryText) {
-      final sql = ctx.sql.length > _options.maxQueryTextLength
-          ? '${ctx.sql.substring(0, _options.maxQueryTextLength)}…'
-          : ctx.sql;
-      span.setStringAttribute('db.query.text', sql);
-    }
-    if (ctx.serverAddress != null) {
-      span.setStringAttribute('server.address', ctx.serverAddress!);
-    }
-    if (ctx.serverPort != null) {
-      span.setIntAttribute('server.port', ctx.serverPort!);
-    }
+    // Guarded: a failing SDK call must never prevent span.end() from being
+    // reached (which would leak the span), nor break the user's query.
+    try {
+      span.setStringAttribute('db.system.name', ctx.dbSystem);
+      span.setStringAttribute('db.operation.name', ctx.operationName);
+      if (ctx.database != null) {
+        span.setStringAttribute('db.namespace', ctx.database!);
+      }
+      if (ctx.collectionName != null) {
+        span.setStringAttribute('db.collection.name', ctx.collectionName!);
+      }
+      if (_options.captureQueryText) {
+        final sql = ctx.sql.length > _options.maxQueryTextLength
+            ? '${ctx.sql.substring(0, _options.maxQueryTextLength)}…'
+            : ctx.sql;
+        span.setStringAttribute('db.query.text', sql);
+      }
+      if (ctx.serverAddress != null) {
+        span.setStringAttribute('server.address', ctx.serverAddress!);
+      }
+      if (ctx.serverPort != null) {
+        span.setIntAttribute('server.port', ctx.serverPort!);
+      }
+    } catch (_) {}
 
     // User hook — runs after base attributes are set so it can override them.
     if (_options.requestHook != null) {

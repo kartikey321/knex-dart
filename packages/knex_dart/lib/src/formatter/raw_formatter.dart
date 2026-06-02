@@ -123,12 +123,17 @@ class RawFormatter {
         final isIdentifier = key[key.length - 1] == ':'; // Ends with :
         final value = bindings[part];
 
-        // Handle undefined/missing value
+        // Handle undefined/missing value vs explicit null.
         if (value == null) {
           if (bindings.containsKey(part)) {
-            result.add(value);
+            // Key present with null — emit a positional placeholder for NULL.
+            result.add(null);
+            return matchStr.replaceFirst(
+              p1!,
+              client.parameterPlaceholder(result.length),
+            );
           }
-          return matchStr; // Keep original placeholder
+          return matchStr; // Missing key — keep placeholder as-is.
         }
 
         if (isIdentifier) {

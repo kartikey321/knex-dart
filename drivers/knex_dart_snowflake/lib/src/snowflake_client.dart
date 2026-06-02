@@ -142,7 +142,7 @@ class SnowflakeClient {
   }
 
   Map<String, String> _toSnowflakeBinding(dynamic value) {
-    if (value == null) return {'type': 'TEXT', 'value': 'null'};
+    if (value == null) return {'type': 'TEXT', 'value': null};
     if (value is bool) return {'type': 'BOOLEAN', 'value': value.toString()};
     if (value is int) return {'type': 'FIXED', 'value': value.toString()};
     if (value is double) return {'type': 'REAL', 'value': value.toString()};

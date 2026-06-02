@@ -18,6 +18,9 @@ class DialectUnsupportedReturningRule extends DartLintRule {
     errorSeverity: DiagnosticSeverity.WARNING,
   );
 
+  // Methods that accept an optional `returning` list as their last argument.
+  static const _methodsWithReturningArg = {'insert', 'update', 'delete'};
+
   @override
   void run(
     CustomLintResolver resolver,
@@ -25,7 +28,31 @@ class DialectUnsupportedReturningRule extends DartLintRule {
     CustomLintContext context,
   ) {
     context.registry.addMethodInvocation((MethodInvocation node) {
-      if (node.methodName.name != 'returning') return;
+      // .returning([...]) chained call
+      if (node.methodName.name == 'returning') {
+        reportIfUnsupported(
+          node: node,
+          reporter: reporter,
+          code: _code,
+          capability: SqlCapability.returning,
+        );
+        return;
+      }
+
+      // insert(values, returning), update(values, returning), delete(returning)
+      if (!_methodsWithReturningArg.contains(node.methodName.name)) return;
+      final args = node.argumentList.arguments;
+      if (args.isEmpty) return;
+      final lastArg = args.last;
+      // Only flag when a non-null returning argument is explicitly provided.
+      if (lastArg is NullLiteral) return;
+      final isNamedReturning =
+          lastArg is NamedExpression && lastArg.name.label.name == 'returning';
+      final isPositionalReturning =
+          lastArg is! NamedExpression &&
+          ((node.methodName.name == 'delete' && args.length == 1) ||
+           (node.methodName.name != 'delete' && args.length >= 2));
+      if (!isNamedReturning && !isPositionalReturning) return;
 
       reportIfUnsupported(
         node: node,

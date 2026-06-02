@@ -122,11 +122,14 @@ class TursoClient {
       'Content-Type': 'application/json',
       if (_authToken != null) 'Authorization': 'Bearer $_authToken',
     };
-    final response = await _http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode(body),
-    );
+    final response = await _http
+        .post(uri, headers: headers, body: jsonEncode(body))
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException(
+            'Turso HTTP request timed out after 30 s',
+          ),
+        );
 
     if (response.statusCode != 200) {
       throw StateError(

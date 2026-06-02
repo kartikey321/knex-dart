@@ -324,6 +324,8 @@ KnexDialect? _resolveFromConstructorCall(InstanceCreationExpression node) {
       return KnexDialect.snowflake;
     case 'KnexBigQuery':
       return KnexDialect.bigquery;
+    case 'KnexMssql':
+      return KnexDialect.mssql;
     default:
       return null;
   }
@@ -350,6 +352,8 @@ KnexDialect? _dialectFromConnectTarget(Expression? target) {
       return KnexDialect.sqlite;
     case 'KnexDuckDB':
       return KnexDialect.duckdb;
+    case 'KnexMssql':
+      return KnexDialect.mssql;
     default:
       return null;
   }

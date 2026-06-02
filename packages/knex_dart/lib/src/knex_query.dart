@@ -129,9 +129,9 @@ class _DialectClient extends Client {
       case KnexDialect.mysql:
       case KnexDialect.mariadb:
       case KnexDialect.bigquery:
-        return '`$identifier`';
+        return '`${identifier.replaceAll('`', '``')}`';
       default:
-        return '"$identifier"';
+        return '"${identifier.replaceAll('"', '""')}"';
     }
   }
 
