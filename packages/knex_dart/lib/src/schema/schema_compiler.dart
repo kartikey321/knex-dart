@@ -452,7 +452,7 @@ class SchemaCompiler {
           if (client.driverName == 'mssql') {
             // MSSQL uses sp_rename: 'schema.table.old' → 'new'
             _pushQuery(
-              "exec sp_rename '${tableName}.${args[0]}', '${args[1]}', 'COLUMN'",
+              "exec sp_rename '$tableName.${args[0]}', '${args[1]}', 'COLUMN'",
             );
           } else {
             // PostgreSQL, MySQL 8+, SQLite 3.25+, DuckDB, etc.

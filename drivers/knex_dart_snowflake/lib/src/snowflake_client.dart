@@ -132,8 +132,8 @@ class SnowflakeClient {
     return _parseResponse(response);
   }
 
-  Map<String, Map<String, String>> _buildBindings(List<dynamic> bindings) {
-    final result = <String, Map<String, String>>{};
+  Map<String, Map<String, String?>> _buildBindings(List<dynamic> bindings) {
+    final result = <String, Map<String, String?>>{};
     for (var i = 0; i < bindings.length; i++) {
       final key = '${i + 1}'; // 1-based
       result[key] = _toSnowflakeBinding(bindings[i]);
@@ -141,7 +141,7 @@ class SnowflakeClient {
     return result;
   }
 
-  Map<String, String> _toSnowflakeBinding(dynamic value) {
+  Map<String, String?> _toSnowflakeBinding(dynamic value) {
     if (value == null) return {'type': 'TEXT', 'value': null};
     if (value is bool) return {'type': 'BOOLEAN', 'value': value.toString()};
     if (value is int) return {'type': 'FIXED', 'value': value.toString()};
