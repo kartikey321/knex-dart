@@ -1453,8 +1453,9 @@ class QueryCompiler {
 
   /// Generate unique query ID.
   String _generateUid() {
-    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFF;
-    return 'q${_uidCounter.toRadixString(16).padLeft(8, '0')}';
+    const maxJsSafeInt = 0x1FFFFFFFFFFFFF;
+    _uidCounter = (_uidCounter + 1) & maxJsSafeInt;
+    return 'q${_uidCounter.toRadixString(16).padLeft(14, '0')}';
   }
 
   /// Compile INSERT query

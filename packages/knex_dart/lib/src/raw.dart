@@ -141,8 +141,9 @@ class Raw {
 
   /// Generate a unique ID for this query.
   String _generateUid() {
-    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFF;
-    return 'r${_uidCounter.toRadixString(16).padLeft(8, '0')}';
+    const maxJsSafeInt = 0x1FFFFFFFFFFFFF;
+    _uidCounter = (_uidCounter + 1) & maxJsSafeInt;
+    return 'r${_uidCounter.toRadixString(16).padLeft(14, '0')}';
   }
 
   /// Validate bindings don't contain null values

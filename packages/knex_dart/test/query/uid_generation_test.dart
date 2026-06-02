@@ -11,8 +11,8 @@ void main() {
       final first = knex.from('users').select(['id']).toSQL().uid;
       final second = knex.from('users').select(['name']).toSQL().uid;
 
-      expect(first, matches(RegExp(r'^q[0-9a-f]{8}$')));
-      expect(second, matches(RegExp(r'^q[0-9a-f]{8}$')));
+      expect(first, matches(RegExp(r'^q[0-9a-f]{14}$')));
+      expect(second, matches(RegExp(r'^q[0-9a-f]{14}$')));
       expect(_uidValue(second!), greaterThan(_uidValue(first!)));
     });
 
@@ -22,8 +22,8 @@ void main() {
       final first = Raw(client).set('select 1').toSQL().uid;
       final second = Raw(client).set('select 2').toSQL().uid;
 
-      expect(first, matches(RegExp(r'^r[0-9a-f]{8}$')));
-      expect(second, matches(RegExp(r'^r[0-9a-f]{8}$')));
+      expect(first, matches(RegExp(r'^r[0-9a-f]{14}$')));
+      expect(second, matches(RegExp(r'^r[0-9a-f]{14}$')));
       expect(_uidValue(second!), greaterThan(_uidValue(first!)));
     });
   });

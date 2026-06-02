@@ -58,5 +58,26 @@ void main() {
       },
       skip: _isWeb ? 'native stack symbol assertion' : false,
     );
+
+    test(
+      'compiled query failures preserve the originating stack trace',
+      () async {
+        final query = db.queryBuilder().table('missing_items').select(['id']);
+
+        Object? error;
+        StackTrace? stackTrace;
+        try {
+          await db.select(query);
+        } catch (e, st) {
+          error = e;
+          stackTrace = st;
+        }
+
+        expect(error, isNotNull);
+        expect(stackTrace, isNotNull);
+        expect(stackTrace.toString(), contains('_execute'));
+      },
+      skip: _isWeb ? 'native stack symbol assertion' : false,
+    );
   });
 }
