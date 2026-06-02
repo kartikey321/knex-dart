@@ -1,3 +1,7 @@
+/// Pipeline integration tests for the DuckDB wrapper.
+@Tags(['duckdb'])
+library;
+
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_duckdb/knex_dart_duckdb.dart';
 import 'package:test/test.dart';
