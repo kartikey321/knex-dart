@@ -115,6 +115,8 @@ class _DialectClient extends Client {
         return 'snowflake';
       case KnexDialect.bigquery:
         return 'bigquery';
+      case KnexDialect.mssql:
+        return 'mssql';
     }
   }
 

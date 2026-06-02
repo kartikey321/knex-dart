@@ -261,6 +261,7 @@ class SQLiteClient extends Client {
     String sql, [
     List<dynamic>? bindings,
   ]) async {
+    if (_isClosed) throw StateError('SQLiteClient is closed');
     final params = bindings ?? [];
     final stmt = _stmtCache.putIfAbsent(sql, () => _db.prepare(sql));
     final upperSql = sql.trimLeft().toUpperCase();
