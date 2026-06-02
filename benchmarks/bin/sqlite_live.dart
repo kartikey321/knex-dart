@@ -93,15 +93,18 @@ class RawBench {
 
   Future<Duration> benchDelete() => _time(() async {
     for (var i = 0; i < _iterations; i++) {
+      _db.execute("DELETE FROM users WHERE name = 'del_$i'");
+    }
+  });
+
+  void seedDeleteRows() {
+    for (var i = 0; i < _iterations; i++) {
       _db.execute('INSERT INTO users (name, age) VALUES (?, ?)', [
         'del_$i',
         99,
       ]);
     }
-    for (var i = 0; i < _iterations; i++) {
-      _db.execute("DELETE FROM users WHERE name = 'del_$i'");
-    }
-  });
+  }
 }
 
 class KnexBench {
@@ -144,13 +147,6 @@ class KnexBench {
 
   Future<Duration> benchDelete() => _time(() async {
     for (var i = 0; i < _iterations; i++) {
-      final ins = _db.queryBuilder().table('users').insert({
-        'name': 'del_$i',
-        'age': 99,
-      });
-      await _db.insert(ins);
-    }
-    for (var i = 0; i < _iterations; i++) {
       final del = _db
           .queryBuilder()
           .table('users')
@@ -159,6 +155,8 @@ class KnexBench {
       await _db.delete(del);
     }
   });
+
+  Future<void> seedDeleteRows() => _seedDeleteRows(_db);
 }
 
 class KnexOtelBench {
@@ -220,13 +218,6 @@ class KnexOtelBench {
 
   Future<Duration> benchDelete() => _time(() async {
     for (var i = 0; i < _iterations; i++) {
-      final ins = _db.queryBuilder().table('users').insert({
-        'name': 'del_$i',
-        'age': 99,
-      });
-      await _db.insert(ins);
-    }
-    for (var i = 0; i < _iterations; i++) {
       final del = _db
           .queryBuilder()
           .table('users')
@@ -235,6 +226,8 @@ class KnexOtelBench {
       await _db.delete(del);
     }
   });
+
+  Future<void> seedDeleteRows() => _seedDeleteRows(_db);
 }
 
 Future<void> _seed(KnexSQLite db) async {
@@ -254,6 +247,16 @@ Future<void> _seed(KnexSQLite db) async {
   }
 }
 
+Future<void> _seedDeleteRows(KnexSQLite db) async {
+  for (var i = 0; i < _iterations; i++) {
+    final ins = db.queryBuilder().table('users').insert({
+      'name': 'del_$i',
+      'age': 99,
+    });
+    await db.insert(ins);
+  }
+}
+
 double _perOp(Duration duration) => duration.inMicroseconds / _iterations;
 
 String _formatMicros(Duration duration) => _perOp(duration).toStringAsFixed(2);
@@ -270,6 +273,7 @@ Future<void> main() async {
   final rawSelectMapped = await raw.benchSelectMapped();
   final rawInsert = await raw.benchInsert();
   final rawUpdate = await raw.benchUpdate();
+  raw.seedDeleteRows();
   final rawDelete = await raw.benchDelete();
   raw.tearDown();
 
@@ -278,6 +282,7 @@ Future<void> main() async {
   final knexSelect = await knex.benchSelect();
   final knexInsert = await knex.benchInsert();
   final knexUpdate = await knex.benchUpdate();
+  await knex.seedDeleteRows();
   final knexDelete = await knex.benchDelete();
   await knex.tearDown();
 
@@ -286,6 +291,7 @@ Future<void> main() async {
   final otelSelect = await otel.benchSelect();
   final otelInsert = await otel.benchInsert();
   final otelUpdate = await otel.benchUpdate();
+  await otel.seedDeleteRows();
   final otelDelete = await otel.benchDelete();
   await otel.tearDown();
 

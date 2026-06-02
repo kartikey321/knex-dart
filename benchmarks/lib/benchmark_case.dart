@@ -72,7 +72,8 @@ class BenchmarkCase {
       'mode': mode.name,
       'complexity': complexity,
       'features': features,
-      if (dialects != null) 'dialects': dialects!.map((d) => d.name).toList(),
+      if (dialects != null)
+        'dialects': (dialects!.map((d) => d.name).toList()..sort()),
       if (notes != null) 'notes': notes,
     };
   }

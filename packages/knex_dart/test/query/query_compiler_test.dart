@@ -22,7 +22,7 @@ void main() {
       expect(sql.sql, 'select * from "users"');
       expect(sql.bindings, []);
       expect(sql.method, 'select');
-      expect(sql.uid?.length, 12);
+      expect(sql.uid, matches(RegExp(r'^q[0-9a-f]{8}$')));
     });
 
     test('Test 2: SELECT with specific columns', () {
@@ -111,8 +111,8 @@ void main() {
       final sql2 = builder.toSQL();
 
       expect(sql1.uid, isNot(equals(sql2.uid)));
-      expect(sql1.uid?.length, 12);
-      expect(sql2.uid?.length, 12);
+      expect(sql1.uid, matches(RegExp(r'^q[0-9a-f]{8}$')));
+      expect(sql2.uid, matches(RegExp(r'^q[0-9a-f]{8}$')));
     });
   });
 
@@ -372,7 +372,9 @@ void main() {
 
     test('MSSQL LIMIT only uses OFFSET/FETCH', () {
       final mssql = MockClient(driverName: 'mssql');
-      final builder = QueryBuilder(mssql).table('users').orderBy('id').limit(10);
+      final builder = QueryBuilder(
+        mssql,
+      ).table('users').orderBy('id').limit(10);
       final sql = builder.toSQL();
 
       expect(

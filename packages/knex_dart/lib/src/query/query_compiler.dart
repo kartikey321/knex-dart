@@ -1453,8 +1453,8 @@ class QueryCompiler {
 
   /// Generate unique query ID.
   String _generateUid() {
-    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFFFFFFFFFF;
-    return 'q${_uidCounter.toRadixString(16).padLeft(11, '0')}';
+    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFF;
+    return 'q${_uidCounter.toRadixString(16).padLeft(8, '0')}';
   }
 
   /// Compile INSERT query

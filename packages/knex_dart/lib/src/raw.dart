@@ -141,8 +141,8 @@ class Raw {
 
   /// Generate a unique ID for this query.
   String _generateUid() {
-    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFFFFFFFFFF;
-    return 'r${_uidCounter.toRadixString(16).padLeft(11, '0')}';
+    _uidCounter = (_uidCounter + 1) & 0x7FFFFFFF;
+    return 'r${_uidCounter.toRadixString(16).padLeft(8, '0')}';
   }
 
   /// Validate bindings don't contain null values

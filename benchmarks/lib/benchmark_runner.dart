@@ -122,8 +122,6 @@ class BenchmarkRunner {
   final List<BenchmarkCase> cases;
   final BenchmarkConfig config;
 
-  BenchmarkOutput? _lastOutput;
-
   BenchmarkRunner({required this.cases, required this.config});
 
   BenchmarkRun run() {
@@ -143,8 +141,8 @@ class BenchmarkRunner {
       }
     }
 
-    if (_lastOutput == null) {
-      throw StateError('benchmark produced no SQL');
+    if (results.isEmpty) {
+      throw StateError('benchmark run had no cases or dialects configured');
     }
 
     return BenchmarkRun(
@@ -167,7 +165,6 @@ class BenchmarkRunner {
   ) {
     try {
       final sample = benchmarkCase.build(dialect);
-      _lastOutput = sample;
 
       _time(benchmarkCase.build, dialect, config.warmupIterations);
       final elapsed = _time(benchmarkCase.build, dialect, config.iterations);
@@ -229,7 +226,7 @@ class BenchmarkRunner {
   Duration _time(BenchmarkBuild build, KnexDialect dialect, int iterations) {
     final sw = Stopwatch()..start();
     for (var i = 0; i < iterations; i++) {
-      _lastOutput = build(dialect);
+      build(dialect);
     }
     sw.stop();
     return sw.elapsed;

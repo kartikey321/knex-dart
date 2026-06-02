@@ -111,7 +111,7 @@ List<_OperationSummary> _summaries(List<BenchmarkCaseResult> results) {
 
 double? _baseline(List<_OperationSummary> summaries) {
   for (final summary in summaries) {
-    if (summary.caseName == 'SELECT simple' && summary.average > 0) {
+    if (summary.caseId == 'select_simple' && summary.average > 0) {
       return summary.average;
     }
   }
@@ -157,6 +157,7 @@ _OperationSummary _summarize(List<BenchmarkCaseResult> entries) {
   if (measured.isEmpty) {
     final statuses = entries.map((entry) => entry.status).toSet().join(',');
     return _OperationSummary(
+      caseId: entries.first.caseId,
       caseName: entries.first.caseName,
       category: entries.first.category,
       average: 0,
@@ -191,6 +192,7 @@ _OperationSummary _summarize(List<BenchmarkCaseResult> entries) {
   ].join(', ');
 
   return _OperationSummary(
+    caseId: entries.first.caseId,
     caseName: entries.first.caseName,
     category: entries.first.category,
     average: average,
@@ -216,6 +218,7 @@ String _escapeCell(String value) {
 }
 
 class _OperationSummary {
+  final String caseId;
   final String caseName;
   final String category;
   final double average;
@@ -225,6 +228,7 @@ class _OperationSummary {
   final String status;
 
   const _OperationSummary({
+    required this.caseId,
     required this.caseName,
     required this.category,
     required this.average,

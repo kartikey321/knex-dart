@@ -404,5 +404,37 @@ void main() {
       expect(capturedSpan.attributes.getString('db.system.name'), 'sqlite');
       expect(capturedSpan.attributes.getString('db.operation.name'), 'SELECT');
     });
+
+    test('ends span when subscription is cancelled mid-stream', () async {
+      late APISpan capturedSpan;
+      var responseHookCalls = 0;
+      final otel = KnexOtelInterceptor(
+        tracer: tracer,
+        operationDurationHistogram: histogram,
+        options: KnexOtelOptions(
+          requestHook: (span, _) => capturedSpan = span,
+          responseHook: (_, _, result) {
+            responseHookCalls++;
+            expect(result.isError, isFalse);
+          },
+        ),
+      );
+
+      final subscription = otel
+          .interceptStream<int>(
+            _ctx(dbSystem: 'sqlite', operationName: 'SELECT'),
+            () => Stream.periodic(
+              const Duration(milliseconds: 1),
+              (index) => index,
+            ),
+          )
+          .listen((_) {});
+
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await subscription.cancel();
+
+      expect(capturedSpan.isEnded, isTrue);
+      expect(responseHookCalls, 1);
+    });
   });
 }
