@@ -193,6 +193,6 @@ class MssqlTrxClient {
     }
   }
 
-  String _savepointId() =>
-      'sp${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+  static var _spCount = 0;
+  String _savepointId() => 'sp${(++_spCount).toRadixString(36)}';
 }

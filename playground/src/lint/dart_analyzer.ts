@@ -56,6 +56,7 @@ export function initDartAnalyzer(): Promise<boolean> {
       return true;
     } catch (e) {
       console.error('[dart_analyzer] init failed:', e);
+      initPromise = undefined;
       return false;
     }
   })();

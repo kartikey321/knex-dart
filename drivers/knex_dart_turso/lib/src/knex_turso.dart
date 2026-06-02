@@ -143,7 +143,7 @@ class KnexTursoTransaction extends KnexTransaction {
 
   @override
   Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
-    final sp = 'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+    final sp = 'sp_${_pipeline.nextUid()}';
     final childTxId = '${txId}_$sp';
     await rawSql('SAVEPOINT $sp');
     try {
@@ -152,9 +152,11 @@ class KnexTursoTransaction extends KnexTransaction {
       );
       await rawSql('RELEASE SAVEPOINT $sp');
       return result;
-    } catch (e) {
-      await rawSql('ROLLBACK TO SAVEPOINT $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await rawSql('ROLLBACK TO SAVEPOINT $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 }

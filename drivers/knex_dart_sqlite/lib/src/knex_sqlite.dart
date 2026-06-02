@@ -199,7 +199,7 @@ class KnexSQLiteTransaction extends KnexTransaction {
         // SQL flows through the pipeline.  Child txId still carries parent prefix
         // so OTel spans can be correlated by txId hierarchy.
         final childTxId =
-            '${txId}_sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+            '${txId}_sp_${_pipeline.nextUid()}';
         return callback(
           KnexSQLiteTransaction._(client, _pipeline, childTxId),
         );

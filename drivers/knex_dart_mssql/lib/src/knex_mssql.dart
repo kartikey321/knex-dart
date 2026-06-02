@@ -168,7 +168,7 @@ class KnexMssqlTransaction extends KnexTransaction {
   // SQL Server savepoints: no explicit RELEASE, rolled back with ROLLBACK TRANSACTION <name>
   @override
   Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
-    final sp = 'sp${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+    final sp = 'sp${_pipeline.nextUid()}';
     final childTxId = '${txId}_$sp';
     await rawSql('SAVE TRANSACTION $sp');
     try {
@@ -176,9 +176,11 @@ class KnexMssqlTransaction extends KnexTransaction {
         KnexMssqlTransaction._(_trx, _pipeline, childTxId),
       );
       return result;
-    } catch (e) {
-      await rawSql('ROLLBACK TRANSACTION $sp');
-      rethrow;
+    } catch (e, st) {
+      try {
+        await rawSql('ROLLBACK TRANSACTION $sp');
+      } catch (_) {}
+      Error.throwWithStackTrace(e, st);
     }
   }
 }

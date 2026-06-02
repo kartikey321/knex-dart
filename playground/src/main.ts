@@ -195,12 +195,13 @@ let isRunning = false;
 let isResettingDb = false;
 
 function syncControls() {
-  runButton.disabled = isRunning;
-  dialectNode.disabled = isRunning;
-  dbEngineNode.disabled = isRunning;
-  examplesNode.disabled = isRunning;
-  refreshDbVizBtn.disabled = isRunning;
-  resetDbBtn.disabled = isRunning || isResettingDb;
+  const busy = isRunning || isResettingDb;
+  runButton.disabled = busy;
+  dialectNode.disabled = busy;
+  dbEngineNode.disabled = busy;
+  examplesNode.disabled = busy;
+  refreshDbVizBtn.disabled = busy;
+  resetDbBtn.disabled = busy;
 }
 
 function setRunning(running: boolean, msg = 'Running…') {

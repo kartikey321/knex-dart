@@ -374,9 +374,12 @@ class MySQLTrxClient {
       return _mapResults(result);
     }
     final stmt = await _connection.prepare(compiled.sql);
-    final result = await stmt.execute(compiled.bindings);
-    await stmt.deallocate();
-    return _mapResults(result);
+    try {
+      final result = await stmt.execute(compiled.bindings);
+      return _mapResults(result);
+    } finally {
+      await stmt.deallocate();
+    }
   }
 
   List<Map<String, dynamic>> _mapResults(IResultSet results) {
@@ -396,9 +399,12 @@ class MySQLTrxClient {
       return _mapResults(await _connection.execute(sql));
     }
     final stmt = await _connection.prepare(sql);
-    final result = await stmt.execute(bindings);
-    await stmt.deallocate();
-    return _mapResults(result);
+    try {
+      final result = await stmt.execute(bindings);
+      return _mapResults(result);
+    } finally {
+      await stmt.deallocate();
+    }
   }
 
   // ─── Nested transactions (savepoints) ────────────────────────────────────
@@ -421,5 +427,6 @@ class MySQLTrxClient {
   }
 
   String _savepointId() =>
-      'sp_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+      'sp_${(++_spCount).toRadixString(36)}';
+  static var _spCount = 0;
 }

@@ -133,15 +133,17 @@ async function executeSqlite(sql: string, bindings: unknown[]): Promise<Embedded
   const start = performance.now();
 
   const stmt = db.prepare(sql);
-  stmt.bind(bindings as any[]);
-
-  const columns = stmt.getColumnNames();
+  let columns: string[] = [];
   const rows: unknown[][] = [];
-  while (stmt.step()) {
-    rows.push(stmt.get());
+  try {
+    stmt.bind(bindings as any[]);
+    columns = stmt.getColumnNames();
+    while (stmt.step()) {
+      rows.push(stmt.get());
+    }
+  } finally {
+    stmt.free();
   }
-
-  stmt.free();
   const durationMs = Number((performance.now() - start).toFixed(3));
 
   return {

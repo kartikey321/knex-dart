@@ -23,9 +23,14 @@ worker.onerror = (error) => {
   pending = undefined;
 };
 
+let queue: Promise<unknown> = Promise.resolve();
+
 export function lintInWorker(request: LintRequest): Promise<PlaygroundDiagnostic[]> {
-  return new Promise((resolve, reject) => {
-    pending = { resolve, reject };
-    worker.postMessage(request);
-  });
+  const run = (): Promise<PlaygroundDiagnostic[]> =>
+    new Promise((resolve, reject) => {
+      pending = { resolve, reject };
+      worker.postMessage(request);
+    });
+  queue = queue.then(run, run);
+  return queue as Promise<PlaygroundDiagnostic[]>;
 }

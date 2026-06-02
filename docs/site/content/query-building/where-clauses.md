@@ -60,8 +60,8 @@ print(
 print(db.from('users').whereNotIn('status', ['banned', 'deleted']).toSQL().sql);
 // select * from "users" where "status" not in ($1, $2)
 
-print(db.from('users').orWhereNotIn('id', [1, 2, 3]).toSQL().sql);
-// select * from "users" or "id" not in ($1, $2, $3)
+print(db.from('users').where('active', '=', true).orWhereNotIn('id', [1, 2, 3]).toSQL().sql);
+// select * from "users" where "active" = $1 or "id" not in ($2, $3, $4)
 ```
 
 ## WHERE NULL
@@ -73,8 +73,8 @@ print(db.from('users').whereNull('deleted_at').toSQL().sql);
 print(db.from('users').whereNotNull('email').toSQL().sql);
 // select * from "users" where "email" is not null
 
-print(db.from('users').orWhereNull('middle_name').toSQL().sql);
-// select * from "users" or "middle_name" is null
+print(db.from('users').whereNotNull('email').orWhereNull('middle_name').toSQL().sql);
+// select * from "users" where "email" is not null or "middle_name" is null
 ```
 
 ## WHERE BETWEEN

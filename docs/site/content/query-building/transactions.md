@@ -82,7 +82,7 @@ await db.trx((trx) async {
 
 ```dart
 final newId = await db.trx((trx) async {
-  final rows = await trx.select(
+  final rows = await trx.insert(
     trx.queryBuilder()
       .table('users')
       .insert({'name': 'Alice', 'email': 'alice@example.com'})

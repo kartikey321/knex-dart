@@ -536,6 +536,8 @@ export function initDartLsp(
       return true;
     } catch (e) {
       console.error('[dart_lsp] init failed:', e);
+      _lspReady = false;
+      _initPromise = null;
       return false;
     }
   })();

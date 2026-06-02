@@ -44,7 +44,10 @@ export async function initWasmRuntime(): Promise<void> {
     }
 
     throw new Error('Unsupported wasm runtime exports from /wasm/main.mjs');
-  })();
+  })().catch((e) => {
+    wasmReadyPromise = undefined;
+    throw e;
+  });
 
   return wasmReadyPromise;
 }
