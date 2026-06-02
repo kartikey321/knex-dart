@@ -81,7 +81,7 @@ Always add a `.where(...)` clause unless you intend to update every row.
 final update = q
     .from('users')
     .where('id', '=', 1)
-    .update({'name': 'Alicia', 'updated_at': 'now()'})
+    .update({'name': 'Alicia', 'updated_at': DateTime.now().toIso8601String()})
     .toSQL();
 
 // UPDATE … RETURNING (PostgreSQL / SQLite)

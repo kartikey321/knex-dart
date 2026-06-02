@@ -32,7 +32,7 @@ In `docs/site/content/query-building/`:
 - Extension of existing concept → update the relevant page
 
 Structure:
-```markdown
+~~~markdown
 ---
 title: Feature Name
 description: One-line description
@@ -55,7 +55,7 @@ Brief description.
 | postgres | ✅ | |
 | mysql | ✅ | |
 | sqlite | ⚠️ | limited |
-```
+~~~
 
 ### 5. Add a playground example
 
@@ -66,7 +66,7 @@ In `playground/src/`:
 
 ### 6. Check the docs playground link component
 
-If the new docs page has runnable code blocks, verify [playground_link.dart](/Users/kartik/StudioProjects/knex/knex-dart/docs/site/lib/components/playground_link.dart) still generates valid playground snippets.
+If the new docs page has runnable code blocks, verify `docs/site/lib/components/playground_link.dart` still generates valid playground snippets.
 
 ### 7. Verify end-to-end
 

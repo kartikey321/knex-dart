@@ -239,8 +239,18 @@ class SQLiteClient extends Client {
     dynamic connection,
     String sql,
     List<dynamic> bindings,
-  ) {
-    throw UnimplementedError('Stream query not supported for SQLite yet');
+  ) async* {
+    final db = await _ensureDb();
+    final stmt = db.prepare(sql);
+    try {
+      final cursor = stmt.selectCursor(bindings.cast<Object?>());
+      while (cursor.moveNext()) {
+        final row = cursor.current;
+        yield Map<String, dynamic>.from(row);
+      }
+    } finally {
+      stmt.dispose();
+    }
   }
 
   @override

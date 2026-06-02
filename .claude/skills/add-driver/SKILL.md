@@ -53,10 +53,10 @@ Do not invent a driver-only surface unless the database genuinely requires it.
 
 Update:
 
-- Root [pubspec.yaml](/Users/kartik/StudioProjects/knex/knex-dart/pubspec.yaml)
-- [tool/run_tests.sh](/Users/kartik/StudioProjects/knex/knex-dart/tool/run_tests.sh)
-- [Makefile](/Users/kartik/StudioProjects/knex/knex-dart/Makefile)
-- [docker-compose.yml](/Users/kartik/StudioProjects/knex/knex-dart/docker-compose.yml) if the driver needs a local service
+- Root `pubspec.yaml`
+- `tool/run_tests.sh`
+- `Makefile`
+- `docker-compose.yml` if the driver needs a local service
 
 If the driver is server-backed, add health-check and teardown handling to the test runner.
 

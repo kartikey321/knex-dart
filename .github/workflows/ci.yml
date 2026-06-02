@@ -14,11 +14,35 @@ on:
       - 'knex_dart_snowflake-v*.*.*'
       - 'knex_dart_bigquery-v*.*.*'
       - 'knex_dart_mssql-v*.*.*'
+      - 'knex_dart_otel-v*.*.*'
       - 'knex_dart_capabilities-v*.*.*'
       - 'knex_dart_lint-v*.*.*'
+      - 'knex_dart_all-v*.*.*'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
+    inputs:
+      publish_package:
+        description: Package to publish after CI passes.
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - all
+          - knex_dart
+          - knex_dart_postgres
+          - knex_dart_mysql
+          - knex_dart_sqlite
+          - knex_dart_turso
+          - knex_dart_d1
+          - knex_dart_duckdb
+          - knex_dart_snowflake
+          - knex_dart_bigquery
+          - knex_dart_mssql
+          - knex_dart_otel
+          - knex_dart_capabilities
+          - knex_dart_lint
 
 # Cancel in-progress runs for the same branch/PR
 concurrency:
@@ -31,13 +55,17 @@ jobs:
   # 1 · Static analysis
   # ════════════════════════════════════════════════════════════════════════════
   analyze:
-    name: Analyze (all packages)
+    name: Analyze (Dart packages)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - run: dart pub global activate melos
       - run: melos run analyze
 
@@ -50,9 +78,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Run unit tests with coverage
         run: dart test packages/knex_dart/test --exclude-tags=postgres,mysql,sqlite,turso,bigquery,mssql,duckdb,d1,snowflake --coverage=coverage
       - name: Format coverage
@@ -89,8 +121,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
 
       - name: Install libsqlite3 (Linux)
         if: runner.os == 'Linux'
@@ -106,7 +138,11 @@ jobs:
           Invoke-WebRequest $url -OutFile sqlite.zip
           Expand-Archive sqlite.zip -DestinationPath $env:SystemRoot\System32 -Force
 
-      - run: flutter pub get
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Run SQLite tests
         working-directory: drivers/knex_dart_sqlite
         run: dart test
@@ -123,7 +159,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     env:
-      DUCKDB_VERSION: v1.2.2
+      DUCKDB_VERSION: v1.4.4
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -132,7 +168,7 @@ jobs:
       - name: Install DuckDB (Linux)
         if: runner.os == 'Linux'
         run: |
-          curl -fsSL \
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
             "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/libduckdb-linux-amd64.zip" \
             -o /tmp/libduckdb.zip
           sudo unzip -o /tmp/libduckdb.zip libduckdb.so -d /usr/local/lib/
@@ -151,6 +187,9 @@ jobs:
           Expand-Archive duckdb.zip -DestinationPath $env:SystemRoot\System32 -Force
 
       - run: flutter pub get
+      - name: Analyze DuckDB package
+        working-directory: drivers/knex_dart_duckdb
+        run: dart analyze --fatal-warnings
       - name: Run DuckDB tests
         working-directory: drivers/knex_dart_duckdb
         run: dart test
@@ -177,9 +216,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
 
       # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart
       # dart test serves package assets from lib/ under relative packages/<pkg>/...
@@ -228,9 +271,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Turso mock tests
         working-directory: drivers/knex_dart_turso
         run: dart test test/turso_test.dart
@@ -245,9 +292,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: D1 mock tests
         working-directory: drivers/knex_dart_d1
         run: dart test test/d1_test.dart
@@ -262,9 +313,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Snowflake mock tests
         working-directory: drivers/knex_dart_snowflake
         run: dart test test/snowflake_test.dart
@@ -279,9 +334,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: BigQuery mock tests
         working-directory: drivers/knex_dart_bigquery
         run: dart test test/bigquery_test.dart
@@ -296,9 +355,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
 
       - name: Turso mock tests (Chrome)
         working-directory: drivers/knex_dart_turso
@@ -336,9 +399,13 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Load schema + seed
         working-directory: drivers/knex_dart_postgres
         run: |
@@ -378,9 +445,13 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Load schema + seed
         working-directory: drivers/knex_dart_mysql
         run: |
@@ -422,11 +493,15 @@ jobs:
           --health-start-period 30s
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
       - name: Install FreeTDS runtime
         run: sudo apt-get update && sudo apt-get install -y libsybdb5 freetds-dev freetds-bin
-      - run: flutter pub get
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Create knex_test database
         run: |
           # sqlcmd lives inside the service container — use docker exec
@@ -441,6 +516,7 @@ jobs:
           # mssql_connection uses global FFI callbacks; keep one test process
           # per file to avoid cross-isolate callback crashes in CI.
           dart test test/integration/mssql_test.dart --concurrency=1
+          dart test test/integration/mssql_pipeline_test.dart --concurrency=1
           dart test test/integration/schema_api_integration_test.dart --concurrency=1
         env:
           MSSQL_HOST: localhost
@@ -460,23 +536,27 @@ jobs:
       sqld:
         image: ghcr.io/libsql/sqld:latest
         env: { SQLD_NODE: primary }
-        ports: ["8080:8080"]
+        ports: ["18080:8080"]
         options: >-
           --health-cmd "bash -c 'exec 3<>/dev/tcp/localhost/8080' 2>/dev/null"
           --health-interval 5s --health-timeout 3s --health-retries 20
           --health-start-period 10s
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: Run Turso mock tests
         working-directory: drivers/knex_dart_turso
         run: dart test test/turso_test.dart
       - name: Run Turso integration tests (real sqld)
         working-directory: drivers/knex_dart_turso
-        run: dart test test/integration/turso_integration_test.dart --tags=turso
-        env: { TURSO_URL: "http://localhost:8080" }
+        run: dart test test/integration --tags=turso
+        env: { TURSO_URL: "http://127.0.0.1:18080" }
 
   # ════════════════════════════════════════════════════════════════════════════
   # 12 · BigQuery  ·  emulator integration  (Linux + Docker service)
@@ -490,9 +570,13 @@ jobs:
     # --dataset args, so we start it as a background step instead.
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
 
       - name: Start BigQuery emulator
         run: |
@@ -534,9 +618,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
       - name: capabilities
         working-directory: packages/knex_dart_capabilities
         run: dart test
@@ -545,7 +633,27 @@ jobs:
         run: dart test
 
   # ════════════════════════════════════════════════════════════════════════════
-  # 14 · Publish  (version tags only — all tests must pass first)
+  # 14 · Integration packages
+  # ════════════════════════════════════════════════════════════════════════════
+  test-otel:
+    name: Test OpenTelemetry integration
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
+      - name: otel
+        working-directory: integrations/knex_dart_otel
+        run: dart test
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 15 · Publish  (release tags or explicit workflow dispatch)
   # ════════════════════════════════════════════════════════════════════════════
   publish:
     name: Publish to pub.dev
@@ -564,40 +672,64 @@ jobs:
       - test-turso-integration
       - test-bigquery-integration
       - test-packages
+      - test-otel
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_package != 'none')
     environment: pub.dev
     permissions:
       id-token: write
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with: { channel: stable }
-      - run: flutter pub get
-      - name: Resolve package directory from tag
+      - name: Resolve package to publish
         id: resolve
+        shell: bash
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "package=${{ inputs.publish_package }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           TAG="${GITHUB_REF_NAME}"
           case "$TAG" in
-            knex_dart-v*)              echo "dir=packages/knex_dart" ;;
-            knex_dart_postgres-v*)     echo "dir=drivers/knex_dart_postgres" ;;
-            knex_dart_mysql-v*)        echo "dir=drivers/knex_dart_mysql" ;;
-            knex_dart_sqlite-v*)       echo "dir=drivers/knex_dart_sqlite" ;;
-            knex_dart_turso-v*)        echo "dir=drivers/knex_dart_turso" ;;
-            knex_dart_d1-v*)           echo "dir=drivers/knex_dart_d1" ;;
-            knex_dart_duckdb-v*)       echo "dir=drivers/knex_dart_duckdb" ;;
-            knex_dart_snowflake-v*)    echo "dir=drivers/knex_dart_snowflake" ;;
-            knex_dart_bigquery-v*)     echo "dir=drivers/knex_dart_bigquery" ;;
-            knex_dart_mssql-v*)        echo "dir=drivers/knex_dart_mssql" ;;
-            knex_dart_otel-v*)         echo "dir=integrations/knex_dart_otel" ;;
-            knex_dart_capabilities-v*) echo "dir=packages/knex_dart_capabilities" ;;
-            knex_dart_lint-v*)         echo "dir=packages/knex_dart_lint" ;;
+            knex_dart-v*)              echo "package=knex_dart" ;;
+            knex_dart_postgres-v*)     echo "package=knex_dart_postgres" ;;
+            knex_dart_mysql-v*)        echo "package=knex_dart_mysql" ;;
+            knex_dart_sqlite-v*)       echo "package=knex_dart_sqlite" ;;
+            knex_dart_turso-v*)        echo "package=knex_dart_turso" ;;
+            knex_dart_d1-v*)           echo "package=knex_dart_d1" ;;
+            knex_dart_duckdb-v*)       echo "package=knex_dart_duckdb" ;;
+            knex_dart_snowflake-v*)    echo "package=knex_dart_snowflake" ;;
+            knex_dart_bigquery-v*)     echo "package=knex_dart_bigquery" ;;
+            knex_dart_mssql-v*)        echo "package=knex_dart_mssql" ;;
+            knex_dart_otel-v*)         echo "package=knex_dart_otel" ;;
+            knex_dart_capabilities-v*) echo "package=knex_dart_capabilities" ;;
+            knex_dart_lint-v*)         echo "package=knex_dart_lint" ;;
+            knex_dart_all-v*)          echo "package=all" ;;
             *) echo "Unsupported tag: $TAG" >&2; exit 1 ;;
           esac >> "$GITHUB_OUTPUT"
+      - uses: dart-lang/setup-dart@v1
+        if: steps.resolve.outputs.package != 'knex_dart_duckdb' && steps.resolve.outputs.package != 'all'
+        with: { sdk: stable }
+      - uses: subosito/flutter-action@v2
+        if: steps.resolve.outputs.package == 'knex_dart_duckdb' || steps.resolve.outputs.package == 'all'
+        with: { channel: stable }
+      - name: Remove DuckDB from Dart-only workspace
+        if: steps.resolve.outputs.package != 'knex_dart_duckdb' && steps.resolve.outputs.package != 'all'
+        shell: bash
+        run: sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+      - uses: bluefireteam/melos-action@v3
+        with:
+          melos-version: ^7.0.0
       - name: Publish dry-run
-        working-directory: ${{ steps.resolve.outputs.dir }}
-        run: dart pub publish --dry-run
+        if: steps.resolve.outputs.package != 'all'
+        run: melos publish --scope="${{ steps.resolve.outputs.package }}" --no-private --yes
+      - name: Publish dry-run (all)
+        if: steps.resolve.outputs.package == 'all'
+        run: melos publish --no-private --yes
       - name: Publish
-        working-directory: ${{ steps.resolve.outputs.dir }}
-        run: dart pub publish --force
+        if: steps.resolve.outputs.package != 'all'
+        run: melos publish --scope="${{ steps.resolve.outputs.package }}" --no-private --no-dry-run --yes
+      - name: Publish all
+        if: steps.resolve.outputs.package == 'all'
+        run: melos publish --no-private --no-dry-run --yes

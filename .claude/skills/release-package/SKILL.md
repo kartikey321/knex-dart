@@ -91,5 +91,5 @@ The docs deploy via GitHub Actions on a `docs-v*.*.*` tag.
 ## Notes
 
 - Cloudflare Pages has a **25 MiB per-file limit**. The playground's `dart-live/` WASM assets need to stay below that per-file cap.
-- Playground deploys are tag-triggered from [deploy_playground.yml](/Users/kartik/StudioProjects/knex/knex-dart/.github/workflows/deploy_playground.yml).
-- Docs deploys are CI-gated through [deploy_docs.yml](/Users/kartik/StudioProjects/knex/knex-dart/.github/workflows/deploy_docs.yml).
+- Playground deploys are tag-triggered from `.github/workflows/deploy_playground.yml`.
+- Docs deploys are CI-gated through `.github/workflows/deploy_docs.yml`.

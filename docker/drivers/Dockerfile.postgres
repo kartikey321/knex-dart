@@ -1,8 +1,8 @@
-FROM ghcr.io/cirruslabs/flutter:stable
+FROM dart:stable
 
 WORKDIR /workspace
 COPY . .
-RUN flutter pub get
+RUN sed -i '/knex_dart_duckdb/d' pubspec.yaml && dart pub get
 
 WORKDIR /workspace/drivers/knex_dart_postgres
 CMD ["dart", "test"]

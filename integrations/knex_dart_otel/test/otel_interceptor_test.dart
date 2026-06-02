@@ -11,7 +11,7 @@ class CapturingHistogram extends APIHistogram<double> {
   final List<(double value, Map<String, Object> attrs)> recordings = [];
 
   CapturingHistogram(APIMeter meter)
-      : super('db.client.operation.duration', null, 's', true, meter);
+    : super('db.client.operation.duration', null, 's', true, meter);
 
   @override
   void record(double value, [Attributes? attributes]) {
@@ -36,19 +36,18 @@ QueryExecutionContext _ctx({
   String? collectionName = 'users',
   String querySummary = 'SELECT users',
   String? txId,
-}) =>
-    QueryExecutionContext(
-      dbSystem: dbSystem,
-      database: database,
-      serverAddress: serverAddress,
-      serverPort: serverPort,
-      sql: sql,
-      parameters: const [],
-      operationName: operationName,
-      collectionName: collectionName,
-      querySummary: querySummary,
-      txId: txId,
-    );
+}) => QueryExecutionContext(
+  dbSystem: dbSystem,
+  database: database,
+  serverAddress: serverAddress,
+  serverPort: serverPort,
+  sql: sql,
+  parameters: const [],
+  operationName: operationName,
+  collectionName: collectionName,
+  querySummary: querySummary,
+  txId: txId,
+);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -88,7 +87,9 @@ void main() {
       );
       await i.intercept<List<Map<String, dynamic>>>(
         _ctx(),
-        () async => [{'id': 1}],
+        () async => [
+          {'id': 1},
+        ],
       );
       expect(span, isNotNull);
       expect(span!.isEnded, isTrue);
@@ -192,26 +193,36 @@ void main() {
       expect(value, lessThan(5.0)); // sanity: no test takes 5 seconds
     });
 
-    test('histogram attributes include db.system.name and db.operation.name', () async {
-      await interceptor.intercept<List<Map<String, dynamic>>>(
-        _ctx(dbSystem: 'postgresql', operationName: 'INSERT'),
-        () async => [],
-      );
-      final attrs = histogram.recordings.first.$2;
-      expect(attrs['db.system.name'], 'postgresql');
-      expect(attrs['db.operation.name'], 'INSERT');
-    });
+    test(
+      'histogram attributes include db.system.name and db.operation.name',
+      () async {
+        await interceptor.intercept<List<Map<String, dynamic>>>(
+          _ctx(dbSystem: 'postgresql', operationName: 'INSERT'),
+          () async => [],
+        );
+        final attrs = histogram.recordings.first.$2;
+        expect(attrs['db.system.name'], 'postgresql');
+        expect(attrs['db.operation.name'], 'INSERT');
+      },
+    );
 
-    test('histogram attributes include db.namespace and server.address', () async {
-      await interceptor.intercept<List<Map<String, dynamic>>>(
-        _ctx(database: 'orders_db', serverAddress: 'db.internal', serverPort: 5433),
-        () async => [],
-      );
-      final attrs = histogram.recordings.first.$2;
-      expect(attrs['db.namespace'], 'orders_db');
-      expect(attrs['server.address'], 'db.internal');
-      expect(attrs['server.port'], 5433);
-    });
+    test(
+      'histogram attributes include db.namespace and server.address',
+      () async {
+        await interceptor.intercept<List<Map<String, dynamic>>>(
+          _ctx(
+            database: 'orders_db',
+            serverAddress: 'db.internal',
+            serverPort: 5433,
+          ),
+          () async => [],
+        );
+        final attrs = histogram.recordings.first.$2;
+        expect(attrs['db.namespace'], 'orders_db');
+        expect(attrs['server.address'], 'db.internal');
+        expect(attrs['server.port'], 5433);
+      },
+    );
 
     test('server.port in histogram is int, not string', () async {
       await interceptor.intercept<List<Map<String, dynamic>>>(
@@ -240,13 +251,15 @@ void main() {
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(
-          responseHook: (span, ctx, r) => result = r,
-        ),
+        options: KnexOtelOptions(responseHook: (span, ctx, r) => result = r),
       );
       await i.intercept<List<Map<String, dynamic>>>(
         _ctx(),
-        () async => [{'id': 1}, {'id': 2}, {'id': 3}],
+        () async => [
+          {'id': 1},
+          {'id': 2},
+          {'id': 3},
+        ],
       );
       expect(result, isNotNull);
       expect(result!.isError, isFalse);
@@ -264,7 +277,9 @@ void main() {
           _ctx(),
           () async => throw StateError('db down'),
         ),
-        throwsA(isA<StateError>().having((e) => e.message, 'message', 'db down')),
+        throwsA(
+          isA<StateError>().having((e) => e.message, 'message', 'db down'),
+        ),
       );
     });
 
@@ -331,9 +346,7 @@ void main() {
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(
-          responseHook: (span, ctx, r) => result = r,
-        ),
+        options: KnexOtelOptions(responseHook: (span, ctx, r) => result = r),
       );
       try {
         await i.intercept<List<Map<String, dynamic>>>(
@@ -358,13 +371,10 @@ void main() {
           requestHook: (span, ctx) => throw StateError('hook exploded'),
         ),
       );
-      await i.intercept<List<Map<String, dynamic>>>(
-        _ctx(),
-        () async {
-          queryCalled = true;
-          return [];
-        },
-      );
+      await i.intercept<List<Map<String, dynamic>>>(_ctx(), () async {
+        queryCalled = true;
+        return [];
+      });
       expect(queryCalled, isTrue);
     });
 
@@ -375,7 +385,8 @@ void main() {
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
           requestHook: (s, _) => span = s,
-          responseHook: (span, ctx, result) => throw StateError('hook exploded'),
+          responseHook: (span, ctx, result) =>
+              throw StateError('hook exploded'),
         ),
       );
       await i.intercept<List<Map<String, dynamic>>>(_ctx(), () async => []);
@@ -434,7 +445,9 @@ void main() {
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(requestHook: (s, _) => span = s),
       );
-      await i.interceptStream<int>(_ctx(), () => Stream.fromIterable([1, 2, 3])).toList();
+      await i
+          .interceptStream<int>(_ctx(), () => Stream.fromIterable([1, 2, 3]))
+          .toList();
       expect(span!.isEnded, isTrue);
       expect(span!.status, SpanStatusCode.Ok);
     });
@@ -448,7 +461,10 @@ void main() {
       );
       try {
         await i
-            .interceptStream<int>(_ctx(), () => Stream.error(StateError('fail')))
+            .interceptStream<int>(
+              _ctx(),
+              () => Stream.error(StateError('fail')),
+            )
             .toList();
       } catch (_) {}
       expect(span!.isEnded, isTrue);
@@ -458,6 +474,7 @@ void main() {
 
     test('span is ended when subscription is cancelled', () async {
       APISpan? span;
+      final cancelled = Completer<void>();
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
@@ -469,8 +486,11 @@ void main() {
             _ctx(),
             () => Stream.periodic(const Duration(milliseconds: 10), (n) => n),
           )
-          .listen((_) => sub.cancel());
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+          .listen((_) async {
+            await sub.cancel();
+            if (!cancelled.isCompleted) cancelled.complete();
+          });
+      await cancelled.future;
       expect(span!.isEnded, isTrue);
     });
 
@@ -483,7 +503,10 @@ void main() {
       );
       // Create stream but never listen.
       // ignore: unused_local_variable
-      final stream = i.interceptStream<int>(_ctx(), () => Stream.fromIterable([1]));
+      final stream = i.interceptStream<int>(
+        _ctx(),
+        () => Stream.fromIterable([1]),
+      );
       await Future<void>.delayed(Duration.zero);
       expect(span, isNull);
     });
@@ -497,14 +520,18 @@ void main() {
     });
 
     test('histogram recorded on stream cancellation', () async {
+      final cancelled = Completer<void>();
       late StreamSubscription<int> sub;
       sub = interceptor
           .interceptStream<int>(
             _ctx(),
             () => Stream.periodic(const Duration(milliseconds: 10), (n) => n),
           )
-          .listen((_) => sub.cancel());
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+          .listen((_) async {
+            await sub.cancel();
+            if (!cancelled.isCompleted) cancelled.complete();
+          });
+      await cancelled.future;
       expect(histogram.recordings, hasLength(1));
     });
 
@@ -515,7 +542,9 @@ void main() {
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(responseHook: (span, ctx, r) => result = r),
       );
-      await i.interceptStream<int>(_ctx(), () => Stream.fromIterable([1, 2, 3])).toList();
+      await i
+          .interceptStream<int>(_ctx(), () => Stream.fromIterable([1, 2, 3]))
+          .toList();
       expect(result!.isError, isFalse);
     });
 
@@ -528,7 +557,10 @@ void main() {
       );
       try {
         await i
-            .interceptStream<int>(_ctx(), () => Stream.error(StateError('boom')))
+            .interceptStream<int>(
+              _ctx(),
+              () => Stream.error(StateError('boom')),
+            )
             .toList();
       } catch (_) {}
       expect(result!.isError, isTrue);
@@ -542,21 +574,28 @@ void main() {
       expect(result, [10, 20, 30]);
     });
 
-    test('finishOnce guard: responseHook called exactly once on normal close', () async {
-      var hookCount = 0;
-      final captureHistogram = CapturingHistogram(
-        OTelAPI.meterProvider().getMeter(name: 'guard_test'),
-      );
-      final i = KnexOtelInterceptor(
-        tracer: tracer,
-        operationDurationHistogram: captureHistogram,
-        options: KnexOtelOptions(responseHook: (span, ctx, result) => hookCount++),
-      );
-      await i.interceptStream<int>(_ctx(), () => Stream.fromIterable([1])).toList();
-      // Both responseHook and histogram must fire exactly once.
-      expect(hookCount, 1);
-      expect(captureHistogram.recordings, hasLength(1));
-    });
+    test(
+      'finishOnce guard: responseHook called exactly once on normal close',
+      () async {
+        var hookCount = 0;
+        final captureHistogram = CapturingHistogram(
+          OTelAPI.meterProvider().getMeter(name: 'guard_test'),
+        );
+        final i = KnexOtelInterceptor(
+          tracer: tracer,
+          operationDurationHistogram: captureHistogram,
+          options: KnexOtelOptions(
+            responseHook: (span, ctx, result) => hookCount++,
+          ),
+        );
+        await i
+            .interceptStream<int>(_ctx(), () => Stream.fromIterable([1]))
+            .toList();
+        // Both responseHook and histogram must fire exactly once.
+        expect(hookCount, 1);
+        expect(captureHistogram.recordings, hasLength(1));
+      },
+    );
   });
 
   // ── KnexOtelOptions validation ────────────────────────────────────────────
@@ -572,18 +611,23 @@ void main() {
           requestHook: (s, _) => span = s,
         ),
       );
-      await i.intercept<List<Map<String, dynamic>>>(_ctx(sql: 'SELECT 1'), () async => []);
+      await i.intercept<List<Map<String, dynamic>>>(
+        _ctx(sql: 'SELECT 1'),
+        () async => [],
+      );
       // With length 0, SQL is empty string + ellipsis.
       final text = span!.attributes.toJson()['db.query.text'] as String;
       expect(text, '…');
     });
 
-    test('negative maxQueryTextLength throws ArgumentError (works in production builds)', () {
-      expect(
-        () => KnexOtelOptions(maxQueryTextLength: -1),
-        throwsA(isA<ArgumentError>()),
-      );
-    });
+    test(
+      'negative maxQueryTextLength throws ArgumentError (works in production builds)',
+      () {
+        expect(
+          () => KnexOtelOptions(maxQueryTextLength: -1),
+          throwsA(isA<ArgumentError>()),
+        );
+      },
+    );
   });
 }
-

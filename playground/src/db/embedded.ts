@@ -178,6 +178,7 @@ export async function resetEmbeddedDb(
   dialect: PlaygroundDialect,
   runner: DartRunner,
 ): Promise<void> {
+  if (engine === 'none') return;
   const resolvedEngine = resolveEngine(engine, dialect);
   await seedPromises[resolvedEngine]?.catch(() => {});
   if (resolvedEngine === 'sqlite') {

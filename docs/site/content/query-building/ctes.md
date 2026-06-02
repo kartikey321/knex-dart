@@ -40,12 +40,12 @@ Chain multiple `withQuery()` calls:
 final q = db.queryBuilder()
     .withQuery('monthly_sales',
       db.from('orders')
-        .select(['month', 'sum(amount) as total'])
+        .select(['month', db.queryBuilder().client.raw('sum(amount) as total')])
         .groupBy('month')
     )
     .withQuery('avg_monthly',
       db.from('monthly_sales')
-        .select(['avg(total) as average'])
+        .select([db.queryBuilder().client.raw('avg(total) as average')])
     )
     .from('monthly_sales')
     .crossJoin('avg_monthly')

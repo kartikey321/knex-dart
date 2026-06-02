@@ -34,7 +34,9 @@ final db = await KnexPostgres.connect(
 
 ## Raw SQL Execution
 
-`db.rawSql(sql, [bindings])` on the driver wrapper runs a parameterized SQL string directly.
+`db.rawSql(sql, [bindings])` is the canonical driver-wrapper API for executing a parameterized SQL string directly.
+
+Some wrappers also keep legacy aliases such as `raw()` or `executeRaw()`. Prefer `rawSql()` in new code so examples transfer cleanly between drivers.
 
 ```dart
 // No bindings
@@ -47,7 +49,7 @@ final users = await db.rawSql(
 );
 ```
 
-For raw SQL fragments inside a query builder (not execution), use `db.queryBuilder().client.raw(sql, bindings)`.
+For raw SQL fragments inside a query builder (not execution), use `db.queryBuilder().client.raw(sql, bindings)`. Do not assume wrapper-level `raw()` always creates a fragment; on some wrappers it is a raw execution alias.
 
 ## Observability Streams
 

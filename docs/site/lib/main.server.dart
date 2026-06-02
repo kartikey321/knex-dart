@@ -134,6 +134,7 @@ void main() {
                   title: 'Tooling',
                   links: [
                     SidebarLink(text: "Dialect Lint", href: '/tooling/dialect-lint'),
+                    SidebarLink(text: "OpenTelemetry", href: '/tooling/opentelemetry'),
                   ],
                 ),
                 SidebarGroup(

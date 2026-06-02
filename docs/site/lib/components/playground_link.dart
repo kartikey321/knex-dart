@@ -9,7 +9,8 @@ const _playgroundUrl = String.fromEnvironment(
   defaultValue: 'https://playground.knex.mahawarkartikey.in',
 );
 
-const _boilerplate = "import 'dart:convert';\n"
+const _boilerplate =
+    "import 'dart:convert';\n"
     "import 'package:knex_dart/knex_dart.dart';\n"
     "import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';\n"
     "\n"
@@ -18,22 +19,29 @@ const _boilerplate = "import 'dart:convert';\n"
     "\n"
     "void schema(List<Map<String, dynamic>> stmts) {\n"
     "  for (final s in stmts) {\n"
-    "    print(jsonEncode({'sql': s['sql'] as String, 'bindings': []}));\n"
+    "    print(jsonEncode({\n"
+    "      'sql': s['sql'] as String,\n"
+    "      'bindings': (s['bindings'] as List?)?.cast<dynamic>() ?? [],\n"
+    "    }));\n"
     "  }\n"
     "}\n"
     "\n";
 
 /// Maps a dialect string to its KnexDialect enum literal for the boilerplate.
 String _dialectEnum(String dialect) => switch (dialect) {
-      'sqlite'  => 'KnexDialect.sqlite',
-      'mysql'   => 'KnexDialect.mysql',
-      'mssql'   => 'KnexDialect.mssql',
-      _         => 'KnexDialect.postgres',
-    };
+  'sqlite' => 'KnexDialect.sqlite',
+  'mysql' => 'KnexDialect.mysql',
+  _ => 'KnexDialect.postgres',
+};
+
+String _playgroundDialect(String dialect) => switch (dialect) {
+  'sqlite' => 'sqlite',
+  'mysql' => 'mysql',
+  _ => 'postgres',
+};
 
 /// Preamble injected at the top of main() — sets up `db`.
-String _mainPreamble(String dialect) =>
-    "  final db = KnexQuery.forDialect(${_dialectEnum(dialect)});\n";
+String _mainPreamble(String dialect) => "  final db = KnexQuery.forDialect(${_dialectEnum(dialect)});\n";
 
 /// Encodes [code] as URL-safe base64 (no padding) for the playground hash.
 String _encode(String code) {
@@ -44,17 +52,17 @@ String _encode(String code) {
 /// Builds the full playground URL for a snippet, including the active dialect.
 /// Wraps the snippet in boilerplate if it isn't already a complete program.
 String playgroundUrl(String snippet, {String dialect = 'postgres'}) {
+  final playgroundDialect = _playgroundDialect(dialect);
   String code;
   if (snippet.contains('void main(')) {
     code = snippet;
   } else {
     // Only inject `final db = ...` if the snippet doesn't already declare it.
-    final preamble = snippet.contains('final db = KnexQuery.forDialect')
-        ? ''
-        : '${_mainPreamble(dialect)}\n';
+    final preamble = snippet.contains('final db = KnexQuery.forDialect') ? '' : '${_mainPreamble(playgroundDialect)}\n';
     code = '${_boilerplate}void main() {\n$preamble$snippet\n}';
   }
-  return '$_playgroundUrl#code=${_encode(code)}&dialect=$dialect';
+  final encodedDialect = Uri.encodeComponent(playgroundDialect);
+  return '$_playgroundUrl#code=${_encode(code)}&dialect=$encodedDialect';
 }
 
 /// Inline "Try in Playground ↗" link — drop next to any code block.

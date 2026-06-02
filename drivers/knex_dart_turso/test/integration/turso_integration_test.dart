@@ -15,7 +15,7 @@ import 'package:test/test.dart';
 // ─── Connection config ────────────────────────────────────────────────────────
 
 String get _url =>
-    Platform.environment['TURSO_URL'] ?? 'http://localhost:8080';
+    Platform.environment['TURSO_URL'] ?? 'http://127.0.0.1:18080';
 String? get _token => Platform.environment['TURSO_AUTH_TOKEN']; // optional
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

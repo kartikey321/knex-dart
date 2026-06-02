@@ -170,7 +170,7 @@ html, body, #app {
   min-height: 0;
   overflow: auto;
   padding: 12px;
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "IBM Plex Mono", Consolas, monospace;
   font-size: 13px;
   color: #93c5fd;
   white-space: pre-wrap;
@@ -199,7 +199,7 @@ html, body, #app {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-family: "IBM Plex Mono", Consolas, monospace;
 }
 
 .result-table th,

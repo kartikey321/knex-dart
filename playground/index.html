@@ -45,7 +45,7 @@
           <button id="share" class="btn-topbar" title="Copy shareable link">⎘ Share</button>
           <span id="timing" class="timing"></span>
         </div>
-        <div id="run-status" class="run-status hidden">
+        <div id="run-status" class="run-status hidden" role="status" aria-live="polite" aria-atomic="true">
           <span class="spinner small" aria-hidden="true"></span>
           <span id="run-status-text">Running…</span>
         </div>
@@ -88,7 +88,7 @@
         </section>
       </main>
 
-      <div id="toast" class="toast hidden"></div>
+      <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -202,7 +202,8 @@ db.queryBuilder()
   .rowNumber('row_num', (a) => a.partitionBy('department').orderBy('salary', 'desc'))
   .lead('next_salary', 'salary', 'salary', 'department');
 
-// Raw SQL execution on driver wrappers
+// Raw SQL execution on driver wrappers.
+// Prefer rawSql(); some drivers keep raw()/executeRaw() aliases for compatibility.
 await db.rawSql('select * from users where id = ?', [1]);
 ```
 

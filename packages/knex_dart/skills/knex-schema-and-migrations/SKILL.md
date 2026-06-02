@@ -69,7 +69,7 @@ await migrator.latest();
 
 Files must follow the naming convention `<name>.up.sql` / `<name>.down.sql`. Units run in lexicographic order.
 
-```
+```text
 migrations/
   001_create_users.up.sql
   001_create_users.down.sql
