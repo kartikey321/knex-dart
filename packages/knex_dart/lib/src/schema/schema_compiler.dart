@@ -454,10 +454,17 @@ class SchemaCompiler {
             _pushQuery(
               "exec sp_rename '$tableName.${args[0]}', '${args[1]}', 'COLUMN'",
             );
-          } else {
-            // PostgreSQL, MySQL 8+, SQLite 3.25+, DuckDB, etc.
+          } else if (client.driverName == 'mysql' ||
+              client.driverName == 'mysql2' ||
+              client.driverName == 'mariadb') {
+            // MySQL 8+ / MariaDB require the COLUMN keyword.
             _pushQuery(
               'alter table $tableRef rename column ${_wrap(args[0])} to ${_wrap(args[1])}',
+            );
+          } else {
+            // PostgreSQL, SQLite 3.25+, DuckDB — no COLUMN keyword needed.
+            _pushQuery(
+              'alter table $tableRef rename ${_wrap(args[0])} to ${_wrap(args[1])}',
             );
           }
           break;
