@@ -442,6 +442,7 @@ function lspCompletionToMonaco(
 let _lspReady = false;
 let _docVersion = 1;
 let _initPromise: Promise<boolean> | null = null;
+let _pendingText: string | null = null;
 
 export function isLspReady(): boolean { return _lspReady; }
 
@@ -533,6 +534,11 @@ export function initDartLsp(
       }
 
       _lspReady = true;
+      // Flush any text that arrived while we were booting.
+      if (_pendingText !== null) {
+        lspDidChange(_pendingText);
+        _pendingText = null;
+      }
       return true;
     } catch (e) {
       console.error('[dart_lsp] init failed:', e);
@@ -547,7 +553,10 @@ export function initDartLsp(
 
 // Notify LSP server when editor content changes.
 export function lspDidChange(text: string): void {
-  if (!_lspReady) return;
+  if (!_lspReady) {
+    _pendingText = text; // buffer last change; flushed after init completes
+    return;
+  }
   _docVersion += 1;
   _lspNotify('textDocument/didChange', {
     textDocument: { uri: LSP_FILE_URI, version: _docVersion },

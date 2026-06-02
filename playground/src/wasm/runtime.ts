@@ -28,8 +28,11 @@ export async function initWasmRuntime(): Promise<void> {
   if (wasmReadyPromise) return wasmReadyPromise;
 
   wasmReadyPromise = (async () => {
-    const wasmModulePromise = WebAssembly.compileStreaming(fetch('/wasm/main.wasm'));
-    const runtimeUrl = `${window.location.origin}/wasm/main.mjs`;
+    const base = import.meta.env.BASE_URL ?? '/';
+    const wasmModulePromise = WebAssembly.compileStreaming(
+      fetch(new URL(`${base}wasm/main.wasm`, window.location.href).toString()),
+    );
+    const runtimeUrl = new URL(`${base}wasm/main.mjs`, window.location.href).toString();
     const runtime = await import(/* @vite-ignore */ runtimeUrl);
     if (typeof runtime.instantiate === 'function' && typeof runtime.invoke === 'function') {
       const instance = await runtime.instantiate(wasmModulePromise, {});

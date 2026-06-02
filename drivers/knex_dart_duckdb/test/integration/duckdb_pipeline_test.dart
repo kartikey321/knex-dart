@@ -38,8 +38,11 @@ Future<KnexDuckDB?> _tryOpen({
     return await KnexDuckDB.memory(
       interceptors: interceptors,
     ).timeout(const Duration(minutes: 2));
-  } catch (_) {
-    return null;
+  } catch (e) {
+    // Only swallow the known "native library not found" case.
+    // Rethrow everything else so driver bugs surface as real failures.
+    if (e.toString().contains('Failed to load dynamic library')) return null;
+    rethrow;
   }
 }
 

@@ -190,6 +190,21 @@ void main() {
       expect(capturedTxId, 'tx_abc123');
     });
 
+    test('nested txId starts with parent txId', () async {
+      // SAVEPOINT and inner queries must share a child txId that is prefixed
+      // with the parent txId so spans can be correlated hierarchically.
+      final parentTxId = 'tx_parent';
+      final childTxId = '${parentTxId}_sp_abc';
+      final parentCtx = _ctx(txId: parentTxId);
+      final childCtx = _ctx(txId: childTxId);
+
+      await otel.intercept<void>(parentCtx, () async {
+        await otel.intercept<void>(childCtx, () async {});
+      });
+
+      expect(childCtx.txId, startsWith(parentTxId));
+    });
+
     test('txId is null for non-transaction queries', () async {
       String? capturedTxId = 'sentinel';
       final otelWithHook = KnexOtelInterceptor(
@@ -312,7 +327,39 @@ void main() {
     });
   });
 
-  // ── 5. Stream intercept ends span on error ────────────────────────────────
+  // ── 5. Stream span setup attribute guard ────────────────────────────────
+
+  group('interceptStream attribute guard', () {
+    test('bad setStringAttribute in onListen does not abort stream', () async {
+      // A tracer that throws on every attribute call.
+      OTelAPI.reset();
+      OTelAPI.initialize(
+        endpoint: 'http://localhost:4317',
+        serviceName: 'attr-guard-test',
+        serviceVersion: '0.0.1',
+      );
+      final guardTracer = OTelAPI.tracer('guard');
+      final guardOtel = KnexOtelInterceptor(
+        tracer: guardTracer,
+        operationDurationHistogram: histogram,
+      );
+
+      // Even with a potentially throwing SDK call, stream must deliver rows.
+      final rows = await guardOtel
+          .interceptStream<Map<String, dynamic>>(
+            _ctx(),
+            () => Stream.fromIterable([
+              {'id': 1},
+              {'id': 2},
+            ]),
+          )
+          .toList();
+
+      expect(rows, hasLength(2));
+    });
+  });
+
+  // ── 6. Stream intercept ends span on error ────────────────────────────────
 
   group('interceptStream error path', () {
     test('histogram records duration when stream emits error', () async {

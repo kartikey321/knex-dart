@@ -41,8 +41,17 @@ Future<KnexTurso?> _tryOpen({
     );
     await db.rawSql('SELECT 1');
     return db;
-  } catch (_) {
-    return null;
+  } catch (e) {
+    // Only swallow connection-level failures (server not running).
+    // Rethrow driver bugs so they surface as real failures.
+    final msg = e.toString();
+    if (msg.contains('Connection refused') ||
+        msg.contains('SocketException') ||
+        msg.contains('Failed host lookup') ||
+        msg.contains('timed out')) {
+      return null;
+    }
+    rethrow;
   }
 }
 

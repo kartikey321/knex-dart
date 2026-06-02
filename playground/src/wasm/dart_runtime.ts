@@ -63,7 +63,10 @@ export function initDartRuntime(): Promise<void> {
     ]);
     _platformBytes = new Uint8Array(platformBuf);
     _packageDills = [new Uint8Array(knexBuf)];
-  })();
+  })().catch((e) => {
+    _initPromise = null;
+    throw e;
+  });
 
   return _initPromise;
 }

@@ -375,26 +375,30 @@ class KnexOtelInterceptor extends QueryInterceptor {
         hookCtx = KnexOtelSpanContext.fromExecution(ctx);
         span = _tracer.startSpan(ctx.querySummary, kind: SpanKind.client);
 
-        span.setStringAttribute('db.system.name', ctx.dbSystem);
-        span.setStringAttribute('db.operation.name', ctx.operationName);
-        if (ctx.database != null) {
-          span.setStringAttribute('db.namespace', ctx.database!);
-        }
-        if (ctx.collectionName != null) {
-          span.setStringAttribute('db.collection.name', ctx.collectionName!);
-        }
-        if (_options.captureQueryText) {
-          final sql = ctx.sql.length > _options.maxQueryTextLength
-              ? '${ctx.sql.substring(0, _options.maxQueryTextLength)}…'
-              : ctx.sql;
-          span.setStringAttribute('db.query.text', sql);
-        }
-        if (ctx.serverAddress != null) {
-          span.setStringAttribute('server.address', ctx.serverAddress!);
-        }
-        if (ctx.serverPort != null) {
-          span.setIntAttribute('server.port', ctx.serverPort!);
-        }
+        // Guard attribute-setting the same way as intercept() — a bad OTel SDK
+        // call must not abort the stream before next().listen() runs.
+        try {
+          span.setStringAttribute('db.system.name', ctx.dbSystem);
+          span.setStringAttribute('db.operation.name', ctx.operationName);
+          if (ctx.database != null) {
+            span.setStringAttribute('db.namespace', ctx.database!);
+          }
+          if (ctx.collectionName != null) {
+            span.setStringAttribute('db.collection.name', ctx.collectionName!);
+          }
+          if (_options.captureQueryText) {
+            final sql = ctx.sql.length > _options.maxQueryTextLength
+                ? '${ctx.sql.substring(0, _options.maxQueryTextLength)}…'
+                : ctx.sql;
+            span.setStringAttribute('db.query.text', sql);
+          }
+          if (ctx.serverAddress != null) {
+            span.setStringAttribute('server.address', ctx.serverAddress!);
+          }
+          if (ctx.serverPort != null) {
+            span.setIntAttribute('server.port', ctx.serverPort!);
+          }
+        } catch (_) {}
 
         if (_options.requestHook != null) {
           try {

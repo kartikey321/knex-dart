@@ -170,7 +170,7 @@ class KnexMssqlTransaction extends KnexTransaction {
   Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
     final sp = 'sp${_pipeline.nextUid()}';
     final childTxId = '${txId}_$sp';
-    await rawSql('SAVE TRANSACTION $sp');
+    await _pipeline.runRaw('SAVE TRANSACTION $sp', const [], () => _trx.raw('SAVE TRANSACTION $sp'), txId: childTxId);
     try {
       final result = await callback(
         KnexMssqlTransaction._(_trx, _pipeline, childTxId),
@@ -178,7 +178,7 @@ class KnexMssqlTransaction extends KnexTransaction {
       return result;
     } catch (e, st) {
       try {
-        await rawSql('ROLLBACK TRANSACTION $sp');
+        await _pipeline.runRaw('ROLLBACK TRANSACTION $sp', const [], () => _trx.raw('ROLLBACK TRANSACTION $sp'), txId: childTxId);
       } catch (_) {}
       Error.throwWithStackTrace(e, st);
     }

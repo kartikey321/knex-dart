@@ -158,6 +158,11 @@ class KnexDuckDBTransaction extends KnexTransaction {
         txId: txId,
       );
 
+  /// Alias for [rawSql] — matches the outer [KnexDuckDB.raw] API so callers
+  /// inside trx() callbacks can use either name without a compile error.
+  Future<List<Map<String, dynamic>>> raw(String sql, [List<dynamic>? bindings]) =>
+      rawSql(sql, bindings);
+
   /// Streams results inside this transaction.
   Stream<Map<String, dynamic>> stream(QueryBuilder query) =>
       _pipeline.runStream(query, () => _trx.stream(query), txId: txId);
@@ -169,16 +174,16 @@ class KnexDuckDBTransaction extends KnexTransaction {
   Future<T> trx<T>(Future<T> Function(KnexTransaction tx) callback) async {
     final sp = 'sp_${_pipeline.nextUid()}';
     final childTxId = '${txId}_$sp';
-    await rawSql('SAVEPOINT $sp');
+    await _pipeline.runRaw('SAVEPOINT $sp', const [], () => _trx.raw('SAVEPOINT $sp'), txId: childTxId);
     try {
       final result = await callback(
         KnexDuckDBTransaction._(_trx, _pipeline, childTxId),
       );
-      await rawSql('RELEASE SAVEPOINT $sp');
+      await _pipeline.runRaw('RELEASE SAVEPOINT $sp', const [], () => _trx.raw('RELEASE SAVEPOINT $sp'), txId: childTxId);
       return result;
     } catch (e, st) {
       try {
-        await rawSql('ROLLBACK TO SAVEPOINT $sp');
+        await _pipeline.runRaw('ROLLBACK TO SAVEPOINT $sp', const [], () => _trx.raw('ROLLBACK TO SAVEPOINT $sp'), txId: childTxId);
       } catch (_) {}
       Error.throwWithStackTrace(e, st);
     }

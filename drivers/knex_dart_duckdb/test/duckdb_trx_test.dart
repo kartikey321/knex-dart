@@ -97,7 +97,20 @@ void main() {
       expect(caughtTrace.toString(), contains('_throwFromHelper'));
     });
 
-    // ── 4. Two separate in-memory instances are isolated ─────────────────────
+    // ── 4. raw() alias works inside trx callback ─────────────────────────────
+
+    test('raw() alias usable inside trx callback', () async {
+      if (skipReason != null) return markTestSkipped(skipReason!);
+
+      late List<Map<String, dynamic>> result;
+      await db!.trx((tx) async {
+        // raw() must be callable on the transaction object — was missing before.
+        result = await (tx as dynamic).raw('SELECT 1 AS n');
+      });
+      expect(result.first['n'], isNotNull);
+    });
+
+    // ── 5. Two separate in-memory instances are isolated ─────────────────────
     // NOTE: DuckDB does not support SQL-level SAVEPOINT, so nested trx tests
     // are omitted. Only top-level BEGIN/COMMIT/ROLLBACK is supported.
 

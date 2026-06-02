@@ -123,10 +123,13 @@ class RawFormatter {
         final isIdentifier = key[key.length - 1] == ':'; // Ends with :
         final value = bindings[part];
 
-        // Handle undefined/missing value vs explicit null.
-        if (value == null) {
+        // Identifier bindings (:key:) never become parameters — null is not a
+        // valid identifier, so leave the placeholder unresolved.
+        if (isIdentifier) {
+          if (value == null) return matchStr;
+        } else if (value == null) {
+          // Value binding (:key) with explicit null → positional NULL parameter.
           if (bindings.containsKey(part)) {
-            // Key present with null — emit a positional placeholder for NULL.
             result.add(null);
             return matchStr.replaceFirst(
               p1!,

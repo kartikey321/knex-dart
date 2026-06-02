@@ -675,7 +675,7 @@ jobs:
       - test-otel
       - test-embedded-wasm
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_package != 'none')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_package != 'none' && github.ref == 'refs/heads/main')
     environment: pub.dev
     permissions:
       id-token: write
