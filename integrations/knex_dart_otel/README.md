@@ -100,3 +100,17 @@ Construct `KnexOtelInterceptor` after your OpenTelemetry SDK is installed. The d
 
 Pass `operationDurationHistogram` explicitly if you need full control over meter/provider binding.
 
+## Real SDK example
+
+This package intentionally depends only on the OpenTelemetry API. A standalone
+example app in the repository shows end-to-end export through the Dartastic
+OpenTelemetry SDK:
+
+```bash
+cd examples/knex_otel_sqlite_app
+dart pub get
+dart run bin/sqlite_otel_collector.dart
+```
+
+The example uses console exporters by default and also supports OTLP HTTP/gRPC
+collector endpoints.

@@ -1,3 +1,12 @@
+## 1.2.1
+
+- Improved core SQL generation hot paths and SQLite wrapper execution overhead.
+- Documented the core query interceptor pipeline used by live driver wrappers.
+- Added OpenTelemetry span attribute verification tests and a real SDK SQLite
+  export example for `knex_dart_otel`.
+- Added a private benchmark workspace package for SQL generation, SQLite live
+  execution, and API-cost matrix benchmarking.
+
 ## 1.1.0
 
 - Added filesystem/config migration source support via `fromConfig()`.

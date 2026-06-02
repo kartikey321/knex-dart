@@ -1,3 +1,15 @@
+## 1.2.1
+
+- Improved query compilation hot paths by replacing timestamp/random UID
+  generation with per-isolate counters.
+- Avoided enum string splitting when resolving compiled query methods.
+- Documented the public `QueryInterceptor` / `QueryExecutionContext` pipeline
+  used by live driver wrappers for tracing, metrics, logging, and policy hooks.
+- Added a compiled-query interceptor path so driver wrappers can avoid
+  compiling the same query twice when interceptors are installed.
+- No SQL escaping, binding, identifier wrapping, or generated SQL semantics
+  changed in this release.
+
 ## 1.2.0
 
 - Added `KnexQuery` for dialect-only SQL generation via `KnexQuery.forDialect(...)` and `KnexQuery.forClient(...)`.
