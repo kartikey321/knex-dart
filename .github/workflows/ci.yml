@@ -20,29 +20,7 @@ on:
       - 'knex_dart_all-v*.*.*'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch:
-    inputs:
-      publish_package:
-        description: Package to publish after CI passes.
-        required: true
-        default: none
-        type: choice
-        options:
-          - none
-          - all
-          - knex_dart
-          - knex_dart_postgres
-          - knex_dart_mysql
-          - knex_dart_sqlite
-          - knex_dart_turso
-          - knex_dart_d1
-          - knex_dart_duckdb
-          - knex_dart_snowflake
-          - knex_dart_bigquery
-          - knex_dart_mssql
-          - knex_dart_otel
-          - knex_dart_capabilities
-          - knex_dart_lint
+  workflow_dispatch: {}
 
 # Cancel in-progress runs for the same branch/PR
 concurrency:
@@ -675,7 +653,7 @@ jobs:
       - test-otel
       - test-embedded-wasm
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.publish_package != 'none' && github.ref == 'refs/heads/main')
+    if: startsWith(github.ref, 'refs/tags/')
     environment: pub.dev
     permissions:
       id-token: write
@@ -686,11 +664,6 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "package=${{ inputs.publish_package }}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           TAG="${GITHUB_REF_NAME}"
           case "$TAG" in
             knex_dart-v*)              echo "package=knex_dart" ;;
@@ -724,10 +697,10 @@ jobs:
           melos-version: ^7.0.0
       - name: Publish dry-run
         if: steps.resolve.outputs.package != 'all'
-        run: melos publish --scope="${{ steps.resolve.outputs.package }}" --no-private --yes
+        run: melos publish --scope="${{ steps.resolve.outputs.package }}" --no-private --dry-run --yes
       - name: Publish dry-run (all)
         if: steps.resolve.outputs.package == 'all'
-        run: melos publish --no-private --yes
+        run: melos publish --no-private --dry-run --yes
       - name: Publish
         if: steps.resolve.outputs.package != 'all'
         run: melos publish --scope="${{ steps.resolve.outputs.package }}" --no-private --no-dry-run --yes

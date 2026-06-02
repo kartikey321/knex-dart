@@ -1,6 +1,6 @@
 name: knex_dart
 description: A Dart SQL query builder inspired by Knex.js. Use driver packages (knex_dart_postgres, knex_dart_mysql, knex_dart_sqlite) to connect to databases.
-version: 1.2.0
+version: 1.2.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues

@@ -50,7 +50,7 @@ Add the driver for your database — it pulls in `knex_dart` automatically:
 dependencies:
   knex_dart_postgres: ^0.2.0   # PostgreSQL
   # knex_dart_mysql: ^0.2.0    # MySQL
-  # knex_dart_sqlite: ^0.2.0   # SQLite
+  # knex_dart_sqlite: ^0.2.1   # SQLite
   # knex_dart_duckdb: ^0.1.0   # DuckDB (OLAP / browser WASM)
 ```
 
@@ -58,7 +58,7 @@ For SQL generation only (no live connection):
 
 ```yaml
 dependencies:
-  knex_dart: ^1.2.0
+  knex_dart: ^1.2.1
   knex_dart_capabilities: ^0.2.0
 ```
 
@@ -142,6 +142,43 @@ print(q2.from('users').where('active', '=', true).toSQL().sql);
 ```
 
 Supported dialects: `pg`, `mysql2`, `sqlite3`, `duckdb`, `snowflake`, `bigquery`, `turso`, `d1`, `mariadb`, `redshift`.
+
+## Query Interceptors
+
+Live driver wrappers can route query execution through `QueryInterceptor`s for
+tracing, metrics, logging, or custom policy checks. Interceptors receive a
+`QueryExecutionContext` with stable metadata such as `dbSystem`, `sql`,
+`parameters`, `operationName`, `collectionName`, `querySummary`, and `txId`.
+
+```dart
+import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+class AuditInterceptor extends QueryInterceptor {
+  @override
+  Future<T> intercept<T>(
+    QueryExecutionContext ctx,
+    Future<T> Function() next,
+  ) async {
+    final started = DateTime.now();
+    try {
+      return await next();
+    } finally {
+      final elapsed = DateTime.now().difference(started);
+      // Send ctx.operationName, ctx.querySummary, and elapsed to your logger.
+    }
+  }
+}
+
+final db = await KnexSQLite.connect(
+  filename: ':memory:',
+  interceptors: [AuditInterceptor()],
+);
+```
+
+Use [`knex_dart_otel`](https://pub.dev/packages/knex_dart_otel) when you want
+OpenTelemetry spans and DB client duration metrics without writing your own
+interceptor.
 
 ## Query Builder
 

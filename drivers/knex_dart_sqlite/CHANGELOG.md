@@ -1,3 +1,13 @@
+## 0.2.1
+
+- Reduced wrapper overhead by reusing compiled SQL through the interceptor
+  pipeline instead of compiling the same query twice.
+- Removed redundant async wrappers in low-level query dispatch while preserving
+  public `Future` semantics and error propagation.
+- Optimized native SQLite row mapping by reading `ResultSet` column names and
+  rows directly.
+- No query result shape, binding behavior, or SQL execution semantics changed.
+
 ## 0.2.0
 
 - Added web/WASM SQLite support with conditional web client loading.

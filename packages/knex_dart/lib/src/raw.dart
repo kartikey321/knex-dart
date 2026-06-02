@@ -23,6 +23,8 @@ import 'formatter/raw_formatter.dart';
 /// });
 /// ```
 class Raw {
+  static int _uidCounter = 0;
+
   final Client _client;
   String _sql = '';
   dynamic _bindings =
@@ -137,20 +139,11 @@ class Raw {
     return SqlString(compiledSql, compiledBindings, method: 'raw', uid: uid);
   }
 
-  /// Generate a unique ID for this query
-  ///
-  /// JS uses nanoid() which generates 21-char alphanumeric IDs
-  /// We'll use a simpler approach: timestamp + random
+  /// Generate a unique ID for this query.
   String _generateUid() {
-    final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final random =
-        (DateTime.now().microsecond * 1000 + DateTime.now().millisecond)
-            .toRadixString(36);
-    final uid = '$timestamp$random';
-    return uid.substring(
-      0,
-      uid.length < 12 ? uid.length : 12,
-    ); // Match nanoid-like max length without range errors
+    const maxJsSafeInt = 0x1FFFFFFFFFFFFF;
+    _uidCounter = (_uidCounter + 1) & maxJsSafeInt;
+    return 'r${_uidCounter.toRadixString(16).padLeft(14, '0')}';
   }
 
   /// Validate bindings don't contain null values

@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage
+.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite
 
 # Local development only — not used in CI.
 # CI uses `dart test --tags=<driver>` directly against GitHub Actions service containers.
@@ -59,3 +59,17 @@ coverage: ## Generate coverage/lcov.info for core package
 	else \
 		sed -i 's|SF:.*/packages/knex_dart/lib|SF:packages/knex_dart/lib|' coverage/lcov.info; \
 	fi
+
+bench-sql:
+	dart run benchmarks/bin/sql_generation.dart
+
+bench-sqlite:
+	dart run benchmarks/bin/sqlite_live.dart
+
+bench-matrix:
+	dart run benchmarks/bin/run_matrix.dart
+
+bench-all: bench-sql bench-sqlite bench-matrix
+
+example-otel-sqlite:
+	cd examples/knex_otel_sqlite_app && dart run bin/sqlite_otel_collector.dart

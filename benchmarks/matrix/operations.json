@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "purpose": "Benchmark coverage map for knex_dart SQL generation and future live driver execution.",
+  "dialects": [
+    "postgres",
+    "mysql",
+    "sqlite",
+    "mariadb",
+    "redshift",
+    "turso",
+    "d1",
+    "duckdb",
+    "snowflake",
+    "bigquery",
+    "mssql"
+  ],
+  "coveredCategories": [
+    "select",
+    "mutation",
+    "where",
+    "aggregate",
+    "join",
+    "subquery",
+    "cte",
+    "set",
+    "window",
+    "insert",
+    "locking",
+    "raw",
+    "schema"
+  ],
+  "trackedGaps": [
+    {
+      "id": "json_public_api_gap",
+      "category": "json",
+      "status": "not_benchmarked",
+      "reason": "JSON helpers are currently implemented as an internal extension and are not exported by package:knex_dart/knex_dart.dart."
+    },
+    {
+      "id": "live_driver_matrix_gap",
+      "category": "live",
+      "status": "planned",
+      "reason": "Live driver execution needs per-database orchestration and should be tracked separately from pure SQL generation."
+    }
+  ]
+}

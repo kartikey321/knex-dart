@@ -227,6 +227,10 @@ class SQLiteClient extends Client {
     return _execute(sql, bindings);
   }
 
+  /// Executes an already compiled SQL query.
+  Future<List<Map<String, dynamic>>> executeCompiled(SqlString compiled) =>
+      _execute(compiled.sql, compiled.bindings);
+
   @override
   Future<List<Map<String, dynamic>>> query(
     dynamic connection,

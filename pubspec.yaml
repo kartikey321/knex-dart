@@ -22,6 +22,7 @@ workspace:
   - packages/knex_dart_capabilities
   - packages/knex_dart_lint
   - integrations/knex_dart_otel
+  - benchmarks
 
 dev_dependencies:
   melos: ^7.0.0
