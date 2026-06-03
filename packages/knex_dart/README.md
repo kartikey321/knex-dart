@@ -48,8 +48,8 @@ Add the driver for your database — it pulls in `knex_dart` automatically:
 
 ```yaml
 dependencies:
-  knex_dart_postgres: ^0.3.0   # PostgreSQL
-  # knex_dart_mysql: ^0.3.0    # MySQL
+  knex_dart_postgres: ^0.3.1   # PostgreSQL
+  # knex_dart_mysql: ^0.3.1    # MySQL
   # knex_dart_sqlite: ^0.3.0   # SQLite
   # knex_dart_duckdb: ^0.2.0   # DuckDB (OLAP / browser WASM)
 ```
