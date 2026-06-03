@@ -9,7 +9,7 @@ Microsoft SQL Server driver for [knex_dart](https://pub.dev/packages/knex_dart) 
 
 ```yaml
 dependencies:
-  knex_dart_mssql: ^0.1.0
+  knex_dart_mssql: ^0.2.0
 ```
 
 ## Quick Start
@@ -52,6 +52,21 @@ Implemented driver/compiler highlights:
 - MSSQL `OFFSET ... FETCH NEXT ...` pagination compilation for `.limit()` / `.offset()`.
 - `having(...)` and `havingRaw(...)` compilation.
 - Window-function SQL generation from query builder methods.
+
+## Azure SQL Edge — `sybnvarchar` workaround
+
+Azure SQL Edge returns `sybnvarchar` column types that the official
+`mssql_connection ^3.0.0` does not handle, causing a runtime error.
+Until the fix is merged upstream, add this override to your app's
+`pubspec.yaml`:
+
+```yaml
+dependency_overrides:
+  mssql_connection:
+    git:
+      url: https://github.com/kartikey321/mssql_connection
+      ref: fix/sybnvarchar-azure-sql-edge
+```
 
 ## Known Limitations
 

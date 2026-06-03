@@ -21,12 +21,6 @@ dependencies:
   mssql_connection: ^3.0.0
   universal_io: ^2.3.1
 
-dependency_overrides:
-  mssql_connection:
-    git:
-      url: https://github.com/kartikey321/mssql_connection
-      ref: fix/sybnvarchar-azure-sql-edge
-
 dev_dependencies:
   test: ^1.25.6
   lints: ^6.0.0
