@@ -1,6 +1,6 @@
 name: knex_dart_duckdb
 description: DuckDB driver for knex_dart — execute analytical SQL queries against DuckDB using the knex_dart query builder and the dart_duckdb FFI package.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues

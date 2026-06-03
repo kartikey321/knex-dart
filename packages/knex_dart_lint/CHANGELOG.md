@@ -1,3 +1,12 @@
+## 0.3.0
+
+- Added `raw_null_identifier_binding` lint rule (WARNING): fires when a `:key:`
+  identifier binding in `raw()`, `rawSql()`, `whereRaw()`, `havingRaw()`,
+  `orderByRaw()`, or `groupByRaw()` is assigned `null`, which leaves the
+  placeholder unresolved and produces invalid SQL at runtime.
+- Added MSSQL dialect support to dialect resolution and rule utilities.
+- Bumped `knex_dart_capabilities` constraint to `^0.3.0`.
+
 ## 0.2.0
 
 - Expanded dialect inference to cover additional constructor patterns and driver families.

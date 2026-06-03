@@ -1,3 +1,17 @@
+## 0.3.0
+
+- Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom
+  interceptors via the `interceptors` parameter on `KnexMySQL.connect()`.
+- Fixed prepared statement resource leak: `deallocate()` is now called in a
+  `try/finally` block even when execution throws.
+- Fixed transaction connection management: failed transactions now call
+  `_pool.discard()` instead of `_pool.release()` to avoid returning broken
+  connections to the pool.
+- Fixed savepoint lifecycle events routed through child transaction ID.
+- Fixed exception propagation in transaction rollback using
+  `Error.throwWithStackTrace`.
+- Removed leftover debug `print()` statements.
+
 ## 0.2.0
 
 - Added `KnexMySQL.mariadb(...)` constructor for MariaDB connections.

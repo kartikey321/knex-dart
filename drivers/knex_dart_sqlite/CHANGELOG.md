@@ -1,3 +1,14 @@
+## 0.3.0
+
+- Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom
+  interceptors via the `interceptors` parameter on `KnexSQLite.connect()`.
+- Fixed `destroyPool()` idempotency — double close no longer throws.
+- Fixed `StateError` on query after close with a clear message.
+- Improved exception propagation in transaction rollback using
+  `Error.throwWithStackTrace` to preserve original stack traces.
+- Fixed savepoint ID generation to use a per-instance counter instead of
+  timestamp-based IDs, avoiding collisions under concurrent transactions.
+
 ## 0.2.1
 
 - Reduced wrapper overhead by reusing compiled SQL through the interceptor
