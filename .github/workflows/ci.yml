@@ -754,6 +754,55 @@ jobs:
       - name: Publish dry-run (all)
         if: steps.resolve.outputs.package == 'all'
         run: melos publish --no-private --dry-run --yes
+      - name: Verify lower-bound constraints (pana downgrade test)
+        # Mirrors what pub.dev pana runs: dart pub downgrade then dart analyze.
+        # Catches constraint lower bounds that are too loose — e.g. declaring
+        # ^1.1.0 when a required API was only added in 1.2.1.
+        # Skipped for DuckDB (Flutter SDK) and bulk-all tags.
+        if: steps.resolve.outputs.package != 'all' && steps.resolve.outputs.package != 'knex_dart_duckdb'
+        shell: bash
+        run: |
+          PKG="${{ steps.resolve.outputs.package }}"
+          case "$PKG" in
+            knex_dart)              PKG_DIR="packages/knex_dart" ;;
+            knex_dart_capabilities) PKG_DIR="packages/knex_dart_capabilities" ;;
+            knex_dart_lint)         PKG_DIR="packages/knex_dart_lint" ;;
+            knex_dart_postgres)     PKG_DIR="drivers/knex_dart_postgres" ;;
+            knex_dart_mysql)        PKG_DIR="drivers/knex_dart_mysql" ;;
+            knex_dart_sqlite)       PKG_DIR="drivers/knex_dart_sqlite" ;;
+            knex_dart_mssql)        PKG_DIR="drivers/knex_dart_mssql" ;;
+            knex_dart_turso)        PKG_DIR="drivers/knex_dart_turso" ;;
+            knex_dart_d1)           PKG_DIR="drivers/knex_dart_d1" ;;
+            knex_dart_bigquery)     PKG_DIR="drivers/knex_dart_bigquery" ;;
+            knex_dart_snowflake)    PKG_DIR="drivers/knex_dart_snowflake" ;;
+            knex_dart_otel)         PKG_DIR="integrations/knex_dart_otel" ;;
+            *) echo "No directory mapping for '$PKG' — skipping downgrade check"; exit 0 ;;
+          esac
+
+          # Copy the package to a temp dir outside the workspace so that
+          # dart pub downgrade resolves against real pub.dev versions, not
+          # local workspace overrides.
+          TEMP=$(mktemp -d)
+          cp -r "$PKG_DIR/." "$TEMP/"
+
+          python3 - "$TEMP/pubspec.yaml" <<'PYEOF'
+          import sys, re
+          path = sys.argv[1]
+          content = open(path).read()
+          # Strip workspace resolution — not valid outside a workspace
+          content = re.sub(r'^resolution:\s*workspace\s*\n', '', content, flags=re.MULTILINE)
+          # Strip dependency_overrides — pub.dev ignores these; test without them
+          content = re.sub(r'\ndependency_overrides:(\n  [^\n]+)+', '', content)
+          open(path, 'w').write(content)
+          print("Cleaned pubspec.yaml for downgrade test")
+          PYEOF
+
+          cd "$TEMP"
+          echo "--- dart pub downgrade ---"
+          dart pub downgrade
+          echo "--- dart analyze lib/ ---"
+          dart analyze lib/
+          echo "Downgrade test passed for $PKG"
       - name: Publish
         if: steps.resolve.outputs.package != 'all'
         run: melos publish --scope="${{ steps.resolve.outputs.package }}" --no-private --no-dry-run --yes
