@@ -75,7 +75,7 @@ Emits `JOIN LATERAL (…) AS alias ON true`. Rows from the left side that produc
 final q = db.from('users').joinLateral('latest_order', (sub) {
   sub
     .table('orders')
-    .where('orders.user_id', db.raw('"users"."id"'))
+    .where('orders.user_id', db.queryBuilder().client.raw('"users"."id"'))
     .orderBy('created_at', 'desc')
     .limit(1);
 });
@@ -95,7 +95,7 @@ Emits `LEFT JOIN LATERAL (…) AS alias ON true`. Rows from the left side that p
 final q = db.from('users').leftJoinLateral('recent_event', (sub) {
   sub
     .table('events')
-    .where('events.user_id', db.raw('"users"."id"'))
+    .where('events.user_id', db.queryBuilder().client.raw('"users"."id"'))
     .orderBy('occurred_at', 'desc')
     .limit(5);
 });
@@ -111,7 +111,7 @@ Emits `CROSS JOIN LATERAL (…) AS alias` (no `ON` clause). In PostgreSQL this i
 final q = db.from('users').crossJoinLateral('agg', (sub) {
   sub
     .table('orders')
-    .where('orders.user_id', db.raw('"users"."id"'))
+    .where('orders.user_id', db.queryBuilder().client.raw('"users"."id"'))
     .sum('amount as total');
 });
 print(q.toSQL().sql);
@@ -131,7 +131,7 @@ final sub = db.queryBuilder().table('orders').where('user_id', 1).limit(1);
 print(db.from('users').joinLateral('lo', sub).toSQL().sql);
 
 // 3. Raw SQL
-print(db.from('users').joinLateral('lo', db.raw('select 1 as n')).toSQL().sql);
+print(db.from('users').joinLateral('lo', db.queryBuilder().client.raw('select 1 as n')).toSQL().sql);
 ```
 
 ### Parameter binding
@@ -360,7 +360,7 @@ final results = await db.select(
 final usersWithOrders = await db.select(
   db.from('users')
     .select(['users.id', 'users.name'])
-    .select([db.raw('count(orders.id) as order_count')])
+    .select([db.queryBuilder().client.raw('count(orders.id) as order_count')])
     .leftJoin('orders', 'users.id', 'orders.user_id')
     .groupBy(['users.id', 'users.name'])
     .orderBy('order_count', 'desc'),
@@ -380,7 +380,7 @@ final usersWithLatest = await pgClient.select(
     .leftJoinLateral('lo', (sub) {
       sub
         .table('orders')
-        .where('orders.user_id', db.raw('"users"."id"'))
+        .where('orders.user_id', db.queryBuilder().client.raw('"users"."id"'))
         .orderBy('created_at', 'desc')
         .limit(1);
     })

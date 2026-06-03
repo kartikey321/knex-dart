@@ -71,7 +71,7 @@ Future<List<Map>> searchUsers({String? name, String? email, bool? active}) async
 final usersWithOrders = await db.select(
   db('users')
     .select(['users.id', 'users.name'])
-    .select([db.raw('count(orders.id) as order_count')])
+    .select([db.queryBuilder().client.raw('count(orders.id) as order_count')])
     .leftJoin('orders', 'users.id', '=', 'orders.user_id')
     .groupBy(['users.id', 'users.name']),
 );
@@ -113,9 +113,9 @@ final salesReport = await db.select(
   db('orders')
     .select(['products.category'])
     .select([
-      db.raw('count(*) as order_count'),
-      db.raw('sum(orders.amount) as total_revenue'),
-      db.raw('avg(orders.amount) as avg_order_value'),
+      db.queryBuilder().client.raw('count(*) as order_count'),
+      db.queryBuilder().client.raw('sum(orders.amount) as total_revenue'),
+      db.queryBuilder().client.raw('avg(orders.amount) as avg_order_value'),
     ])
     .join('products', 'orders.product_id', '=', 'products.id')
     .groupBy(['products.category'])
@@ -182,7 +182,7 @@ final topProducts = await db.select(
     'ranked',
     db('products').select([
       '*',
-      db.raw('row_number() over (partition by category order by sales desc) as rank'),
+      db.queryBuilder().client.raw('row_number() over (partition by category order by sales desc) as rank'),
     ]),
   )
   .select(['*'])

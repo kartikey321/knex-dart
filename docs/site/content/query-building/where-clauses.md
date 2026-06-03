@@ -125,7 +125,7 @@ Check for existence of subquery results:
 print(
   db.from('users').whereExists(
     db.from('orders')
-      .select([db.raw('1')])
+      .select([db.queryBuilder().client.raw('1')])
       .whereColumn('orders.user_id', '=', 'users.id')
   ).toSQL().sql
 );
@@ -133,7 +133,7 @@ print(
 
 print(
   db.from('users').whereNotExists(
-    db.from('orders').select([db.raw('1')])
+    db.from('orders').select([db.queryBuilder().client.raw('1')])
   ).toSQL().sql
 );
 // select * from "users" where not exists (select 1 from "orders")

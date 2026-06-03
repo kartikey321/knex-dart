@@ -202,7 +202,7 @@ db('sales')
 // LATERAL join (PostgreSQL / MySQL 8+)
 db('users').leftJoinLateral('latest', (sub) {
   sub.table('orders')
-    .where('orders.user_id', db.raw('"users"."id"'))
+    .where('orders.user_id', db.queryBuilder().client.raw('"users"."id"'))
     .orderBy('created_at', 'desc')
     .limit(1);
 });

@@ -32,7 +32,7 @@ try {
       trx.queryBuilder()
         .table('accounts')
         .where('id', '=', fromId)
-        .update({'balance': db.raw('balance - ?', [amount])}),
+        .update({'balance': trx.queryBuilder().client.raw('balance - ?', [amount])}),
     );
 
     // This throws → triggers automatic ROLLBACK
@@ -40,7 +40,7 @@ try {
       trx.queryBuilder()
         .table('accounts')
         .where('id', '=', toId)
-        .update({'balance': db.raw('balance + ?', [amount])}),
+        .update({'balance': trx.queryBuilder().client.raw('balance + ?', [amount])}),
     );
   });
 } catch (e) {
@@ -71,7 +71,7 @@ await db.trx((trx) async {
     trx.queryBuilder()
       .table('accounts')
       .where('id', '=', accountId)
-      .update({'balance': db.raw('balance - ?', [amount])}),
+      .update({'balance': trx.queryBuilder().client.raw('balance - ?', [amount])}),
   );
 });
 ```
@@ -163,7 +163,7 @@ Future<void> transfer({
       trx.queryBuilder()
         .table('accounts')
         .where('id', '=', fromAccountId)
-        .update({'balance': db.raw('balance - ?', [amount])}),
+        .update({'balance': trx.queryBuilder().client.raw('balance - ?', [amount])}),
     );
 
     // Credit
@@ -171,7 +171,7 @@ Future<void> transfer({
       trx.queryBuilder()
         .table('accounts')
         .where('id', '=', toAccountId)
-        .update({'balance': db.raw('balance + ?', [amount])}),
+        .update({'balance': trx.queryBuilder().client.raw('balance + ?', [amount])}),
     );
 
     // Audit

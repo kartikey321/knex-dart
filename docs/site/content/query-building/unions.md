@@ -147,15 +147,15 @@ print(q2.sql);
 ```dart
 // Get all active users from different sources
 final regularUsers = db.from('users')
-    .select(['id', 'email', db.raw("'regular' as type")])
+    .select(['id', 'email', db.queryBuilder().client.raw("'regular' as type")])
     .where('active', '=', true);
 
 final adminUsers = db.from('admins')
-    .select(['id', 'email', db.raw("'admin' as type")])
+    .select(['id', 'email', db.queryBuilder().client.raw("'admin' as type")])
     .where('active', '=', true);
 
 final guestUsers = db.from('guests')
-    .select(['id', 'email', db.raw("'guest' as type")])
+    .select(['id', 'email', db.queryBuilder().client.raw("'guest' as type")])
     .where('session_active', '=', true);
 
 final q = regularUsers

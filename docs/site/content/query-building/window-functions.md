@@ -40,7 +40,7 @@ select "id", "department", "salary", row_number() over (partition by "department
 ### `ntile()`
 
 `ntile()` is supported by SQL engines listed below, but there is currently no dedicated `QueryBuilder.ntile()` helper.
-Use `raw()` in `select()`:
+Use `queryBuilder().client.raw()` in `select()`:
 
 ```dart
 final q = db
@@ -48,7 +48,7 @@ final q = db
     .table('employees')
     .select([
       'id',
-      db.raw(
+      db.queryBuilder().client.raw(
         'ntile(4) over (partition by "department" order by "salary" desc) as salary_quartile',
       ),
     ]);
@@ -164,4 +164,3 @@ select first_value("salary") over (partition by "department" order by "salary" a
 | SQLite 3.25+ | `rank`, `row_number`, `lead`, `lag` |
 | MSSQL | All functions in this guide |
 | DuckDB | All functions in this guide |
-

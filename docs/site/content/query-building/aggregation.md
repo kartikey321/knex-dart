@@ -16,7 +16,7 @@ final q = db
     .queryBuilder()
     .table('orders')
     .select(['customer_id'])
-    .select(db.raw('count(*) as order_count'))
+    .select(db.queryBuilder().client.raw('count(*) as order_count'))
     .groupBy('customer_id');
 
 final sql = q.toSQL();
@@ -35,9 +35,9 @@ final q = db
     .queryBuilder()
     .table('orders')
     .select([
-      db.raw("date_trunc('month', created_at) as month_bucket"),
+      db.queryBuilder().client.raw("date_trunc('month', created_at) as month_bucket"),
     ])
-    .select(db.raw('sum(amount) as revenue'))
+    .select(db.queryBuilder().client.raw('sum(amount) as revenue'))
     .groupByRaw("date_trunc('month', created_at)")
     .orderBy('month_bucket');
 ```
@@ -57,7 +57,7 @@ final q = db
     .queryBuilder()
     .table('orders')
     .select(['customer_id'])
-    .select(db.raw('count(*) as order_count'))
+    .select(db.queryBuilder().client.raw('count(*) as order_count'))
     .groupBy('customer_id')
     .having('customer_id', '>', 1000);
 ```
@@ -81,7 +81,7 @@ final q = db
     .queryBuilder()
     .table('orders')
     .select(['customer_id'])
-    .select(db.raw('sum(amount) as revenue'))
+    .select(db.queryBuilder().client.raw('sum(amount) as revenue'))
     .groupBy('customer_id')
     .havingRaw('sum(amount) > ?', [1000]);
 ```
@@ -98,11 +98,11 @@ final q = db
     .table('payments')
     .select([
       'status',
-      db.raw('count(*) as total_rows'),
-      db.raw('sum(amount) as total_amount'),
-      db.raw('avg(amount) as avg_amount'),
-      db.raw('min(amount) as min_amount'),
-      db.raw('max(amount) as max_amount'),
+      db.queryBuilder().client.raw('count(*) as total_rows'),
+      db.queryBuilder().client.raw('sum(amount) as total_amount'),
+      db.queryBuilder().client.raw('avg(amount) as avg_amount'),
+      db.queryBuilder().client.raw('min(amount) as min_amount'),
+      db.queryBuilder().client.raw('max(amount) as max_amount'),
     ])
     .groupBy('status');
 ```
@@ -118,8 +118,8 @@ final q = db
     .queryBuilder()
     .table('orders')
     .select(['customer_id'])
-    .select(db.raw('count(*) as order_count'))
-    .select(db.raw('sum(amount) as revenue'))
+    .select(db.queryBuilder().client.raw('count(*) as order_count'))
+    .select(db.queryBuilder().client.raw('sum(amount) as revenue'))
     .groupBy('customer_id')
     .havingRaw('count(*) >= ?', [5])
     .havingRaw('sum(amount) > ?', [1000])

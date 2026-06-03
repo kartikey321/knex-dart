@@ -44,7 +44,7 @@ Use a subquery as a table source:
 ```dart
 final sub = db.from('orders')
     .groupBy('user_id')
-    .select(['user_id', db.raw('count(*) as order_count')])
+    .select(['user_id', db.queryBuilder().client.raw('count(*) as order_count')])
     .as('grouped');
 
 print(db.queryBuilder().from(sub).select(['*']).toSQL().sql);

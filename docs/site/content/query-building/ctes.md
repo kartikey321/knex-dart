@@ -91,7 +91,7 @@ print(q.sql);
 ```dart
 final q = db.queryBuilder()
     .withQuery('sales',
-      db.raw('select * from orders where status = ?', ['completed'])
+      db.queryBuilder().client.raw('select * from orders where status = ?', ['completed'])
     )
     .from('sales')
     .select(['*'])
@@ -160,8 +160,8 @@ final q = db.queryBuilder()
     )
     .from('high_value_orders')
     .select([
-      db.raw('count(distinct user_id) as customers'),
-      db.raw('sum(amount) as revenue')
+      db.queryBuilder().client.raw('count(distinct user_id) as customers'),
+      db.queryBuilder().client.raw('sum(amount) as revenue')
     ])
     .toSQL();
 print(q.sql);
@@ -176,11 +176,11 @@ PostgreSQL can materialize CTEs for optimization.
 
 ```dart
 final recursive = db.from('employees')
-    .select(['id', 'name', 'manager_id', db.raw('1 as level')])
+    .select(['id', 'name', 'manager_id', db.queryBuilder().client.raw('1 as level')])
     .where('manager_id', '=', null)
     .union([
       db.from('employees as e')
-        .select(['e.id', 'e.name', 'e.manager_id', db.raw('o.level + 1')])
+        .select(['e.id', 'e.name', 'e.manager_id', db.queryBuilder().client.raw('o.level + 1')])
         .join('org_tree as o', 'e.manager_id', 'o.id')
     ]);
 
@@ -197,13 +197,13 @@ print(q.sql);
 
 ```dart
 final paths = db.from('edges')
-    .select(['source', 'target', db.raw('ARRAY[source, target] as path')])
+    .select(['source', 'target', db.queryBuilder().client.raw('ARRAY[source, target] as path')])
     .where('source', '=', startNode)
     .union([
       db.from('edges as e')
-        .select(['e.source', 'e.target', db.raw('p.path || e.target')])
+        .select(['e.source', 'e.target', db.queryBuilder().client.raw('p.path || e.target')])
         .join('paths as p', 'p.target', 'e.source')
-        .where(db.raw('NOT e.target = ANY(p.path)'))  // Avoid cycles
+        .where(db.queryBuilder().client.raw('NOT e.target = ANY(p.path)'))  // Avoid cycles
     ]);
 
 final q = db.queryBuilder()
