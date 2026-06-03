@@ -10,3 +10,7 @@ pubspec.lock
 # Flutter tool artifacts (if present)
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# macOS-only symlinks to FreeTDS libraries — dev-only, must not be committed
+libsybdb.dylib
+libct.dylib
