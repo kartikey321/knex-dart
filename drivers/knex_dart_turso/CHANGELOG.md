@@ -1,7 +1,7 @@
 ## 0.2.0
 
 - Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom
-  interceptors via the `interceptors` parameter on `KnexTurso.connect()`.
+  interceptors via the `interceptors` parameter on `KnexTurso({...})`.
 - Added 30-second timeout on all HTTP requests to prevent indefinite hangs.
 - Fixed `_tryOpen()` to only suppress known connection errors rather than
   all exceptions, so driver-level regressions are not silently swallowed.

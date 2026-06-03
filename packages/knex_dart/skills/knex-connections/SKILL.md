@@ -53,7 +53,9 @@ For raw SQL fragments inside a query builder (not execution), use `db.queryBuild
 
 ## Observability
 
-All driver wrappers accept an `interceptors` list. Attach a custom `QueryInterceptor` to observe every query — its SQL, bindings, timing, and errors — without any dependency on a specific driver.
+All driver wrappers accept an `interceptors` list. Attach a custom `QueryInterceptor` to observe every future-based query **and** every streaming query — its SQL, bindings, timing, and errors — without any dependency on a specific driver.
+
+Override both `intercept` (future queries) and `interceptStream` (streaming queries) to cover all execution paths:
 
 ```dart
 import 'package:knex_dart/knex_dart.dart';
@@ -75,6 +77,27 @@ class LoggingInterceptor extends QueryInterceptor {
       print('[ERROR] ${ctx.querySummary} → $e');
       rethrow;
     }
+  }
+
+  @override
+  Stream<T> interceptStream<T>(
+    QueryExecutionContext ctx,
+    Stream<T> Function() next,
+  ) {
+    print('[STREAM] ${ctx.querySummary}');
+    final sw = Stopwatch()..start();
+    return next().handleError((Object e) {
+      print('[STREAM ERROR] ${ctx.querySummary} elapsed=${sw.elapsed} → $e');
+      throw e;
+    }).transform(
+      StreamTransformer.fromHandlers(
+        handleDone: (sink) {
+          print('[STREAM DONE] ${ctx.querySummary} elapsed=${sw.elapsed}');
+          sink.close();
+        },
+        handleData: (row, sink) => sink.add(row),
+      ),
+    );
   }
 }
 

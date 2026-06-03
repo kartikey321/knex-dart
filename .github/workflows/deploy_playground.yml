@@ -37,6 +37,14 @@ jobs:
       - name: Generate playground Dart assets
         run: ./tool/build_playground_dart_live_assets.sh
 
+      - name: Verify generated Dart assets
+        shell: bash
+        run: |
+          test -s playground/public/dart-live/knex_dart.dill \
+            || { echo "knex_dart.dill is missing or empty"; exit 1; }
+          test -s playground/public/dart-live/knex_dart_packages.bin \
+            || { echo "knex_dart_packages.bin is missing or empty"; exit 1; }
+
       - name: Install dependencies
         working-directory: playground
         run: npm ci

@@ -137,9 +137,10 @@ List<String> _versionDriftCheck(String rootDir) {
 
 class Snippet {
   final String file;
-  final int startLine; // 1-based line of the opening ```dart in the .md file
+  final int startLine; // 1-based line of the first code line inside the fence
   final String code;
-  Snippet(this.file, this.startLine, this.code);
+  final bool nocheck;
+  Snippet(this.file, this.startLine, this.code, {this.nocheck = false});
 }
 
 List<Snippet> _extractSnippets(String rootDir) {
@@ -155,11 +156,14 @@ List<Snippet> _extractSnippets(String rootDir) {
       final line = lines[i];
       if (!inBlock && line.trimLeft().startsWith('```dart')) {
         inBlock = true;
-        blockStart = i + 1; // 1-based
+        blockStart = i + 2; // 1-based: first code line (fence is i+1)
         blockLines.clear();
       } else if (inBlock && line.trim() == '```') {
         inBlock = false;
-        results.add(Snippet(path, blockStart, blockLines.join('\n')));
+        // Check the line before the opening fence for <!-- doc:nocheck -->
+        final prevLine = i > 0 ? lines[i - blockLines.length - 2] : '';
+        final nocheck = prevLine.contains('doc:nocheck');
+        results.add(Snippet(path, blockStart, blockLines.join('\n'), nocheck: nocheck));
       } else if (inBlock) {
         blockLines.add(line);
       }
@@ -307,7 +311,7 @@ Future<List<String>> _analyzeSnippets(
   final withImports = snippets.where((s) {
     if (!s.code.contains('import ')) return false;
     // Skip snippets marked as intentionally incomplete or using Flutter deps.
-    if (s.code.contains('// doc:nocheck')) return false;
+    if (s.nocheck || s.code.contains('// doc:nocheck')) return false;
     for (final pkg in _flutterOnlyPackages) {
       if (s.code.contains("'package:$pkg/")) return false;
     }

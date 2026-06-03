@@ -87,8 +87,8 @@ await sqlite.insert(
 
 - `knex_dart` core does not execute queries by itself
 - The safest portable builder pattern is `queryBuilder().table('...')`
-- `db.raw(...)` does NOT exist on driver wrappers; use `db.rawSql(sql, bindings)` for raw execution, or `db.queryBuilder().client.raw(sql, bindings)` for raw SQL fragments inside a query builder
-- Direct raw execution method names differ by driver, so check the wrapper you are using
+- `db.raw(...)` does NOT exist on driver wrappers; use `db.rawSql(sql, bindings)` for raw execution on drivers that expose it (Postgres, MySQL, SQLite, DuckDB — check the specific wrapper), or `db.queryBuilder().client.raw(sql, bindings)` for inline raw SQL fragments inside a query builder
+- Raw execution method names differ by driver: most expose `rawSql()`; some older wrappers may expose only `raw()`. Always verify against the specific driver's public API.
 
 If you already have a low-level `Client`, wrap it in `Knex(client)` to get callable `db('users')` syntax.
 

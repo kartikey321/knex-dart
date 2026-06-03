@@ -6,7 +6,6 @@
 - Added `raw()` alias on `KnexDuckDBTransaction` for parity with other drivers.
 - Fixed `ResultSet` resource leak: result sets are now disposed in a
   `try/finally` block after row mapping.
-- Fixed savepoint ID generation to use a per-instance counter.
 - Fixed exception propagation in transaction rollback using
   `Error.throwWithStackTrace`.
 - Note: DuckDB does not support SQL-level `SAVEPOINT`; nested transactions are

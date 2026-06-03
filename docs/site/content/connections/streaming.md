@@ -52,8 +52,8 @@ For a table with millions of rows, `db.select()` allocates a large list up-front
 > `KnexPostgresTransaction.streamQuery()`, or use `select()` for non-streaming
 > queries. Native server-side cursor streaming will be added in a future release.
 
+<!-- doc:nocheck — streamQuery not yet on top-level KnexPostgres wrapper -->
 ```dart
-// doc:nocheck — streamQuery not yet on top-level KnexPostgres wrapper
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
 final db = await KnexPostgres.connect(
