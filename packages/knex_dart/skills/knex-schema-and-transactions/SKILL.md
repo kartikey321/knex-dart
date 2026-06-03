@@ -2,7 +2,7 @@
 name: knex-schema-and-transactions
 description: Use when creating tables, altering schema, or running atomic write flows with knex_dart driver wrappers.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 This skill assumes a live driver wrapper such as `KnexSQLite`, `KnexPostgres`, or `KnexMySQL`.

@@ -2,7 +2,7 @@
 name: knex-mutations
 description: Use when writing INSERT, UPDATE, DELETE, or conflict-handling queries with knex_dart.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 This skill covers write operations. Use `KnexQuery.forDialect(...)` for compile-only examples, and a driver wrapper (`KnexPostgres`, `KnexSQLite`, etc.) when you need to execute against a real database.

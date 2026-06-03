@@ -2,7 +2,7 @@
 name: knex-driver-setup
 description: Use when choosing between SQL-only knex_dart usage and a live driver package, or when writing the first connected query.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 ## Choose the Right Entry Point
@@ -87,8 +87,8 @@ await sqlite.insert(
 
 - `knex_dart` core does not execute queries by itself
 - The safest portable builder pattern is `queryBuilder().table('...')`
-- `db.raw(...)` is the common way to create raw SQL fragments
-- Direct raw execution method names differ by driver, so check the wrapper you are using
+- `db.raw(...)` does NOT exist on driver wrappers; use `db.rawSql(sql, bindings)` for raw execution on drivers that expose it (Postgres, MySQL, SQLite, DuckDB — check the specific wrapper), or `db.queryBuilder().client.raw(sql, bindings)` for inline raw SQL fragments inside a query builder
+- Raw execution method names differ by driver: most expose `rawSql()`; some older wrappers may expose only `raw()`. Always verify against the specific driver's public API.
 
 If you already have a low-level `Client`, wrap it in `Knex(client)` to get callable `db('users')` syntax.
 

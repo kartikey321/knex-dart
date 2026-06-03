@@ -1,6 +1,6 @@
 name: knex_dart_snowflake
 description: Snowflake driver for knex_dart — execute queries against Snowflake via the Snowflake SQL API v2 using the knex_dart query builder.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
@@ -17,7 +17,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  knex_dart: ^1.1.0
+  knex_dart: ^1.2.0
   http: ^1.2.0
 
 dev_dependencies:

@@ -2,7 +2,7 @@
 name: knex-opentelemetry
 description: Use when instrumenting knex_dart live driver wrappers with OpenTelemetry spans, DB client duration metrics, hooks, transactions, or stream/query interceptor behavior.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 ## Scope

@@ -2,14 +2,14 @@
 name: knex-schema-and-migrations
 description: Use when defining database migrations with knex_dart's Migrator — code-first, SQL-directory, or schema-input styles.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 Migrations run through the `Migrator` class accessed via `knex.migrate`. The `Knex` facade (not the driver wrappers like `KnexPostgres`) is the entry point.
 
 ## Getting a Knex Facade
 
-Driver wrappers (`KnexPostgres`, `KnexSQLite`, etc.) expose the low-level `Client` subclass publicly. Wrap it in `Knex` to access migrations.
+`Knex` accepts any `Client` subclass from `package:knex_dart`. Currently only `SQLiteClient` extends `Client` directly — Postgres and MySQL wrappers manage their own internal clients and are not passed to `Knex` directly.
 
 ```dart
 import 'package:knex_dart/knex_dart.dart';
@@ -21,15 +21,24 @@ final db = Knex(client);
 // Now db.migrate is available
 ```
 
+For PostgreSQL or MySQL, execute schema changes via `executeSchema()` on the driver wrapper directly instead of using the `Knex` facade:
+
 ```dart
-import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
-final client = await PostgresClient.connect(
-  host: 'localhost', port: 5432,
-  database: 'myapp', username: 'user', password: 'pass',
+final db = await KnexPostgres.connect(
+  host: 'localhost',
+  database: 'myapp',
+  username: 'user',
+  password: 'pass',
 );
-final db = Knex(client);
+
+await db.executeSchema((schema) {
+  schema.createTable('users', (t) {
+    t.increments('id');
+    t.string('email').notNullable().unique();
+  });
+});
 ```
 
 ## Migration Lifecycle

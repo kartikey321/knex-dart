@@ -1,3 +1,14 @@
+## 0.3.0
+
+- Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom
+  interceptors via the `interceptors` parameter on `KnexPostgres.connect()`.
+- Fixed savepoint lifecycle events routed through child transaction ID so OTel
+  spans are correctly attributed to nested transactions.
+- Fixed exception propagation in transaction rollback using
+  `Error.throwWithStackTrace` to preserve original stack traces.
+- Fixed savepoint ID generation to use a per-instance counter.
+- Removed leftover debug `print()` statements.
+
 ## 0.2.0
 
 - Added `KnexPostgres.cockroachdb(...)` constructor for CockroachDB connections.

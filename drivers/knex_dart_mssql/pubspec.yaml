@@ -1,6 +1,6 @@
 name: knex_dart_mssql
 description: Microsoft SQL Server driver for knex_dart — execute queries against SQL Server via the mssql_connection FFI package (FreeTDS).
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues

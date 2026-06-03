@@ -177,11 +177,11 @@ await db.close();
 ```dart
 import 'package:knex_dart_mssql/knex_dart_mssql.dart';
 
-final db = await KnexMSSQL.connect(
+final db = await KnexMssql.connect(
   host: 'localhost',
-  port: 1433,
+  port: '1433',
   database: 'myapp',
-  user: 'sa',
+  username: 'sa',
   password: 'YourPassword1!',
 );
 
@@ -209,17 +209,17 @@ await db.destroy();
 ```dart
 import 'package:knex_dart_bigquery/knex_dart_bigquery.dart';
 
-final db = await KnexBigQuery.connect(
+final db = KnexBigQuery(
   projectId: 'my-gcp-project',
-  dataset: 'analytics',
-  credentials: serviceAccountJson,  // Map<String, dynamic>
+  token: 'your-gcp-access-token',
+  defaultDataset: 'analytics',
 );
 
 final rows = await db.select(
   db('events').where('event_type', '=', 'purchase'),
 );
 
-await db.destroy();
+db.destroy();
 ```
 
 **BigQuery-specific features:**
@@ -235,20 +235,18 @@ await db.destroy();
 ```dart
 import 'package:knex_dart_snowflake/knex_dart_snowflake.dart';
 
-final db = await KnexSnowflake.connect(
+final db = KnexSnowflake(
   account: 'myorg-myaccount',
+  token: 'your-snowflake-jwt-or-oauth-token',
   database: 'MYDB',
   schema: 'PUBLIC',
-  warehouse: 'COMPUTE_WH',
-  username: 'user',
-  password: 'pass',
 );
 
 final rows = await db.select(
   db('orders').where('status', '=', 'shipped'),
 );
 
-await db.destroy();
+db.destroy();
 ```
 
 **Snowflake-specific features:**
@@ -264,7 +262,7 @@ await db.destroy();
 ```dart
 import 'package:knex_dart_turso/knex_dart_turso.dart';
 
-final db = await KnexTurso.connect(
+final db = KnexTurso(
   url: 'https://my-db.turso.io',
   authToken: 'your-token',
 );
@@ -273,7 +271,7 @@ final rows = await db.select(
   db('users').where('active', '=', true),
 );
 
-await db.destroy();
+db.destroy();
 ```
 
 **Turso-specific features:**
@@ -289,7 +287,7 @@ await db.destroy();
 ```dart
 import 'package:knex_dart_d1/knex_dart_d1.dart';
 
-final db = await KnexD1.connect(
+final db = KnexD1(
   accountId: 'your-cf-account-id',
   databaseId: 'your-d1-database-id',
   apiToken: 'your-cf-api-token',
@@ -299,7 +297,7 @@ final rows = await db.select(
   db('users').where('active', '=', true),
 );
 
-await db.destroy();
+db.destroy();
 ```
 
 **D1-specific features:**
