@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1
+
+- Bump `knex_dart` lower bound to `^1.2.1` — `QueryInterceptor` and
+  `QueryExecutionContext` were not present in `1.2.0`, causing pana downgrade
+  analysis to fail.
+- Added `example/main.dart` demonstrating interceptor setup with request/response hooks.
+- Added dartdoc to all previously undocumented public symbols
+  (`intercept`, `interceptStream`, `KnexOtelOptions()`, `KnexOtelResult()`).
+- Added library-level doc comment.
+
 ## 0.1.0
 
 - Initial release of `knex_dart_otel`.

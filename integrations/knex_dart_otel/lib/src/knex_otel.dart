@@ -1,3 +1,10 @@
+/// OpenTelemetry instrumentation for knex_dart driver wrappers.
+///
+/// Attach [KnexOtelInterceptor] to any driver's `interceptors` list to get
+/// automatic query spans and `db.client.operation.duration` histogram metrics
+/// following the OpenTelemetry database semantic conventions.
+library;
+
 import 'dart:async';
 
 import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart';
@@ -77,6 +84,10 @@ class KnexOtelResult {
   final int? rowCount;
   final Duration elapsed;
 
+  /// Creates a [KnexOtelResult] with the given fields.
+  ///
+  /// [isError] and [elapsed] are required. [rowCount] is set when the result
+  /// is a `List` (select queries); it is `null` for non-row-returning operations.
   const KnexOtelResult({
     required this.isError,
     required this.elapsed,
@@ -107,6 +118,10 @@ class KnexOtelOptions {
   /// Called after execution (success or error).
   final KnexOtelResponseHook? responseHook;
 
+  /// Creates a [KnexOtelOptions] configuration.
+  ///
+  /// All parameters are optional. [maxQueryTextLength] must be non-negative;
+  /// pass `0` to suppress `db.query.text` entirely (same as `captureQueryText: false`).
   KnexOtelOptions({
     this.captureQueryText = true,
     int maxQueryTextLength = 1024,
@@ -205,6 +220,12 @@ class KnexOtelInterceptor extends QueryInterceptor {
            (_defaultHistogram ??= _createOperationDurationHistogram()),
        _options = options ?? KnexOtelOptions();
 
+  /// Wraps a single future-based query execution with an OTel span.
+  ///
+  /// Sets all standard DB semantic convention attributes, calls any configured
+  /// [KnexOtelOptions.requestHook] before execution, records the
+  /// `db.client.operation.duration` histogram on completion, and re-throws
+  /// any exception so it propagates normally to the caller.
   @override
   Future<T> intercept<T>(
     QueryExecutionContext ctx,
@@ -317,6 +338,11 @@ class KnexOtelInterceptor extends QueryInterceptor {
     );
   }
 
+  /// Wraps a streaming query execution with an OTel span.
+  ///
+  /// The span is created lazily on first subscription so unsubscribed streams
+  /// do not leak open spans. The span ends when the stream closes normally,
+  /// emits an error, or the subscriber cancels.
   @override
   Stream<T> interceptStream<T>(
     QueryExecutionContext ctx,

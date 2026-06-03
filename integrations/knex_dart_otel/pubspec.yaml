@@ -1,6 +1,6 @@
 name: knex_dart_otel
 description: OpenTelemetry instrumentation for knex_dart driver wrappers — query spans and DB client duration metrics via the OTel API.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
@@ -17,7 +17,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  knex_dart: ^1.2.0
+  knex_dart: ^1.2.1
   dartastic_opentelemetry_api: ^0.9.0
 
 dev_dependencies:
