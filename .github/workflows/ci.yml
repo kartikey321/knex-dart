@@ -631,7 +631,26 @@ jobs:
         run: dart test
 
   # ════════════════════════════════════════════════════════════════════════════
-  # 15 · Playground generated assets
+  # 15 · Doc snippet validation
+  # ════════════════════════════════════════════════════════════════════════════
+  check-doc-snippets:
+    name: Validate doc Dart snippets
+    needs: analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+      - name: Resolve Dart workspace (no DuckDB)
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
+      - name: Check doc snippets
+        run: dart run tool/check_doc_snippets.dart
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # 16 · Playground generated assets
   # ════════════════════════════════════════════════════════════════════════════
   check-playground-assets:
     name: Check playground Dart assets
@@ -648,14 +667,17 @@ jobs:
         run: |
           sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
           dart pub get
-      - name: Regenerate playground Dart assets
+      - name: Generate playground Dart assets
         run: ./tool/build_playground_dart_live_assets.sh
-      - name: Verify generated assets are committed
+      - name: Verify generated assets are non-empty
         shell: bash
         run: |
-          git diff --exit-code -- \
-            playground/public/dart-live/knex_dart.dill \
-            playground/public/dart-live/knex_dart_packages.bin
+          test -s playground/public/dart-live/knex_dart.dill \
+            || { echo "knex_dart.dill is missing or empty"; exit 1; }
+          test -s playground/public/dart-live/knex_dart_packages.bin \
+            || { echo "knex_dart_packages.bin is missing or empty"; exit 1; }
+          echo "Dart assets generated successfully."
+          ls -lh playground/public/dart-live/knex_dart.dill playground/public/dart-live/knex_dart_packages.bin
 
   # ════════════════════════════════════════════════════════════════════════════
   # 16 · Publish  (release tags or explicit workflow dispatch)
@@ -679,6 +701,7 @@ jobs:
       - test-packages
       - test-otel
       - test-embedded-wasm
+      - check-doc-snippets
       - check-playground-assets
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')

@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite
+.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite check-docs update-versions
 
 # Local development only — not used in CI.
 # CI uses `dart test --tags=<driver>` directly against GitHub Actions service containers.
@@ -49,6 +49,12 @@ test-unit: ## Run core unit tests only
 
 analyze: ## Run static analysis across workspace
 	melos run analyze
+
+check-docs: ## Validate doc snippets and README version constraints
+	dart run tool/check_doc_snippets.dart
+
+update-versions: ## Sync README version constraints from pubspec.yaml (run after version bumps)
+	dart run tool/update_readme_versions.dart
 
 coverage: ## Generate coverage/lcov.info for core package
 	dart test packages/knex_dart/test --coverage=coverage

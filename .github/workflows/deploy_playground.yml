@@ -19,11 +19,23 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: stable }
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: playground/package-lock.json
+
+      - name: Resolve Dart workspace
+        shell: bash
+        run: |
+          sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
+          dart pub get
+
+      - name: Generate playground Dart assets
+        run: ./tool/build_playground_dart_live_assets.sh
 
       - name: Install dependencies
         working-directory: playground

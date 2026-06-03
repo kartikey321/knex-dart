@@ -2,7 +2,7 @@
 name: knex-query-building
 description: Use when generating SQL with knex_dart query builders: filtering, joins, grouping, CTEs, unions, and SQL inspection.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 Prefer `KnexQuery` for portable, compile-only examples. It gives you dialect-correct SQL without requiring a live database connection.

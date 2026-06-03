@@ -47,7 +47,13 @@ For a table with millions of rows, `db.select()` allocates a large list up-front
 
 ## PostgreSQL Example
 
+> **Note:** Top-level `streamQuery` on `KnexPostgres` is not yet implemented.
+> Streaming on PostgreSQL is available inside transactions via
+> `KnexPostgresTransaction.streamQuery()`, or use `select()` for non-streaming
+> queries. Native server-side cursor streaming will be added in a future release.
+
 ```dart
+// doc:nocheck — streamQuery not yet on top-level KnexPostgres wrapper
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
 final db = await KnexPostgres.connect(
@@ -107,7 +113,7 @@ final stream = db.streamQuery(
     .from('sales')
     .select(['region', 'product_id'])
     .sum('amount as total')
-    .groupBy(['region', 'product_id'])
+    .groupBy('region').groupBy('product_id')
     .orderBy('total', 'desc'),
 );
 

@@ -30,3 +30,7 @@ benchmarks/results/
 # Playground
 playground/node_modules/
 playground/dist/
+
+# Generated playground Dart-live artifacts (platform-dependent, built at deploy time)
+playground/public/dart-live/knex_dart.dill
+playground/public/dart-live/knex_dart_packages.bin

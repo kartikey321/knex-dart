@@ -2,7 +2,7 @@
 name: knex-connections
 description: Use when configuring connection pools, executing raw SQL, or tapping observability streams on knex_dart driver clients.
 metadata:
-  knex_dart_version: 1.2.0
+  knex_dart_version: 1.2.1
 ---
 
 This skill covers pool configuration, raw SQL execution, observability, and teardown. For basic driver setup and first queries, see `knex-driver-setup`.
@@ -51,38 +51,43 @@ final users = await db.rawSql(
 
 For raw SQL fragments inside a query builder (not execution), use `db.queryBuilder().client.raw(sql, bindings)`. Do not assume wrapper-level `raw()` always creates a fragment; on some wrappers it is a raw execution alias.
 
-## Observability Streams
+## Observability
 
-Observability streams live on the low-level `Client` subclass (e.g. `PostgresClient`, `SQLiteClient`), which is also publicly exported by each driver package. Attach listeners before you run any queries.
+All driver wrappers accept an `interceptors` list. Attach a custom `QueryInterceptor` to observe every query — its SQL, bindings, timing, and errors — without any dependency on a specific driver.
 
 ```dart
+import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
-final client = await PostgresClient.connect(
+class LoggingInterceptor extends QueryInterceptor {
+  @override
+  Future<T> intercept<T>(
+    QueryExecutionContext ctx,
+    Future<T> Function() next,
+  ) async {
+    print('[SQL] ${ctx.querySummary}  bindings=${ctx.parameters}');
+    final sw = Stopwatch()..start();
+    try {
+      final result = await next();
+      print('[DONE] elapsed=${sw.elapsed}');
+      return result;
+    } catch (e) {
+      print('[ERROR] ${ctx.querySummary} → $e');
+      rethrow;
+    }
+  }
+}
+
+final db = await KnexPostgres.connect(
   host: 'localhost',
-  port: 5432,
   database: 'myapp',
   username: 'user',
   password: 'pass',
+  interceptors: [LoggingInterceptor()],
 );
-
-// Log every query
-client.onQuery.listen((event) {
-  print('[SQL] ${event.sql}  bindings=${event.bindings}');
-});
-
-// Log query errors
-client.onQueryError.listen((event) {
-  print('[ERROR] ${event.sql} → ${event.error}');
-});
-
-// Log query results with timing
-client.onQueryResponse.listen((event) {
-  print('[DONE] ${event.sql}  rows=${event.response?.length ?? 0}');
-});
 ```
 
-When you use `KnexPostgres.connect(...)`, the underlying `PostgresClient` is not exposed directly. Use the low-level `PostgresClient.connect(...)` constructor when you need stream access, then pass the client to queries through the `Knex` facade or use it directly.
+For structured telemetry (spans, metrics, trace context), use `KnexOtelInterceptor` from `package:knex_dart_otel/knex_dart_otel.dart` instead of a hand-rolled interceptor.
 
 ## Teardown
 
