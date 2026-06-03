@@ -1,3 +1,8 @@
+## 0.3.1
+
+- Tighten `knex_dart` lower bound to `^1.2.1` — `QueryInterceptor`
+  and `QueryExecutionContext` were not present before 1.2.1.
+
 ## 0.3.0
 
 - Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom

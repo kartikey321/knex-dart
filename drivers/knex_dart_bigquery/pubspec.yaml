@@ -1,6 +1,6 @@
 name: knex_dart_bigquery
 description: Google BigQuery driver for knex_dart — execute queries against Google BigQuery via the BigQuery REST API using the knex_dart query builder.
-version: 0.2.0
+version: 0.2.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
