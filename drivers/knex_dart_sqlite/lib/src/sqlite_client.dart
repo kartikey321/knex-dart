@@ -12,6 +12,15 @@ class SQLiteClient extends Client {
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
 
+  /// Per-level update buffers. One entry is pushed per BEGIN/SAVEPOINT and
+  /// popped on COMMIT/ROLLBACK. Events are forwarded to [_updateController]
+  /// only on the outermost COMMIT, preventing watch() from seeing phantom rows
+  /// from uncommitted or rolled-back transactions.
+  final List<List<SqliteUpdate>> _txUpdateStack = [];
+
+  late final StreamController<SqliteUpdate> _updateController;
+  StreamSubscription<SqliteUpdate>? _updatesSub;
+
   /// Prepared statement cache keyed by SQL string.
   ///
   /// Avoids repeated `sqlite3_prepare` calls for identical SQL, which is the
@@ -37,6 +46,7 @@ class SQLiteClient extends Client {
 
     final client = SQLiteClient._(filename, config);
     client._db = sqlite3.open(filename);
+    client._setupUpdateHook();
     return client;
   }
 
@@ -54,6 +64,21 @@ class SQLiteClient extends Client {
   /// Opens the underlying SQLite database file.
   Future<void> initialize() async {
     _db = sqlite3.open(_filename);
+    _setupUpdateHook();
+  }
+
+  void _setupUpdateHook() {
+    // sync: true ensures watch() listeners are notified within the same call
+    // stack as the write, matching Drift's internal dispatch pattern.
+    _updateController = StreamController<SqliteUpdate>.broadcast(sync: true);
+    _updatesSub = _db.updates.listen((update) {
+      if (_updateController.isClosed) return;
+      if (_txUpdateStack.isNotEmpty) {
+        _txUpdateStack.last.add(update);
+      } else {
+        _updateController.add(update);
+      }
+    });
   }
 
   @override
@@ -86,11 +111,22 @@ class SQLiteClient extends Client {
       stmt.dispose();
     }
     _stmtCache.clear();
+    // Cancel before dispose so any in-flight async events from _db.updates
+    // don't reach _updateController after it is closed.
+    await _updatesSub?.cancel();
     _db.dispose();
+    await _updateController.close();
   }
 
   /// Whether the connection is closed.
   bool get isClosed => _isClosed;
+
+  /// Stream of low-level table mutation events from SQLite's UPDATE_HOOK.
+  ///
+  /// Events are buffered while a transaction is active and flushed only on
+  /// top-level COMMIT, so [watch] never sees phantom rows from uncommitted or
+  /// rolled-back writes.
+  Stream<SqliteUpdate> get updates => _updateController.stream;
 
   /// Close the database connection.
   Future<void> close() => destroyPool();
@@ -164,28 +200,41 @@ class SQLiteClient extends Client {
     if (_transactionDepth > 0) {
       final sp = _savepointId();
       _transactionDepth++;
+      _txUpdateStack.add([]);
       _db.execute('SAVEPOINT $sp');
       try {
         final result = await callback(this);
         _db.execute('RELEASE SAVEPOINT $sp');
+        // Merge savepoint's buffered updates into the parent level so they
+        // survive to the outermost COMMIT.
+        final saved = _txUpdateStack.removeLast();
+        _txUpdateStack.last.addAll(saved);
         return result;
       } catch (e, st) {
         try {
           _db.execute('ROLLBACK TO SAVEPOINT $sp');
         } catch (_) {}
+        _txUpdateStack.removeLast(); // discard rolled-back updates
         Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }
     } else {
       _transactionDepth++;
+      _txUpdateStack.add([]);
       _db.execute('BEGIN');
       try {
         final result = await callback(this);
         _db.execute('COMMIT');
+        // Flush all buffered updates now that the transaction is committed.
+        final committed = _txUpdateStack.removeLast();
+        for (final u in committed) {
+          if (!_updateController.isClosed) _updateController.add(u);
+        }
         return result;
       } catch (e) {
         _db.execute('ROLLBACK');
+        _txUpdateStack.removeLast(); // discard all uncommitted updates
         rethrow;
       } finally {
         _transactionDepth--;

@@ -31,6 +31,7 @@ export 'src/knex_query.dart';
 export 'src/client/client.dart';
 export 'src/client/knex_config.dart';
 export 'src/client/query_interceptor.dart';
+export 'src/client/watchable_client.dart';
 
 // Raw and Ref
 export 'src/raw.dart';

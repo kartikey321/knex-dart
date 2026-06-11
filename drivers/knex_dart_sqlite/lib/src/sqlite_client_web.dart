@@ -137,6 +137,15 @@ class SQLiteClient extends Client {
   /// Whether the connection is closed.
   bool get isClosed => _isClosed;
 
+  /// Stream of low-level table mutation events from SQLite's UPDATE_HOOK.
+  ///
+  /// Async because the web client initializes lazily; the stream opens once
+  /// the WASM database is ready.
+  Stream<SqliteUpdate> get updates async* {
+    final db = await _ensureDb();
+    yield* db.updates;
+  }
+
   /// Close the database connection.
   Future<void> close() => destroyPool();
 
