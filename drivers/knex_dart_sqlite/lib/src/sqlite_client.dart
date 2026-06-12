@@ -12,6 +12,12 @@ class SQLiteClient extends Client {
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
 
+  // SQLite uses a single connection here, so unrelated top-level
+  // transactions must not interleave. We queue only the outermost scopes;
+  // nested transactions within the same logical flow still use savepoints.
+  Future<void> _transactionQueue = Future<void>.value();
+  static final Object _transactionZoneKey = Object();
+
   /// Per-level update buffers. One entry is pushed per BEGIN/SAVEPOINT and
   /// popped on COMMIT/ROLLBACK. Events are forwarded to [_updateController]
   /// only on the outermost COMMIT, preventing watch() from seeing phantom rows
@@ -197,6 +203,28 @@ class SQLiteClient extends Client {
 
   /// Executes [callback] in a transaction/savepoint scope.
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
+    if (Zone.current[_transactionZoneKey] == true) {
+      return _runTransactionScope(callback);
+    }
+
+    final completer = Completer<T>();
+    _transactionQueue = _transactionQueue.catchError((_) {}).then((_) async {
+      try {
+        final result = await runZoned(
+          () => _runTransactionScope(callback),
+          zoneValues: {_transactionZoneKey: true},
+        );
+        completer.complete(result);
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
+  Future<T> _runTransactionScope<T>(
+    Future<T> Function(SQLiteClient trx) callback,
+  ) async {
     if (_transactionDepth > 0) {
       final sp = _savepointId();
       _transactionDepth++;
