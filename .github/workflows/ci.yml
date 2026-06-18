@@ -401,6 +401,14 @@ jobs:
           PG_DATABASE: knex_test
           PG_USER: knex
           PG_PASSWORD: knex
+      - name: Run PostgreSQL doc snippets
+        run: dart run tool/check_doc_snippets.dart --mode=run --scope=postgres
+        env:
+          PG_HOST: localhost
+          PG_PORT: 5432
+          PG_DATABASE: knex_test
+          PG_USER: knex
+          PG_PASSWORD: knex
 
   # ════════════════════════════════════════════════════════════════════════════
   # 9 · MySQL  ·  Linux + Docker service
@@ -442,6 +450,14 @@ jobs:
       - name: Run MySQL tests
         working-directory: drivers/knex_dart_mysql
         run: dart test --tags=mysql && dart test test/pool test/mocks
+        env:
+          MYSQL_HOST: localhost
+          MYSQL_PORT: 3306
+          MYSQL_DATABASE: knex_test
+          MYSQL_USER: knex
+          MYSQL_PASSWORD: knex
+      - name: Run MySQL doc snippets
+        run: dart run tool/check_doc_snippets.dart --mode=run --scope=mysql
         env:
           MYSQL_HOST: localhost
           MYSQL_PORT: 3306
@@ -496,6 +512,14 @@ jobs:
           dart test test/integration/mssql_test.dart --concurrency=1
           dart test test/integration/mssql_pipeline_test.dart --concurrency=1
           dart test test/integration/schema_api_integration_test.dart --concurrency=1
+        env:
+          MSSQL_HOST: localhost
+          MSSQL_PORT: "1433"
+          MSSQL_DATABASE: knex_test
+          MSSQL_USER: sa
+          MSSQL_PASSWORD: "Knex_Test1!"
+      - name: Run MSSQL doc snippets
+        run: dart run tool/check_doc_snippets.dart --mode=run --scope=mssql
         env:
           MSSQL_HOST: localhost
           MSSQL_PORT: "1433"
@@ -650,6 +674,8 @@ jobs:
           dart pub get
       - name: Check doc snippets
         run: dart run tool/check_doc_snippets.dart
+      - name: Run local doc snippets
+        run: dart run tool/check_doc_snippets.dart --mode=run --scope=local
 
   # ════════════════════════════════════════════════════════════════════════════
   # 16 · Playground generated assets

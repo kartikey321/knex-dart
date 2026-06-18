@@ -60,6 +60,17 @@ import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 final db = await KnexSQLite.connect(filename: ':memory:');
 ```
 
+Browser/WASM example:
+
+```dart
+final db = await KnexSQLite.connect(
+  filename: 'app.db',
+  webStorageMode: 'auto',
+);
+```
+
+`webStorageMode` is only for web/WASM. On native SQLite, omit it.
+
 ### PostgreSQL
 
 ```dart
@@ -195,7 +206,52 @@ await db.trx((trx) async {
 ## 7) Cleanup
 
 ```dart
-await db.destroy();
+await db.close();
+```
+
+## 8) Reactive SQLite Queries
+
+SQLite can re-run a query whenever one of its source tables changes:
+
+<!-- doc:run scope=local expect_stdout='Active users: 1' -->
+```dart
+import 'dart:async';
+
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+final db = await KnexSQLite.connect(filename: ':memory:');
+await db.executeSchema((schema) {
+  schema.createTable('users', (t) {
+    t.increments('id');
+    t.string('name');
+    t.boolean('active');
+  });
+});
+
+final initial = Completer<void>();
+final completer = Completer<List<Map<String, dynamic>>>();
+var sawInitial = false;
+
+final sub = db.watch(
+  db('users').where('active', '=', true).orderBy('name'),
+).listen((rows) {
+  if (!sawInitial) {
+    sawInitial = true;
+    if (!initial.isCompleted) initial.complete();
+    return;
+  }
+  if (!completer.isCompleted) completer.complete(rows);
+});
+
+await initial.future;
+await db.insert(
+  db('users').insert({'name': 'Alice', 'active': true}),
+);
+
+final rows = await completer.future;
+print('Active users: ${rows.length}');
+await sub.cancel();
+await db.close();
 ```
 
 ## Next Steps
@@ -204,5 +260,5 @@ await db.destroy();
 - [WHERE Clauses](/query-building/where-clauses) — All 29 filtering methods
 - [Joins](/query-building/joins) — INNER, LEFT, RIGHT, FULL OUTER, LATERAL
 - [Transactions](/query-building/transactions) — Atomic operations and nested savepoints
-- [Streaming](/connections/streaming) — Memory-efficient large result sets
+- [Streaming](/connections/streaming) — Row streaming and SQLite watch queries
 - [Examples](/examples/basic-queries)

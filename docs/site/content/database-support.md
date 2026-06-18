@@ -13,7 +13,7 @@ Each database is a separate driver package. Install only what you need.
 |---|---|---|---|
 | PostgreSQL | [`knex_dart_postgres`](https://pub.dev/packages/knex_dart_postgres) | TCP | Pooled, savepoints, RETURNING |
 | MySQL | [`knex_dart_mysql`](https://pub.dev/packages/knex_dart_mysql) | TCP | Pooled, savepoints |
-| SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | FFI | File + in-memory, savepoints |
+| SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | FFI / WASM | File + in-memory, savepoints, watch(), web storage modes |
 | DuckDB | [`knex_dart_duckdb`](https://pub.dev/packages/knex_dart_duckdb) | FFI / WASM | OLAP, native + browser |
 | SQL Server | [`knex_dart_mssql`](https://pub.dev/packages/knex_dart_mssql) | FreeTDS | Windows/Linux/macOS |
 | Google BigQuery | [`knex_dart_bigquery`](https://pub.dev/packages/knex_dart_bigquery) | HTTP | REST API |
@@ -25,21 +25,30 @@ Each database is a separate driver package. Install only what you need.
 
 ## PostgreSQL
 
+<!-- doc:run scope=postgres expect_stdout='Alice' -->
 ```dart
+import 'dart:io';
+
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 
 final db = await KnexPostgres.connect(
-  host: 'localhost',
-  port: 5432,
-  database: 'myapp',
-  username: 'user',
-  password: 'pass',
+  host: Platform.environment['PG_HOST'] ?? 'localhost',
+  port: int.parse(Platform.environment['PG_PORT'] ?? '5432'),
+  database: Platform.environment['PG_DATABASE'] ?? 'knex_test',
+  username: Platform.environment['PG_USER'] ?? 'knex',
+  password: Platform.environment['PG_PASSWORD'] ?? 'knex',
+);
+
+await db.rawSql('create temporary table doc_users (name text)');
+await db.insert(
+  db('doc_users').insert({'name': 'Alice'}),
 );
 
 final rows = await db.select(
-  db('users').where('active', '=', true),
+  db('doc_users').select(['name']),
 );
 
+print(rows.first['name']);
 await db.destroy();
 ```
 
@@ -66,21 +75,30 @@ final db = await KnexPostgres.connect(
 
 ## MySQL
 
+<!-- doc:run scope=mysql expect_stdout='Alice' -->
 ```dart
+import 'dart:io';
+
 import 'package:knex_dart_mysql/knex_dart_mysql.dart';
 
 final db = await KnexMySQL.connect(
-  host: 'localhost',
-  port: 3306,
-  database: 'myapp',
-  user: 'user',
-  password: 'pass',
+  host: Platform.environment['MYSQL_HOST'] ?? 'localhost',
+  port: int.parse(Platform.environment['MYSQL_PORT'] ?? '3306'),
+  database: Platform.environment['MYSQL_DATABASE'] ?? 'knex_test',
+  user: Platform.environment['MYSQL_USER'] ?? 'knex',
+  password: Platform.environment['MYSQL_PASSWORD'] ?? 'knex',
+);
+
+await db.rawSql('create temporary table doc_users (name varchar(50))');
+await db.insert(
+  db('doc_users').insert({'name': 'Alice'}),
 );
 
 final rows = await db.select(
-  db('users').where('active', '=', true),
+  db('doc_users').select(['name']),
 );
 
+print(rows.first['name']);
 await db.destroy();
 ```
 
@@ -110,16 +128,24 @@ final db = await KnexMySQL.connect(
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
 // File-based
-final db = await KnexSQLite.connect(filename: 'app.db');
+final fileDb = await KnexSQLite.connect(filename: 'app.db');
 
 // In-memory
-final db = await KnexSQLite.connect(filename: ':memory:');
+final memoryDb = await KnexSQLite.connect(filename: ':memory:');
 
-final rows = await db.select(
-  db('users').where('active', '=', true),
+// Browser/WASM only: automatic storage selection
+final webDb = await KnexSQLite.connect(
+  filename: 'app.db',
+  webStorageMode: 'auto',
 );
 
-await db.destroy();
+final rows = await fileDb.select(
+  fileDb('users').where('active', '=', true),
+);
+
+await fileDb.close();
+await memoryDb.close();
+await webDb.close();
 ```
 
 **SQLite-specific features:**
@@ -128,7 +154,12 @@ await db.destroy();
 - In-memory database support
 - Nested transactions via `SAVEPOINT`
 - Streaming via `Statement.selectCursor()`
+- Reactive `watch()` query streams
+- Browser/WASM storage modes: `memory`, `indexedDb`, `opfs`, `auto`
 - JSON via `json_extract()`
+
+`webStorageMode` is web-only. Passing it to the native sqlite3 driver throws
+`UnsupportedError`.
 
 ---
 
@@ -174,21 +205,28 @@ await db.close();
 
 ## SQL Server (MSSQL)
 
+<!-- doc:run scope=mssql expect_stdout='Alice' -->
 ```dart
+import 'dart:io';
+
 import 'package:knex_dart_mssql/knex_dart_mssql.dart';
 
 final db = await KnexMssql.connect(
-  host: 'localhost',
-  port: '1433',
-  database: 'myapp',
-  username: 'sa',
-  password: 'YourPassword1!',
+  host: Platform.environment['MSSQL_HOST'] ?? 'localhost',
+  port: Platform.environment['MSSQL_PORT'] ?? '1433',
+  database: Platform.environment['MSSQL_DATABASE'] ?? 'knex_test',
+  username: Platform.environment['MSSQL_USER'] ?? 'sa',
+  password: Platform.environment['MSSQL_PASSWORD'] ?? 'Knex_Test1!',
 );
+
+await db.rawSql('CREATE TABLE #doc_users (name NVARCHAR(50))');
+await db.rawSql("INSERT INTO #doc_users (name) VALUES ('Alice')");
 
 final rows = await db.select(
-  db('users').where('active', '=', true),
+  db('#doc_users').select(['name']),
 );
 
+print(rows.first['name']);
 await db.destroy();
 ```
 

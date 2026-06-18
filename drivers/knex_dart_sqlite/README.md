@@ -9,7 +9,7 @@ SQLite driver for [knex_dart](https://pub.dev/packages/knex_dart) — execute qu
 
 ```yaml
 dependencies:
-  knex_dart_sqlite: ^0.2.0
+  knex_dart_sqlite: ^0.3.0
 ```
 
 ## Usage
@@ -17,11 +17,13 @@ dependencies:
 ```dart
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
-// File-based database
+// Pick one connection style for your app:
 final db = await KnexSQLite.connect(filename: 'app.db');
-
-// In-memory database
-final db = await KnexSQLite.connect(filename: ':memory:');
+// final db = await KnexSQLite.connect(filename: ':memory:');
+// final db = await KnexSQLite.connect(
+//   filename: 'app.db',
+//   webStorageMode: 'auto', // auto | opfs | indexedDb | memory
+// );
 
 // Schema
 await db.executeSchema(
@@ -61,7 +63,16 @@ await db.trx((trx) async {
   await trx.update(trx('accounts').where('id', '=', 1).update({'balance': 0}));
 });
 
-await db.destroy();
+// Reactive query watching
+final sub = db.watch(
+  db('users').where('active', '=', true).orderBy('name'),
+  debounce: const Duration(milliseconds: 100),
+).listen((rows) {
+  print('Active users changed: ${rows.length}');
+});
+
+await sub.cancel();
+await db.close();
 ```
 
 ## SQLite-specific features
@@ -69,8 +80,14 @@ await db.destroy();
 - `?` positional placeholders
 - Double-quoted identifier quoting
 - In-memory database support (`:memory:`)
+- Browser/WASM storage modes: `memory`, `indexedDb`, `opfs`, `auto`
 - JSON operators via `json_extract()`
 - Nested transactions via savepoints
+- Top-level transaction serialization on SQLite's single connection
+- Reactive `watch()` query streams
+
+`webStorageMode` is only supported on web/WASM. On native SQLite, passing it to
+`connect()` throws `UnsupportedError`.
 
 ## Documentation
 

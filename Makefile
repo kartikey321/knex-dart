@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite check-docs update-versions
+.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite check-docs check-docs-runtime check-docs-runtime-postgres check-docs-runtime-mysql check-docs-runtime-mssql update-versions
 
 # Local development only — not used in CI.
 # CI uses `dart test --tags=<driver>` directly against GitHub Actions service containers.
@@ -52,6 +52,18 @@ analyze: ## Run static analysis across workspace
 
 check-docs: ## Validate doc snippets and README version constraints
 	dart run tool/check_doc_snippets.dart
+
+check-docs-runtime: ## Execute runnable local doc snippets
+	dart run tool/check_doc_snippets.dart --mode=run --scope=local
+
+check-docs-runtime-postgres: ## Execute runnable PostgreSQL doc snippets
+	dart run tool/check_doc_snippets.dart --mode=run --scope=postgres
+
+check-docs-runtime-mysql: ## Execute runnable MySQL doc snippets
+	dart run tool/check_doc_snippets.dart --mode=run --scope=mysql
+
+check-docs-runtime-mssql: ## Execute runnable MSSQL doc snippets
+	dart run tool/check_doc_snippets.dart --mode=run --scope=mssql
 
 update-versions: ## Sync README version constraints from pubspec.yaml (run after version bumps)
 	dart run tool/update_readme_versions.dart

@@ -9,7 +9,24 @@ Knex Dart supports database transactions through the `trx()` method on every dri
 
 ## Basic Usage
 
+<!-- doc:run scope=local expect_stdout='2' -->
 ```dart
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+final db = await KnexSQLite.connect(filename: ':memory:');
+await db.executeSchema((schema) {
+  schema.createTable('accounts', (t) {
+    t.increments('id');
+    t.string('owner');
+    t.integer('balance');
+  });
+  schema.createTable('ledger', (t) {
+    t.increments('id');
+    t.string('action');
+    t.integer('amount');
+  });
+});
+
 await db.trx((trx) async {
   await trx.insert(
     trx.queryBuilder().table('accounts').insert({'owner': 'Alice', 'balance': 1000}),
@@ -19,6 +36,11 @@ await db.trx((trx) async {
   );
   // Both succeed → automatic COMMIT
 });
+
+final accounts = await db.select(db('accounts'));
+final ledger = await db.select(db('ledger'));
+print(accounts.length + ledger.length);
+await db.close();
 ```
 
 If any statement inside throws, **both** are rolled back automatically — nothing is partially written.
@@ -125,7 +147,10 @@ await db.trx((trx) async { ... });
 
 ### SQLite
 
-Uses `BEGIN` / `COMMIT` / `ROLLBACK` statements directly on the synchronous SQLite connection.
+Uses `BEGIN` / `COMMIT` / `ROLLBACK` statements directly on the SQLite
+connection. Nested `trx()` calls use savepoints, and concurrent top-level
+transactions are serialized so unrelated async callers do not interleave on the
+same SQLite connection.
 
 ```dart
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
@@ -133,6 +158,9 @@ import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 final db = await KnexSQLite.connect(filename: ':memory:');
 await db.trx((trx) async { ... });
 ```
+
+On native SQLite, `watch()` update notifications are buffered until the outer
+transaction commits, so reactive listeners do not see rolled-back writes.
 
 ## Real-World Example: Bank Transfer
 
@@ -191,17 +219,41 @@ Future<void> transfer({
 
 Calling `trx()` inside an already-open transaction creates a **savepoint** instead of a new `BEGIN`. This allows partial rollback without rolling back the entire outer transaction.
 
+<!-- doc:run scope=local expect_stdout='Outer,partial_rollback_demo' -->
 ```dart
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+final db = await KnexSQLite.connect(filename: ':memory:');
+await db.executeSchema((schema) {
+  schema.createTable('accounts', (t) {
+    t.integer('id').primary();
+    t.string('owner');
+    t.integer('balance');
+  });
+  schema.createTable('audit_log', (t) {
+    t.increments('id');
+    t.string('action');
+  });
+});
+
 await db.trx((outer) async {
   // Outer insert
   await outer.insert(
-    outer.queryBuilder().table('accounts').insert({'owner': 'Alice', 'balance': 1000}),
+    outer.queryBuilder().table('accounts').insert({
+      'id': 1,
+      'owner': 'Outer',
+      'balance': 1000,
+    }),
   );
 
   try {
     await outer.trx((inner) async {
       await inner.insert(
-        inner.queryBuilder().table('accounts').insert({'owner': 'Bob', 'balance': 500}),
+        inner.queryBuilder().table('accounts').insert({
+          'id': 2,
+          'owner': 'Inner',
+          'balance': 500,
+        }),
       );
       throw Exception('something went wrong');  // inner rolls back to savepoint
     });
@@ -215,6 +267,11 @@ await db.trx((outer) async {
   );
   // COMMIT — only Alice's row and the audit log entry are written
 });
+
+final accountRows = await db.select(db('accounts').select(['owner']).orderBy('id'));
+final auditRows = await db.select(db('audit_log').select(['action']).orderBy('id'));
+print('${accountRows.first['owner']},${auditRows.first['action']}');
+await db.close();
 ```
 
 If the inner exception is **not caught**, it propagates to the outer callback and rolls back everything:

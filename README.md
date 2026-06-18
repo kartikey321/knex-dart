@@ -85,6 +85,7 @@ await db.destroy();
 
 ### SQLite
 
+<!-- doc:run scope=local expect_stdout='Alice' -->
 ```dart
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
@@ -100,7 +101,9 @@ await db.executeSchema(
 );
 
 await db.insert(db('users').insert({'name': 'Alice'}));
-await db.destroy();
+final rows = await db.select(db('users').select(['name']));
+print(rows.first['name']);
+await db.close();
 ```
 
 ### DuckDB (OLAP / Browser WASM)

@@ -1,6 +1,7 @@
 /// Exhaustive transaction / error-path tests for KnexSQLite (in-memory, no Docker).
 library;
 
+import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:test/test.dart';
 
@@ -204,16 +205,43 @@ void main() {
       expect(rows.first['name'], 'AfterFail');
     });
 
-    // ── 12. webStorageMode param is silently ignored on native ────────────────
+    // ── 12. webStorageMode must fail fast on native ───────────────────────────
 
-    test('connect() with webStorageMode does not throw on native', () async {
-      final db2 = await KnexSQLite.connect(
-        filename: ':memory:',
-        webStorageMode: 'indexedDb',
+    test('connect() with webStorageMode throws UnsupportedError on native',
+        () async {
+      await expectLater(
+        KnexSQLite.connect(
+          filename: ':memory:',
+          webStorageMode: 'indexedDb',
+        ),
+        throwsA(isA<UnsupportedError>()),
       );
-      addTearDown(db2.close);
-      // Should be usable normally.
-      await expectLater(db2.rawSql('SELECT 1'), completes);
+    });
+
+    test('fromConfig() with storageMode throws UnsupportedError on native',
+        () {
+      expect(
+        () => SQLiteClient.fromConfig(
+          KnexConfig(
+            client: 'sqlite3',
+            connection: {
+              'filename': ':memory:',
+              'storageMode': 'indexedDb',
+            },
+          ),
+        ),
+        throwsA(isA<UnsupportedError>()),
+      );
+    });
+
+    test('invalid webStorageMode still throws ArgumentError on native', () async {
+      await expectLater(
+        KnexSQLite.connect(
+          filename: ':memory:',
+          webStorageMode: 'bogus',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
     });
   });
 }

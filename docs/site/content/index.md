@@ -22,11 +22,11 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 - ✅ **Schema Builder** — createTable, alterTable, dropTable, foreign keys, indexes
 - ✅ **Migrations** — code-first, SQL-directory, and JSON-schema sources
 - ✅ **Connection Pooling** — built-in pool for PostgreSQL and MySQL
-- ✅ **Streaming** — `streamQuery()` for memory-efficient large result sets
+- ✅ **Streaming** — `streamQuery()` for large result sets and SQLite `watch()` for reactive queries
 - ✅ **Nested Transactions** — savepoint-based nesting on all drivers
 - ✅ **OpenTelemetry** — optional driver-wrapper spans and `db.client.operation.duration` metrics
 - ✅ **Browser Playground** — Dart LSP diagnostics, hover, auto-imports, and embedded SQL execution
-- ✅ **Web / WASM** — DuckDB runs in Chrome/headless browser via dart_duckdb WASM
+- ✅ **Web / WASM** — DuckDB and SQLite run in the browser via WASM
 - ✅ **591+ Tests Passing** — comprehensive coverage with >85% line coverage
 - ✅ **9 Driver Packages** — install only what you need
 
@@ -36,7 +36,7 @@ A powerful, flexible SQL query builder for Dart, ported from **[Knex.js](https:/
 |---|---|---|
 | PostgreSQL | [`knex_dart_postgres`](https://pub.dev/packages/knex_dart_postgres) | Pooled, savepoints, RETURNING |
 | MySQL | [`knex_dart_mysql`](https://pub.dev/packages/knex_dart_mysql) | Pooled, savepoints |
-| SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | File + in-memory, savepoints |
+| SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | File + in-memory, savepoints, watch(), web/WASM |
 | DuckDB | [`knex_dart_duckdb`](https://pub.dev/packages/knex_dart_duckdb) | OLAP, native + WASM/web |
 | SQL Server | [`knex_dart_mssql`](https://pub.dev/packages/knex_dart_mssql) | FreeTDS-based |
 | Google BigQuery | [`knex_dart_bigquery`](https://pub.dev/packages/knex_dart_bigquery) | HTTP-based |
@@ -83,7 +83,7 @@ final users = await db.select(
     .orderBy('name'),
 );
 
-await db.destroy();
+await db.close();
 ```
 
 Or generate SQL without a connection (for testing or logging):

@@ -3,6 +3,8 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'package:knex_dart/knex_dart.dart';
 
+import 'sqlite_storage_mode.dart';
+
 /// SQLite database client.
 class SQLiteClient extends Client {
   late Database _db;
@@ -41,6 +43,12 @@ class SQLiteClient extends Client {
   /// This is synchronous because sqlite3 opens local files synchronously.
   static SQLiteClient fromConfig(KnexConfig config) {
     final connection = config.connection;
+    if (connection is Map) {
+      final storageMode = connection['storageMode'];
+      if (storageMode != null) {
+        rejectSQLiteWebStorageModeOnNative(storageMode as String);
+      }
+    }
     final filename = switch (connection) {
       String s => s,
       Map m when m['filename'] is String => m['filename'] as String,
@@ -61,6 +69,7 @@ class SQLiteClient extends Client {
     required String filename,
     String? webStorageMode,
   }) async {
+    rejectSQLiteWebStorageModeOnNative(webStorageMode);
     final config = KnexConfig(
       client: 'sqlite3',
       connection: {'filename': filename},

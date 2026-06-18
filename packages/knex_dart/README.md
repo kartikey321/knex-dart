@@ -37,7 +37,7 @@ Try queries in the browser playground: **https://playground.knex.mahawarkartikey
 - [Joins](https://docs.knex.mahawarkartikey.in/query-building/joins) — INNER, LEFT, RIGHT, FULL OUTER, LATERAL
 - [Window Functions](https://docs.knex.mahawarkartikey.in/query-building/window-functions) — RANK, LEAD, LAG, frame clauses
 - [Transactions](https://docs.knex.mahawarkartikey.in/query-building/transactions) — atomic operations + nested savepoints
-- [Streaming](https://docs.knex.mahawarkartikey.in/connections/streaming) — memory-efficient large result sets
+- [Streaming](https://docs.knex.mahawarkartikey.in/connections/streaming) — row streams and SQLite reactive watch queries
 - [Migrations](https://docs.knex.mahawarkartikey.in/migration/migrations) — code-first and SQL-directory sources
 - [Dialect Lint](https://docs.knex.mahawarkartikey.in/tooling/dialect-lint) — optional static analysis plugin
 - [OpenTelemetry](https://docs.knex.mahawarkartikey.in/tooling/opentelemetry) — query spans and DB client duration metrics
@@ -85,6 +85,7 @@ await db.destroy();
 
 ### SQLite
 
+<!-- doc:run scope=local expect_stdout='Alice' -->
 ```dart
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
@@ -100,7 +101,49 @@ await db.executeSchema(
 );
 
 await db.insert(db('users').insert({'name': 'Alice'}));
-await db.destroy();
+final rows = await db.select(db('users').select(['name']));
+print(rows.first['name']);
+await db.close();
+```
+
+SQLite also supports reactive query watching:
+
+<!-- doc:run scope=local expect_stdout='users changed: 1' -->
+```dart
+import 'dart:async';
+
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+final db = await KnexSQLite.connect(filename: ':memory:');
+await db.executeSchema((schema) {
+  schema.createTable('users', (t) {
+    t.increments('id');
+    t.string('name');
+    t.boolean('active');
+  });
+});
+
+final initial = Completer<void>();
+final updated = Completer<List<Map<String, dynamic>>>();
+var sawInitial = false;
+
+final sub = db.watch(
+  db('users').where('active', '=', true),
+).listen((rows) {
+  if (!sawInitial) {
+    sawInitial = true;
+    if (!initial.isCompleted) initial.complete();
+    return;
+  }
+  if (!updated.isCompleted) updated.complete(rows);
+});
+
+await initial.future;
+await db.insert(db('users').insert({'name': 'Alice', 'active': true}));
+final rows = await updated.future;
+print('users changed: ${rows.length}');
+await sub.cancel();
+await db.close();
 ```
 
 ### DuckDB (OLAP / Browser WASM)
@@ -126,6 +169,7 @@ DuckDB runs natively on macOS/Linux/Windows and in the **browser via WASM** — 
 
 Generate dialect-correct SQL without any driver installed:
 
+<!-- doc:run scope=local expect_stdout_contains='select * from "users" where "active" = $1' -->
 ```dart
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';

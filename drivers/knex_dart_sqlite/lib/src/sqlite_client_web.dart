@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:knex_dart/knex_dart.dart';
 import 'package:sqlite3/wasm.dart';
 
+import 'sqlite_storage_mode.dart';
+
 enum SQLiteWebStorageMode {
   memory,
   indexedDb,
@@ -89,15 +91,13 @@ class SQLiteClient extends Client {
         'SQLite config.connection["storageMode"] must be a String.',
       );
     }
-
+    validateSQLiteWebStorageMode(value);
     return switch (value) {
       'memory' => SQLiteWebStorageMode.memory,
       'indexedDb' => SQLiteWebStorageMode.indexedDb,
       'opfs' => SQLiteWebStorageMode.opfs,
       'auto' => SQLiteWebStorageMode.auto,
-      _ => throw ArgumentError(
-        'Unsupported SQLite web storageMode "$value".',
-      ),
+      _ => throw StateError('Unreachable storageMode "$value".'),
     };
   }
 

@@ -8,6 +8,8 @@
 
 import 'dart:io';
 
+import 'package:knex_dart/src/util/doc_snippet_runtime.dart';
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 final _docGlobs = [
@@ -140,32 +142,133 @@ class Snippet {
   final int startLine; // 1-based line of the first code line inside the fence
   final String code;
   final bool nocheck;
-  Snippet(this.file, this.startLine, this.code, {this.nocheck = false});
+  final DocRunDirective? runDirective;
+  Snippet(
+    this.file,
+    this.startLine,
+    this.code, {
+    this.nocheck = false,
+    this.runDirective,
+  });
+}
+
+class DocRunDirective {
+  final String scope;
+  final String? expectStdout;
+  final String? expectStdoutContains;
+  final String? expectStderrContains;
+  final int expectExit;
+
+  const DocRunDirective({
+    required this.scope,
+    this.expectStdout,
+    this.expectStdoutContains,
+    this.expectStderrContains,
+    this.expectExit = 0,
+  });
+}
+
+Map<String, String> _parseDirectiveArgs(String text) {
+  final args = <String, String>{};
+  final matches = RegExp(
+    r"""(\w+)=("([^"]*)"|'([^']*)'|(\S+))""",
+  ).allMatches(text);
+  for (final m in matches) {
+    args[m.group(1)!] = m.group(3) ?? m.group(4) ?? m.group(5) ?? '';
+  }
+  return args;
+}
+
+DocRunDirective? _parseRunDirective(String line) {
+  final trimmed = line.trim();
+  if (!trimmed.startsWith('<!--') || !trimmed.endsWith('-->')) return null;
+  if (!trimmed.contains('doc:run')) return null;
+
+  final args = _parseDirectiveArgs(trimmed);
+  final scope = args['scope'];
+  if (scope == null || scope.isEmpty) {
+    throw FormatException('doc:run directive is missing required scope=...');
+  }
+
+  final expectStdout = args['expect_stdout'];
+  final expectStdoutContains = args['expect_stdout_contains'];
+  final expectStderrContains = args['expect_stderr_contains'];
+  final expectExitRaw = args['expect_exit'];
+  final expectExit =
+      expectExitRaw == null ? 0 : int.parse(expectExitRaw);
+
+  if (expectStdout == null &&
+      expectStdoutContains == null &&
+      expectStderrContains == null &&
+      expectExitRaw == null) {
+    throw FormatException(
+      'doc:run directive must declare at least one expectation.',
+    );
+  }
+
+  return DocRunDirective(
+    scope: scope,
+    expectStdout: expectStdout,
+    expectStdoutContains: expectStdoutContains,
+    expectStderrContains: expectStderrContains,
+    expectExit: expectExit,
+  );
 }
 
 List<Snippet> _extractSnippets(String rootDir) {
   final results = <Snippet>[];
+  final errors = <String>[];
 
   void scanFile(String path) {
     final lines = File(path).readAsLinesSync();
     var inBlock = false;
     var blockStart = 0;
     final blockLines = <String>[];
+    String? pendingDirectiveLine;
+    int? pendingDirectiveLineNo;
 
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i];
+      final trimmed = line.trim();
+      if (!inBlock && trimmed.startsWith('<!--') && trimmed.endsWith('-->')) {
+        pendingDirectiveLine = line;
+        pendingDirectiveLineNo = i + 1;
+        continue;
+      }
       if (!inBlock && line.trimLeft().startsWith('```dart')) {
         inBlock = true;
         blockStart = i + 2; // 1-based: first code line (fence is i+1)
         blockLines.clear();
       } else if (inBlock && line.trim() == '```') {
         inBlock = false;
-        // Check the line before the opening fence for <!-- doc:nocheck -->
-        final prevLine = i > 0 ? lines[i - blockLines.length - 2] : '';
-        final nocheck = prevLine.contains('doc:nocheck');
-        results.add(Snippet(path, blockStart, blockLines.join('\n'), nocheck: nocheck));
+        final directiveLine = pendingDirectiveLine;
+        final nocheck = directiveLine?.contains('doc:nocheck') ?? false;
+        DocRunDirective? runDirective;
+        if (directiveLine != null && directiveLine.contains('doc:run')) {
+          try {
+            runDirective = _parseRunDirective(directiveLine);
+          } on FormatException catch (e) {
+            errors.add(
+              '$path:${pendingDirectiveLineNo ?? blockStart}: ${e.message}',
+            );
+          }
+        }
+        results.add(
+          Snippet(
+            path,
+            blockStart,
+            blockLines.join('\n'),
+            nocheck: nocheck,
+            runDirective: runDirective,
+          ),
+        );
+        pendingDirectiveLine = null;
+        pendingDirectiveLineNo = null;
       } else if (inBlock) {
         blockLines.add(line);
+      } else {
+        pendingDirectiveLine = null;
+        pendingDirectiveLineNo = null;
       }
     }
   }
@@ -186,6 +289,10 @@ List<Snippet> _extractSnippets(String rootDir) {
   // Repo root README
   final rootReadme = File('$rootDir/README.md');
   if (rootReadme.existsSync()) scanFile(rootReadme.path);
+
+  if (errors.isNotEmpty) {
+    throw FormatException(errors.join('\n'));
+  }
 
   return results;
 }
@@ -209,75 +316,6 @@ List<String> _patternCheck(List<Snippet> snippets) {
 }
 
 // ── Layer 2: dart analyze on snippets with imports ───────────────────────────
-
-String _buildWrapper(String code) {
-  final codeLines = code.split('\n');
-  final imports = <String>[];
-  final topLevel = <String>[];
-  final body = <String>[];
-
-  // Simple classifier: import lines → imports; function/class defs → topLevel;
-  // everything else → body (goes inside main()).
-  var inTopLevelBlock = false;
-  var braceDepth = 0;
-
-  for (final line in codeLines) {
-    final trimmed = line.trim();
-
-    if (trimmed.startsWith('import ') || trimmed.startsWith('export ')) {
-      imports.add(line);
-      continue;
-    }
-
-    // Detect top-level declarations: void/Future/Stream functions, classes,
-    // typedefs, enums, extensions — keep them outside main().
-    final isTopLevelDecl = RegExp(
-      r'^(void |Future|Stream|class |typedef |enum |extension |abstract )',
-    ).hasMatch(trimmed);
-
-    if (isTopLevelDecl && !inTopLevelBlock) {
-      inTopLevelBlock = true;
-      braceDepth = 0;
-    }
-
-    if (inTopLevelBlock) {
-      topLevel.add(line);
-      braceDepth += '{'.allMatches(line).length;
-      braceDepth -= '}'.allMatches(line).length;
-      if (braceDepth <= 0 && trimmed.endsWith('}')) {
-        inTopLevelBlock = false;
-      }
-    } else {
-      body.add(line);
-    }
-  }
-
-  final buf = StringBuffer();
-  buf.writeln(
-    '// ignore_for_file: unused_local_variable, unused_import, dead_code,',
-  );
-  buf.writeln(
-    '// ignore_for_file: unawaited_futures, avoid_print, unused_element',
-  );
-  for (final imp in imports) {
-    buf.writeln(imp);
-  }
-  buf.writeln();
-  for (final tl in topLevel) {
-    buf.writeln(tl);
-  }
-  if (body.isNotEmpty) {
-    buf.writeln('Future<void> main() async {');
-    for (final b in body) {
-      buf.writeln('  $b');
-    }
-    buf.writeln('}');
-  } else {
-    buf.writeln('Future<void> main() async {}');
-  }
-
-  return buf.toString();
-}
 
 String _buildTempPubspec(String rootDir) {
   final buf = StringBuffer()
@@ -356,7 +394,9 @@ analyzer:
     final s = withImports[i];
     index[i] = s;
     // Embed source location so errors in the raw analyzer output are traceable.
-    final wrapped = '// SOURCE: ${s.file}:${s.startLine}\n${_buildWrapper(s.code)}';
+    final wrapped =
+        '// SOURCE: ${s.file}:${s.startLine}\n'
+        '${buildDocSnippetProgram(s.code, target: DocSnippetTarget.local)}';
     File('${libDir.path}/snippet_${i.toString().padLeft(4, '0')}.dart')
         .writeAsStringSync(wrapped);
   }
@@ -418,15 +458,158 @@ analyzer:
   return errors;
 }
 
+Future<List<String>> _runSnippets(
+  List<Snippet> snippets,
+  String rootDir, {
+  required String scope,
+}) async {
+  final runnable = snippets.where((s) {
+    final directive = s.runDirective;
+    if (directive == null) return false;
+    return directive.scope == scope;
+  }).toList();
+
+  if (runnable.isEmpty) return [];
+
+  final tmpDir = Directory.systemTemp.createTempSync('knex_dart_doc_run_');
+  final libDir = Directory('${tmpDir.path}/lib')..createSync();
+
+  File('${tmpDir.path}/pubspec.yaml')
+      .writeAsStringSync(_buildTempPubspec(rootDir));
+  File('${tmpDir.path}/analysis_options.yaml').writeAsStringSync('''
+analyzer:
+  errors:
+    unused_import: ignore
+    unused_local_variable: ignore
+    dead_code: ignore
+    unawaited_futures: ignore
+    unnecessary_import: ignore
+''');
+
+  final fileForSnippet = <Snippet, String>{};
+  for (var i = 0; i < runnable.length; i++) {
+    final s = runnable[i];
+    final fileName = 'snippet_${i.toString().padLeft(4, '0')}.dart';
+    fileForSnippet[s] = fileName;
+    final wrapped =
+        '// SOURCE: ${s.file}:${s.startLine}\n'
+        '${buildDocSnippetProgram(s.code, target: DocSnippetTarget.local)}';
+    File('${libDir.path}/$fileName').writeAsStringSync(wrapped);
+  }
+
+  final pubGet = await Process.run(
+    'dart',
+    ['pub', 'get'],
+    workingDirectory: tmpDir.path,
+  );
+  if (pubGet.exitCode != 0) {
+    tmpDir.deleteSync(recursive: true);
+    return [
+      'ERROR: dart pub get failed in temp runtime package:\n${pubGet.stderr}',
+    ];
+  }
+
+  final errors = <String>[];
+  for (final snippet in runnable) {
+    final directive = snippet.runDirective!;
+    final fileName = fileForSnippet[snippet]!;
+    final run = await Process.run(
+      'dart',
+      ['run', 'lib/$fileName'],
+      workingDirectory: tmpDir.path,
+    );
+    final stdoutText = (run.stdout as String).trimRight();
+    final stderrText = (run.stderr as String).trimRight();
+
+    if (run.exitCode != directive.expectExit) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: expected exit code '
+        '${directive.expectExit}, got ${run.exitCode}.\n'
+        'stdout:\n$stdoutText\nstderr:\n$stderrText',
+      );
+      continue;
+    }
+
+    if (directive.expectStdout != null &&
+        stdoutText != directive.expectStdout) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: stdout mismatch.\n'
+        'expected:\n${directive.expectStdout}\nactual:\n$stdoutText',
+      );
+    }
+
+    if (directive.expectStdoutContains != null &&
+        !stdoutText.contains(directive.expectStdoutContains!)) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: stdout did not contain '
+        '"${directive.expectStdoutContains}".\nactual:\n$stdoutText',
+      );
+    }
+
+    if (directive.expectStderrContains != null &&
+        !stderrText.contains(directive.expectStderrContains!)) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: stderr did not contain '
+        '"${directive.expectStderrContains}".\nactual:\n$stderrText',
+      );
+    }
+  }
+
+  tmpDir.deleteSync(recursive: true);
+  return errors;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 Future<void> main(List<String> args) async {
-  final rootDir = args.isNotEmpty ? args[0] : Directory.current.path;
+  String rootDir = Directory.current.path;
+  String mode = 'check';
+  String? scope;
+
+  for (var i = 0; i < args.length; i++) {
+    final arg = args[i];
+    if (arg.startsWith('--mode=')) {
+      mode = arg.substring('--mode='.length);
+    } else if (arg == '--mode' && i + 1 < args.length) {
+      mode = args[++i];
+    } else if (arg.startsWith('--scope=')) {
+      scope = arg.substring('--scope='.length);
+    } else if (arg == '--scope' && i + 1 < args.length) {
+      scope = args[++i];
+    } else if (!arg.startsWith('--')) {
+      rootDir = arg;
+    }
+  }
 
   stdout.writeln('Scanning doc snippets in $rootDir…');
 
-  final snippets = _extractSnippets(rootDir);
+  late final List<Snippet> snippets;
+  try {
+    snippets = _extractSnippets(rootDir);
+  } on FormatException catch (e) {
+    stderr.writeln('\n✗ doc snippet directive issue(s) found:\n');
+    stderr.writeln(e.message);
+    exit(1);
+  }
   stdout.writeln('  Found ${snippets.length} dart snippets');
+
+  if (mode == 'run') {
+    if (scope == null || scope!.isEmpty) {
+      stderr.writeln('Missing required --scope for --mode=run');
+      exit(1);
+    }
+    stdout.writeln('  Running doc snippets for scope=$scope…');
+    final runErrors = await _runSnippets(snippets, rootDir, scope: scope!);
+    if (runErrors.isEmpty) {
+      stdout.writeln('✓ All runnable doc snippets OK for scope=$scope.');
+      exit(0);
+    }
+    stderr.writeln('\n✗ ${runErrors.length} runnable doc snippet issue(s) found:\n');
+    for (final e in runErrors) {
+      stderr.writeln('  $e');
+    }
+    exit(1);
+  }
 
   // Layer 0: README version drift
   final versionErrors = _versionDriftCheck(rootDir);
