@@ -162,5 +162,58 @@ void main() {
         throwsA(isA<StateError>()),
       );
     });
+
+    // ── 10. Concurrent top-level transactions are serialized ──────────────────
+
+    test('concurrent top-level trx calls are serialized — no interleaving',
+        () async {
+      // Fire two trx() calls without awaiting the first.
+      // If serialization is broken, the second BEGIN would race with the first,
+      // producing a "cannot start a transaction within a transaction" error.
+      final f1 = db.trx((tx) async {
+        await tx.insert(tx(_table).insert({'id': 40, 'name': 'Concurrent1'}));
+      });
+      final f2 = db.trx((tx) async {
+        await tx.insert(tx(_table).insert({'id': 41, 'name': 'Concurrent2'}));
+      });
+
+      await Future.wait([f1, f2]);
+
+      final rows = await db.select(db(_table).select(['*']));
+      expect(rows, hasLength(2));
+      final names = rows.map((r) => r['name']).toSet();
+      expect(names, containsAll(['Concurrent1', 'Concurrent2']));
+    });
+
+    // ── 11. Failed trx does not block the queue ───────────────────────────────
+
+    test('failed trx does not block subsequent transactions', () async {
+      // First trx rolls back.
+      await expectLater(
+        db.trx((_) async => throw Exception('fail')),
+        throwsA(isA<Exception>()),
+      );
+
+      // Second trx should still work.
+      await db.trx((tx) async {
+        await tx.insert(tx(_table).insert({'id': 50, 'name': 'AfterFail'}));
+      });
+
+      final rows = await db.select(db(_table).select(['*']));
+      expect(rows, hasLength(1));
+      expect(rows.first['name'], 'AfterFail');
+    });
+
+    // ── 12. webStorageMode param is silently ignored on native ────────────────
+
+    test('connect() with webStorageMode does not throw on native', () async {
+      final db2 = await KnexSQLite.connect(
+        filename: ':memory:',
+        webStorageMode: 'indexedDb',
+      );
+      addTearDown(db2.close);
+      // Should be usable normally.
+      await expectLater(db2.rawSql('SELECT 1'), completes);
+    });
   });
 }

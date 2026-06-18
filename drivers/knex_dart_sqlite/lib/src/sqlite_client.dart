@@ -57,7 +57,10 @@ class SQLiteClient extends Client {
   }
 
   /// Creates and opens a SQLite client for [filename].
-  static Future<SQLiteClient> connect({required String filename}) async {
+  static Future<SQLiteClient> connect({
+    required String filename,
+    String? webStorageMode,
+  }) async {
     final config = KnexConfig(
       client: 'sqlite3',
       connection: {'filename': filename},

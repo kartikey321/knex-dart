@@ -111,9 +111,13 @@ class KnexSQLite with WatchableClient {
   /// ```
   static Future<KnexSQLite> connect({
     required String filename,
+    String? webStorageMode,
     List<QueryInterceptor> interceptors = const [],
   }) async {
-    final client = await SQLiteClient.connect(filename: filename);
+    final client = await SQLiteClient.connect(
+      filename: filename,
+      webStorageMode: webStorageMode,
+    );
     return KnexSQLite._(
       client,
       pipeline: KnexInterceptorPipeline(

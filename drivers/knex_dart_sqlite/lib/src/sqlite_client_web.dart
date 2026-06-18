@@ -3,11 +3,19 @@ import 'dart:async';
 import 'package:knex_dart/knex_dart.dart';
 import 'package:sqlite3/wasm.dart';
 
+enum SQLiteWebStorageMode {
+  memory,
+  indexedDb,
+  opfs,
+  auto,
+}
+
 /// SQLite database client for web/WASM.
 class SQLiteClient extends Client {
   CommonDatabase? _db;
   final String _filename;
   final Uri _wasmUri;
+  final SQLiteWebStorageMode _storageMode;
   bool _isClosed = false;
 
   /// Depth counter for nested transactions (0 = no active transaction).
@@ -21,7 +29,12 @@ class SQLiteClient extends Client {
 
   Future<void>? _initialization;
 
-  SQLiteClient._(this._filename, this._wasmUri, KnexConfig config)
+  SQLiteClient._(
+    this._filename,
+    this._wasmUri,
+    this._storageMode,
+    KnexConfig config,
+  )
     : super(config);
 
   static final Uri _defaultWasmUri = Uri.parse(
@@ -35,10 +48,15 @@ class SQLiteClient extends Client {
   static SQLiteClient fromConfig(KnexConfig config) {
     final connection = config.connection;
     final parsed = switch (connection) {
-      String s => (filename: s, wasmUri: _defaultWasmUri),
+      String s => (
+        filename: s,
+        wasmUri: _defaultWasmUri,
+        storageMode: SQLiteWebStorageMode.memory,
+      ),
       Map m when m['filename'] is String => (
         filename: m['filename'] as String,
         wasmUri: _parseWasmUri(m['wasmUri']),
+        storageMode: _parseStorageMode(m['storageMode']),
       ),
       _ => throw ArgumentError(
         'SQLite config.connection must be a filename String '
@@ -46,7 +64,12 @@ class SQLiteClient extends Client {
       ),
     };
 
-    return SQLiteClient._(parsed.filename, parsed.wasmUri, config);
+    return SQLiteClient._(
+      parsed.filename,
+      parsed.wasmUri,
+      parsed.storageMode,
+      config,
+    );
   }
 
   static Uri _parseWasmUri(Object? value) {
@@ -58,13 +81,44 @@ class SQLiteClient extends Client {
     );
   }
 
+  static SQLiteWebStorageMode _parseStorageMode(Object? value) {
+    if (value == null) return SQLiteWebStorageMode.memory;
+    if (value is SQLiteWebStorageMode) return value;
+    if (value is! String) {
+      throw ArgumentError(
+        'SQLite config.connection["storageMode"] must be a String.',
+      );
+    }
+
+    return switch (value) {
+      'memory' => SQLiteWebStorageMode.memory,
+      'indexedDb' => SQLiteWebStorageMode.indexedDb,
+      'opfs' => SQLiteWebStorageMode.opfs,
+      'auto' => SQLiteWebStorageMode.auto,
+      _ => throw ArgumentError(
+        'Unsupported SQLite web storageMode "$value".',
+      ),
+    };
+  }
+
   /// Creates and opens a SQLite client for [filename].
-  static Future<SQLiteClient> connect({required String filename}) async {
+  static Future<SQLiteClient> connect({
+    required String filename,
+    String? webStorageMode,
+  }) async {
     final config = KnexConfig(
       client: 'sqlite3',
-      connection: {'filename': filename},
+      connection: {
+        'filename': filename,
+        'storageMode': webStorageMode ?? SQLiteWebStorageMode.memory.name,
+      },
     );
-    final client = SQLiteClient._(filename, _defaultWasmUri, config);
+    final client = SQLiteClient._(
+      filename,
+      _defaultWasmUri,
+      _parseStorageMode(webStorageMode),
+      config,
+    );
     await client.initialize();
     return client;
   }
@@ -76,7 +130,8 @@ class SQLiteClient extends Client {
 
   Future<void> _initializeImpl() async {
     final sqlite = await _loadSqlite3();
-    sqlite.registerVirtualFileSystem(InMemoryFileSystem(), makeDefault: true);
+    final fileSystem = await _createFileSystem();
+    sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
 
     final opened = sqlite.open(_filename);
     if (_isClosed) {
@@ -84,6 +139,31 @@ class SQLiteClient extends Client {
       return;
     }
     _db = opened;
+  }
+
+  Future<VirtualFileSystem> _createFileSystem() async {
+    return switch (_storageMode) {
+      SQLiteWebStorageMode.memory => InMemoryFileSystem(),
+      SQLiteWebStorageMode.indexedDb => await IndexedDbFileSystem.open(
+          dbName: _filename,
+        ),
+      SQLiteWebStorageMode.opfs => await SimpleOpfsFileSystem.loadFromStorage(
+          _filename,
+        ),
+      SQLiteWebStorageMode.auto => await _createAutoFileSystem(),
+    };
+  }
+
+  Future<VirtualFileSystem> _createAutoFileSystem() async {
+    try {
+      return await SimpleOpfsFileSystem.loadFromStorage(_filename);
+    } on Object {
+      try {
+        return await IndexedDbFileSystem.open(dbName: _filename);
+      } on Object {
+        return InMemoryFileSystem();
+      }
+    }
   }
 
   Future<WasmSqlite3> _loadSqlite3() async {
