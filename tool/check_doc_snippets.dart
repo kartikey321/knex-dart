@@ -266,8 +266,14 @@ DocRunDirective? _parseRunDirective(
   final expectStdout = expectStdoutRaw == null
       ? null
       : _unescapeDirectiveValue(expectStdoutRaw);
-  final expectStdoutContains = args['expect_stdout_contains'];
-  final expectStderrContains = args['expect_stderr_contains'];
+  final expectStdoutContainsRaw = args['expect_stdout_contains'];
+  final expectStdoutContains = expectStdoutContainsRaw == null
+      ? null
+      : _unescapeDirectiveValue(expectStdoutContainsRaw);
+  final expectStderrContainsRaw = args['expect_stderr_contains'];
+  final expectStderrContains = expectStderrContainsRaw == null
+      ? null
+      : _unescapeDirectiveValue(expectStderrContainsRaw);
   final expectExitRaw = args['expect_exit'];
   final expectExit = expectExitRaw == null ? 0 : int.parse(expectExitRaw);
 
@@ -776,7 +782,7 @@ analyzer:
     } else {
       // Insert before the closing -->
       updatedLine = originalLine.replaceFirst(
-        ' -->',
+        RegExp(r'\s*-->$'),
         ' expect_stdout="$escaped" -->',
       );
     }

@@ -219,15 +219,24 @@ final db = await KnexMssql.connect(
   password: Platform.environment['MSSQL_PASSWORD'] ?? 'Knex_Test1!',
 );
 
-await db.rawSql('CREATE TABLE #doc_users (name NVARCHAR(50))');
-await db.rawSql("INSERT INTO #doc_users (name) VALUES ('Alice')");
+await db.executeSchema((schema) {
+  schema.dropTableIfExists('doc_users_snippet');
+  schema.createTable('doc_users_snippet', (table) {
+    table.string('name', 50).notNullable();
+  });
+});
 
-final rows = await db.select(
-  db('#doc_users').select(['name']),
+await db.insert(
+  db('doc_users_snippet').insert({'name': 'Alice'}),
 );
 
+final rows = await db.select(db('doc_users_snippet').select(['name']));
+
 print(rows.first['name']);
-await db.destroy();
+await db.executeSchema((schema) {
+  schema.dropTableIfExists('doc_users_snippet');
+});
+await db.close();
 ```
 
 **SQL Server-specific features:**

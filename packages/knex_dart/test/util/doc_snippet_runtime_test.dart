@@ -92,7 +92,12 @@ print(q.from('users').toSQL().sql);
           "typedef RowMapper = String Function(Map<String, dynamic> row);",
         ),
       );
-      expect(program, contains('Future<void> main() async {'));
+      final typedefIdx = program.indexOf(
+        "typedef RowMapper = String Function(Map<String, dynamic> row);",
+      );
+      final mainIdx = program.indexOf('Future<void> main() async {');
+      expect(typedefIdx, isNonNegative);
+      expect(mainIdx, greaterThan(typedefIdx));
       expect(program, contains("print(q.from('users').toSQL().sql);"));
     });
 
