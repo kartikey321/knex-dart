@@ -1,3 +1,14 @@
+## 0.4.0
+
+- Added `watch()` reactive query streams for SQLite based on `UPDATE_HOOK`.
+- Added web/WASM storage mode selection via `webStorageMode` / `storageMode`
+  with `memory`, `indexedDb`, `opfs`, and `auto` modes.
+- Serialized concurrent top-level transactions across native and web clients.
+- Buffered web SQLite update notifications through transaction boundaries to
+  match native `watch()` semantics.
+- Added coverage for concurrent transactions, reactive query behavior, and
+  native/web storage mode handling.
+
 ## 0.3.0
 
 - Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom
