@@ -72,5 +72,39 @@ void main() {
 
       expect(RegExp(r'void main\(\)').allMatches(program).length, 1);
     });
+
+    test('local keeps one-line top-level declarations out of main body', () {
+      final code = '''
+typedef RowMapper = String Function(Map<String, dynamic> row);
+
+final q = KnexQuery.forClient('mysql2');
+print(q.from('users').toSQL().sql);
+''';
+
+      final program = buildDocSnippetProgram(
+        code,
+        target: DocSnippetTarget.local,
+      );
+
+      expect(
+        program,
+        contains(
+          "typedef RowMapper = String Function(Map<String, dynamic> row);",
+        ),
+      );
+      expect(program, contains('Future<void> main() async {'));
+      expect(program, contains("print(q.from('users').toSQL().sql);"));
+    });
+
+    test('playground rejects unsupported dialects', () {
+      expect(
+        () => buildDocSnippetProgram(
+          'sql(db.from(\'users\').toSQL());',
+          target: DocSnippetTarget.playground,
+          dialect: 'mssql',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
   });
 }

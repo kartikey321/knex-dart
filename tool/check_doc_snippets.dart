@@ -158,9 +158,12 @@ class DocRunDirective {
   final String? expectStdoutContains;
   final String? expectStderrContains;
   final int expectExit;
+  /// 1-based line number of the `<!-- doc:run ... -->` comment in the source file.
+  final int directiveLineNo;
 
   const DocRunDirective({
     required this.scope,
+    required this.directiveLineNo,
     this.expectStdout,
     this.expectStdoutContains,
     this.expectStderrContains,
@@ -179,7 +182,19 @@ Map<String, String> _parseDirectiveArgs(String text) {
   return args;
 }
 
-DocRunDirective? _parseRunDirective(String line) {
+/// Unescape `\n` and `\"` sequences stored inside directive attribute values.
+String _unescapeDirectiveValue(String s) =>
+    s.replaceAll(r'\"', '"').replaceAll(r'\n', '\n');
+
+/// Escape a string for embedding inside a `"..."` directive attribute value.
+String _escapeForDirective(String s) =>
+    s.replaceAll(r'\', r'\\').replaceAll('"', r'\"').replaceAll('\n', r'\n');
+
+DocRunDirective? _parseRunDirective(
+  String line,
+  int lineNo, {
+  bool allowBare = false,
+}) {
   final trimmed = line.trim();
   if (!trimmed.startsWith('<!--') || !trimmed.endsWith('-->')) return null;
   if (!trimmed.contains('doc:run')) return null;
@@ -190,24 +205,29 @@ DocRunDirective? _parseRunDirective(String line) {
     throw FormatException('doc:run directive is missing required scope=...');
   }
 
-  final expectStdout = args['expect_stdout'];
+  final expectStdoutRaw = args['expect_stdout'];
+  final expectStdout =
+      expectStdoutRaw == null ? null : _unescapeDirectiveValue(expectStdoutRaw);
   final expectStdoutContains = args['expect_stdout_contains'];
   final expectStderrContains = args['expect_stderr_contains'];
   final expectExitRaw = args['expect_exit'];
   final expectExit =
       expectExitRaw == null ? 0 : int.parse(expectExitRaw);
 
-  if (expectStdout == null &&
+  if (!allowBare &&
+      expectStdout == null &&
       expectStdoutContains == null &&
       expectStderrContains == null &&
       expectExitRaw == null) {
     throw FormatException(
-      'doc:run directive must declare at least one expectation.',
+      'doc:run directive must declare at least one expectation '
+      '(or run with --mode=snapshot to auto-generate).',
     );
   }
 
   return DocRunDirective(
     scope: scope,
+    directiveLineNo: lineNo,
     expectStdout: expectStdout,
     expectStdoutContains: expectStdoutContains,
     expectStderrContains: expectStderrContains,
@@ -215,7 +235,7 @@ DocRunDirective? _parseRunDirective(String line) {
   );
 }
 
-List<Snippet> _extractSnippets(String rootDir) {
+List<Snippet> _extractSnippets(String rootDir, {bool allowBareDirectives = false}) {
   final results = <Snippet>[];
   final errors = <String>[];
 
@@ -242,14 +262,19 @@ List<Snippet> _extractSnippets(String rootDir) {
       } else if (inBlock && line.trim() == '```') {
         inBlock = false;
         final directiveLine = pendingDirectiveLine;
+        final directiveLineNo = pendingDirectiveLineNo;
         final nocheck = directiveLine?.contains('doc:nocheck') ?? false;
         DocRunDirective? runDirective;
         if (directiveLine != null && directiveLine.contains('doc:run')) {
           try {
-            runDirective = _parseRunDirective(directiveLine);
+            runDirective = _parseRunDirective(
+              directiveLine,
+              directiveLineNo ?? blockStart,
+              allowBare: allowBareDirectives,
+            );
           } on FormatException catch (e) {
             errors.add(
-              '$path:${pendingDirectiveLineNo ?? blockStart}: ${e.message}',
+              '$path:${directiveLineNo ?? blockStart}: ${e.message}',
             );
           }
         }
@@ -559,6 +584,144 @@ analyzer:
   return errors;
 }
 
+/// Runs each snippet for [scope] and rewrites the `<!-- doc:run ... -->`
+/// directive in the source markdown file to include `expect_stdout="<output>"`.
+///
+/// Bare directives (no expectations yet) are allowed — this is how they get
+/// their initial expected output recorded. Existing `expect_stdout=` values
+/// are overwritten with the fresh run output.
+Future<List<String>> _snapshotSnippets(
+  List<Snippet> snippets,
+  String rootDir, {
+  required String scope,
+}) async {
+  final runnable = snippets.where((s) {
+    final directive = s.runDirective;
+    if (directive == null) return false;
+    return directive.scope == scope;
+  }).toList();
+
+  if (runnable.isEmpty) {
+    stdout.writeln('  No doc:run snippets found for scope=$scope.');
+    return [];
+  }
+
+  final tmpDir = Directory.systemTemp.createTempSync('knex_dart_doc_snap_');
+  final libDir = Directory('${tmpDir.path}/lib')..createSync();
+
+  File('${tmpDir.path}/pubspec.yaml')
+      .writeAsStringSync(_buildTempPubspec(rootDir));
+  File('${tmpDir.path}/analysis_options.yaml').writeAsStringSync('''
+analyzer:
+  errors:
+    unused_import: ignore
+    unused_local_variable: ignore
+    dead_code: ignore
+    unawaited_futures: ignore
+    unnecessary_import: ignore
+''');
+
+  final fileForSnippet = <Snippet, String>{};
+  for (var i = 0; i < runnable.length; i++) {
+    final s = runnable[i];
+    final fileName = 'snippet_${i.toString().padLeft(4, '0')}.dart';
+    fileForSnippet[s] = fileName;
+    final wrapped =
+        '// SOURCE: ${s.file}:${s.startLine}\n'
+        '${buildDocSnippetProgram(s.code, target: DocSnippetTarget.local)}';
+    File('${libDir.path}/$fileName').writeAsStringSync(wrapped);
+  }
+
+  final pubGet = await Process.run(
+    'dart',
+    ['pub', 'get'],
+    workingDirectory: tmpDir.path,
+  );
+  if (pubGet.exitCode != 0) {
+    tmpDir.deleteSync(recursive: true);
+    return [
+      'ERROR: dart pub get failed in temp snapshot package:\n${pubGet.stderr}',
+    ];
+  }
+
+  final errors = <String>[];
+
+  // Group snippets by source file so we can do one file-rewrite per file.
+  final byFile = <String, List<Snippet>>{};
+  for (final s in runnable) {
+    byFile.putIfAbsent(s.file, () => []).add(s);
+  }
+  // Track mutations per file: directiveLineNo → new directive text
+  final mutations = <String, Map<int, String>>{};
+
+  for (final snippet in runnable) {
+    final directive = snippet.runDirective!;
+    final fileName = fileForSnippet[snippet]!;
+    final run = await Process.run(
+      'dart',
+      ['run', 'lib/$fileName'],
+      workingDirectory: tmpDir.path,
+    );
+
+    if (run.exitCode != 0) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: snippet exited with code '
+        '${run.exitCode} — cannot snapshot.\nstderr:\n${run.stderr}',
+      );
+      continue;
+    }
+
+    final captured = (run.stdout as String).trimRight();
+    final escaped = _escapeForDirective(captured);
+
+    // Read the original directive line
+    final fileLines = File(snippet.file).readAsLinesSync();
+    final lineIdx = directive.directiveLineNo - 1;
+    if (lineIdx < 0 || lineIdx >= fileLines.length) {
+      errors.add(
+        '${snippet.file}: directive line ${directive.directiveLineNo} out of range',
+      );
+      continue;
+    }
+    final originalLine = fileLines[lineIdx];
+
+    String updatedLine;
+    if (originalLine.contains('expect_stdout=')) {
+      // Replace existing value — handles both quoted forms
+      updatedLine = originalLine.replaceFirst(
+        RegExp(r"""expect_stdout=("([^"]*)"|'([^']*)'|\S+)"""),
+        'expect_stdout="$escaped"',
+      );
+    } else {
+      // Insert before the closing -->
+      updatedLine = originalLine.replaceFirst(' -->', ' expect_stdout="$escaped" -->');
+    }
+
+    mutations.putIfAbsent(snippet.file, () => <int, String>{})[directive.directiveLineNo] =
+        updatedLine;
+  }
+
+  tmpDir.deleteSync(recursive: true);
+
+  // Apply all mutations, one file at a time
+  for (final entry in mutations.entries) {
+    final path = entry.key;
+    final lineReplacements = entry.value; // lineNo → new text
+    final content = File(path).readAsStringSync();
+    final lines = content.split('\n');
+    for (final lineEntry in lineReplacements.entries) {
+      final idx = lineEntry.key - 1;
+      if (idx >= 0 && idx < lines.length) {
+        lines[idx] = lineEntry.value;
+      }
+    }
+    File(path).writeAsStringSync(lines.join('\n'));
+    stdout.writeln('  Updated ${lineReplacements.length} directive(s) in $path');
+  }
+
+  return errors;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 Future<void> main(List<String> args) async {
@@ -583,9 +746,12 @@ Future<void> main(List<String> args) async {
 
   stdout.writeln('Scanning doc snippets in $rootDir…');
 
+  // snapshot mode allows bare doc:run directives (no expectations yet).
+  final allowBare = mode == 'snapshot';
+
   late final List<Snippet> snippets;
   try {
-    snippets = _extractSnippets(rootDir);
+    snippets = _extractSnippets(rootDir, allowBareDirectives: allowBare);
   } on FormatException catch (e) {
     stderr.writeln('\n✗ doc snippet directive issue(s) found:\n');
     stderr.writeln(e.message);
@@ -594,18 +760,36 @@ Future<void> main(List<String> args) async {
   stdout.writeln('  Found ${snippets.length} dart snippets');
 
   if (mode == 'run') {
-    if (scope == null || scope!.isEmpty) {
+    if (scope == null || scope.isEmpty) {
       stderr.writeln('Missing required --scope for --mode=run');
       exit(1);
     }
     stdout.writeln('  Running doc snippets for scope=$scope…');
-    final runErrors = await _runSnippets(snippets, rootDir, scope: scope!);
+    final runErrors = await _runSnippets(snippets, rootDir, scope: scope);
     if (runErrors.isEmpty) {
       stdout.writeln('✓ All runnable doc snippets OK for scope=$scope.');
       exit(0);
     }
     stderr.writeln('\n✗ ${runErrors.length} runnable doc snippet issue(s) found:\n');
     for (final e in runErrors) {
+      stderr.writeln('  $e');
+    }
+    exit(1);
+  }
+
+  if (mode == 'snapshot') {
+    if (scope == null || scope.isEmpty) {
+      stderr.writeln('Missing required --scope for --mode=snapshot');
+      exit(1);
+    }
+    stdout.writeln('  Snapshotting doc snippets for scope=$scope…');
+    final snapErrors = await _snapshotSnippets(snippets, rootDir, scope: scope);
+    if (snapErrors.isEmpty) {
+      stdout.writeln('✓ Snapshot complete for scope=$scope — commit the updated directives.');
+      exit(0);
+    }
+    stderr.writeln('\n✗ ${snapErrors.length} snapshot error(s):\n');
+    for (final e in snapErrors) {
       stderr.writeln('  $e');
     }
     exit(1);

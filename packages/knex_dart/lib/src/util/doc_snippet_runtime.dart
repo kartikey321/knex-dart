@@ -69,7 +69,8 @@ _SplitSnippet _splitSnippet(String code) {
       topLevel.add(line);
       braceDepth += '{'.allMatches(line).length;
       braceDepth -= '}'.allMatches(line).length;
-      if (braceDepth <= 0 && trimmed.endsWith('}')) {
+      final endsDeclaration = trimmed.endsWith('}') || trimmed.endsWith(';');
+      if (braceDepth <= 0 && endsDeclaration) {
         inTopLevelBlock = false;
       }
     } else {
@@ -132,10 +133,11 @@ String _buildPlaygroundProgram(_SplitSnippet parts, String dialect) {
   }
 
   if (!parts.hasTopLevelMain) {
-    final needsDbPreamble = !(parts.body.join('\n').contains(
-          'final db = KnexQuery.forDialect',
-        ) ||
-        parts.topLevel.join('\n').contains('final db = KnexQuery.forDialect'));
+    final needsDbPreamble =
+        !(parts.body.join('\n').contains('final db = KnexQuery.forDialect') ||
+            parts.topLevel
+                .join('\n')
+                .contains('final db = KnexQuery.forDialect'));
     buf.writeln('void main() {');
     if (needsDbPreamble) {
       buf.writeln(
@@ -153,7 +155,12 @@ String _buildPlaygroundProgram(_SplitSnippet parts, String dialect) {
 }
 
 String _dialectEnum(String dialect) => switch (dialect) {
+  'postgres' => 'KnexDialect.postgres',
   'sqlite' => 'KnexDialect.sqlite',
   'mysql' => 'KnexDialect.mysql',
-  _ => 'KnexDialect.postgres',
+  _ => throw ArgumentError.value(
+    dialect,
+    'dialect',
+    'Unsupported dialect for doc snippet runtime',
+  ),
 };

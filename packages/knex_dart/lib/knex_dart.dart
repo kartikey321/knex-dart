@@ -65,3 +65,4 @@ export 'src/transaction/transaction.dart';
 export 'src/util/knex_exception.dart';
 export 'src/util/enums.dart';
 export 'src/util/types.dart';
+export 'src/util/doc_snippet_runtime.dart';

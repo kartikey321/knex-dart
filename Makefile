@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite check-docs check-docs-runtime check-docs-runtime-postgres check-docs-runtime-mysql check-docs-runtime-mssql update-versions
+.PHONY: help db-up db-down test-all test-postgres test-mysql test-sqlite test-duckdb test-mssql test-turso test-bigquery test-d1 test-snowflake test-unit analyze coverage bench-sql bench-sqlite bench-matrix bench-all example-otel-sqlite check-docs check-docs-runtime check-docs-runtime-postgres check-docs-runtime-mysql check-docs-runtime-mssql snapshot-docs snapshot-docs-postgres snapshot-docs-mysql snapshot-docs-mssql update-versions
 
 # Local development only — not used in CI.
 # CI uses `dart test --tags=<driver>` directly against GitHub Actions service containers.
@@ -64,6 +64,18 @@ check-docs-runtime-mysql: ## Execute runnable MySQL doc snippets
 
 check-docs-runtime-mssql: ## Execute runnable MSSQL doc snippets
 	dart run tool/check_doc_snippets.dart --mode=run --scope=mssql
+
+snapshot-docs: ## Auto-generate expect_stdout in local doc:run directives
+	dart run tool/check_doc_snippets.dart --mode=snapshot --scope=local
+
+snapshot-docs-postgres: ## Auto-generate expect_stdout in PostgreSQL doc:run directives
+	dart run tool/check_doc_snippets.dart --mode=snapshot --scope=postgres
+
+snapshot-docs-mysql: ## Auto-generate expect_stdout in MySQL doc:run directives
+	dart run tool/check_doc_snippets.dart --mode=snapshot --scope=mysql
+
+snapshot-docs-mssql: ## Auto-generate expect_stdout in MSSQL doc:run directives
+	dart run tool/check_doc_snippets.dart --mode=snapshot --scope=mssql
 
 update-versions: ## Sync README version constraints from pubspec.yaml (run after version bumps)
 	dart run tool/update_readme_versions.dart

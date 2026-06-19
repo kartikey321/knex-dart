@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
-import 'package:knex_dart/src/util/doc_snippet_runtime.dart';
+import 'package:knex_dart/knex_dart.dart';
 
 // URL of the deployed playground. Override via PLAYGROUND_URL env var at build time.
 const _playgroundUrl = String.fromEnvironment(

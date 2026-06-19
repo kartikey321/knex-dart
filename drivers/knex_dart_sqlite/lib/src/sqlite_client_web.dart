@@ -5,12 +5,7 @@ import 'package:sqlite3/wasm.dart';
 
 import 'sqlite_storage_mode.dart';
 
-enum SQLiteWebStorageMode {
-  memory,
-  indexedDb,
-  opfs,
-  auto,
-}
+enum SQLiteWebStorageMode { memory, indexedDb, opfs, auto }
 
 /// SQLite database client for web/WASM.
 class SQLiteClient extends Client {
@@ -30,14 +25,16 @@ class SQLiteClient extends Client {
   static final Object _transactionZoneKey = Object();
 
   Future<void>? _initialization;
+  final List<List<SqliteUpdate>> _txUpdateStack = [];
+  late final StreamController<SqliteUpdate> _updateController;
+  StreamSubscription<SqliteUpdate>? _updatesSub;
 
   SQLiteClient._(
     this._filename,
     this._wasmUri,
     this._storageMode,
     KnexConfig config,
-  )
-    : super(config);
+  ) : super(config);
 
   static final Uri _defaultWasmUri = Uri.parse(
     'packages/knex_dart_sqlite/web_assets/sqlite3.wasm',
@@ -139,17 +136,30 @@ class SQLiteClient extends Client {
       return;
     }
     _db = opened;
+    _setupUpdateHook(opened);
+  }
+
+  void _setupUpdateHook(CommonDatabase db) {
+    _updateController = StreamController<SqliteUpdate>.broadcast(sync: true);
+    _updatesSub = db.updates.listen((update) {
+      if (_updateController.isClosed) return;
+      if (_txUpdateStack.isNotEmpty) {
+        _txUpdateStack.last.add(update);
+      } else {
+        _updateController.add(update);
+      }
+    });
   }
 
   Future<VirtualFileSystem> _createFileSystem() async {
     return switch (_storageMode) {
       SQLiteWebStorageMode.memory => InMemoryFileSystem(),
       SQLiteWebStorageMode.indexedDb => await IndexedDbFileSystem.open(
-          dbName: _filename,
-        ),
+        dbName: _filename,
+      ),
       SQLiteWebStorageMode.opfs => await SimpleOpfsFileSystem.loadFromStorage(
-          _filename,
-        ),
+        _filename,
+      ),
       SQLiteWebStorageMode.auto => await _createAutoFileSystem(),
     };
   }
@@ -216,9 +226,13 @@ class SQLiteClient extends Client {
     try {
       await initialize();
     } finally {
+      await _updatesSub?.cancel();
       _db?.dispose();
       _db = null;
       _isClosed = true;
+      if (!_updateController.isClosed) {
+        await _updateController.close();
+      }
     }
   }
 
@@ -227,11 +241,11 @@ class SQLiteClient extends Client {
 
   /// Stream of low-level table mutation events from SQLite's UPDATE_HOOK.
   ///
-  /// Async because the web client initializes lazily; the stream opens once
-  /// the WASM database is ready.
+  /// Events are buffered while a transaction is active and flushed only on
+  /// top-level COMMIT, so watch() behavior matches the native client.
   Stream<SqliteUpdate> get updates async* {
-    final db = await _ensureDb();
-    yield* db.updates;
+    await _ensureDb();
+    yield* _updateController.stream;
   }
 
   /// Close the database connection.
@@ -308,28 +322,38 @@ class SQLiteClient extends Client {
     if (_transactionDepth > 0) {
       final sp = _savepointId();
       _transactionDepth++;
+      _txUpdateStack.add([]);
       db.execute('SAVEPOINT $sp');
       try {
         final result = await callback(this);
         db.execute('RELEASE SAVEPOINT $sp');
+        final saved = _txUpdateStack.removeLast();
+        _txUpdateStack.last.addAll(saved);
         return result;
       } catch (e, st) {
         try {
           db.execute('ROLLBACK TO SAVEPOINT $sp');
         } catch (_) {}
+        _txUpdateStack.removeLast();
         Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }
     } else {
       _transactionDepth++;
+      _txUpdateStack.add([]);
       db.execute('BEGIN');
       try {
         final result = await callback(this);
         db.execute('COMMIT');
+        final saved = _txUpdateStack.removeLast();
+        for (final update in saved) {
+          _updateController.add(update);
+        }
         return result;
       } catch (e) {
         db.execute('ROLLBACK');
+        _txUpdateStack.removeLast();
         rethrow;
       } finally {
         _transactionDepth--;
