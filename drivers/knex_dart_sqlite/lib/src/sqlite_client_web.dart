@@ -327,6 +327,7 @@ class SQLiteClient extends Client {
       try {
         final result = await callback(this);
         db.execute('RELEASE SAVEPOINT $sp');
+        await _settleUpdateHookQueue();
         final saved = _txUpdateStack.removeLast();
         _txUpdateStack.last.addAll(saved);
         return result;
@@ -334,6 +335,7 @@ class SQLiteClient extends Client {
         try {
           db.execute('ROLLBACK TO SAVEPOINT $sp');
         } catch (_) {}
+        await _settleUpdateHookQueue();
         _txUpdateStack.removeLast();
         Error.throwWithStackTrace(e, st);
       } finally {
@@ -346,6 +348,7 @@ class SQLiteClient extends Client {
       try {
         final result = await callback(this);
         db.execute('COMMIT');
+        await _settleUpdateHookQueue();
         final saved = _txUpdateStack.removeLast();
         for (final update in saved) {
           _updateController.add(update);
@@ -353,12 +356,17 @@ class SQLiteClient extends Client {
         return result;
       } catch (e) {
         db.execute('ROLLBACK');
+        await _settleUpdateHookQueue();
         _txUpdateStack.removeLast();
         rethrow;
       } finally {
         _transactionDepth--;
       }
     }
+  }
+
+  Future<void> _settleUpdateHookQueue() async {
+    await Future<void>.microtask(() {});
   }
 
   static var _spCount = 0;
