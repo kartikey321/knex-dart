@@ -6,6 +6,7 @@
 //   Layer 1 — forbidden-pattern scan (all snippets)
 //   Layer 2 — dart analyze on snippets that carry import statements
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:knex_dart/src/util/doc_snippet_runtime.dart';
@@ -15,10 +16,17 @@ import 'package:knex_dart/src/util/doc_snippet_runtime.dart';
 final _docGlobs = [
   'docs/site/content',
   'packages/knex_dart',
-  ...['knex_dart_postgres', 'knex_dart_mysql', 'knex_dart_sqlite',
-      'knex_dart_duckdb', 'knex_dart_mssql', 'knex_dart_turso',
-      'knex_dart_d1', 'knex_dart_bigquery', 'knex_dart_snowflake']
-      .map((d) => 'drivers/$d'),
+  ...[
+    'knex_dart_postgres',
+    'knex_dart_mysql',
+    'knex_dart_sqlite',
+    'knex_dart_duckdb',
+    'knex_dart_mssql',
+    'knex_dart_turso',
+    'knex_dart_d1',
+    'knex_dart_bigquery',
+    'knex_dart_snowflake',
+  ].map((d) => 'drivers/$d'),
   'integrations/knex_dart_otel',
 ];
 
@@ -36,7 +44,9 @@ final _forbidden = [
         'use trx.queryBuilder().client.raw()',
   ),
   (
-    RegExp(r'KnexQuery\.forDialect\([^)]+\)\s*\.(select|insert|update|delete|rawQuery|rawSql)\s*\('),
+    RegExp(
+      r'KnexQuery\.forDialect\([^)]+\)\s*\.(select|insert|update|delete|rawQuery|rawSql)\s*\(',
+    ),
     'KnexQuery.forDialect() returns a builder factory, not a live driver — '
         'cannot call select/insert/update/delete/rawQuery/rawSql on it directly',
   ),
@@ -108,9 +118,7 @@ List<String> _versionDriftCheck(String rootDir) {
   final errors = <String>[];
   // Pattern: optional leading spaces + optional # + spaces +
   //          package_name + : ^ + version
-  final lineRe = RegExp(
-    r'^\s*#?\s*(knex_dart\w*)\s*:\s*\^(\d+\.\d+\.\d+)',
-  );
+  final lineRe = RegExp(r'^\s*#?\s*(knex_dart\w*)\s*:\s*\^(\d+\.\d+\.\d+)');
 
   for (final path in _readmeFiles) {
     final file = File('$rootDir/$path');
@@ -158,6 +166,7 @@ class DocRunDirective {
   final String? expectStdoutContains;
   final String? expectStderrContains;
   final int expectExit;
+
   /// 1-based line number of the `<!-- doc:run ... -->` comment in the source file.
   final int directiveLineNo;
 
@@ -169,6 +178,54 @@ class DocRunDirective {
     this.expectStderrContains,
     this.expectExit = 0,
   });
+}
+
+class _ProcessResultWithTimeout {
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+  final bool timedOut;
+
+  const _ProcessResultWithTimeout({
+    required this.exitCode,
+    required this.stdout,
+    required this.stderr,
+    required this.timedOut,
+  });
+}
+
+const _snippetRunTimeout = Duration(seconds: 45);
+
+Future<_ProcessResultWithTimeout> _runProcessWithTimeout(
+  String executable,
+  List<String> arguments, {
+  required String workingDirectory,
+  Duration timeout = _snippetRunTimeout,
+}) async {
+  final process = await Process.start(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory,
+  );
+  final stdoutFuture = process.stdout.transform(systemEncoding.decoder).join();
+  final stderrFuture = process.stderr.transform(systemEncoding.decoder).join();
+  var timedOut = false;
+
+  late int exitCode;
+  try {
+    exitCode = await process.exitCode.timeout(timeout);
+  } on TimeoutException {
+    timedOut = true;
+    process.kill(ProcessSignal.sigkill);
+    exitCode = await process.exitCode;
+  }
+
+  return _ProcessResultWithTimeout(
+    exitCode: exitCode,
+    stdout: await stdoutFuture,
+    stderr: await stderrFuture,
+    timedOut: timedOut,
+  );
 }
 
 Map<String, String> _parseDirectiveArgs(String text) {
@@ -206,13 +263,13 @@ DocRunDirective? _parseRunDirective(
   }
 
   final expectStdoutRaw = args['expect_stdout'];
-  final expectStdout =
-      expectStdoutRaw == null ? null : _unescapeDirectiveValue(expectStdoutRaw);
+  final expectStdout = expectStdoutRaw == null
+      ? null
+      : _unescapeDirectiveValue(expectStdoutRaw);
   final expectStdoutContains = args['expect_stdout_contains'];
   final expectStderrContains = args['expect_stderr_contains'];
   final expectExitRaw = args['expect_exit'];
-  final expectExit =
-      expectExitRaw == null ? 0 : int.parse(expectExitRaw);
+  final expectExit = expectExitRaw == null ? 0 : int.parse(expectExitRaw);
 
   if (!allowBare &&
       expectStdout == null &&
@@ -235,7 +292,10 @@ DocRunDirective? _parseRunDirective(
   );
 }
 
-List<Snippet> _extractSnippets(String rootDir, {bool allowBareDirectives = false}) {
+List<Snippet> _extractSnippets(
+  String rootDir, {
+  bool allowBareDirectives = false,
+}) {
   final results = <Snippet>[];
   final errors = <String>[];
 
@@ -273,9 +333,7 @@ List<Snippet> _extractSnippets(String rootDir, {bool allowBareDirectives = false
               allowBare: allowBareDirectives,
             );
           } on FormatException catch (e) {
-            errors.add(
-              '$path:${directiveLineNo ?? blockStart}: ${e.message}',
-            );
+            errors.add('$path:${directiveLineNo ?? blockStart}: ${e.message}');
           }
         }
         results.add(
@@ -387,8 +445,9 @@ Future<List<String>> _analyzeSnippets(
   final tmpDir = Directory.systemTemp.createTempSync('knex_dart_doc_check_');
   final libDir = Directory('${tmpDir.path}/lib')..createSync();
 
-  File('${tmpDir.path}/pubspec.yaml')
-      .writeAsStringSync(_buildTempPubspec(rootDir));
+  File(
+    '${tmpDir.path}/pubspec.yaml',
+  ).writeAsStringSync(_buildTempPubspec(rootDir));
 
   // analysis_options: suppress wrapping-artifact errors, keep real API errors.
   // duplicate_definition: some doc snippets show two alternatives in one block.
@@ -422,16 +481,16 @@ analyzer:
     final wrapped =
         '// SOURCE: ${s.file}:${s.startLine}\n'
         '${buildDocSnippetProgram(s.code, target: DocSnippetTarget.local)}';
-    File('${libDir.path}/snippet_${i.toString().padLeft(4, '0')}.dart')
-        .writeAsStringSync(wrapped);
+    File(
+      '${libDir.path}/snippet_${i.toString().padLeft(4, '0')}.dart',
+    ).writeAsStringSync(wrapped);
   }
 
   // dart pub get
-  final pubGet = await Process.run(
-    'dart',
-    ['pub', 'get'],
-    workingDirectory: tmpDir.path,
-  );
+  final pubGet = await Process.run('dart', [
+    'pub',
+    'get',
+  ], workingDirectory: tmpDir.path);
   if (pubGet.exitCode != 0) {
     tmpDir.deleteSync(recursive: true);
     return [
@@ -440,11 +499,11 @@ analyzer:
   }
 
   // dart analyze
-  final analyze = await Process.run(
-    'dart',
-    ['analyze', '--fatal-warnings', 'lib/'],
-    workingDirectory: tmpDir.path,
-  );
+  final analyze = await Process.run('dart', [
+    'analyze',
+    '--fatal-warnings',
+    'lib/',
+  ], workingDirectory: tmpDir.path);
 
   final errors = <String>[];
 
@@ -499,8 +558,9 @@ Future<List<String>> _runSnippets(
   final tmpDir = Directory.systemTemp.createTempSync('knex_dart_doc_run_');
   final libDir = Directory('${tmpDir.path}/lib')..createSync();
 
-  File('${tmpDir.path}/pubspec.yaml')
-      .writeAsStringSync(_buildTempPubspec(rootDir));
+  File(
+    '${tmpDir.path}/pubspec.yaml',
+  ).writeAsStringSync(_buildTempPubspec(rootDir));
   File('${tmpDir.path}/analysis_options.yaml').writeAsStringSync('''
 analyzer:
   errors:
@@ -522,11 +582,10 @@ analyzer:
     File('${libDir.path}/$fileName').writeAsStringSync(wrapped);
   }
 
-  final pubGet = await Process.run(
-    'dart',
-    ['pub', 'get'],
-    workingDirectory: tmpDir.path,
-  );
+  final pubGet = await Process.run('dart', [
+    'pub',
+    'get',
+  ], workingDirectory: tmpDir.path);
   if (pubGet.exitCode != 0) {
     tmpDir.deleteSync(recursive: true);
     return [
@@ -538,13 +597,24 @@ analyzer:
   for (final snippet in runnable) {
     final directive = snippet.runDirective!;
     final fileName = fileForSnippet[snippet]!;
-    final run = await Process.run(
-      'dart',
-      ['run', 'lib/$fileName'],
-      workingDirectory: tmpDir.path,
+    stdout.writeln(
+      '  Running $scope snippet ${snippet.file}:${snippet.startLine}',
     );
-    final stdoutText = (run.stdout as String).trimRight();
-    final stderrText = (run.stderr as String).trimRight();
+    final run = await _runProcessWithTimeout('dart', [
+      'run',
+      'lib/$fileName',
+    ], workingDirectory: tmpDir.path);
+    final stdoutText = run.stdout.trimRight();
+    final stderrText = run.stderr.trimRight();
+
+    if (run.timedOut) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: snippet timed out after '
+        '${_snippetRunTimeout.inSeconds}s.\n'
+        'stdout:\n$stdoutText\nstderr:\n$stderrText',
+      );
+      continue;
+    }
 
     if (run.exitCode != directive.expectExit) {
       errors.add(
@@ -609,8 +679,9 @@ Future<List<String>> _snapshotSnippets(
   final tmpDir = Directory.systemTemp.createTempSync('knex_dart_doc_snap_');
   final libDir = Directory('${tmpDir.path}/lib')..createSync();
 
-  File('${tmpDir.path}/pubspec.yaml')
-      .writeAsStringSync(_buildTempPubspec(rootDir));
+  File(
+    '${tmpDir.path}/pubspec.yaml',
+  ).writeAsStringSync(_buildTempPubspec(rootDir));
   File('${tmpDir.path}/analysis_options.yaml').writeAsStringSync('''
 analyzer:
   errors:
@@ -632,11 +703,10 @@ analyzer:
     File('${libDir.path}/$fileName').writeAsStringSync(wrapped);
   }
 
-  final pubGet = await Process.run(
-    'dart',
-    ['pub', 'get'],
-    workingDirectory: tmpDir.path,
-  );
+  final pubGet = await Process.run('dart', [
+    'pub',
+    'get',
+  ], workingDirectory: tmpDir.path);
   if (pubGet.exitCode != 0) {
     tmpDir.deleteSync(recursive: true);
     return [
@@ -657,11 +727,22 @@ analyzer:
   for (final snippet in runnable) {
     final directive = snippet.runDirective!;
     final fileName = fileForSnippet[snippet]!;
-    final run = await Process.run(
-      'dart',
-      ['run', 'lib/$fileName'],
-      workingDirectory: tmpDir.path,
+    stdout.writeln(
+      '  Snapshotting $scope snippet ${snippet.file}:${snippet.startLine}',
     );
+    final run = await _runProcessWithTimeout('dart', [
+      'run',
+      'lib/$fileName',
+    ], workingDirectory: tmpDir.path);
+
+    if (run.timedOut) {
+      errors.add(
+        '${snippet.file}:${snippet.startLine}: snippet timed out after '
+        '${_snippetRunTimeout.inSeconds}s — cannot snapshot.\n'
+        'stdout:\n${run.stdout}\nstderr:\n${run.stderr}',
+      );
+      continue;
+    }
 
     if (run.exitCode != 0) {
       errors.add(
@@ -671,7 +752,7 @@ analyzer:
       continue;
     }
 
-    final captured = (run.stdout as String).trimRight();
+    final captured = run.stdout.trimRight();
     final escaped = _escapeForDirective(captured);
 
     // Read the original directive line
@@ -694,11 +775,16 @@ analyzer:
       );
     } else {
       // Insert before the closing -->
-      updatedLine = originalLine.replaceFirst(' -->', ' expect_stdout="$escaped" -->');
+      updatedLine = originalLine.replaceFirst(
+        ' -->',
+        ' expect_stdout="$escaped" -->',
+      );
     }
 
-    mutations.putIfAbsent(snippet.file, () => <int, String>{})[directive.directiveLineNo] =
-        updatedLine;
+    mutations.putIfAbsent(
+      snippet.file,
+      () => <int, String>{},
+    )[directive.directiveLineNo] = updatedLine;
   }
 
   tmpDir.deleteSync(recursive: true);
@@ -716,7 +802,9 @@ analyzer:
       }
     }
     File(path).writeAsStringSync(lines.join('\n'));
-    stdout.writeln('  Updated ${lineReplacements.length} directive(s) in $path');
+    stdout.writeln(
+      '  Updated ${lineReplacements.length} directive(s) in $path',
+    );
   }
 
   return errors;
@@ -770,7 +858,9 @@ Future<void> main(List<String> args) async {
       stdout.writeln('✓ All runnable doc snippets OK for scope=$scope.');
       exit(0);
     }
-    stderr.writeln('\n✗ ${runErrors.length} runnable doc snippet issue(s) found:\n');
+    stderr.writeln(
+      '\n✗ ${runErrors.length} runnable doc snippet issue(s) found:\n',
+    );
     for (final e in runErrors) {
       stderr.writeln('  $e');
     }
@@ -785,7 +875,9 @@ Future<void> main(List<String> args) async {
     stdout.writeln('  Snapshotting doc snippets for scope=$scope…');
     final snapErrors = await _snapshotSnippets(snippets, rootDir, scope: scope);
     if (snapErrors.isEmpty) {
-      stdout.writeln('✓ Snapshot complete for scope=$scope — commit the updated directives.');
+      stdout.writeln(
+        '✓ Snapshot complete for scope=$scope — commit the updated directives.',
+      );
       exit(0);
     }
     stderr.writeln('\n✗ ${snapErrors.length} snapshot error(s):\n');
