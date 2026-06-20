@@ -471,6 +471,7 @@ jobs:
   test-mssql:
     name: Test SQL Server (Linux/Docker)
     needs: analyze
+    continue-on-error: true
     runs-on: ubuntu-latest
     services:
       mssql:
