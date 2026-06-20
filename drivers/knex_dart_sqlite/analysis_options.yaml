@@ -1,1 +1,7 @@
 include: package:lints/recommended.yaml
+
+analyzer:
+  errors:
+    # sqlite3/wasm.dart is marked @experimental but is the only stable public
+    # API for WASM SQLite — suppress so the pana downgrade check passes.
+    experimental_member_use: ignore
