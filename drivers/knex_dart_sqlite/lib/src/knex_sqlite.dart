@@ -1,10 +1,92 @@
+import 'dart:async';
+
 import 'package:knex_dart/knex_dart.dart';
+// common.dart (not sqlite3.dart) so this compiles for web too — sqlite3.dart
+// pulls in the FFI implementation with `external` members that dart2js/dart
+// compile js reject. SqliteUpdate is defined in the platform-neutral common.
+import 'package:sqlite3/common.dart' show SqliteUpdate;
 
 import 'sqlite_client.dart'
     if (dart.library.js_interop) 'sqlite_client_web.dart';
 
+/// Returns the set of table names referenced by [query] (primary + joined).
+Set<String> _tablesFrom(QueryBuilder query) {
+  final tables = <String>{};
+  final t = query.tableName;
+  if (t is String) tables.add(t);
+  for (final stmt in query.statements) {
+    if (stmt['grouping'] == 'join') {
+      final joinTable = stmt['table'];
+      if (joinTable is String) {
+        tables.add(joinTable);
+      } else if (joinTable is JoinClause) {
+        tables.add(joinTable.table);
+      }
+    }
+  }
+  return tables;
+}
+
+/// Wraps [source] with a batch-ceiling debounce.
+///
+/// Emits one event after [duration] of silence, OR after [maxCount] events
+/// accumulate — whichever ceiling is hit first. Both are optional; if neither
+/// is set the original stream is returned unchanged.
+Stream<T> _batchDebounce<T>(
+  Stream<T> source, {
+  Duration? duration,
+  int? maxCount,
+}) {
+  if (duration == null && maxCount == null) return source;
+
+  late StreamController<T> controller;
+  StreamSubscription<T>? sub;
+  Timer? timer;
+  int pending = 0;
+  T? last;
+
+  void flush() {
+    timer?.cancel();
+    timer = null;
+    if (pending == 0) return; // nothing buffered — avoid re-emit on close
+    pending = 0;
+    final value = last as T;
+    last = null;
+    controller.add(value);
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      sub = source.listen(
+        (event) {
+          last = event;
+          pending++;
+          if (maxCount != null && pending >= maxCount) {
+            flush();
+            return;
+          }
+          if (duration != null) {
+            timer?.cancel();
+            timer = Timer(duration, flush);
+          }
+        },
+        onError: controller.addError,
+        onDone: () {
+          flush(); // emit any pending event before closing
+          controller.close();
+        },
+      );
+    },
+    onCancel: () async {
+      timer?.cancel();
+      await sub?.cancel();
+    },
+  );
+  return controller.stream;
+}
+
 /// SQLite-specific Knex wrapper.
-class KnexSQLite {
+class KnexSQLite with WatchableClient {
   final SQLiteClient _client;
   final KnexInterceptorPipeline _pipeline;
 
@@ -29,9 +111,13 @@ class KnexSQLite {
   /// ```
   static Future<KnexSQLite> connect({
     required String filename,
+    String? webStorageMode,
     List<QueryInterceptor> interceptors = const [],
   }) async {
-    final client = await SQLiteClient.connect(filename: filename);
+    final client = await SQLiteClient.connect(
+      filename: filename,
+      webStorageMode: webStorageMode,
+    );
     return KnexSQLite._(
       client,
       pipeline: KnexInterceptorPipeline(
@@ -114,6 +200,71 @@ class KnexSQLite {
     // signature; connection is ignored — SQLite is single-connection.
     return _client.streamQuery(null, compiled.sql, compiled.bindings);
   });
+
+  /// Watches [query] and re-emits results whenever any of its source tables change.
+  ///
+  /// Emits the current result set immediately on subscription, then re-emits
+  /// after each relevant write.
+  ///
+  /// [debounce] sets the silence window before a re-query is triggered.
+  /// [maxPendingWrites] sets the write-count ceiling — a re-query fires as soon
+  /// as this many writes accumulate, even if [debounce] has not elapsed.
+  /// When both are set, whichever ceiling is hit first wins.
+  ///
+  /// Note: SQLite's UPDATE_HOOK does not fire for `DELETE` without a `WHERE`
+  /// clause or for `WITHOUT ROWID` tables.
+  @override
+  Stream<List<Map<String, dynamic>>> watch(
+    QueryBuilder query, {
+    Duration? debounce,
+    int? maxPendingWrites,
+  }) {
+    if (_client.isClosed) throw StateError('Cannot watch a closed database.');
+
+    final tables = _tablesFrom(query);
+    final controller = StreamController<List<Map<String, dynamic>>>();
+
+    StreamSubscription<SqliteUpdate>? sub;
+    var cancelled = false;
+    var emitSeq = 0;
+
+    Future<void> emit() async {
+      if (cancelled || controller.isClosed) return;
+      // Stamp this emission; discard result if a newer emit completes first.
+      final seq = ++emitSeq;
+      try {
+        final rows = await select(query);
+        if (seq == emitSeq && !cancelled && !controller.isClosed) {
+          controller.add(rows);
+        }
+      } catch (e, st) {
+        if (!cancelled && !controller.isClosed) controller.addError(e, st);
+      }
+    }
+
+    controller.onListen = () {
+      // Emit current results immediately after the listener attaches.
+      Future.microtask(emit);
+
+      Stream<SqliteUpdate> updateStream =
+          _client.updates.where((u) => tables.contains(u.tableName));
+
+      updateStream = _batchDebounce(
+        updateStream,
+        duration: debounce,
+        maxCount: maxPendingWrites,
+      );
+
+      sub = updateStream.listen((_) => emit());
+    };
+
+    controller.onCancel = () async {
+      cancelled = true;
+      await sub?.cancel();
+    };
+
+    return controller.stream;
+  }
 
   /// Run a transaction.
   Future<T> trx<T>(Future<T> Function(KnexSQLiteTransaction tx) callback) =>

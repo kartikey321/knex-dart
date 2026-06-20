@@ -3,6 +3,8 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'package:knex_dart/knex_dart.dart';
 
+import 'sqlite_storage_mode.dart';
+
 /// SQLite database client.
 class SQLiteClient extends Client {
   late Database _db;
@@ -11,6 +13,21 @@ class SQLiteClient extends Client {
 
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
+
+  // SQLite uses a single connection here, so unrelated top-level
+  // transactions must not interleave. We queue only the outermost scopes;
+  // nested transactions within the same logical flow still use savepoints.
+  Future<void> _transactionQueue = Future<void>.value();
+  static final Object _transactionZoneKey = Object();
+
+  /// Per-level update buffers. One entry is pushed per BEGIN/SAVEPOINT and
+  /// popped on COMMIT/ROLLBACK. Events are forwarded to [_updateController]
+  /// only on the outermost COMMIT, preventing watch() from seeing phantom rows
+  /// from uncommitted or rolled-back transactions.
+  final List<List<SqliteUpdate>> _txUpdateStack = [];
+
+  late final StreamController<SqliteUpdate> _updateController;
+  StreamSubscription<SqliteUpdate>? _updatesSub;
 
   /// Prepared statement cache keyed by SQL string.
   ///
@@ -26,6 +43,12 @@ class SQLiteClient extends Client {
   /// This is synchronous because sqlite3 opens local files synchronously.
   static SQLiteClient fromConfig(KnexConfig config) {
     final connection = config.connection;
+    if (connection is Map) {
+      final storageMode = connection['storageMode'];
+      if (storageMode != null) {
+        rejectSQLiteWebStorageModeOnNative(storageMode as String);
+      }
+    }
     final filename = switch (connection) {
       String s => s,
       Map m when m['filename'] is String => m['filename'] as String,
@@ -37,11 +60,16 @@ class SQLiteClient extends Client {
 
     final client = SQLiteClient._(filename, config);
     client._db = sqlite3.open(filename);
+    client._setupUpdateHook();
     return client;
   }
 
   /// Creates and opens a SQLite client for [filename].
-  static Future<SQLiteClient> connect({required String filename}) async {
+  static Future<SQLiteClient> connect({
+    required String filename,
+    String? webStorageMode,
+  }) async {
+    rejectSQLiteWebStorageModeOnNative(webStorageMode);
     final config = KnexConfig(
       client: 'sqlite3',
       connection: {'filename': filename},
@@ -54,6 +82,21 @@ class SQLiteClient extends Client {
   /// Opens the underlying SQLite database file.
   Future<void> initialize() async {
     _db = sqlite3.open(_filename);
+    _setupUpdateHook();
+  }
+
+  void _setupUpdateHook() {
+    // sync: true ensures watch() listeners are notified within the same call
+    // stack as the write, matching Drift's internal dispatch pattern.
+    _updateController = StreamController<SqliteUpdate>.broadcast(sync: true);
+    _updatesSub = _db.updates.listen((update) {
+      if (_updateController.isClosed) return;
+      if (_txUpdateStack.isNotEmpty) {
+        _txUpdateStack.last.add(update);
+      } else {
+        _updateController.add(update);
+      }
+    });
   }
 
   @override
@@ -86,11 +129,22 @@ class SQLiteClient extends Client {
       stmt.dispose();
     }
     _stmtCache.clear();
+    // Cancel before dispose so any in-flight async events from _db.updates
+    // don't reach _updateController after it is closed.
+    await _updatesSub?.cancel();
     _db.dispose();
+    await _updateController.close();
   }
 
   /// Whether the connection is closed.
   bool get isClosed => _isClosed;
+
+  /// Stream of low-level table mutation events from SQLite's UPDATE_HOOK.
+  ///
+  /// Events are buffered while a transaction is active and flushed only on
+  /// top-level COMMIT, so [watch] never sees phantom rows from uncommitted or
+  /// rolled-back writes.
+  Stream<SqliteUpdate> get updates => _updateController.stream;
 
   /// Close the database connection.
   Future<void> close() => destroyPool();
@@ -161,31 +215,66 @@ class SQLiteClient extends Client {
 
   /// Executes [callback] in a transaction/savepoint scope.
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
+    if (Zone.current[_transactionZoneKey] == true) {
+      return _runTransactionScope(callback);
+    }
+
+    final completer = Completer<T>();
+    _transactionQueue = _transactionQueue.catchError((_) {}).then((_) async {
+      try {
+        final result = await runZoned(
+          () => _runTransactionScope(callback),
+          zoneValues: {_transactionZoneKey: true},
+        );
+        completer.complete(result);
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
+  Future<T> _runTransactionScope<T>(
+    Future<T> Function(SQLiteClient trx) callback,
+  ) async {
     if (_transactionDepth > 0) {
       final sp = _savepointId();
       _transactionDepth++;
+      _txUpdateStack.add([]);
       _db.execute('SAVEPOINT $sp');
       try {
         final result = await callback(this);
         _db.execute('RELEASE SAVEPOINT $sp');
+        // Merge savepoint's buffered updates into the parent level so they
+        // survive to the outermost COMMIT.
+        final saved = _txUpdateStack.removeLast();
+        _txUpdateStack.last.addAll(saved);
         return result;
       } catch (e, st) {
         try {
           _db.execute('ROLLBACK TO SAVEPOINT $sp');
         } catch (_) {}
+        _txUpdateStack.removeLast(); // discard rolled-back updates
         Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }
     } else {
       _transactionDepth++;
+      _txUpdateStack.add([]);
       _db.execute('BEGIN');
       try {
         final result = await callback(this);
         _db.execute('COMMIT');
+        // Flush all buffered updates now that the transaction is committed.
+        final committed = _txUpdateStack.removeLast();
+        for (final u in committed) {
+          if (!_updateController.isClosed) _updateController.add(u);
+        }
         return result;
       } catch (e) {
         _db.execute('ROLLBACK');
+        _txUpdateStack.removeLast(); // discard all uncommitted updates
         rethrow;
       } finally {
         _transactionDepth--;

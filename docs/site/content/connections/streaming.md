@@ -1,6 +1,6 @@
 ---
 title: Streaming
-description: Stream large result sets row-by-row with streamQuery() for memory-efficient processing
+description: Stream large result sets row-by-row and use SQLite watch() for reactive query updates
 ---
 
 # Streaming
@@ -78,7 +78,7 @@ await for (final row in stream) {
 }
 
 print('Done — $count events processed');
-await db.destroy();
+await db.close();
 ```
 
 ## SQLite Example
@@ -137,6 +137,62 @@ try {
 ```
 
 Any database error during streaming will throw inside the `await for` loop and can be caught normally.
+
+## Reactive Queries on SQLite
+
+SQLite also exposes `watch()` for a different use case: re-run a query whenever
+one of its source tables changes.
+
+<!-- doc:run scope=local expect_stdout='Pending todos: 1' -->
+```dart
+import 'dart:async';
+
+import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
+
+final db = await KnexSQLite.connect(filename: ':memory:');
+await db.executeSchema((schema) {
+  schema.createTable('todos', (t) {
+    t.increments('id');
+    t.string('title');
+    t.boolean('done');
+  });
+});
+
+final initial = Completer<void>();
+final completer = Completer<List<Map<String, dynamic>>>();
+var sawInitial = false;
+
+final sub = db.watch(
+  db('todos').where('done', '=', false).orderBy('id'),
+).listen((rows) {
+  if (!sawInitial) {
+    sawInitial = true;
+    if (!initial.isCompleted) initial.complete();
+    return;
+  }
+  if (!completer.isCompleted) completer.complete(rows);
+});
+
+await initial.future;
+await db.insert(
+  db('todos').insert({'title': 'Ship docs', 'done': false}),
+);
+
+final rows = await completer.future;
+print('Pending todos: ${rows.length}');
+await sub.cancel();
+await db.close();
+```
+
+`watch()` is SQLite-specific today. It emits once immediately on subscribe, then
+re-emits after relevant writes commit.
+
+Notes:
+
+- It tracks the base table plus joined tables in the query.
+- It does not track subquery-backed primary tables.
+- Schema changes do not trigger re-emits.
+- SQLite's `UPDATE_HOOK` does not fire for `DELETE` without `WHERE` or for `WITHOUT ROWID` tables.
 
 ## Streaming Inside a Transaction
 

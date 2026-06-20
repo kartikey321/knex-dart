@@ -1,10 +1,12 @@
 /// Exhaustive transaction / error-path tests for KnexSQLite (in-memory, no Docker).
 library;
 
+import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 import 'package:test/test.dart';
 
 const _table = 'trx_test';
+const _isWeb = bool.fromEnvironment('dart.library.js_interop');
 
 Future<KnexSQLite> _open() => KnexSQLite.connect(filename: ':memory:');
 
@@ -79,7 +81,9 @@ void main() {
 
         await expectLater(
           outer.trx((inner) async {
-            await inner.insert(inner(_table).insert({'id': 11, 'name': 'Inner'}));
+            await inner.insert(
+              inner(_table).insert({'id': 11, 'name': 'Inner'}),
+            );
             throw Exception('inner failure');
           }),
           throwsA(isA<Exception>()),
@@ -107,24 +111,31 @@ void main() {
 
     // ── 6. Inner and outer both roll back ─────────────────────────────────────
 
-    test('nested trx: inner and outer both roll back — nothing committed', () async {
-      await expectLater(
-        db.trx((outer) async {
-          await outer.insert(outer(_table).insert({'id': 30, 'name': 'Outer'}));
-          try {
-            await outer.trx((inner) async {
-              await inner.insert(inner(_table).insert({'id': 31, 'name': 'Inner'}));
-              throw Exception('inner');
-            });
-          } catch (_) {}
-          throw Exception('outer');
-        }),
-        throwsA(isA<Exception>()),
-      );
+    test(
+      'nested trx: inner and outer both roll back — nothing committed',
+      () async {
+        await expectLater(
+          db.trx((outer) async {
+            await outer.insert(
+              outer(_table).insert({'id': 30, 'name': 'Outer'}),
+            );
+            try {
+              await outer.trx((inner) async {
+                await inner.insert(
+                  inner(_table).insert({'id': 31, 'name': 'Inner'}),
+                );
+                throw Exception('inner');
+              });
+            } catch (_) {}
+            throw Exception('outer');
+          }),
+          throwsA(isA<Exception>()),
+        );
 
-      final rows = await db.select(db(_table).select(['*']));
-      expect(rows, isEmpty);
-    });
+        final rows = await db.select(db(_table).select(['*']));
+        expect(rows, isEmpty);
+      },
+    );
 
     // ── 7. Two separate in-memory instances are isolated ─────────────────────
 
@@ -157,10 +168,86 @@ void main() {
       final db2 = await _open();
       await db2.close();
 
+      await expectLater(db2.rawSql('SELECT 1'), throwsA(isA<StateError>()));
+    });
+
+    // ── 10. Concurrent top-level transactions are serialized ──────────────────
+
+    test(
+      'concurrent top-level trx calls are serialized — no interleaving',
+      () async {
+        // Fire two trx() calls without awaiting the first.
+        // If serialization is broken, the second BEGIN would race with the first,
+        // producing a "cannot start a transaction within a transaction" error.
+        final f1 = db.trx((tx) async {
+          await tx.insert(tx(_table).insert({'id': 40, 'name': 'Concurrent1'}));
+        });
+        final f2 = db.trx((tx) async {
+          await tx.insert(tx(_table).insert({'id': 41, 'name': 'Concurrent2'}));
+        });
+
+        await Future.wait([f1, f2]);
+
+        final rows = await db.select(db(_table).select(['*']));
+        expect(rows, hasLength(2));
+        final names = rows.map((r) => r['name']).toSet();
+        expect(names, containsAll(['Concurrent1', 'Concurrent2']));
+      },
+    );
+
+    // ── 11. Failed trx does not block the queue ───────────────────────────────
+
+    test('failed trx does not block subsequent transactions', () async {
+      // First trx rolls back.
       await expectLater(
-        db2.rawSql('SELECT 1'),
-        throwsA(isA<StateError>()),
+        db.trx((_) async => throw Exception('fail')),
+        throwsA(isA<Exception>()),
+      );
+
+      // Second trx should still work.
+      await db.trx((tx) async {
+        await tx.insert(tx(_table).insert({'id': 50, 'name': 'AfterFail'}));
+      });
+
+      final rows = await db.select(db(_table).select(['*']));
+      expect(rows, hasLength(1));
+      expect(rows.first['name'], 'AfterFail');
+    });
+
+    // ── 12. webStorageMode must fail fast on native ───────────────────────────
+
+    test(
+      'connect() with webStorageMode throws UnsupportedError on native',
+      () async {
+        if (_isWeb) return;
+        await expectLater(
+          KnexSQLite.connect(filename: ':memory:', webStorageMode: 'indexedDb'),
+          throwsA(isA<UnsupportedError>()),
+        );
+      },
+    );
+
+    test('fromConfig() with storageMode throws UnsupportedError on native', () {
+      if (_isWeb) return;
+      expect(
+        () => SQLiteClient.fromConfig(
+          KnexConfig(
+            client: 'sqlite3',
+            connection: {'filename': ':memory:', 'storageMode': 'indexedDb'},
+          ),
+        ),
+        throwsA(isA<UnsupportedError>()),
       );
     });
+
+    test(
+      'invalid webStorageMode still throws ArgumentError on native',
+      () async {
+        await expectLater(
+          KnexSQLite.connect(filename: ':memory:', webStorageMode: 'bogus'),
+          throwsA(isA<ArgumentError>()),
+        );
+      },
+    );
   });
 }

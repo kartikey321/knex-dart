@@ -9,6 +9,8 @@ dependencies:
   jaspr: ^0.23.1
   jaspr_content: ^0.5.2
   jaspr_router: ^0.8.2
+  knex_dart:
+    path: ../../packages/knex_dart
   syntax_highlight_lite: ^0.0.1
   universal_html: ^2.3.0
 

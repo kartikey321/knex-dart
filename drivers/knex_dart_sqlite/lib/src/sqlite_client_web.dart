@@ -1,20 +1,40 @@
+import 'dart:async';
+
 import 'package:knex_dart/knex_dart.dart';
 import 'package:sqlite3/wasm.dart';
+
+import 'sqlite_storage_mode.dart';
+
+enum SQLiteWebStorageMode { memory, indexedDb, opfs, auto }
 
 /// SQLite database client for web/WASM.
 class SQLiteClient extends Client {
   CommonDatabase? _db;
   final String _filename;
   final Uri _wasmUri;
+  final SQLiteWebStorageMode _storageMode;
   bool _isClosed = false;
 
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
 
-  Future<void>? _initialization;
+  // SQLite uses a single connection here, so unrelated top-level
+  // transactions must not interleave. We queue only the outermost scopes;
+  // nested transactions within the same logical flow still use savepoints.
+  Future<void> _transactionQueue = Future<void>.value();
+  static final Object _transactionZoneKey = Object();
 
-  SQLiteClient._(this._filename, this._wasmUri, KnexConfig config)
-    : super(config);
+  Future<void>? _initialization;
+  final List<List<SqliteUpdate>> _txUpdateStack = [];
+  late final StreamController<SqliteUpdate> _updateController;
+  StreamSubscription<SqliteUpdate>? _updatesSub;
+
+  SQLiteClient._(
+    this._filename,
+    this._wasmUri,
+    this._storageMode,
+    KnexConfig config,
+  ) : super(config);
 
   static final Uri _defaultWasmUri = Uri.parse(
     'packages/knex_dart_sqlite/web_assets/sqlite3.wasm',
@@ -27,10 +47,15 @@ class SQLiteClient extends Client {
   static SQLiteClient fromConfig(KnexConfig config) {
     final connection = config.connection;
     final parsed = switch (connection) {
-      String s => (filename: s, wasmUri: _defaultWasmUri),
+      String s => (
+        filename: s,
+        wasmUri: _defaultWasmUri,
+        storageMode: SQLiteWebStorageMode.memory,
+      ),
       Map m when m['filename'] is String => (
         filename: m['filename'] as String,
         wasmUri: _parseWasmUri(m['wasmUri']),
+        storageMode: _parseStorageMode(m['storageMode']),
       ),
       _ => throw ArgumentError(
         'SQLite config.connection must be a filename String '
@@ -38,7 +63,12 @@ class SQLiteClient extends Client {
       ),
     };
 
-    return SQLiteClient._(parsed.filename, parsed.wasmUri, config);
+    return SQLiteClient._(
+      parsed.filename,
+      parsed.wasmUri,
+      parsed.storageMode,
+      config,
+    );
   }
 
   static Uri _parseWasmUri(Object? value) {
@@ -50,13 +80,42 @@ class SQLiteClient extends Client {
     );
   }
 
+  static SQLiteWebStorageMode _parseStorageMode(Object? value) {
+    if (value == null) return SQLiteWebStorageMode.memory;
+    if (value is SQLiteWebStorageMode) return value;
+    if (value is! String) {
+      throw ArgumentError(
+        'SQLite config.connection["storageMode"] must be a String.',
+      );
+    }
+    validateSQLiteWebStorageMode(value);
+    return switch (value) {
+      'memory' => SQLiteWebStorageMode.memory,
+      'indexedDb' => SQLiteWebStorageMode.indexedDb,
+      'opfs' => SQLiteWebStorageMode.opfs,
+      'auto' => SQLiteWebStorageMode.auto,
+      _ => throw StateError('Unreachable storageMode "$value".'),
+    };
+  }
+
   /// Creates and opens a SQLite client for [filename].
-  static Future<SQLiteClient> connect({required String filename}) async {
+  static Future<SQLiteClient> connect({
+    required String filename,
+    String? webStorageMode,
+  }) async {
     final config = KnexConfig(
       client: 'sqlite3',
-      connection: {'filename': filename},
+      connection: {
+        'filename': filename,
+        'storageMode': webStorageMode ?? SQLiteWebStorageMode.memory.name,
+      },
     );
-    final client = SQLiteClient._(filename, _defaultWasmUri, config);
+    final client = SQLiteClient._(
+      filename,
+      _defaultWasmUri,
+      _parseStorageMode(webStorageMode),
+      config,
+    );
     await client.initialize();
     return client;
   }
@@ -68,7 +127,8 @@ class SQLiteClient extends Client {
 
   Future<void> _initializeImpl() async {
     final sqlite = await _loadSqlite3();
-    sqlite.registerVirtualFileSystem(InMemoryFileSystem(), makeDefault: true);
+    final fileSystem = await _createFileSystem();
+    sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
 
     final opened = sqlite.open(_filename);
     if (_isClosed) {
@@ -76,6 +136,44 @@ class SQLiteClient extends Client {
       return;
     }
     _db = opened;
+    _setupUpdateHook(opened);
+  }
+
+  void _setupUpdateHook(CommonDatabase db) {
+    _updateController = StreamController<SqliteUpdate>.broadcast(sync: true);
+    _updatesSub = db.updates.listen((update) {
+      if (_updateController.isClosed) return;
+      if (_txUpdateStack.isNotEmpty) {
+        _txUpdateStack.last.add(update);
+      } else {
+        _updateController.add(update);
+      }
+    });
+  }
+
+  Future<VirtualFileSystem> _createFileSystem() async {
+    return switch (_storageMode) {
+      SQLiteWebStorageMode.memory => InMemoryFileSystem(),
+      SQLiteWebStorageMode.indexedDb => await IndexedDbFileSystem.open(
+        dbName: _filename,
+      ),
+      SQLiteWebStorageMode.opfs => await SimpleOpfsFileSystem.loadFromStorage(
+        _filename,
+      ),
+      SQLiteWebStorageMode.auto => await _createAutoFileSystem(),
+    };
+  }
+
+  Future<VirtualFileSystem> _createAutoFileSystem() async {
+    try {
+      return await SimpleOpfsFileSystem.loadFromStorage(_filename);
+    } on Object {
+      try {
+        return await IndexedDbFileSystem.open(dbName: _filename);
+      } on Object {
+        return InMemoryFileSystem();
+      }
+    }
   }
 
   Future<WasmSqlite3> _loadSqlite3() async {
@@ -128,14 +226,27 @@ class SQLiteClient extends Client {
     try {
       await initialize();
     } finally {
+      await _updatesSub?.cancel();
       _db?.dispose();
       _db = null;
       _isClosed = true;
+      if (!_updateController.isClosed) {
+        await _updateController.close();
+      }
     }
   }
 
   /// Whether the connection is closed.
   bool get isClosed => _isClosed;
+
+  /// Stream of low-level table mutation events from SQLite's UPDATE_HOOK.
+  ///
+  /// Events are buffered while a transaction is active and flushed only on
+  /// top-level COMMIT, so watch() behavior matches the native client.
+  Stream<SqliteUpdate> get updates async* {
+    await _ensureDb();
+    yield* _updateController.stream;
+  }
 
   /// Close the database connection.
   Future<void> close() => destroyPool();
@@ -184,38 +295,78 @@ class SQLiteClient extends Client {
 
   /// Executes [callback] in a transaction/savepoint scope.
   Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
+    if (Zone.current[_transactionZoneKey] == true) {
+      return _runTransactionScope(callback);
+    }
+
+    final completer = Completer<T>();
+    _transactionQueue = _transactionQueue.catchError((_) {}).then((_) async {
+      try {
+        final result = await runZoned(
+          () => _runTransactionScope(callback),
+          zoneValues: {_transactionZoneKey: true},
+        );
+        completer.complete(result);
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
+
+  Future<T> _runTransactionScope<T>(
+    Future<T> Function(SQLiteClient trx) callback,
+  ) async {
     final db = await _ensureDb();
 
     if (_transactionDepth > 0) {
       final sp = _savepointId();
       _transactionDepth++;
+      _txUpdateStack.add([]);
       db.execute('SAVEPOINT $sp');
       try {
         final result = await callback(this);
         db.execute('RELEASE SAVEPOINT $sp');
+        await _settleUpdateHookQueue();
+        final saved = _txUpdateStack.removeLast();
+        _txUpdateStack.last.addAll(saved);
         return result;
       } catch (e, st) {
         try {
           db.execute('ROLLBACK TO SAVEPOINT $sp');
         } catch (_) {}
+        await _settleUpdateHookQueue();
+        _txUpdateStack.removeLast();
         Error.throwWithStackTrace(e, st);
       } finally {
         _transactionDepth--;
       }
     } else {
       _transactionDepth++;
+      _txUpdateStack.add([]);
       db.execute('BEGIN');
       try {
         final result = await callback(this);
         db.execute('COMMIT');
+        await _settleUpdateHookQueue();
+        final saved = _txUpdateStack.removeLast();
+        for (final update in saved) {
+          _updateController.add(update);
+        }
         return result;
       } catch (e) {
         db.execute('ROLLBACK');
+        await _settleUpdateHookQueue();
+        _txUpdateStack.removeLast();
         rethrow;
       } finally {
         _transactionDepth--;
       }
     }
+  }
+
+  Future<void> _settleUpdateHookQueue() async {
+    await Future<void>.microtask(() {});
   }
 
   static var _spCount = 0;

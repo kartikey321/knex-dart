@@ -1,3 +1,13 @@
+## 1.3.0
+
+- Added the public `WatchableClient` contract for drivers that support
+  reactive query streams.
+- Exported the doc snippet runtime helpers used by the docs site and playground
+  through the public `knex_dart` API.
+- Added executable doc snippet runtime support and regression coverage for
+  snippet wrapping and dialect validation.
+- Documentation updates for runnable snippets and SQLite reactive examples.
+
 ## 1.2.1
 
 - Improved query compilation hot paths by replacing timestamp/random UID

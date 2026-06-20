@@ -50,7 +50,7 @@ Add the driver for your database — it pulls in `knex_dart` automatically:
 dependencies:
   knex_dart_postgres: ^0.3.1   # PostgreSQL
   # knex_dart_mysql: ^0.3.1    # MySQL
-  # knex_dart_sqlite: ^0.3.0   # SQLite
+  # knex_dart_sqlite: ^0.4.0   # SQLite
   # knex_dart_duckdb: ^0.2.1   # DuckDB (OLAP / browser WASM)
 ```
 
@@ -58,7 +58,7 @@ For SQL generation only (no live connection):
 
 ```yaml
 dependencies:
-  knex_dart: ^1.2.1
+  knex_dart: ^1.3.0
   knex_dart_capabilities: ^0.3.0
 ```
 
@@ -85,6 +85,7 @@ await db.destroy();
 
 ### SQLite
 
+<!-- doc:run scope=local expect_stdout='Alice' -->
 ```dart
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
@@ -100,7 +101,9 @@ await db.executeSchema(
 );
 
 await db.insert(db('users').insert({'name': 'Alice'}));
-await db.destroy();
+final rows = await db.select(db('users').select(['name']));
+print(rows.first['name']);
+await db.close();
 ```
 
 ### DuckDB (OLAP / Browser WASM)

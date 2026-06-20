@@ -57,6 +57,11 @@ dart pub add knex_dart_mysql
 dart pub add knex_dart_sqlite
 ```
 
+SQLite runs natively on mobile/desktop/server and also in the browser via
+`sqlite3.wasm`. On web, `KnexSQLite.connect()` can choose persistence with
+`webStorageMode: 'memory' | 'indexedDb' | 'opfs' | 'auto'`. This option is
+web-only; the native sqlite3 driver rejects it.
+
 ### DuckDB (OLAP / Analytics)
 
 ```bash
@@ -127,6 +132,7 @@ This is useful for testing, SQL snapshots, or generating queries to pass to anot
 
 ### With a driver (SQLite example)
 
+<!-- doc:run scope=local expect_stdout='select "id", "name" from "users"' -->
 ```dart
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
 
@@ -134,12 +140,13 @@ Future<void> main() async {
   final db = await KnexSQLite.connect(filename: ':memory:');
   print(db('users').select(['id', 'name']).toSQL().sql);
   // select "id", "name" from "users"
-  await db.destroy();
+  await db.close();
 }
 ```
 
 ### Query builder only
 
+<!-- doc:run scope=local expect_stdout='select "id", "name" from "users"' -->
 ```dart
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';

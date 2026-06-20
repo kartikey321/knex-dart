@@ -34,3 +34,6 @@ playground/dist/
 # Generated playground Dart-live artifacts (platform-dependent, built at deploy time)
 playground/public/dart-live/knex_dart.dill
 playground/public/dart-live/knex_dart_packages.bin
+
+# Reference clones (temporary, for inspiration only — delete after use)
+reference/
