@@ -1,53 +1,55 @@
+import 'package:analyzer/analysis_rule/analysis_rule.dart';
+import 'package:analyzer/analysis_rule/rule_context.dart';
+import 'package:analyzer/analysis_rule/rule_visitor_registry.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/error/error.dart' show DiagnosticSeverity;
-import 'package:analyzer/error/listener.dart' show DiagnosticReporter;
-import 'package:custom_lint_builder/custom_lint_builder.dart';
-
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/error/error.dart';
 import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
+
 import '../rule_utils.dart';
 
-/// Lint rule: `dialect_unsupported_intersect_except`
-///
-/// Fires when `.intersect()` or `.except()` is called on a `Knex` instance
-/// whose resolved dialect does not support INTERSECT / EXCEPT set operations.
-///
-/// Supported: PostgreSQL, SQLite.
-/// Not reliably supported: MySQL (requires 8.0.31+, not yet in the matrix).
-class DialectUnsupportedIntersectExceptRule extends DartLintRule {
-  DialectUnsupportedIntersectExceptRule() : super(code: _code);
-
-  static const LintCode _code = LintCode(
-    name: 'dialect_unsupported_intersect_except',
-    problemMessage:
-        'INTERSECT / EXCEPT are not supported by the resolved {0} driver.',
+class DialectUnsupportedIntersectExceptRule extends AnalysisRule {
+  static const LintCode code = LintCode(
+    'dialect_unsupported_intersect_except',
+    'INTERSECT / EXCEPT are not supported by the resolved {0} driver.',
     correctionMessage:
         'Use PostgreSQL or SQLite for INTERSECT/EXCEPT. '
         'MySQL requires 8.0.31+ and is not currently in the support matrix.',
-    errorSeverity: DiagnosticSeverity.WARNING,
+    severity: DiagnosticSeverity.WARNING,
+    uniqueName: 'knex_dart_lint.dialect_unsupported_intersect_except',
   );
 
-  static const _targetMethods = {
-    'intersect',
-    'intersectAll',
-    'except',
-    'exceptAll',
-  };
+  DialectUnsupportedIntersectExceptRule()
+    : super(
+        name: 'dialect_unsupported_intersect_except',
+        description: 'INTERSECT/EXCEPT are not supported by all drivers.',
+      );
 
   @override
-  void run(
-    CustomLintResolver resolver,
-    DiagnosticReporter reporter,
-    CustomLintContext context,
-  ) {
-    context.registry.addMethodInvocation((MethodInvocation node) {
-      if (!_targetMethods.contains(node.methodName.name)) return;
+  DiagnosticCode get diagnosticCode => code;
 
-      reportIfUnsupported(
-        node: node,
-        reporter: reporter,
-        code: _code,
-        capability: SqlCapability.intersectExcept,
-      );
-    });
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    registry.addMethodInvocation(this, _Visitor(this));
+  }
+}
+
+const _intersectExceptMethods = {'intersect', 'intersectAll', 'except', 'exceptAll'};
+
+class _Visitor extends SimpleAstVisitor<void> {
+  final AnalysisRule rule;
+  _Visitor(this.rule);
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (!_intersectExceptMethods.contains(node.methodName.name)) return;
+    reportIfUnsupported(
+      node: node,
+      rule: rule,
+      capability: SqlCapability.intersectExcept,
+    );
   }
 }

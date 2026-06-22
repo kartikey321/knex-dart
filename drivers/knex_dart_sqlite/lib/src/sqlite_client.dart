@@ -126,13 +126,13 @@ class SQLiteClient extends Client {
     if (_isClosed) return;
     _isClosed = true;
     for (final stmt in _stmtCache.values) {
-      stmt.dispose();
+      stmt.close();
     }
     _stmtCache.clear();
-    // Cancel before dispose so any in-flight async events from _db.updates
+    // Cancel before close so any in-flight async events from _db.updates
     // don't reach _updateController after it is closed.
     await _updatesSub?.cancel();
-    _db.dispose();
+    _db.close();
     await _updateController.close();
   }
 
@@ -316,7 +316,7 @@ class SQLiteClient extends Client {
           );
         }
       } finally {
-        stmt.dispose();
+        stmt.close();
       }
     }
 
