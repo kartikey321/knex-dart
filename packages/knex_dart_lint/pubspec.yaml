@@ -17,10 +17,10 @@ environment:
 resolution: workspace
 
 dependencies:
+  analysis_server_plugin: ^0.3.0
   analyzer: ^8.0.0
-  custom_lint_builder: ^0.8.1
   knex_dart_capabilities: ^0.3.0
 
 dev_dependencies:
-  lints: ^6.0.0
-  test: ^1.25.6
+  lints: ^6.1.0
+  test: ^1.31.0

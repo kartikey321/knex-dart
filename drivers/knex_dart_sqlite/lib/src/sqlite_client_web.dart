@@ -132,7 +132,7 @@ class SQLiteClient extends Client {
 
     final opened = sqlite.open(_filename);
     if (_isClosed) {
-      opened.dispose();
+      opened.close();
       return;
     }
     _db = opened;
@@ -227,7 +227,7 @@ class SQLiteClient extends Client {
       await initialize();
     } finally {
       await _updatesSub?.cancel();
-      _db?.dispose();
+      _db?.close();
       _db = null;
       _isClosed = true;
       if (!_updateController.isClosed) {
@@ -406,7 +406,7 @@ class SQLiteClient extends Client {
         yield Map<String, dynamic>.from(row);
       }
     } finally {
-      stmt.dispose();
+      stmt.close();
     }
   }
 
@@ -450,7 +450,7 @@ class SQLiteClient extends Client {
         return [];
       }
     } finally {
-      stmt.dispose();
+      stmt.close();
     }
   }
 
