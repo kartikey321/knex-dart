@@ -351,9 +351,27 @@ class SchemaCompiler {
       }
     }
 
+    // Fold a table-level PRIMARY KEY inline into the CREATE TABLE (knex.js
+    // parity). This is required for SQLite, which cannot add a primary key via
+    // ALTER TABLE after creation; it is also valid for Postgres/MySQL.
+    var primaryInline = '';
+    for (final stmt in tb.alterStatements) {
+      if (stmt['method'] == 'primary') {
+        final args = stmt['args'] as List;
+        final cols = args[0] is List ? args[0] as List : [args[0]];
+        final colStr = cols.map((c) => _wrap(c)).join(', ');
+        final constraintName = args.length > 1 && args[1] != null
+            ? args[1] as String
+            : '${tableName}_pkey';
+        primaryInline =
+            ', constraint ${_wrap(constraintName)} primary key ($colStr)';
+        break; // a table has at most one primary key
+      }
+    }
+
     // Main CREATE TABLE statement
     final tableRef = _prefixedTableName(tableName);
-    final sql = '$prefix $tableRef (${columnDefs.join(', ')})';
+    final sql = '$prefix $tableRef (${columnDefs.join(', ')}$primaryInline)';
     _pushQuery(sql);
 
     _pushDeferredConstraintsForTable(
@@ -361,6 +379,7 @@ class SchemaCompiler {
       tableRef,
       tb,
       precomputed: deferredConstraints,
+      skipPrimary: true,
     );
   }
 
@@ -473,7 +492,9 @@ class SchemaCompiler {
         case 'unique':
           final cols = args[0] is List ? args[0] as List : [args[0]];
           final colStr = cols.map((c) => _wrap(c)).join(', ');
-          final constraintName = '${tableName}_${cols.join('_')}_unique';
+          final constraintName = args.length > 1 && args[1] != null
+              ? args[1] as String
+              : '${tableName}_${cols.join('_')}_unique';
           if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
             _pushQuery(
               'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
@@ -510,16 +531,20 @@ class SchemaCompiler {
           }
           break;
         case 'dropIndex':
-          final indexName = args.length > 1 && args[1] != null ? args[1] : null;
-          if (indexName != null) {
-            if (client.driverName == 'mysql' ||
-                client.driverName == 'mysql2' ||
-                client.driverName == 'mariadb') {
-              // MySQL requires ON <table> to identify the index.
-              _pushQuery('drop index ${_wrap(indexName)} on $tableRef');
-            } else {
-              _pushQuery('drop index ${_wrap(indexName)}');
-            }
+          // When no explicit name is given, derive it from the columns using
+          // the same scheme as index creation (knex.js parity), instead of
+          // silently doing nothing.
+          final cols = args[0] is List ? args[0] as List : [args[0]];
+          final indexName = args.length > 1 && args[1] != null
+              ? args[1]
+              : '${tableName}_${cols.join('_')}_index';
+          if (client.driverName == 'mysql' ||
+              client.driverName == 'mysql2' ||
+              client.driverName == 'mariadb') {
+            // MySQL requires ON <table> to identify the index.
+            _pushQuery('drop index ${_wrap(indexName)} on $tableRef');
+          } else {
+            _pushQuery('drop index ${_wrap(indexName)}');
           }
           break;
         case 'dropForeign':
@@ -576,7 +601,12 @@ class SchemaCompiler {
         case 'primary':
           final cols = args[0] is List ? args[0] as List : [args[0]];
           final colStr = cols.map((c) => _wrap(c)).join(', ');
-          _pushQuery('alter table $tableRef add primary key ($colStr)');
+          final constraintName = args.length > 1 && args[1] != null
+              ? args[1] as String
+              : '${tableName}_pkey';
+          _pushQuery(
+            'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
+          );
           break;
         case 'dropPrimary':
           if (client.driverName == 'mysql' ||
@@ -700,6 +730,7 @@ class SchemaCompiler {
     String tableRef,
     TableBuilder tb, {
     List<Map<String, dynamic>>? precomputed,
+    bool skipPrimary = false,
   }) {
     final deferredConstraints = precomputed ?? <Map<String, dynamic>>[];
     if (precomputed == null) {
@@ -760,8 +791,11 @@ class SchemaCompiler {
     }
 
     for (final stmt in tb.alterStatements) {
-      if (stmt['method'] == 'foreign') {
-        final data = (stmt['args'] as List)[0] as Map<String, dynamic>;
+      final method = stmt['method'] as String;
+      final args = stmt['args'] as List;
+
+      if (method == 'foreign') {
+        final data = args[0] as Map<String, dynamic>;
         final col = data['column'];
         final refTable = data['inTable'];
         final refCol = data['references'];
@@ -777,6 +811,39 @@ class SchemaCompiler {
           }
           _pushQuery(fk);
         }
+      } else if (method == 'index') {
+        final cols = args[0] is List ? args[0] as List : [args[0]];
+        final colStr = cols.map((c) => _wrap(c)).join(', ');
+        final indexName = args.length > 1 && args[1] != null
+            ? args[1] as String
+            : '${tableName}_${cols.join('_')}_index';
+        _pushQuery('create index ${_wrap(indexName)} on $tableRef ($colStr)');
+      } else if (method == 'unique') {
+        final cols = args[0] is List ? args[0] as List : [args[0]];
+        final colStr = cols.map((c) => _wrap(c)).join(', ');
+        final constraintName = args.length > 1 && args[1] != null
+            ? args[1] as String
+            : '${tableName}_${cols.join('_')}_unique';
+        if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+          _pushQuery(
+            'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
+          );
+        } else {
+          _pushQuery(
+            'alter table $tableRef add constraint ${_wrap(constraintName)} unique ($colStr)',
+          );
+        }
+      } else if (method == 'primary' && !skipPrimary) {
+        // Only reached for create-table-like paths (Postgres) that cannot fold
+        // the key inline; normal createTable folds it into the CREATE statement.
+        final cols = args[0] is List ? args[0] as List : [args[0]];
+        final colStr = cols.map((c) => _wrap(c)).join(', ');
+        final constraintName = args.length > 1 && args[1] != null
+            ? args[1] as String
+            : '${tableName}_pkey';
+        _pushQuery(
+          'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
+        );
       }
     }
   }

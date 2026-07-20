@@ -173,13 +173,16 @@ class TableBuilder {
   }
 
   String _enumType(String column, List<String> values) {
+    // Escape single quotes in enum values to prevent broken SQL / injection
+    // (e.g. a value like `O'Brien` must become `'O''Brien'`).
+    String quote(String v) => "'${v.replaceAll("'", "''")}'";
     switch (_dialect) {
       case 'mysql':
       case 'mysql2':
-        final valuesStr = values.map((v) => "'$v'").join(', ');
+        final valuesStr = values.map(quote).join(', ');
         return 'enum($valuesStr)';
       default: // PG and SQLite use CHECK constraint
-        final valuesStr = values.map((v) => "'$v'").join(', ');
+        final valuesStr = values.map(quote).join(', ');
         return 'text check ("$column" in ($valuesStr))';
     }
   }

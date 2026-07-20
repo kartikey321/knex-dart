@@ -38,9 +38,12 @@ void main() {
       expect(formatter.operator('>'), '>');
     });
 
-    test('Test 6: operator - PostgreSQL ? (escaped)', () {
-      // JS: \?
-      expect(formatter.operator('?'), r'\?');
+    test('Test 6: operator - PostgreSQL jsonb ? (not escaped for pg)', () {
+      // knex.js stores `?`→`\?` and strips the backslash in its later
+      // positionBindings pass (pg emits `$N`, so a bare `?` operator is safe).
+      // knex-dart emits `$N` directly with no such pass, so it must return the
+      // bare `?` here for Postgres — otherwise the backslash leaks into the SQL.
+      expect(formatter.operator('?'), '?');
     });
 
     test('Test 7: operator - PostgreSQL @> (contains)', () {
