@@ -114,21 +114,27 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/alter-table-drop-nullable::mysql':
       '[ACCEPTED] see schema/alter-table-set-nullable::mysql.',
 
-  // ── ACCEPTED: Redshift refuses indexes/nullable-column primary keys
-  // outright (knex.js throws before compiling); knex-dart doesn't model
-  // that Redshift-specific restriction and compiles standard SQL. Redshift
-  // is Postgres-wire-compatible and accepts the SQL knex-dart emits even
-  // though knex.js's own client layer is stricter than the engine requires.
+  // ── ACCEPTED: Redshift genuinely does not support CREATE INDEX / DROP
+  // INDEX (confirmed against AWS Redshift docs and knex.js's own Redshift
+  // compiler, which prints this exact warning and emits NO SQL rather than
+  // refusing outright). knex-dart throws UnsupportedError, refusing loudly
+  // instead of silently producing nothing. Verified: a Codex adversarial
+  // review of this file caught that a *prior* version of this entry claimed
+  // knex-dart "emits standard SQL, which Redshift can be configured to
+  // accept" — that was wrong; knex-dart used to emit `create index`/`drop
+  // index` SQL here, which Redshift genuinely rejects at execution time.
+  // Fixed in schema_compiler.dart (both `index`/`dropIndex` cases in
+  // _alterTable, and the `index` case in _pushDeferredConstraintsForTable
+  // for index() called inside createTable) rather than left as a divergence.
   'schema/alter-table-add-index::redshift':
-      '[ACCEPTED] knex.js refuses (Redshift client models "no CREATE INDEX" '
-          'as a hard client-side restriction); knex-dart emits standard SQL, '
-          'which Redshift can be configured to accept via sort/dist keys '
-          'workarounds. Not modeled as a capability restriction here.',
+      '[ACCEPTED] Redshift has no CREATE INDEX; knex.js silently emits no '
+          'SQL (console warning only), knex-dart throws UnsupportedError. '
+          'Both refuse the operation — different failure mode, not a bug.',
   'schema/alter-table-add-index-named::redshift':
       '[ACCEPTED] see schema/alter-table-add-index::redshift.',
   'schema/alter-table-drop-index::redshift':
-      '[ACCEPTED] knex.js refuses index deletion on Redshift client-side; '
-          'knex-dart emits standard SQL.',
+      '[ACCEPTED] Redshift has no DROP INDEX; knex.js silently emits no SQL '
+          '(console warning only), knex-dart throws UnsupportedError.',
   'schema/alter-table-drop-index-named::redshift':
       '[ACCEPTED] see schema/alter-table-drop-index::redshift.',
 

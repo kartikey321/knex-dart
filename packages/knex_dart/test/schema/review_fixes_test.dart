@@ -343,4 +343,101 @@ void main() {
       expect(sql, contains('serial'));
     });
   });
+
+  group('Redshift refuses index creation/deletion instead of emitting invalid SQL', () {
+    // Found by a Codex adversarial review of the schema parity harness: the
+    // allowlist had claimed knex-dart "emits standard SQL, which Redshift
+    // can be configured to accept" — that was wrong. Redshift genuinely has
+    // no CREATE INDEX/DROP INDEX (confirmed against AWS docs and knex.js's
+    // own Redshift compiler, which silently no-ops with a console warning
+    // rather than compiling this SQL). knex-dart was emitting
+    // `create index .../drop index ...` that Redshift would reject at
+    // execution time.
+    test('alterTable().index() throws UnsupportedError', () {
+      final schema = KnexQuery.forClient('redshift').schemaBuilder();
+      schema.alterTable('users', (table) {
+        table.index(['email']);
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('alterTable().dropIndex() throws UnsupportedError', () {
+      final schema = KnexQuery.forClient('redshift').schemaBuilder();
+      schema.alterTable('users', (table) {
+        table.dropIndex(['email']);
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('index() declared inside createTable() also throws', () {
+      final schema = KnexQuery.forClient('redshift').schemaBuilder();
+      schema.createTable('users', (table) {
+        table.string('email');
+        table.index(['email']);
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('postgres is unaffected — still creates the index', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('users', (table) {
+        table.index(['email']);
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('create index'));
+    });
+  });
+
+  group('multiple foreign keys inside createTable on SQLite (Codex review)', () {
+    // A Codex adversarial review of the FK-inline-fold fix asked for direct
+    // coverage of the shapes it couldn't fully verify: more than one FK on
+    // a table, a composite primary key alongside a foreign key, and a
+    // column declaring a FK both via the column-level shorthand and the
+    // fluent table.foreign() builder. Verified against local knex.js first
+    // (all three inline every FK with no dropping); these lock down that
+    // knex-dart's independently-fixed inline-fold does the same.
+    test('two fluent foreign keys are both folded inline', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.createTable('t', (table) {
+        table.increments('id');
+        table.integer('a_id');
+        table.integer('b_id');
+        table.foreign('a_id').references('id').inTable('a');
+        table.foreign('b_id').references('id').inTable('b');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('references "a" ("id")'));
+      expect(sql, contains('references "b" ("id")'));
+      expect('foreign key'.allMatches(sql).length, 2);
+      expect(schema.toSQL().length, 1);
+    });
+
+    test('composite primary key alongside a foreign key are both folded inline', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.createTable('t2', (table) {
+        table.integer('a_id');
+        table.integer('b_id');
+        table.integer('c_id');
+        table.primary(['a_id', 'b_id']);
+        table.foreign('c_id').references('id').inTable('c');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('primary key ("a_id", "b_id")'));
+      expect(sql, contains('foreign key ("c_id") references "c" ("id")'));
+      expect(schema.toSQL().length, 1);
+    });
+
+    test('column-level and fluent FK on the same column are both kept (not deduped)', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.createTable('t3', (table) {
+        table.increments('id');
+        table.integer('a_id').references('id').inTable('a');
+        table.foreign('a_id').references('id').inTable('a2');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('references "a" ("id")'));
+      expect(sql, contains('references "a2" ("id")'));
+      expect('foreign key'.allMatches(sql).length, 2);
+    });
+  });
 }

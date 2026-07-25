@@ -557,6 +557,11 @@ class SchemaCompiler {
           }
           break;
         case 'index':
+          if (client.driverName == 'redshift') {
+            throw UnsupportedError(
+              'index creation is not supported on Redshift',
+            );
+          }
           final cols = args[0] is List ? args[0] as List : [args[0]];
           final colStr = cols.map((c) => _wrap(c)).join(', ');
           final indexName = args.length > 1 && args[1] != null
@@ -582,6 +587,11 @@ class SchemaCompiler {
           }
           break;
         case 'dropIndex':
+          if (client.driverName == 'redshift') {
+            throw UnsupportedError(
+              'index deletion is not supported on Redshift',
+            );
+          }
           // When no explicit name is given, derive it from the columns using
           // the same scheme as index creation (knex.js parity), instead of
           // silently doing nothing.
@@ -894,6 +904,11 @@ class SchemaCompiler {
           _pushQuery(fk);
         }
       } else if (method == 'index') {
+        if (client.driverName == 'redshift') {
+          throw UnsupportedError(
+            'index creation is not supported on Redshift',
+          );
+        }
         final cols = args[0] is List ? args[0] as List : [args[0]];
         final colStr = cols.map((c) => _wrap(c)).join(', ');
         final indexName = args.length > 1 && args[1] != null
