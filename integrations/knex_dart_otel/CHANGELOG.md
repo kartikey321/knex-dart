@@ -2,10 +2,11 @@
 
 ## 0.1.2
 
-- Bump `dartastic_opentelemetry_api` from a `0.9.0` exact pin to `^1.0.0-rc.1`,
+- Bump `dartastic_opentelemetry_api` from `^0.9.0` to `^1.0.0-rc.1`,
   per upstream maintainer guidance
   ([dartastic_opentelemetry#93](https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry/issues/93)).
-  The earlier pin worked around a real spec violation in the 0.9.x line
+  `^0.9.0` resolved to `0.9.1` mid-branch, which briefly needed an exact
+  `0.9.0` pin to work around a real spec violation in the 0.9.x line
   (API-only spans recorded without an SDK installed, which `trace/api.md`
   requires to be non-recording); 0.9.1 fixed that violation, and 1.0.0-rc.x
   is the maintainer-recommended track going forward.
