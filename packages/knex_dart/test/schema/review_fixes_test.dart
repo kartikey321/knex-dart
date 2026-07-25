@@ -7,6 +7,7 @@ library;
 
 import 'package:test/test.dart';
 import '../mocks/mock_client.dart';
+import '../mocks/mysql_mock_client.dart';
 import '../mocks/sqlite_mock_client.dart';
 
 void main() {
@@ -138,6 +139,45 @@ void main() {
         table.dropIndex(['email'], 'custom_idx');
       });
       expect(schema.toSQL().first['sql'], 'drop index "custom_idx"');
+    });
+  });
+
+  group('dropUnique() SQL per dialect', () {
+    // A prior test only asserted that dropUnique() got *recorded* on the
+    // TableBuilder, never what SQL the compiler emits for it — a mutation
+    // testing pass (dart_mutant) flipped the SQLite branch condition to
+    // `false` and nothing failed, which would have shipped `alter table
+    // ... drop constraint ...` (unsupported on SQLite; it only supports
+    // `drop index`).
+    test('SQLite emits DROP INDEX, not ALTER TABLE DROP CONSTRAINT', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('users', (table) {
+        table.dropUnique(['email']);
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, 'drop index "users_email_unique"');
+      expect(sql, isNot(contains('alter table')));
+    });
+
+    test('MySQL emits ALTER TABLE DROP INDEX', () {
+      final schema = MySQLMockClient().schemaBuilder();
+      schema.alterTable('users', (table) {
+        table.dropUnique(['email']);
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('alter table `users` drop index `users_email_unique`'));
+    });
+
+    test('Postgres emits ALTER TABLE DROP CONSTRAINT', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('users', (table) {
+        table.dropUnique(['email']);
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(
+        sql,
+        contains('alter table "users" drop constraint "users_email_unique"'),
+      );
     });
   });
 
