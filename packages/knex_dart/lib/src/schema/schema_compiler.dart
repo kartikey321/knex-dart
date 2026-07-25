@@ -369,9 +369,56 @@ class SchemaCompiler {
       }
     }
 
+    // Fold FOREIGN KEY constraints inline for SQLite (knex.js parity). SQLite
+    // cannot ALTER TABLE ADD CONSTRAINT after creation, so a deferred ALTER
+    // (as used for Postgres/MySQL below) would either be invalid SQL or —
+    // the previous bug here — silently dropped altogether.
+    final foreignInline = StringBuffer();
+    if (_isSqliteLike(client.driverName)) {
+      void writeInlineForeign(
+        dynamic col,
+        dynamic refTable,
+        dynamic refCol,
+        dynamic onDelete,
+        dynamic onUpdate,
+      ) {
+        if (refTable == null || refCol == null) return;
+        foreignInline.write(
+          ', foreign key (${_wrap(col)}) references ${_wrap(refTable)} (${_wrap(refCol)})',
+        );
+        if (onDelete != null) foreignInline.write(' on delete $onDelete');
+        if (onUpdate != null) foreignInline.write(' on update $onUpdate');
+      }
+
+      for (final c in deferredConstraints) {
+        if (c['type'] == 'foreign') {
+          writeInlineForeign(
+            c['column'],
+            c['referencesTable'],
+            c['referencesColumn'],
+            c['onDelete'],
+            c['onUpdate'],
+          );
+        }
+      }
+      for (final stmt in tb.alterStatements) {
+        if (stmt['method'] == 'foreign') {
+          final data = (stmt['args'] as List)[0] as Map<String, dynamic>;
+          writeInlineForeign(
+            data['column'],
+            data['inTable'],
+            data['references'],
+            data['onDelete'],
+            data['onUpdate'],
+          );
+        }
+      }
+    }
+
     // Main CREATE TABLE statement
     final tableRef = _prefixedTableName(tableName);
-    final sql = '$prefix $tableRef (${columnDefs.join(', ')}$primaryInline)';
+    final sql =
+        '$prefix $tableRef (${columnDefs.join(', ')}$primaryInline$foreignInline)';
     _pushQuery(sql);
 
     _pushDeferredConstraintsForTable(
@@ -474,7 +521,11 @@ class SchemaCompiler {
             final objectName = builder.schema != null
                 ? '${builder.schema}.$tableName.${args[0]}'
                 : '$tableName.${args[0]}';
-            _pushQuery('exec sp_rename ?, ?, ?', [objectName, args[1], 'COLUMN']);
+            _pushQuery('exec sp_rename ?, ?, ?', [
+              objectName,
+              args[1],
+              'COLUMN',
+            ]);
           } else if (client.driverName == 'mysql' ||
               client.driverName == 'mysql2' ||
               client.driverName == 'mariadb') {
@@ -495,7 +546,7 @@ class SchemaCompiler {
           final constraintName = args.length > 1 && args[1] != null
               ? args[1] as String
               : '${tableName}_${cols.join('_')}_unique';
-          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+          if (_isSqliteLike(client.driverName)) {
             _pushQuery(
               'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
             );
@@ -548,6 +599,12 @@ class SchemaCompiler {
           }
           break;
         case 'dropForeign':
+          if (_isSqliteLike(client.driverName)) {
+            throw UnsupportedError(
+              'dropForeign is not supported on an existing SQLite table — '
+              'recreate the table instead',
+            );
+          }
           final cols = args[0] is List ? args[0] as List : [args[0]];
           final constraintName = args.length > 1 && args[1] != null
               ? args[1]
@@ -566,6 +623,12 @@ class SchemaCompiler {
           break;
         case 'foreign':
           // Fluent foreign key from table.foreign('col').references('id').inTable('t')
+          if (_isSqliteLike(client.driverName)) {
+            throw UnsupportedError(
+              'foreign is not supported on an existing SQLite table — '
+              'declare it in createTable, or recreate the table instead',
+            );
+          }
           final data = args[0] as Map<String, dynamic>;
           final col = data['column'];
           final refTable = data['inTable'];
@@ -599,7 +662,7 @@ class SchemaCompiler {
           }
           break;
         case 'primary':
-          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+          if (_isSqliteLike(client.driverName)) {
             throw UnsupportedError(
               'primary is not supported on an existing SQLite table — '
               'declare it in createTable, or recreate the table instead',
@@ -619,9 +682,15 @@ class SchemaCompiler {
               client.driverName == 'mysql2' ||
               client.driverName == 'mariadb') {
             _pushQuery('alter table $tableRef drop primary key');
+          } else if (_isSqliteLike(client.driverName)) {
+            throw UnsupportedError(
+              'dropPrimary is not supported on an existing SQLite table — '
+              'recreate the table instead',
+            );
           } else {
-            final constraintName =
-                args.isNotEmpty && args[0] != null ? args[0] : '${tableName}_pkey';
+            final constraintName = args.isNotEmpty && args[0] != null
+                ? args[0]
+                : '${tableName}_pkey';
             _pushQuery(
               'alter table $tableRef drop constraint ${_wrap(constraintName)}',
             );
@@ -632,7 +701,7 @@ class SchemaCompiler {
           final constraintName = args.length > 1 && args[1] != null
               ? args[1]
               : '${tableName}_${(cols).join('_')}_unique';
-          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+          if (_isSqliteLike(client.driverName)) {
             _pushQuery('drop index ${_wrap(constraintName)}');
           } else if (client.driverName == 'mysql' ||
               client.driverName == 'mysql2' ||
@@ -647,7 +716,7 @@ class SchemaCompiler {
           }
           break;
         case 'setNullable':
-          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+          if (_isSqliteLike(client.driverName)) {
             throw UnsupportedError(
               'setNullable is not supported for SQLite — recreate the table instead',
             );
@@ -657,7 +726,7 @@ class SchemaCompiler {
           );
           break;
         case 'dropNullable':
-          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+          if (_isSqliteLike(client.driverName)) {
             throw UnsupportedError(
               'dropNullable is not supported for SQLite — recreate the table instead',
             );
@@ -766,7 +835,7 @@ class SchemaCompiler {
       if (constraint['type'] == 'unique') {
         final col = constraint['column'];
         final constraintName = '${tableName}_${col}_unique';
-        if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+        if (_isSqliteLike(client.driverName)) {
           _pushQuery(
             'create unique index ${_wrap(constraintName)} on $tableRef (${_wrap(col)})',
           );
@@ -776,7 +845,7 @@ class SchemaCompiler {
           );
         }
       } else if (constraint['type'] == 'foreign') {
-        if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+        if (_isSqliteLike(client.driverName)) {
           // SQLite does not support ALTER TABLE ADD CONSTRAINT for foreign keys
           continue;
         }
@@ -801,6 +870,13 @@ class SchemaCompiler {
       final args = stmt['args'] as List;
 
       if (method == 'foreign') {
+        if (_isSqliteLike(client.driverName)) {
+          // Create-time only (this loop never runs for a real alterTable —
+          // see _alterTable's own 'foreign' case, which throws instead).
+          // SQLite can't ALTER TABLE ADD CONSTRAINT, so _buildCreateTable
+          // folds this inline into the CREATE TABLE statement instead.
+          continue;
+        }
         final data = args[0] as Map<String, dynamic>;
         final col = data['column'];
         final refTable = data['inTable'];
@@ -830,7 +906,7 @@ class SchemaCompiler {
         final constraintName = args.length > 1 && args[1] != null
             ? args[1] as String
             : '${tableName}_${cols.join('_')}_unique';
-        if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+        if (_isSqliteLike(client.driverName)) {
           _pushQuery(
             'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
           );

@@ -5,6 +5,7 @@
 /// had user-supplied names *ignored* when declared inside `createTable`.
 library;
 
+import 'package:knex_dart/knex_dart.dart';
 import 'package:test/test.dart';
 import '../mocks/mock_client.dart';
 import '../mocks/mysql_mock_client.dart';
@@ -191,6 +192,155 @@ void main() {
       final create = schema.toSQL().first['sql'] as String;
       expect(create, contains("'O''Brien'"));
       expect(create, contains("'Smith'"));
+    });
+  });
+
+  group('turso/d1 are treated as sqlite-family (not Postgres-shaped default)', () {
+    // Found by the schema-DDL parity harness: every sqlite-specific branch
+    // in schema_compiler.dart and table_builder.dart checked
+    // `driverName == 'sqlite' || 'sqlite3'` directly, never the
+    // family-aware `_isSqliteLike()` helper that already existed. turso and
+    // d1 (both wire-compatible with SQLite) silently fell through to the
+    // Postgres-shaped `default` branch everywhere — e.g. dropUnique would
+    // have emitted `alter table ... drop constraint ...`, which neither
+    // engine supports.
+    for (final dialect in ['turso', 'd1']) {
+      test('$dialect: dropUnique emits DROP INDEX, not ALTER TABLE DROP CONSTRAINT', () {
+        final schema = KnexQuery.forClient(dialect).schemaBuilder();
+        schema.alterTable('users', (table) {
+          table.dropUnique(['email']);
+        });
+        final sql = schema.toSQL().first['sql'] as String;
+        expect(sql, contains('drop index'));
+        expect(sql, isNot(contains('alter table')));
+      });
+
+      test('$dialect: increments() uses autoincrement, not serial', () {
+        final schema = KnexQuery.forClient(dialect).schemaBuilder();
+        schema.createTable('users', (table) {
+          table.increments('id');
+        });
+        final sql = schema.toSQL().first['sql'] as String;
+        expect(sql, contains('autoincrement'));
+        expect(sql, isNot(contains('serial')));
+      });
+
+      test('$dialect: alterTable().primary() refuses instead of emitting invalid SQL', () {
+        final schema = KnexQuery.forClient(dialect).schemaBuilder();
+        schema.alterTable('memberships', (table) {
+          table.primary(['user_id', 'org_id']);
+        });
+        expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+      });
+    }
+  });
+
+  group('foreign keys declared inside createTable on SQLite-family', () {
+    // Found by the schema-DDL parity harness: SQLite (and turso/d1) cannot
+    // ALTER TABLE ADD CONSTRAINT for foreign keys, so the deferred-ALTER
+    // path silently dropped them (`continue;` with no replacement) instead
+    // of folding them into the CREATE TABLE statement the way knex.js does.
+    // The FK was declared but never appeared anywhere in the compiled SQL —
+    // silent data loss, same bug family as the primary()-on-createTable fix.
+    test('column-level .references().inTable() is folded inline, not dropped', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.createTable('orders', (table) {
+        table.increments('id');
+        table.integer('user_id').references('id').inTable('users');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('foreign key'));
+      expect(sql, contains('references "users" ("id")'));
+      expect(schema.toSQL().length, 1, reason: 'no separate ALTER statement');
+    });
+
+    test('fluent table.foreign().references().inTable() is folded inline', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.createTable('orders', (table) {
+        table.increments('id');
+        table.integer('user_id');
+        table.foreign('user_id').references('id').inTable('users').onDelete('cascade');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('foreign key'));
+      expect(sql, contains('references "users" ("id")'));
+      expect(sql, contains('on delete CASCADE'));
+      expect(schema.toSQL().length, 1, reason: 'no separate ALTER statement');
+    });
+
+    test('non-SQLite dialects still emit a separate ALTER TABLE for the FK', () {
+      final schema = client.schemaBuilder(); // Postgres
+      schema.createTable('orders', (table) {
+        table.increments('id');
+        table.integer('user_id').references('id').inTable('users');
+      });
+      final sqls = schema.toSQL();
+      expect(sqls.length, 2);
+      expect(sqls[1]['sql'], contains('alter table "orders" add constraint'));
+    });
+  });
+
+  group('dropPrimary()/dropForeign() on an existing SQLite table', () {
+    // Same class of bug as alterTable().primary(): SQLite cannot ALTER
+    // TABLE DROP CONSTRAINT either. Previously these fell through to the
+    // Postgres-shaped branch and emitted invalid SQL instead of refusing.
+    test('dropPrimary throws UnsupportedError', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('memberships', (table) {
+        table.dropPrimary();
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('dropForeign throws UnsupportedError', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('orders', (table) {
+        table.dropForeign(['user_id']);
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('alterTable().foreign() throws UnsupportedError', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('orders', (table) {
+        table.foreign('user_id').references('id').inTable('users');
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+  });
+
+  group('Redshift increments()/bigIncrements() use IDENTITY, not SERIAL', () {
+    // Redshift has no SERIAL type (it's a Postgres-only convenience type
+    // backed by a sequence, which Redshift doesn't support the same way).
+    // Falling through to the shared Postgres/default branch would have
+    // emitted SERIAL, which Redshift rejects.
+    test('increments() emits IDENTITY(1,1)', () {
+      final schema = KnexQuery.forClient('redshift').schemaBuilder();
+      schema.createTable('users', (table) {
+        table.increments('id');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('identity(1,1)'));
+      expect(sql, isNot(contains('serial')));
+    });
+
+    test('bigIncrements() emits bigint IDENTITY(1,1)', () {
+      final schema = KnexQuery.forClient('redshift').schemaBuilder();
+      schema.createTable('events', (table) {
+        table.bigIncrements('id');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('bigint identity(1,1)'));
+      expect(sql, isNot(contains('bigserial')));
+    });
+
+    test('cockroachdb is unaffected — still emits serial', () {
+      final schema = KnexQuery.forClient('cockroachdb').schemaBuilder();
+      schema.createTable('users', (table) {
+        table.increments('id');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('serial'));
     });
   });
 }

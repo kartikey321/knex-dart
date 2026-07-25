@@ -25,8 +25,20 @@ class TableBuilder {
 
   TableBuilder(this.client, this.method, this.tableName);
 
-  /// Get the dialect for type mapping
-  String get _dialect => client.driverName;
+  /// Get the dialect for type mapping.
+  ///
+  /// Normalizes sqlite-family drivers (`sqlite3`, `turso`, `d1` — all
+  /// wire-compatible with SQLite) to `'sqlite'` so every `case 'sqlite':`
+  /// below covers all three without repeating the case list. Previously only
+  /// `sqlite`/`sqlite3` were handled here, so turso/d1 silently fell through
+  /// to the Postgres-shaped `default` branch for every column type.
+  String get _dialect {
+    final driver = client.driverName;
+    if (driver == 'turso' || driver == 'd1' || driver == 'sqlite3') {
+      return 'sqlite';
+    }
+    return driver;
+  }
 
   // ============================================================================
   // DIALECT-AWARE TYPE RESOLUTION
@@ -40,6 +52,9 @@ class TableBuilder {
       case 'mysql':
       case 'mysql2':
         return 'int unsigned auto_increment primary key';
+      case 'redshift':
+        // Redshift has no SERIAL type; IDENTITY is the equivalent.
+        return 'integer identity(1,1) primary key not null';
       default: // pg
         return 'serial primary key';
     }
@@ -53,6 +68,8 @@ class TableBuilder {
       case 'mysql':
       case 'mysql2':
         return 'bigint unsigned auto_increment primary key';
+      case 'redshift':
+        return 'bigint identity(1,1) primary key not null';
       default: // pg
         return 'bigserial primary key';
     }

@@ -13,16 +13,39 @@ Cases are **dialect-agnostic**: each is written once as a builder function, then
 the harness multiplies it across a **dialect matrix**. Add one case → coverage
 for every dialect. Add one dialect → every existing case re-tested.
 
+There are two parallel harnesses — query builder and schema DDL — because a
+schema `.toSQL()` call returns a **list** of statements on both sides (e.g.
+`createTable` can emit a CREATE TABLE plus deferred ALTER TABLE statements),
+not the single `SqlString` a query builder call returns. Same design
+(dialect-agnostic corpus × dialect matrix × ratcheting allowlist), different
+fixture shape and comparator:
+
 ```
-tool/parity/run_js.mjs                         # JS reference generator
+tool/parity/run_js.mjs                         # JS reference generator — QUERY builder
+tool/parity/run_js_schema.mjs                  # JS reference generator — SCHEMA DDL
 packages/knex_dart/test/parity/
-  parity_cases.dart                            # the corpus (Dart side)
-  parity_test.dart                             # loader + normalizer + comparator + allowlist
-  fixtures/parity_cases.json                   # COMMITTED knex.js output (regenerated, not hand-edited)
+  parity_cases.dart                            # query corpus (Dart side)
+  parity_test.dart                             # query loader + normalizer + comparator + allowlist
+  schema_parity_cases.dart                     # schema DDL corpus (Dart side)
+  schema_parity_test.dart                      # schema DDL loader + normalizer + comparator + allowlist
+  fixtures/parity_cases.json                   # COMMITTED knex.js query output (regenerated, not hand-edited)
+  fixtures/schema_parity_cases.json            # COMMITTED knex.js schema DDL output (regenerated, not hand-edited)
 ```
 
-The Dart test reads the **committed** fixture — it never shells out to the
-external knex.js checkout, so it runs anywhere with no Node dependency.
+The schema DDL harness exists because a `dart_mutant` mutation-testing pass on
+`schema_compiler.dart` found its largest untested cluster by far was dialect
+dispatch in schema DDL (sqlite/mysql/mssql branching for
+primary/unique/foreign-key/index handling, ~215 surviving mutants) — the query
+corpus never touched schema DDL at all. Building this harness immediately
+surfaced two real bugs the mutation run had only pointed at abstractly:
+foreign keys declared inside `createTable` were silently dropped on SQLite
+(same bug family as the earlier `primary()` fix), and turso/d1 fell through to
+Postgres-shaped SQL everywhere because most sqlite-dispatch checks tested
+`driverName == 'sqlite' || 'sqlite3'` literally instead of the family-aware
+`_isSqliteLike()` helper that already existed in the file.
+
+The Dart tests read the **committed** fixtures — they never shell out to the
+external knex.js checkout, so they run anywhere with no Node dependency.
 
 ## Dialect tiers
 
@@ -42,14 +65,22 @@ normalized away.
 
 ## The allowlist is the triage ledger
 
-`parityAllowlist` in `parity_test.dart` holds every accepted divergence, keyed
-`id::dialect`, each with a written reason and one of two tags:
+`parityAllowlist` (query) / `schemaParityAllowlist` (schema DDL) holds every
+accepted divergence, keyed `id::dialect`, each with a written reason and one
+of three tags:
 
 - **`[ACCEPTED]`** — knex-dart is right (often *more* correct than knex.js, which
   silently drops unsupported constructs — e.g. it emits a plain INSERT for
-  `onConflict().merge()` on Redshift; knex-dart refuses).
+  `onConflict().merge()` on Redshift; knex-dart refuses). Also covers
+  genuinely cosmetic differences verified to be semantically identical (e.g.
+  MySQL `ADD COLUMN` vs `ADD` — both documented as equivalent grammar).
 - **`[OPEN BUG]`** — a real knex-dart defect the harness caught. Fix it, then
   delete the entry (you have no choice — see the ratchet below).
+- **`[UNVERIFIED]`** — a plausible divergence that needs a live database to
+  triage confidently (e.g. a CockroachDB-specific DROP INDEX vs DROP
+  CONSTRAINT question this session couldn't resolve without a running
+  CockroachDB instance). Don't guess an `[ACCEPTED]`/`[OPEN BUG]` verdict you
+  can't actually verify — leave it `[UNVERIFIED]` with what would resolve it.
 
 **The allowlist ratchets.** A listed entry is *not* skipped: the test runs in
 reverse and asserts the divergence is **still present**. The moment a bug is
@@ -64,24 +95,30 @@ distinguished — JSON collapses it anyway) and strict otherwise (`"1"` ≠ `1`)
 
 ## Extending the corpus (the whole point — do this often)
 
+**Query builder:**
 1. Add a case to `run_js.mjs` `cases`: `['category/name', (k) => k('t')...]`.
 2. Add the mirror to `parity_cases.dart` under the **same id**, ending in `.toSQL()`.
-3. Regenerate the fixture:
-   ```
-   node tool/parity/run_js.mjs
-   ```
-4. Run the harness:
-   ```
-   cd packages/knex_dart && dart test test/parity/parity_test.dart
-   ```
+3. Regenerate: `node tool/parity/run_js.mjs`
+4. Run: `cd packages/knex_dart && dart test test/parity/parity_test.dart`
 5. Triage every new failure: fix the bug, or add an allowlist entry with a reason.
 
-Prioritise the bug-dense shapes: nested subqueries, EXISTS, UNION/INTERSECT,
-CTEs, window functions, and DML with RETURNING/onConflict — these are where the
-port diverged most.
+**Schema DDL:**
+1. Add a case to `run_js_schema.mjs` `cases`: `['schema/category-name', (k) => k.schema.createTable(...)]`.
+2. Add the mirror to `schema_parity_cases.dart` under the **same id**, ending in `.toSQL()`.
+3. Regenerate: `node tool/parity/run_js_schema.mjs`
+4. Run: `cd packages/knex_dart && dart test test/parity/schema_parity_test.dart`
+5. Triage every new failure: fix the bug, or add an allowlist entry with a reason.
+
+Prioritise the bug-dense shapes. Query builder: nested subqueries, EXISTS,
+UNION/INTERSECT, CTEs, window functions, and DML with RETURNING/onConflict.
+Schema DDL: dialect-dispatch branches (anything that checks `driverName`) —
+check every one uses the family-aware helpers (`_isSqliteLike`,
+`_isPostgresLike`, `_isMySqlLike`) rather than a hand-rolled comparison, since
+that's exactly the bug class the turso/d1 gap above was.
 
 ## Regenerating on a knex.js upgrade
 
-Bump the knex.js checkout, rerun `node tool/parity/run_js.mjs`, and review the
-fixture diff. `knexVersion` is recorded in the fixture header so a regeneration
-that shifts expected output is visible in review.
+Bump the knex.js checkout, rerun `node tool/parity/run_js.mjs` **and**
+`node tool/parity/run_js_schema.mjs`, and review both fixture diffs.
+`knexVersion` is recorded in each fixture header so a regeneration that shifts
+expected output is visible in review.
