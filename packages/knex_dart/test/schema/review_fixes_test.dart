@@ -75,6 +75,28 @@ void main() {
     });
   });
 
+  group('primary() inside alterTable on SQLite', () {
+    // SQLite cannot ADD a primary key to an existing table (no ALTER TABLE
+    // ADD CONSTRAINT support). Emitting that SQL would fail at execution
+    // time, so this must refuse the same way setNullable/dropNullable do.
+    test('throws UnsupportedError instead of emitting invalid SQL', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('memberships', (table) {
+        table.primary(['user_id', 'org_id']);
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+
+    test('non-SQLite dialects still emit the ALTER TABLE ADD CONSTRAINT', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('memberships', (table) {
+        table.primary(['user_id', 'org_id']);
+      });
+      final pk = stmtContaining(schema.toSQL(), 'primary key');
+      expect(pk, contains('add constraint'));
+    });
+  });
+
   group('unique() honours a custom constraint name', () {
     // Previously args[1] (the name) was ignored and a name was always derived.
     test('inside createTable', () {

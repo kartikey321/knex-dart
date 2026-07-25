@@ -599,6 +599,12 @@ class SchemaCompiler {
           }
           break;
         case 'primary':
+          if (client.driverName == 'sqlite' || client.driverName == 'sqlite3') {
+            throw UnsupportedError(
+              'primary is not supported on an existing SQLite table — '
+              'declare it in createTable, or recreate the table instead',
+            );
+          }
           final cols = args[0] is List ? args[0] as List : [args[0]];
           final colStr = cols.map((c) => _wrap(c)).join(', ');
           final constraintName = args.length > 1 && args[1] != null
