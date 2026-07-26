@@ -1,10 +1,20 @@
 /// Direct OTel span attribute verification tests.
+///
+/// Per the OTel spec (trace/api.md), a span obtained from the bare API
+/// without an SDK installed MUST be non-recording — reading attributes back
+/// off it is undefined/no-op behavior, not something a test should rely on.
+/// These tests install a real SDK TracerProvider (with an in-memory
+/// exporter) so the spans the interceptor produces genuinely record, then
+/// assert against them. See knex-dart PR discussion and
+/// https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry/issues/93.
 library;
 
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart';
+import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_otel/knex_dart_otel.dart';
 import 'package:test/test.dart';
+
+import 'testing/in_memory_span_exporter.dart';
 
 class CapturingHistogram extends APIHistogram<double> {
   final List<(double value, Map<String, Object> attrs)> recordings = [];
@@ -49,23 +59,29 @@ QueryExecutionContext _ctx({
 void main() {
   late APITracer tracer;
   late CapturingHistogram histogram;
+  late InMemorySpanExporter exporter;
 
-  setUp(() {
-    OTelAPI.reset();
-    OTelAPI.initialize(
-      endpoint: 'http://localhost:4317',
+  setUp(() async {
+    await OTel.reset();
+    exporter = InMemorySpanExporter();
+    await OTel.initialize(
       serviceName: 'knex-otel-span-attributes-test',
       serviceVersion: '0.0.1',
+      detectPlatformResources: false,
+      enableMetrics: false,
+      spanProcessor: SimpleSpanProcessor(exporter),
     );
-    tracer = OTelAPI.tracer('knex_dart_otel_span_attributes_test');
+    tracer = OTel.tracerProvider().getTracer(
+      'knex_dart_otel_span_attributes_test',
+    );
     histogram = CapturingHistogram(
-      OTelAPI.meterProvider().getMeter(
+      OTel.meterProvider().getMeter(
         name: 'knex_dart_otel_span_attributes_test',
       ),
     );
   });
 
-  tearDown(() => OTelAPI.reset());
+  tearDown(() => OTel.reset());
 
   KnexOtelInterceptor interceptorCapturing(void Function(APISpan span) hook) {
     return KnexOtelInterceptor(

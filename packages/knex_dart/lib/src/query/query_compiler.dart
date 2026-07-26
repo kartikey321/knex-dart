@@ -105,6 +105,22 @@ class QueryCompiler {
     return value;
   }
 
+  /// Shift positional `$N` placeholders in an already-compiled sub-fragment so
+  /// they continue after the parent query's existing bindings.
+  ///
+  /// Performed as a **single** regex pass. Iterated `replaceAll('$1', …)` is
+  /// unsafe: `$1` also matches inside `$10`/`$11`, including tokens the
+  /// substitution just produced — e.g. with offset 9 a two-binding subquery
+  /// rewrote `$2`→`$11`, then `$1`→`$10` also hit the `$1` inside `$11`,
+  /// yielding `$101`. Dialects using `?` placeholders are unaffected (no match).
+  String _offsetPlaceholders(String sql, int offset) {
+    if (offset <= 0) return sql;
+    return sql.replaceAllMapped(
+      RegExp(r'\$(\d+)'),
+      (m) => '\$${int.parse(m[1]!) + offset}',
+    );
+  }
+
   /// Compile a subquery (QueryBuilder) to SQL with parameter renumbering
   String _compileSubquery(QueryBuilder subquery, {bool withParens = true}) {
     final bindingOffset = bindings.length;
@@ -112,11 +128,7 @@ class QueryCompiler {
     var sql = subCompiler.toSQL().sql;
 
     // Renumber parameters
-    if (bindingOffset > 0 && subCompiler.bindings.isNotEmpty) {
-      for (var i = subCompiler.bindings.length; i >= 1; i--) {
-        sql = sql.replaceAll('\$$i', '\$${bindingOffset + i}');
-      }
-    }
+    sql = _offsetPlaceholders(sql, bindingOffset);
 
     bindings.addAll(subCompiler.bindings);
 
@@ -142,11 +154,7 @@ class QueryCompiler {
       final bindingOffset = bindings.length;
       final subCompiler = client.queryCompiler(query);
       var subSql = subCompiler.toSQL().sql;
-      if (bindingOffset > 0 && subCompiler.bindings.isNotEmpty) {
-        for (var i = subCompiler.bindings.length; i >= 1; i--) {
-          subSql = subSql.replaceAll('\$$i', '\$${bindingOffset + i}');
-        }
-      }
+      subSql = _offsetPlaceholders(subSql, bindingOffset);
       bindings.addAll(subCompiler.bindings);
       return '($subSql)';
     }
@@ -641,13 +649,7 @@ class QueryCompiler {
 
     // Renumber parameter placeholders to continue from parent's count
     // The subquery uses $1, $2, etc. but should use $N+1, $N+2, etc.
-    if (bindingOffset > 0 && subCompiler.bindings.isNotEmpty) {
-      // Replace $1 with $(bindingOffset+1), $2 with $(bindingOffset+2), etc.
-      // Must iterate backwards to avoid replacing $1 in $10, $11, etc.
-      for (var i = subCompiler.bindings.length; i >= 1; i--) {
-        whereSQL = whereSQL.replaceAll('\$$i', '\$${bindingOffset + i}');
-      }
-    }
+    whereSQL = _offsetPlaceholders(whereSQL, bindingOffset);
 
     // Merge bindings from subquery into parent bindings
     bindings.addAll(subCompiler.bindings);
@@ -1242,12 +1244,7 @@ class QueryCompiler {
         sql = querySQL.sql;
 
         // Renumber parameters to continue from parent's count
-        if (bindingOffset > 0 && queryCompiler.bindings.isNotEmpty) {
-          // Iterate backwards to avoid replacing $1 in $10, $11, etc.
-          for (var i = queryCompiler.bindings.length; i >= 1; i--) {
-            sql = sql.replaceAll('\$$i', '\$${bindingOffset + i}');
-          }
-        }
+        sql = _offsetPlaceholders(sql, bindingOffset);
 
         // Merge bindings
         bindings.addAll(queryCompiler.bindings);
@@ -1425,10 +1422,17 @@ class QueryCompiler {
       String cteSql;
 
       if (query is QueryBuilder) {
-        // Compile the CTE query
+        // Capture the binding count BEFORE compiling so positional ($N)
+        // placeholders in this CTE can be renumbered to continue from the
+        // parent's running total (mirrors _union()). Without this, a second
+        // bound CTE restarts at $1 and collides with the first.
+        final bindingOffset = bindings.length;
+
         final cteCompiler = client.queryCompiler(query);
         final cteQuery = cteCompiler.toSQL();
         cteSql = cteQuery.sql;
+
+        cteSql = _offsetPlaceholders(cteSql, bindingOffset);
 
         // Merge bindings
         bindings.addAll(cteQuery.bindings);
@@ -1475,6 +1479,28 @@ class QueryCompiler {
     final conflictSql = _onConflict(onConflict);
     if (conflictSql.isNotEmpty) {
       parts.add(conflictSql);
+
+      // Postgres/SQLite support a WHERE predicate guard on the DO UPDATE clause
+      // (`... do update set ... where <cond>`). MySQL's ON DUPLICATE KEY UPDATE
+      // has no such clause — silently dropping the guard would change write
+      // semantics, so surface it as an error instead (matches knex.js).
+      if (onConflict?['strategy'] == 'merge') {
+        final whereStmts = grouped['where'];
+        final hasWhere = whereStmts != null && whereStmts.isNotEmpty;
+        if (hasWhere) {
+          final isMySQL =
+              client.driverName == 'mysql' || client.driverName == 'mysql2';
+          if (isMySQL) {
+            throw StateError(
+              '.onConflict().merge().where() is not supported for mysql',
+            );
+          }
+          final where = _where();
+          if (where.isNotEmpty) {
+            parts.add(where);
+          }
+        }
+      }
     }
 
     final returning = _returning();
@@ -1507,17 +1533,43 @@ class QueryCompiler {
       throw ArgumentError('INSERT values must be Map or List<Map>');
     }
 
-    // Get columns from first row
-    final columns = rows[0].keys.toList();
+    // Column set is the union of keys across all rows (first-seen order),
+    // matching knex.js. A row missing a column emits the SQL `default` keyword
+    // for that position rather than silently shifting or dropping values.
+    final columns = <String>[];
+    final seen = <String>{};
+    for (final row in rows) {
+      for (final key in row.keys) {
+        if (seen.add(key)) columns.add(key);
+      }
+    }
     final columnsSql = columns.map((c) => formatter.wrap(c)).join(', ');
+
+    // SQLite (and its family: turso, d1) rejects the DEFAULT keyword inside a
+    // VALUES list, so a ragged multi-row insert cannot be expressed there —
+    // knex.js refuses it, and so do we. Detect it up front for a clear error.
+    const sqliteFamily = {'sqlite', 'sqlite3', 'turso', 'd1'};
+    final isSqliteFamily = sqliteFamily.contains(client.driverName);
 
     // Build VALUES clauses
     final valuesClauses = <String>[];
     for (final row in rows) {
       final rowBindings = <String>[];
       for (final col in columns) {
-        final value = row[col];
-        rowBindings.add(client.parameter(value, bindings));
+        if (row.containsKey(col)) {
+          rowBindings.add(client.parameter(row[col], bindings));
+        } else {
+          if (isSqliteFamily) {
+            throw StateError(
+              'SQLite does not support DEFAULT in a multi-row INSERT with '
+              'differing columns. Give every row the same columns, or split '
+              'into separate inserts.',
+            );
+          }
+          // Missing cell → SQL DEFAULT keyword (uppercase, matching knex.js and
+          // the formatter's not-set sentinel).
+          rowBindings.add('DEFAULT');
+        }
       }
       valuesClauses.add('(${rowBindings.join(', ')})');
     }
@@ -1549,6 +1601,14 @@ class QueryCompiler {
       if (isMySQL) {
         // MySQL: INSERT IGNORE is a prefix — nothing to add here
         return '';
+      }
+      // `ON CONFLICT DO NOTHING` needs the same ON CONFLICT support as merge;
+      // guard it so unsupported dialects (mssql/snowflake/bigquery/redshift)
+      // fail loudly instead of emitting invalid SQL.
+      if (!_supports(SqlCapability.onConflictMerge)) {
+        throw StateError(
+          '.onConflict().ignore() is not supported by ${client.driverName}',
+        );
       }
       // Postgres / SQLite
       final target = _conflictTarget(column);
@@ -1594,7 +1654,9 @@ class QueryCompiler {
         } else {
           for (final col in updateColumns) {
             final wrappedCol = formatter.wrap(col);
-            setClauses.add('$wrappedCol = VALUES($wrappedCol)');
+            // Lowercase `values()` — matches knex.js and knex-dart's otherwise
+            // all-lowercase keyword style.
+            setClauses.add('$wrappedCol = values($wrappedCol)');
           }
         }
         return 'on duplicate key update ${setClauses.join(', ')}';
@@ -1656,11 +1718,14 @@ class QueryCompiler {
   String _updateQuery() {
     final parts = <String>[];
 
+    // WITH (CTE) clauses must precede UPDATE.
+    final withSql = _with();
+    if (withSql.isNotEmpty) {
+      parts.add(withSql);
+    }
+
     parts.add(_update());
 
-    // Assuming _where() is defined elsewhere and returns a String
-    // If not, this will cause a compilation error.
-    // For this change, I'm assuming it exists.
     final where = _where();
     if (where.isNotEmpty) {
       parts.add(where);
@@ -1714,6 +1779,12 @@ class QueryCompiler {
   ///
   String _deleteQuery() {
     final parts = <String>[];
+
+    // WITH (CTE) clauses must precede DELETE.
+    final withSql = _with();
+    if (withSql.isNotEmpty) {
+      parts.add(withSql);
+    }
 
     parts.add(_delete());
 
@@ -1769,7 +1840,7 @@ class QueryCompiler {
     // Handle array values: count(['id', 'name'])
     if (value is List) {
       final columns = value
-          .map((col) => client.wrapIdentifier(col.toString()))
+          .map((col) => formatter.wrap(col.toString()))
           .join(', ');
       final distinctPart = distinct.isNotEmpty ? 'distinct $columns' : columns;
       final aggregated = '$method($distinctPart)';
@@ -1786,7 +1857,7 @@ class QueryCompiler {
         final column = entry.value;
         if (column is List) {
           final columns = column
-              .map((col) => client.wrapIdentifier(col.toString()))
+              .map((col) => formatter.wrap(col.toString()))
               .join(', ');
           final distinctPart = distinct.isNotEmpty
               ? 'distinct $columns'
@@ -1794,7 +1865,7 @@ class QueryCompiler {
           final aggregated = '$method($distinctPart)';
           return addAlias(aggregated, alias);
         }
-        final wrapped = client.wrapIdentifier(column.toString());
+        final wrapped = formatter.wrap(column.toString());
         final aggregated = '$method($distinct$wrapped)';
         return addAlias(aggregated, alias);
       }).toList();
@@ -1813,7 +1884,7 @@ class QueryCompiler {
       column = column.substring(0, asIndex).trim();
     }
 
-    final wrapped = client.wrapIdentifier(column);
+    final wrapped = formatter.wrap(column);
     final aggregated = '$method($distinct$wrapped)';
     return [addAlias(aggregated, alias)];
   }

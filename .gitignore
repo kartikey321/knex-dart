@@ -20,6 +20,9 @@ Thumbs.db
 # Test coverage
 coverage/
 
+# dart_mutant reports (local mutation-testing runs)
+mutation-reports/
+
 # Build artifacts
 build/
 custom_lint.log
