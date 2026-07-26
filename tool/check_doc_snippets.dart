@@ -413,7 +413,7 @@ String _buildTempPubspec(String rootDir) {
     ..writeln('environment:')
     ..writeln('  sdk: ^3.0.0')
     ..writeln('dependencies:')
-    ..writeln('  dartastic_opentelemetry_api: ^0.9.0');
+    ..writeln('  dartastic_opentelemetry_api: ^1.0.0-rc.1');
 
   for (final entry in _pathDeps.entries) {
     buf.writeln('  ${entry.key}:');
