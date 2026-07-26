@@ -13,7 +13,7 @@ dependencies:
   knex_dart_sqlite: ^0.2.0
 
 dev_dependencies:
-  lints: ^6.0.0
+  lints: ^6.1.0
 
 dependency_overrides:
   dartastic_opentelemetry_api: 1.0.0-beta.2

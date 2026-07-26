@@ -58,7 +58,7 @@ class RawBench {
     }
   }
 
-  void tearDown() => _db.dispose();
+  void tearDown() => _db.close();
 
   Future<Duration> benchSelect() => _time(() async {
         for (var i = 0; i < _iterations; i++) {

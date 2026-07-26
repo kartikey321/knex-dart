@@ -1,71 +1,67 @@
+import 'package:analyzer/analysis_rule/analysis_rule.dart';
+import 'package:analyzer/analysis_rule/rule_context.dart';
+import 'package:analyzer/analysis_rule/rule_visitor_registry.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/error/error.dart' show DiagnosticSeverity;
-import 'package:analyzer/error/listener.dart' show DiagnosticReporter;
-import 'package:custom_lint_builder/custom_lint_builder.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/error/error.dart';
 
-/// Lint rule: `raw_null_identifier_binding`
-///
-/// Fires when a named `:key:` identifier binding in a `raw()` call is
-/// assigned a `null` value.
-///
-/// `:key:` bindings expand to a quoted identifier in the SQL — they are
-/// **never** emitted as a positional parameter.  Passing `null` for an
-/// identifier binding silently leaves the original `:key:` placeholder
-/// in the SQL, producing invalid SQL at runtime.
-///
-/// ```dart
-/// // ❌ Flagged — :table: stays unresolved; SQL becomes 'SELECT * FROM :table:'
-/// db.rawSql('SELECT * FROM :table:', {'table': null});
-///
-/// // ✅ Use a real table name or omit the binding entirely
-/// db.rawSql('SELECT * FROM :table:', {'table': 'users'});
-/// ```
-class RawNullIdentifierBindingRule extends DartLintRule {
-  RawNullIdentifierBindingRule() : super(code: _code);
+const _rawMethods = {'raw', 'rawSql', 'whereRaw', 'havingRaw', 'orderByRaw', 'groupByRaw'};
 
-  static const LintCode _code = LintCode(
-    name: 'raw_null_identifier_binding',
-    problemMessage:
-        'Null value for identifier binding :{0}: — the placeholder will '
+class RawNullIdentifierBindingRule extends AnalysisRule {
+  static const LintCode code = LintCode(
+    'raw_null_identifier_binding',
+    'Null value for identifier binding :{0}: — the placeholder will '
         'stay unresolved and produce invalid SQL.',
     correctionMessage:
         'Provide a non-null string for identifier bindings, or remove the key.',
-    errorSeverity: DiagnosticSeverity.WARNING,
+    severity: DiagnosticSeverity.WARNING,
+    uniqueName: 'knex_dart_lint.raw_null_identifier_binding',
   );
 
-  static const _rawMethods = {'raw', 'rawSql', 'whereRaw', 'havingRaw', 'orderByRaw', 'groupByRaw'};
+  RawNullIdentifierBindingRule()
+    : super(
+        name: 'raw_null_identifier_binding',
+        description: 'Flags null values for :key: identifier bindings in raw SQL.',
+      );
 
   @override
-  void run(
-    CustomLintResolver resolver,
-    DiagnosticReporter reporter,
-    CustomLintContext context,
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
   ) {
-    context.registry.addMethodInvocation((MethodInvocation node) {
-      if (!_rawMethods.contains(node.methodName.name)) return;
+    registry.addMethodInvocation(this, _Visitor(this));
+  }
+}
 
-      final args = node.argumentList.arguments;
-      if (args.length < 2) return;
+class _Visitor extends SimpleAstVisitor<void> {
+  final AnalysisRule rule;
+  _Visitor(this.rule);
 
-      // Second argument must be a map literal: {'key': value, ...}
-      final mapArg = args[1];
-      if (mapArg is! SetOrMapLiteral) return;
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (!_rawMethods.contains(node.methodName.name)) return;
 
-      for (final element in mapArg.elements) {
-        if (element is! MapLiteralEntry) continue;
-        final key = element.key;
-        final value = element.value;
+    final args = node.argumentList.arguments;
+    if (args.length < 2) return;
 
-        // Key must be a string literal ending with ':' (identifier binding)
-        if (key is! SimpleStringLiteral) continue;
-        final keyStr = key.value.trim();
-        if (!keyStr.endsWith(':')) continue;
+    final mapArg = args[1];
+    if (mapArg is! SetOrMapLiteral) return;
 
-        // Value is a null literal — this binding will stay unresolved.
-        if (value is NullLiteral) {
-          reporter.atNode(value, _code, arguments: [keyStr]);
-        }
+    for (final element in mapArg.elements) {
+      if (element is! MapLiteralEntry) continue;
+      final key = element.key;
+      final value = element.value;
+
+      if (key is! SimpleStringLiteral) continue;
+      final keyStr = key.value.trim();
+      if (!keyStr.endsWith(':')) continue;
+
+      if (value is NullLiteral) {
+        rule.reportAtNode(value, arguments: [keyStr]);
       }
-    });
+    }
   }
 }

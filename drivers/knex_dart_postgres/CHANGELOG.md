@@ -1,3 +1,12 @@
+## 0.3.2
+
+- Raised `postgres` lower bound to `^3.5.12` to pick up critical transaction
+  bug fixes: silent rollback after `ROLLBACK TO SAVEPOINT` recovery, connection
+  permanently blocked when `BEGIN` fails inside `runTx`, and undefined
+  connection state after a failed `ROLLBACK` (postgres 3.5.12).
+- Users also gain typed exceptions (`UniqueViolationException`,
+  `ForeignKeyViolationException`) and better stack traces from 3.5.x.
+
 ## 0.3.1
 
 - Tighten `knex_dart` lower bound to `^1.2.1` — `QueryInterceptor`

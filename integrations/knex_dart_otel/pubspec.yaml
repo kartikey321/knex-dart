@@ -25,8 +25,8 @@ dependencies:
   dartastic_opentelemetry_api: ^1.0.0-rc.1
 
 dev_dependencies:
-  test: ^1.25.6
-  lints: ^6.0.0
+  test: ^1.31.0
+  lints: ^6.1.0
   # SDK (not just the API) is needed in tests: per spec, API-only spans are
   # non-recording no-ops, so asserting on span attributes/status requires a
   # real TracerProvider + SpanProcessor. Production code (lib/) depends only

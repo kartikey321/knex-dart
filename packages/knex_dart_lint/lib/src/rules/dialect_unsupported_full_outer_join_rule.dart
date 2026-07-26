@@ -1,37 +1,51 @@
-import 'package:analyzer/error/listener.dart' show DiagnosticReporter;
-import 'package:custom_lint_builder/custom_lint_builder.dart';
+import 'package:analyzer/analysis_rule/analysis_rule.dart';
+import 'package:analyzer/analysis_rule/rule_context.dart';
+import 'package:analyzer/analysis_rule/rule_visitor_registry.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/error/error.dart' show DiagnosticSeverity;
-
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/error/error.dart';
 import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
+
 import '../rule_utils.dart';
 
-class DialectUnsupportedFullOuterJoinRule extends DartLintRule {
-  DialectUnsupportedFullOuterJoinRule() : super(code: _code);
-
-  static const LintCode _code = LintCode(
-    name: 'dialect_unsupported_full_outer_join',
-    problemMessage:
-        'FULL OUTER JOIN is not supported by the resolved {0} driver.',
+class DialectUnsupportedFullOuterJoinRule extends AnalysisRule {
+  static const LintCode code = LintCode(
+    'dialect_unsupported_full_outer_join',
+    'FULL OUTER JOIN is not supported by the resolved {0} driver.',
     correctionMessage: 'Consider LEFT JOIN + UNION strategy where appropriate.',
-    errorSeverity: DiagnosticSeverity.WARNING,
+    severity: DiagnosticSeverity.WARNING,
+    uniqueName: 'knex_dart_lint.dialect_unsupported_full_outer_join',
   );
 
-  @override
-  void run(
-    CustomLintResolver resolver,
-    DiagnosticReporter reporter,
-    CustomLintContext context,
-  ) {
-    context.registry.addMethodInvocation((MethodInvocation node) {
-      if (node.methodName.name != 'fullOuterJoin') return;
-
-      reportIfUnsupported(
-        node: node,
-        reporter: reporter,
-        code: _code,
-        capability: SqlCapability.fullOuterJoin,
+  DialectUnsupportedFullOuterJoinRule()
+    : super(
+        name: 'dialect_unsupported_full_outer_join',
+        description: 'FULL OUTER JOIN is not supported by all drivers.',
       );
-    });
+
+  @override
+  DiagnosticCode get diagnosticCode => code;
+
+  @override
+  void registerNodeProcessors(
+    RuleVisitorRegistry registry,
+    RuleContext context,
+  ) {
+    registry.addMethodInvocation(this, _Visitor(this));
+  }
+}
+
+class _Visitor extends SimpleAstVisitor<void> {
+  final AnalysisRule rule;
+  _Visitor(this.rule);
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (node.methodName.name != 'fullOuterJoin') return;
+    reportIfUnsupported(
+      node: node,
+      rule: rule,
+      capability: SqlCapability.fullOuterJoin,
+    );
   }
 }
