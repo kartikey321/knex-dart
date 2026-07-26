@@ -111,6 +111,32 @@ a dialect with no docker-compose service, prefer a throwaway `docker run`
 against the dialect's official image over guessing from documentation alone
 — see the CockroachDB example above.
 
+### D1 (Cloudflare) — no docker, no automated test file, but live-verified anyway
+
+`knex_dart_d1`'s driver only talks to Cloudflare's real REST API (account ID
++ database ID + API token) — it has no local-binding execution path, so it
+can't be dockerized or wired into a permanent `dart test` file the way
+turso/mysql/postgres can without first building a Workers HTTP shim (out of
+scope for a verification pass).
+
+D1's schema-compiler code path is nonetheless byte-identical to turso's
+(`_isSqliteLike()`, zero D1-specific branches anywhere in
+`schema_compiler.dart`/`table_builder.dart`), so the turso live verification
+above is strong evidence by itself. It was additionally checked directly:
+`wrangler d1 execute <db> --local` runs against a real local SQLite file
+(`.wrangler/state/v3/d1/<id>.sqlite`) — no Cloudflare login or account
+required for `--local` mode (confirmed: `wrangler whoami` reported "Not
+logged in" throughout). Per Cloudflare's own D1 docs, the only documented
+local-vs-production difference is performance/distributed-storage behavior,
+not SQL/DDL semantics — exactly what this needed to be a faithful check.
+Ran knex-dart's exact `d1`-dialect generated SQL (inline-folded FK, inline
+composite PK, dropUnique) through `wrangler d1 execute --local`: FK rejected
+an orphan insert (`FOREIGN KEY constraint failed: SQLITE_CONSTRAINT`),
+composite PK rejected a duplicate (`UNIQUE constraint failed`), and
+dropUnique's `drop index` genuinely removed the constraint (duplicate insert
+succeeded afterward). All confirmed correct on real local D1, not just
+inferred from turso.
+
 **The allowlist ratchets.** A listed entry is *not* skipped: the test runs in
 reverse and asserts the divergence is **still present**. The moment a bug is
 fixed (or an `[ACCEPTED]` behavior drifts), that test fails with "divergence no
