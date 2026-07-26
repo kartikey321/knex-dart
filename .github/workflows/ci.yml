@@ -848,7 +848,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dart run tool/record_release_state.dart --commit "$GITHUB_SHA"
+          dart run tool/record_release_state.dart \
+            --package "${{ steps.resolve.outputs.package }}" \
+            --commit "$GITHUB_SHA"
           cp tool/release_state.json /tmp/release_state.json
 
           git config user.name "github-actions[bot]"
@@ -864,13 +866,26 @@ jobs:
             fi
             git add tool/release_state.json
             git commit -m "chore(release): record ${GITHUB_REF_NAME} in release_state.json"
-            if git push origin HEAD:main; then
+
+            push_output=$(git push origin HEAD:main 2>&1) && {
               echo "Pushed release_state.json update to main."
               exit 0
+            }
+            echo "$push_output"
+
+            # A permission denial (e.g. branch protection on main rejecting
+            # the default GITHUB_TOKEN / github-actions[bot]) is permanent —
+            # retrying just burns all 5 attempts on the same rejection.
+            # Only a non-fast-forward ("main moved while we worked") is
+            # worth retrying.
+            if echo "$push_output" | grep -qiE "protected branch|GH006|403|permission denied|not authorized"; then
+              echo "::error::Push rejected — this looks like a permissions/branch-protection denial, not a race. github-actions[bot] with the default GITHUB_TOKEN cannot bypass branch protection on main. If main now has protection rules, either add an explicit bypass for this workflow's actor or record ${GITHUB_REF_NAME}'s release_state.json entry in a PR instead. See AGENTS.md's Release Process section."
+              exit 1
             fi
+
             echo "Push rejected (main moved), retrying ($attempt/5)..."
             git reset --hard origin/main
             sleep $((attempt * 3))
           done
-          echo "::error::Failed to push release_state.json update after 5 attempts — update it manually."
+          echo "::error::Failed to push release_state.json update after 5 attempts (non-fast-forward races each time) — update it manually."
           exit 1

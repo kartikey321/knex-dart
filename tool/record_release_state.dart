@@ -1,5 +1,5 @@
 #!/usr/bin/env dart
-// Usage: dart run tool/record_release_state.dart [--commit <sha>] [--dry-run]
+// Usage: dart run tool/record_release_state.dart --package <name|all> [--commit <sha>] [--dry-run]
 //
 // Run this ONLY as a CI step, immediately after `melos publish` succeeds in
 // the tag-triggered publish job (see .github/workflows/ci.yml). It updates
@@ -11,13 +11,19 @@
 // reality the way tag history can — see knex_dart_otel, which is on pub.dev
 // with no matching git tag at all).
 //
-// For every workspace package, compares the current pubspec.yaml version
-// against tool/release_state.json's recorded lastPublishedVersion. Any
-// package whose local version is now higher is assumed to be one this CI run
-// just published (this step only runs after the publish step succeeded), and
-// gets its entry updated with the current commit/timestamp. This correctly
-// handles both a single-package tag (knex_dart-v1.3.1) and the bulk
-// knex_dart_all-v* tag, without needing to parse `melos publish` output.
+// --package must be the exact package name the triggering tag resolved to
+// (steps.resolve.outputs.package in ci.yml), or `all` for the bulk
+// knex_dart_all-v* tag. This is NOT inferred from "which local pubspec
+// versions are ahead of the recorded state" — a Codex/CodeRabbit review
+// caught that a version-delta heuristic alone is unsound in a monorepo with
+// independent per-package versioning: package A can have its version bumped
+// in an already-merged commit without being tagged/published yet, and if
+// package B's tag triggers this job, a delta-only check would falsely mark
+// A as published too (wrong commit, wrong timestamp, wrong source). Only
+// the CI-resolved package (or every package, for `all`) actually got
+// published this run, so that's the only thing eligible for updating,
+// even though a version-ahead check still gates whether an eligible
+// package's entry needs touching at all.
 //
 // --commit defaults to $GITHUB_SHA. --dry-run prints what would change
 // without writing the file (for local testing).
@@ -48,6 +54,7 @@ const _stateFile = 'tool/release_state.json';
 
 Future<void> main(List<String> args) async {
   final dryRun = args.contains('--dry-run');
+
   String? commit;
   final commitIdx = args.indexOf('--commit');
   if (commitIdx != -1 && commitIdx + 1 < args.length) {
@@ -59,6 +66,21 @@ Future<void> main(List<String> args) async {
         'and this should never run outside CI — refusing to guess.');
     exit(1);
   }
+
+  String? scopePackage;
+  final packageIdx = args.indexOf('--package');
+  if (packageIdx != -1 && packageIdx + 1 < args.length) {
+    scopePackage = args[packageIdx + 1];
+  }
+  if (scopePackage == null) {
+    stderr.writeln('ERROR: --package <name|all> is required — this must be '
+        'exactly steps.resolve.outputs.package from the triggering tag. '
+        'Refusing to infer "what got published" from version deltas alone: '
+        'a package can have an unrelated pending version bump sitting on '
+        'main that this run did NOT publish.');
+    exit(1);
+  }
+
   final refName = Platform.environment['GITHUB_REF_NAME'] ?? '(unknown ref)';
 
   final file = File(_stateFile);
@@ -74,6 +96,7 @@ Future<void> main(List<String> args) async {
     if (!pubspecFile.existsSync()) continue;
     final doc = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
     final name = doc['name'] as String;
+    if (scopePackage != 'all' && name != scopePackage) continue;
     final localVersion = Version.parse(doc['version'] as String);
 
     final existing = state[name] as Map<String, dynamic>?;
@@ -102,9 +125,11 @@ Future<void> main(List<String> args) async {
   }
 
   if (updated == 0) {
-    print('No package versions increased since the last recorded state — '
-        'nothing to record. (This is unexpected right after a publish step; '
-        'double check which package(s) this run actually published.)');
+    print('${scopePackage == 'all' ? 'No' : '"$scopePackage"\'s'} version '
+        "didn't increase relative to the recorded state — nothing to "
+        'record. This is unexpected right after that package\'s publish '
+        'step succeeded; double check --package matches what was actually '
+        'resolved and published this run.');
     return;
   }
 

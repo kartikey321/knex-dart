@@ -121,6 +121,14 @@ Future<void> main(List<String> args) async {
 
 Future<List<String>> _run(List<String> gitArgs) async {
   final result = await Process.run('git', gitArgs);
+  if (result.exitCode != 0) {
+    // A failing git command must never be treated as "no output, so
+    // nothing pending" — that's exactly the false-negative this tool
+    // exists to prevent (e.g. a shallow clone or a corrupted/unreachable
+    // anchor commit would otherwise silently report "up to date").
+    stderr.writeln('ERROR: git ${gitArgs.join(" ")} failed:\n${result.stderr}');
+    exit(1);
+  }
   return (result.stdout as String)
       .split('\n')
       .map((l) => l.trim())
@@ -157,13 +165,25 @@ Future<bool> _checkPackage(
 
   // Prefer the state file's commit as the anchor for "what changed since
   // release"; fall back to the tag if the package predates state tracking.
+  //
+  // If NEITHER exists (exactly knex_dart_otel's case: no recorded commit,
+  // no matching tag), there is no reliable anchor — falling back to bare
+  // `HEAD` would list the package's *entire* git history as "since last
+  // release" and could spuriously flag NEEDS A VERSION BUMP against a wall
+  // of pre-publish commits. Rather than guess, skip the commit-based check
+  // entirely for that case and rely on the version/pub.dev checks below.
   final anchor = stateCommit ?? lastTag;
-  final range = anchor != null ? '$anchor..HEAD' : 'HEAD';
-  final allCommits = await _run(['log', '--oneline', range, '--', pkg.dir]);
-  final nonTestCommits = await _run([
-    'log', '--oneline', range, '--',
-    pkg.dir, ':!${pkg.dir}/test', ':!${pkg.dir}/test/**',
-  ]);
+  final hasReliableAnchor = anchor != null;
+  final range = hasReliableAnchor ? '$anchor..HEAD' : null;
+  final allCommits = range != null
+      ? await _run(['log', '--oneline', range, '--', pkg.dir])
+      : const <String>[];
+  final nonTestCommits = range != null
+      ? await _run([
+          'log', '--oneline', range, '--',
+          pkg.dir, ':!${pkg.dir}/test', ':!${pkg.dir}/test/**',
+        ])
+      : const <String>[];
 
   Version? pubDevVersion;
   var pubDevLookupFailed = false;
@@ -198,8 +218,8 @@ Future<bool> _checkPackage(
   buf.writeln('  last release tag:     ${lastTag ?? "(none found in this repo)"}');
   buf.writeln('  pub.dev published:    '
       '${offline ? "(skipped, --offline)" : pubDevLookupFailed ? "(lookup failed — network?)" : pubDevVersion?.toString() ?? "(not published)"}');
-  buf.writeln('  commits since anchor: ${allCommits.length} total, '
-      '${nonTestCommits.length} touching lib/bin/pubspec (non-test)');
+  buf.writeln('  commits since anchor: '
+      '${hasReliableAnchor ? "${allCommits.length} total, ${nonTestCommits.length} touching lib/bin/pubspec (non-test)" : "(no reliable anchor — cannot determine, see below)"}');
 
   if (stateVersion == null) {
     flagged = true;
@@ -227,12 +247,25 @@ Future<bool> _checkPackage(
 
   final bumpedPastRelease = stateVersion == null || pkg.version > stateVersion;
 
-  if (nonTestCommits.isNotEmpty && !bumpedPastRelease) {
+  if (!hasReliableAnchor) {
+    if (!bumpedPastRelease) {
+      flagged = true;
+      buf.writeln('  ⚠️  CANNOT DETERMINE from commit history — no recorded '
+          'commit and no matching git tag, so pending changes can\'t be '
+          'checked this way. The pubspec version also hasn\'t moved past '
+          '$stateVersion. Rely on the pub.dev check above, or manually '
+          'review this package.');
+    } else {
+      buf.writeln('  ✓ Bumped to ${pkg.version} (no reliable commit anchor '
+          'to list what changed, but the version moved) — ready to tag & '
+          'release: git tag ${pkg.name}-v${pkg.version} && git push origin '
+          '${pkg.name}-v${pkg.version}');
+    }
+  } else if (nonTestCommits.isNotEmpty && !bumpedPastRelease) {
     flagged = true;
     buf.writeln('  ⚠️  NEEDS A VERSION BUMP — ${nonTestCommits.length} '
-        'commit(s) touched lib/bin/pubspec.yaml since '
-        '${anchor ?? "the beginning of history"} but the version was never '
-        'bumped:');
+        'commit(s) touched lib/bin/pubspec.yaml since $anchor but the '
+        'version was never bumped:');
     for (final c in nonTestCommits.take(8)) {
       buf.writeln('        $c');
     }
