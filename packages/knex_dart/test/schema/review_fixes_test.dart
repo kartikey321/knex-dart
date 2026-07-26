@@ -440,4 +440,35 @@ void main() {
       expect('foreign key'.allMatches(sql).length, 2);
     });
   });
+
+  group('alterTable().foreign().onUpdate() (mutation-testing gap)', () {
+    // Re-running mutation testing on the fixed schema_compiler.dart found
+    // the `alterTable().foreign()` path's onUpdate handling was untested —
+    // the parity corpus only ever exercises onDelete for the genuine ALTER
+    // TABLE (not inline-fold) foreign() case. Behavior was already correct;
+    // this closes the assertion gap.
+    test('emits ON UPDATE clause for an existing table', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('orders', (table) {
+        table.foreign('user_id').references('id').inTable('users').onUpdate('cascade');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('on update CASCADE'));
+      expect(sql, isNot(contains('on delete')));
+    });
+
+    test('emits both ON DELETE and ON UPDATE when both are set', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('orders', (table) {
+        table.foreign('user_id')
+            .references('id')
+            .inTable('users')
+            .onDelete('cascade')
+            .onUpdate('restrict');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('on delete CASCADE'));
+      expect(sql, contains('on update RESTRICT'));
+    });
+  });
 }
