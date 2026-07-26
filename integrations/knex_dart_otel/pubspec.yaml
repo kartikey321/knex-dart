@@ -1,6 +1,6 @@
 name: knex_dart_otel
 description: OpenTelemetry instrumentation for knex_dart driver wrappers — query spans and DB client duration metrics via the OTel API.
-version: 0.1.1
+version: 0.1.2
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
@@ -18,8 +18,17 @@ resolution: workspace
 
 dependencies:
   knex_dart: ^1.3.0
-  dartastic_opentelemetry_api: ^0.9.0
+  # Per upstream maintainer guidance (issues/93): the API-only path is
+  # spec-required to be non-recording without an SDK installed. 0.9.1
+  # fixed a spec violation (0.9.x recorded without an SDK); the supported
+  # track going forward is the 1.0.0-rc line, not 0.9.x.
+  dartastic_opentelemetry_api: ^1.0.0-rc.1
 
 dev_dependencies:
   test: ^1.31.0
   lints: ^6.1.0
+  # SDK (not just the API) is needed in tests: per spec, API-only spans are
+  # non-recording no-ops, so asserting on span attributes/status requires a
+  # real TracerProvider + SpanProcessor. Production code (lib/) depends only
+  # on the API, per standard OTel instrumentation-library convention.
+  dartastic_opentelemetry: ^1.1.0-beta.12

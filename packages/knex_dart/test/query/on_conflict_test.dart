@@ -120,7 +120,7 @@ void main() {
   });
 
   group('onConflict().merge() — MySQL', () {
-    test('merge() produces ON DUPLICATE KEY UPDATE with VALUES()', () {
+    test('merge() produces ON DUPLICATE KEY UPDATE with values()', () {
       final sql = QueryBuilder(my)
           .table('users')
           .insert({'email': 'a@b.com', 'name': 'Alice'})
@@ -132,8 +132,8 @@ void main() {
       expect(
         sql.sql,
         contains(
-          'on duplicate key update `email` = VALUES(`email`), '
-          '`name` = VALUES(`name`)',
+          'on duplicate key update `email` = values(`email`), '
+          '`name` = values(`name`)',
         ),
       );
     });
@@ -148,9 +148,9 @@ void main() {
 
       expect(
         sql.sql,
-        contains('on duplicate key update `name` = VALUES(`name`)'),
+        contains('on duplicate key update `name` = values(`name`)'),
       );
-      expect(sql.sql, isNot(contains('VALUES(`email`)')));
+      expect(sql.sql, isNot(contains('values(`email`)')));
     });
 
     test('merge(Map) uses explicit values', () {

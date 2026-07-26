@@ -203,6 +203,39 @@ void main() {
       );
     });
 
+    // Test 10a: createTable with table.index() emits CREATE INDEX
+    test('Test 10a: createTable with index() emits CREATE INDEX', () {
+      final schema = client.schemaBuilder();
+      schema.createTable('leads', (table) {
+        table.increments('id');
+        table.string('email');
+        table.index(['email']);
+      });
+      final sqls = schema.toSQL();
+
+      expect(sqls.length, 2);
+      expect(sqls[0]['sql'], 'create table "leads" ("id" serial primary key, "email" varchar(255))');
+      expect(sqls[1]['sql'], 'create index "leads_email_index" on "leads" ("email")');
+    });
+
+    // Test 10b: createTable with table.unique([cols]) via alterStatements emits constraint
+    test('Test 10b: createTable with table.unique() via alterStatements', () {
+      final schema = client.schemaBuilder();
+      schema.createTable('memberships', (table) {
+        table.increments('id');
+        table.integer('user_id');
+        table.integer('org_id');
+        table.unique(['user_id', 'org_id']);
+      });
+      final sqls = schema.toSQL();
+
+      expect(sqls.length, 2);
+      expect(sqls[0]['sql'],
+          'create table "memberships" ("id" serial primary key, "user_id" integer, "org_id" integer)');
+      expect(sqls[1]['sql'],
+          'alter table "memberships" add constraint "memberships_user_id_org_id_unique" unique ("user_id", "org_id")');
+    });
+
     // Test 10: createTable with foreign key + onDelete
     test('Test 10: createTable with foreign key', () {
       final schema = client.schemaBuilder();

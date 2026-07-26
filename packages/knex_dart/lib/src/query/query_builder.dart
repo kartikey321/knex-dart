@@ -417,6 +417,49 @@ class QueryBuilder {
     return _performJoin('right', table, first, second);
   }
 
+  /// Adds a `LEFT OUTER JOIN` clause.
+  ///
+  /// Emits the explicit `left outer join` keyword. Behaves identically to
+  /// [leftJoin] (SQL treats `LEFT JOIN` and `LEFT OUTER JOIN` as synonyms);
+  /// this alias exists for readers who prefer the fully-spelled form.
+  ///
+  /// ```dart
+  /// qb.table('users').leftOuterJoin('profiles', 'users.id', 'profiles.user_id');
+  /// // select * from "users"
+  /// //   left outer join "profiles" on "users"."id" = "profiles"."user_id"
+  /// ```
+  QueryBuilder leftOuterJoin(String table, [Object? first, String? second]) {
+    return _performJoin('left outer', table, first, second);
+  }
+
+  /// Adds a `RIGHT OUTER JOIN` clause.
+  ///
+  /// Emits the explicit `right outer join` keyword — a synonym for [rightJoin].
+  ///
+  /// ```dart
+  /// qb.table('products').rightOuterJoin('reviews', 'products.id', 'reviews.product_id');
+  /// // select * from "products"
+  /// //   right outer join "reviews" on "products"."id" = "reviews"."product_id"
+  /// ```
+  QueryBuilder rightOuterJoin(String table, [Object? first, String? second]) {
+    return _performJoin('right outer', table, first, second);
+  }
+
+  /// Adds an `OUTER JOIN` clause.
+  ///
+  /// Emits the bare `outer join` keyword. Not every database accepts an
+  /// unqualified `OUTER JOIN` (PostgreSQL does; some engines require
+  /// `LEFT`/`RIGHT`/`FULL`) — prefer [leftOuterJoin], [rightOuterJoin], or
+  /// [fullOuterJoin] unless you specifically need this form.
+  ///
+  /// ```dart
+  /// qb.table('a').outerJoin('b', 'a.id', 'b.a_id');
+  /// // select * from "a" outer join "b" on "a"."id" = "b"."a_id"
+  /// ```
+  QueryBuilder outerJoin(String table, [Object? first, String? second]) {
+    return _performJoin('outer', table, first, second);
+  }
+
   /// Add a FULL OUTER JOIN clause
   ///
   QueryBuilder fullOuterJoin(String table, [Object? first, String? second]) {
@@ -554,13 +597,27 @@ class QueryBuilder {
     return this;
   }
 
-  /// Add a where clause
+  /// Adds a `WHERE` clause.
   ///
+  /// Supported call shapes:
+  /// - `where(column, value)` — implicit `=` operator.
+  /// - `where(column, operator, value)` — explicit operator, e.g.
+  ///   `where('age', '>=', 18)`.
+  /// - `where(Raw)` — a raw SQL condition.
+  /// - `where((qb) => ...)` — a grouped/parenthesized sub-condition.
   ///
-  /// Supports:
-  /// - where(column, value) - assumes '=' operator
-  /// - where(column, operator, value) - explicit operator
-  /// - where(Raw) - raw SQL condition
+  /// **Null shorthand:** `where('col', null)` compiles to `"col" is null`,
+  /// not `"col" = null` (which would never match, since SQL comparisons with
+  /// NULL yield UNKNOWN). Combine with the `or`/`not` modifiers as usual —
+  /// `orWhere('col', null)` → `or "col" is null`. For an explicit form use
+  /// [whereNull] / [whereNotNull].
+  ///
+  /// ```dart
+  /// qb.table('users')
+  ///   .where('active', true)
+  ///   .where('deleted_at', null)      // → "deleted_at" is null
+  ///   .where('age', '>=', 18);
+  /// ```
   QueryBuilder where(
     dynamic column, [
     dynamic operatorOrValue = _undefined,
@@ -588,6 +645,18 @@ class QueryBuilder {
 
     if (value == _undefined) {
       // 2 arguments: column, value (operator is '=')
+      // where('col', null) is shorthand for IS NULL (knex.js parity). Consume
+      // the pending bool/not flags so they don't leak to the next clause.
+      if (operatorOrValue == null) {
+        _statements.add({
+          'grouping': 'where',
+          'type': 'whereNull',
+          'column': column,
+          'bool': _bool(),
+          'not': _not(),
+        });
+        return this;
+      }
       operator = '=';
       val = operatorOrValue;
     } else {
@@ -741,7 +810,7 @@ class QueryBuilder {
       'column': column,
       'value': values,
       'not': false,
-      'bool': 'and',
+      'bool': _bool(), // Read and reset bool flag (matches whereNotIn)
     });
     return this;
   }
@@ -844,6 +913,22 @@ class QueryBuilder {
         as QueryBuilder;
   }
 
+  /// Adds an `OR ... IN (...)` clause.
+  ///
+  /// The counterpart to [whereIn] that joins to the preceding predicate with
+  /// `OR` instead of `AND`. [values] may be a `List` of literals or a
+  /// [QueryBuilder] subquery.
+  ///
+  /// ```dart
+  /// qb.table('users')
+  ///   .where('active', true)
+  ///   .orWhereIn('role', ['admin', 'owner']);
+  /// // select * from "users" where "active" = ? or "role" in (?, ?)
+  /// ```
+  QueryBuilder orWhereIn(String column, dynamic values) {
+    return _bool('or').whereIn(column, values);
+  }
+
   /// OR version of WHERE NOT IN
   QueryBuilder orWhereNotIn(String column, List<dynamic> values) {
     return _bool('or').whereNotIn(column, values);
@@ -918,16 +1003,33 @@ class QueryBuilder {
     return this;
   }
 
-  /// Add a GROUP BY clause
+  /// Adds a `GROUP BY` clause for one or more columns.
   ///
+  /// [column] accepts either a single column name or a `List` of column names.
+  /// Passing a list is equivalent to calling [groupBy] once per column — both
+  /// append to any grouping already set.
   ///
-  /// Groups rows by one or more columns
-  QueryBuilder groupBy(String column) {
-    _statements.add({
-      'grouping': 'group',
-      'type': 'groupByBasic',
-      'value': column,
-    });
+  /// ```dart
+  /// // Single column
+  /// qb.table('orders').select('status').count('id').groupBy('status');
+  /// // ... group by "status"
+  ///
+  /// // Multiple columns in one call
+  /// qb.table('sales').groupBy(['region', 'product']);
+  /// // ... group by "region", "product"
+  /// ```
+  ///
+  /// For grouping by an expression, use [groupByRaw].
+  QueryBuilder groupBy(dynamic column) {
+    // Accept a single column or a List of columns.
+    final cols = column is List ? column : [column];
+    for (final c in cols) {
+      _statements.add({
+        'grouping': 'group',
+        'type': 'groupByBasic',
+        'value': c,
+      });
+    }
     return this;
   }
 

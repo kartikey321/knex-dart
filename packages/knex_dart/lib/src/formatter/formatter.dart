@@ -139,6 +139,24 @@ class Formatter {
     if (op == null) {
       throw Exception('The operator "$value" is not permitted');
     }
+    // The jsonb key-existence operators (`?`, `?|`, `?&`) are stored escaped
+    // (`\?`) because knex.js runs a `?`→`$N` positioning pass that would
+    // otherwise mistake them for placeholders, and it strips the backslash for
+    // Postgres. knex-dart emits `$N` directly for Postgres-family dialects, so
+    // the escape is pure cruft there and leaks a literal backslash — strip it
+    // (matches knex.js). MySQL/SQLite keep the escape, also matching knex.js.
+    if (op.startsWith(r'\?')) {
+      const pgFamily = {
+        'pg',
+        'postgres',
+        'postgresql',
+        'cockroachdb',
+        'redshift',
+      };
+      if (pgFamily.contains(client.driverName)) {
+        return op.substring(1); // drop the leading backslash
+      }
+    }
     return op;
   }
 

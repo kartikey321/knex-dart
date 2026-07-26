@@ -1,9 +1,15 @@
 import 'dart:async';
 
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart';
+// Real SDK is required here (not just the API): per the OTel spec, API-only
+// spans without an SDK installed are non-recording, so asserting on
+// attributes/status/isEnded needs a real TracerProvider. See
+// otel_span_attributes_test.dart for the longer explanation.
+import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart_otel/knex_dart_otel.dart';
 import 'package:test/test.dart';
+
+import 'testing/in_memory_span_exporter.dart';
 
 // ── Capturing histogram ───────────────────────────────────────────────────────
 
@@ -55,17 +61,21 @@ void main() {
   late APITracer tracer;
   late CapturingHistogram histogram;
   late KnexOtelInterceptor interceptor;
+  late InMemorySpanExporter exporter;
 
-  setUp(() {
-    OTelAPI.reset();
-    OTelAPI.initialize(
-      endpoint: 'http://localhost:4317',
+  setUp(() async {
+    await OTel.reset();
+    exporter = InMemorySpanExporter();
+    await OTel.initialize(
       serviceName: 'knex-otel-test',
       serviceVersion: '0.0.1',
+      detectPlatformResources: false,
+      enableMetrics: false,
+      spanProcessor: SimpleSpanProcessor(exporter),
     );
-    tracer = OTelAPI.tracer('knex_dart_otel_test');
+    tracer = OTel.tracerProvider().getTracer('knex_dart_otel_test');
     histogram = CapturingHistogram(
-      OTelAPI.meterProvider().getMeter(name: 'knex_dart_otel_test'),
+      OTel.meterProvider().getMeter(name: 'knex_dart_otel_test'),
     );
     interceptor = KnexOtelInterceptor(
       tracer: tracer,
@@ -73,7 +83,7 @@ void main() {
     );
   });
 
-  tearDown(() => OTelAPI.reset());
+  tearDown(() => OTel.reset());
 
   // ── intercept() — success path ────────────────────────────────────────────
 
@@ -579,7 +589,7 @@ void main() {
       () async {
         var hookCount = 0;
         final captureHistogram = CapturingHistogram(
-          OTelAPI.meterProvider().getMeter(name: 'guard_test'),
+          OTel.meterProvider().getMeter(name: 'guard_test'),
         );
         final i = KnexOtelInterceptor(
           tracer: tracer,
