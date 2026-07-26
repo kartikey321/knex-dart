@@ -13,6 +13,11 @@
 /// literally instead of the family-aware `_isSqliteLike()` helper. These
 /// tests would have failed outright against real sqld before that fix.
 ///
+/// Table names are suffixed per-run: `dart test` runs test files
+/// concurrently by default, and turso_integration_test.dart already owns
+/// bare `users`/`orders` tables on this same shared sqld server — without a
+/// suffix the two files stomp on each other's tables mid-test.
+///
 /// Requires sqld running locally:
 ///   docker compose up sqld -d
 @Tags(['turso'])
@@ -40,6 +45,10 @@ Future<KnexTurso?> _tryOpen() async {
 void main() {
   KnexTurso? db;
   String? skipReason;
+  final suffix = DateTime.now().microsecondsSinceEpoch.toString();
+  final usersTable = 'ddl_users_$suffix';
+  final ordersTable = 'ddl_orders_$suffix';
+  final membershipsTable = 'ddl_memberships_$suffix';
 
   setUpAll(() async {
     final candidate = await _tryOpen();
@@ -55,13 +64,20 @@ void main() {
     if (skipReason != null) return;
     db = KnexTurso(url: _url, authToken: _token ?? '');
     await db!.executeSchema((schema) {
-      schema.dropTableIfExists('orders');
-      schema.dropTableIfExists('users');
-      schema.dropTableIfExists('memberships');
+      schema.dropTableIfExists(ordersTable);
+      schema.dropTableIfExists(usersTable);
+      schema.dropTableIfExists(membershipsTable);
     });
   });
 
   tearDown(() async {
+    if (skipReason == null) {
+      await db!.executeSchema((schema) {
+        schema.dropTableIfExists(ordersTable);
+        schema.dropTableIfExists(usersTable);
+        schema.dropTableIfExists(membershipsTable);
+      });
+    }
     db?.close();
     db = null;
   });
@@ -73,13 +89,13 @@ void main() {
         if (skipReason != null) return markTestSkipped(skipReason!);
 
         await db!.executeSchema((schema) {
-          schema.createTable('users', (t) {
+          schema.createTable(usersTable, (t) {
             t.increments('id');
             t.string('name');
           });
-          schema.createTable('orders', (t) {
+          schema.createTable(ordersTable, (t) {
             t.increments('id');
-            t.integer('user_id').references('id').inTable('users');
+            t.integer('user_id').references('id').inTable(usersTable);
           });
         });
 
@@ -88,16 +104,16 @@ void main() {
         // not just something that merely parses.
         await db!.executeRaw('PRAGMA foreign_keys = ON');
         await db!.execute(
-          db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Alice'}),
+          db!.queryBuilder().table(usersTable).insert({'id': 1, 'name': 'Alice'}),
         );
         await db!.execute(
-          db!.queryBuilder().table('orders').insert({'id': 1, 'user_id': 1}),
+          db!.queryBuilder().table(ordersTable).insert({'id': 1, 'user_id': 1}),
         );
 
         Object? fkError;
         try {
           await db!.execute(
-            db!.queryBuilder().table('orders').insert({
+            db!.queryBuilder().table(ordersTable).insert({
               'id': 2,
               'user_id': 999, // no such user — must violate the FK
             }),
@@ -120,31 +136,31 @@ void main() {
         if (skipReason != null) return markTestSkipped(skipReason!);
 
         await db!.executeSchema((schema) {
-          schema.createTable('users', (t) {
+          schema.createTable(usersTable, (t) {
             t.increments('id');
             t.string('name');
           });
-          schema.createTable('orders', (t) {
+          schema.createTable(ordersTable, (t) {
             t.increments('id');
             t.integer('user_id');
-            t.foreign('user_id').references('id').inTable('users').onDelete('cascade');
+            t.foreign('user_id').references('id').inTable(usersTable).onDelete('cascade');
           });
         });
 
         await db!.executeRaw('PRAGMA foreign_keys = ON');
         await db!.execute(
-          db!.queryBuilder().table('users').insert({'id': 1, 'name': 'Alice'}),
+          db!.queryBuilder().table(usersTable).insert({'id': 1, 'name': 'Alice'}),
         );
         await db!.execute(
-          db!.queryBuilder().table('orders').insert({'id': 1, 'user_id': 1}),
+          db!.queryBuilder().table(ordersTable).insert({'id': 1, 'user_id': 1}),
         );
 
         await db!.execute(
-          db!.queryBuilder().table('users').where('id', 1).delete(),
+          db!.queryBuilder().table(usersTable).where('id', 1).delete(),
         );
 
         final remaining = await db!.select(
-          db!.queryBuilder().from('orders'),
+          db!.queryBuilder().from(ordersTable),
         );
         expect(
           remaining,
@@ -159,7 +175,7 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       await db!.executeSchema((schema) {
-        schema.createTable('memberships', (t) {
+        schema.createTable(membershipsTable, (t) {
           t.integer('user_id');
           t.integer('org_id');
           t.primary(['user_id', 'org_id']);
@@ -167,7 +183,7 @@ void main() {
       });
 
       await db!.execute(
-        db!.queryBuilder().table('memberships').insert({
+        db!.queryBuilder().table(membershipsTable).insert({
           'user_id': 1,
           'org_id': 1,
         }),
@@ -176,7 +192,7 @@ void main() {
       Object? pkError;
       try {
         await db!.execute(
-          db!.queryBuilder().table('memberships').insert({
+          db!.queryBuilder().table(membershipsTable).insert({
             'user_id': 1,
             'org_id': 1,
           }),
@@ -196,7 +212,7 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       await db!.executeSchema((schema) {
-        schema.createTable('memberships', (t) {
+        schema.createTable(membershipsTable, (t) {
           t.integer('user_id');
           t.integer('org_id');
         });
@@ -204,7 +220,7 @@ void main() {
 
       expect(
         () => db!.executeSchema((schema) {
-          schema.alterTable('memberships', (t) {
+          schema.alterTable(membershipsTable, (t) {
             t.primary(['user_id', 'org_id']);
           });
         }),
@@ -216,20 +232,20 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       await db!.executeSchema((schema) {
-        schema.createTable('orders', (t) {
+        schema.createTable(ordersTable, (t) {
           t.increments('id');
         });
       });
 
       expect(
         () => db!.executeSchema((schema) {
-          schema.alterTable('orders', (t) => t.dropPrimary());
+          schema.alterTable(ordersTable, (t) => t.dropPrimary());
         }),
         throwsA(isA<UnsupportedError>()),
       );
       expect(
         () => db!.executeSchema((schema) {
-          schema.alterTable('orders', (t) => t.dropForeign(['id']));
+          schema.alterTable(ordersTable, (t) => t.dropForeign(['id']));
         }),
         throwsA(isA<UnsupportedError>()),
       );
@@ -239,7 +255,7 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       await db!.executeSchema((schema) {
-        schema.createTable('users', (t) {
+        schema.createTable(usersTable, (t) {
           t.increments('id');
           t.string('email').unique();
         });
@@ -248,23 +264,23 @@ void main() {
       // Would throw a SQLite syntax/support error here before the fix,
       // since SQLite has no ALTER TABLE ... DROP CONSTRAINT.
       await db!.executeSchema((schema) {
-        schema.alterTable('users', (t) => t.dropUnique(['email']));
+        schema.alterTable(usersTable, (t) => t.dropUnique(['email']));
       });
 
       // Constraint is actually gone: a duplicate email now succeeds.
       await db!.execute(
-        db!.queryBuilder().table('users').insert({
+        db!.queryBuilder().table(usersTable).insert({
           'id': 1,
           'email': 'a@b.com',
         }),
       );
       await db!.execute(
-        db!.queryBuilder().table('users').insert({
+        db!.queryBuilder().table(usersTable).insert({
           'id': 2,
           'email': 'a@b.com',
         }),
       );
-      final rows = await db!.select(db!.queryBuilder().from('users'));
+      final rows = await db!.select(db!.queryBuilder().from(usersTable));
       expect(rows, hasLength(2));
     });
   });

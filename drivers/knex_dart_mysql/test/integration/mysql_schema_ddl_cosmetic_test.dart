@@ -173,4 +173,79 @@ void main() {
       await db.raw('DROP TABLE IF EXISTS `$pkTable`');
     });
   });
+
+  group('MySQL foreign key enforcement (gap noted after the turso live verification)', () {
+    // Not a cosmetic-syntax claim — MySQL's FK code path wasn't touched by
+    // any fix this session (only SQLite-family and Redshift dispatch were),
+    // but it went live-unverified while turso's identical-shaped FK
+    // behavior was. Closing that gap here: same
+    // column-level-.references().inTable() / fluent-table.foreign() shapes
+    // as the turso test, confirmed against real MySQL (InnoDB).
+    test('column-level .references().inTable() FK is enforced', () async {
+      final usersT = 'fk_users_$suffix';
+      final ordersT = 'fk_orders_$suffix';
+      await db.executeSchema((s) {
+        s.createTable(usersT, (t) {
+          t.increments('id');
+          t.string('name');
+        });
+        s.createTable(ordersT, (t) {
+          t.increments('id');
+          // .unsigned() matches increments()'s `int unsigned` PK type — MySQL
+          // requires identical signedness between FK and referenced columns.
+          t.integer('user_id').unsigned().references('id').inTable(usersT);
+        });
+      });
+
+      await db.execute(
+        db.queryBuilder().table(usersT).insert({'id': 1, 'name': 'Alice'}),
+      );
+      await db.execute(
+        db.queryBuilder().table(ordersT).insert({'id': 1, 'user_id': 1}),
+      );
+
+      Object? fkError;
+      try {
+        await db.execute(
+          db.queryBuilder().table(ordersT).insert({'id': 2, 'user_id': 999}),
+        );
+      } catch (e) {
+        fkError = e;
+      }
+      expect(fkError, isNotNull, reason: 'FK was not actually enforced');
+
+      await db.raw('DROP TABLE IF EXISTS `$ordersT`');
+      await db.raw('DROP TABLE IF EXISTS `$usersT`');
+    });
+
+    test('fluent table.foreign().onDelete(cascade) actually cascades', () async {
+      final usersT = 'fk2_users_$suffix';
+      final ordersT = 'fk2_orders_$suffix';
+      await db.executeSchema((s) {
+        s.createTable(usersT, (t) {
+          t.increments('id');
+          t.string('name');
+        });
+        s.createTable(ordersT, (t) {
+          t.increments('id');
+          t.integer('user_id').unsigned();
+          t.foreign('user_id').references('id').inTable(usersT).onDelete('cascade');
+        });
+      });
+
+      await db.execute(
+        db.queryBuilder().table(usersT).insert({'id': 1, 'name': 'Alice'}),
+      );
+      await db.execute(
+        db.queryBuilder().table(ordersT).insert({'id': 1, 'user_id': 1}),
+      );
+      await db.execute(db.queryBuilder().table(usersT).where('id', 1).delete());
+
+      final remaining = await db.select(db.queryBuilder().from(ordersT));
+      expect(remaining, isEmpty, reason: 'ON DELETE CASCADE did not fire');
+
+      await db.raw('DROP TABLE IF EXISTS `$ordersT`');
+      await db.raw('DROP TABLE IF EXISTS `$usersT`');
+    });
+  });
 }

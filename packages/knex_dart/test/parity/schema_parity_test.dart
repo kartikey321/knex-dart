@@ -299,26 +299,27 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/create-table-primary-composite::d1':
       '[ACCEPTED] see schema/create-table-primary-composite::sqlite (d1 is sqlite-family).',
 
-  // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
-
-  // ── NEEDS VERIFICATION: could not confirm against a live CockroachDB
-  // instance in this session. knex.js's CockroachDB client uses
-  // `DROP INDEX "table"@"name" CASCADE` for dropping a UNIQUE constraint;
-  // knex-dart emits standard `ALTER TABLE ... DROP CONSTRAINT name`.
-  // CockroachDB added DROP CONSTRAINT support for UNIQUE constraints in
-  // v21.2+, so knex-dart's form is plausibly correct on current CockroachDB
-  // — but knex.js's dedicated compiler subclass for this exact case
-  // suggests a real compatibility reason (older CockroachDB implements
-  // UNIQUE as an index and may reject DROP CONSTRAINT on it). Left
-  // unresolved rather than guessed at; whoever picks this up should test
-  // both statements against docker-compose's cockroachdb service before
-  // deciding which is correct (or whether both need to be version-gated).
+  // ── ACCEPTED: verified live against a real CockroachDB v26.2.4 instance
+  // (docker run cockroachdb/cockroach:latest start-single-node --insecure).
+  // Both forms actually work: created a UNIQUE constraint via `ALTER TABLE
+  // ADD CONSTRAINT ... UNIQUE`, then confirmed each drop form genuinely
+  // removes it (not just "doesn't error") by inserting a duplicate value
+  // afterward and getting success, not a unique-violation. knex-dart's
+  // simpler `ALTER TABLE ... DROP CONSTRAINT name` is correct on current
+  // CockroachDB — the DROP CONSTRAINT support for UNIQUE constraints added
+  // in v21.2 covers this. Not version-gating; CockroachDB versions old
+  // enough to lack it are well past any support the "cockroachdb" dialect
+  // targets.
   'schema/alter-table-drop-unique::cockroachdb':
-      '[UNVERIFIED] knex.js uses DROP INDEX "t"@"name" CASCADE (CockroachDB-'
-          'specific); knex-dart uses standard DROP CONSTRAINT. Needs a live '
-          'CockroachDB check to confirm which (or both, version-gated) is correct.',
+      '[ACCEPTED] verified live against real CockroachDB v26.2.4: '
+          '`ALTER TABLE ... DROP CONSTRAINT name` genuinely drops the unique '
+          "constraint (confirmed via duplicate-insert after drop). knex.js's "
+          'DROP INDEX "t"@"name" CASCADE also works — both are correct, '
+          'different spelling.',
   'schema/alter-table-drop-unique-named::cockroachdb':
-      '[UNVERIFIED] see schema/alter-table-drop-unique::cockroachdb.',
+      '[ACCEPTED] see schema/alter-table-drop-unique::cockroachdb.',
+
+  // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
 };
 
 const Set<String> _skipDialects = {'mssql'};

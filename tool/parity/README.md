@@ -77,10 +77,39 @@ of three tags:
 - **`[OPEN BUG]`** — a real knex-dart defect the harness caught. Fix it, then
   delete the entry (you have no choice — see the ratchet below).
 - **`[UNVERIFIED]`** — a plausible divergence that needs a live database to
-  triage confidently (e.g. a CockroachDB-specific DROP INDEX vs DROP
-  CONSTRAINT question this session couldn't resolve without a running
-  CockroachDB instance). Don't guess an `[ACCEPTED]`/`[OPEN BUG]` verdict you
+  triage confidently. Don't guess an `[ACCEPTED]`/`[OPEN BUG]` verdict you
   can't actually verify — leave it `[UNVERIFIED]` with what would resolve it.
+  A CockroachDB-specific DROP INDEX vs DROP CONSTRAINT question started
+  `[UNVERIFIED]` for exactly this reason, then got resolved to `[ACCEPTED]`
+  once a `docker run cockroachdb/cockroach:latest start-single-node
+  --insecure` container was available to check both statements against —
+  that's the intended lifecycle: verify for real when you can, don't leave
+  it guessed.
+
+## Live-execution verification beyond SQL-text comparison
+
+Text matching (this harness) proves knex-dart matches knex.js's *output*. It
+can't prove either side's output actually executes — a mutated column type,
+a subtly wrong constraint clause, or a syntax choice that merely *parses* but
+doesn't create the constraint it claims to would all pass a text-only check.
+Where a real database is available (Docker, or an ad-hoc single-node
+container for a dialect not in docker-compose), driver integration tests
+under `drivers/*/test/integration/` run the exact generated SQL against a
+live engine and assert on *behavior*, not just success:
+
+- `drivers/knex_dart_turso/test/integration/turso_schema_ddl_test.dart` —
+  confirms the SQLite-family inline-FK-fold fix produces FKs that are
+  actually *enforced* (orphan inserts rejected, `ON DELETE CASCADE` actually
+  cascades), not just syntax that parses.
+- `drivers/knex_dart_mysql/test/integration/mysql_schema_ddl_cosmetic_test.dart` —
+  confirms every MySQL "cosmetic syntax alternative" allowlist claim
+  (`ADD`/`ADD COLUMN`, unique/index/primary-key alternate forms) actually
+  enforces the constraint it claims to.
+
+When you resolve an `[UNVERIFIED]` entry or fix an `[OPEN BUG]` that touches
+a dialect with no docker-compose service, prefer a throwaway `docker run`
+against the dialect's official image over guessing from documentation alone
+— see the CockroachDB example above.
 
 **The allowlist ratchets.** A listed entry is *not* skipped: the test runs in
 reverse and asserts the divergence is **still present**. The moment a bug is
