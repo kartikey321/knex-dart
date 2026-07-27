@@ -1,3 +1,7 @@
+## 0.3.1
+
+- Bumped `lints` to `^6.1.0` and `test` to `^1.31.0` (no source changes).
+
 ## 0.3.0
 
 - Added `KnexDialect.mssql` to the dialect enum and populated its capability

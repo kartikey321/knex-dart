@@ -1,6 +1,6 @@
 name: knex_dart_mysql
 description: MySQL driver for knex_dart — connect and execute queries against a MySQL database using the knex_dart query builder.
-version: 0.3.1
+version: 0.3.2
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
