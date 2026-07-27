@@ -1,3 +1,11 @@
+## 0.3.1
+
+- Migrated the plugin from the archived `custom_lint_builder` to
+  `analysis_server_plugin ^0.3.0`: all 15 rules moved from
+  `DartLintRule` + `run()` to `AnalysisRule` + `registerNodeProcessors()` +
+  a `_Visitor` pattern, and a `lib/main.dart` plugin entry point was added.
+- Bumped `lints` to `^6.1.0` and `test` to `^1.31.0`.
+
 ## 0.3.0
 
 - Added `raw_null_identifier_binding` lint rule (WARNING): fires when a `:key:`

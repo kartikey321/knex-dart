@@ -1,6 +1,6 @@
 name: knex_dart_capabilities
 description: Shared dialect capability matrix for knex_dart runtime and tooling.
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues

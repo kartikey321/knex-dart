@@ -1,13 +1,13 @@
 name: knex_dart_lint
-description: Optional custom_lint plugin for dialect-aware Knex Dart capability checks.
-version: 0.3.0
+description: Optional analyzer plugin for dialect-aware Knex Dart capability checks.
+version: 0.3.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues
 topics:
   - sql
   - lint
-  - custom-lint
+  - analyzer-plugin
   - query-builder
   - knex
 

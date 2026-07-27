@@ -1,3 +1,10 @@
+## 0.4.1
+
+- Bumped `sqlite3` to `^3.0.0` and `sqlite3_web` to `^0.9.0`; replaced
+  deprecated `.dispose()` calls with `.close()` in the native and web
+  clients.
+- Bumped `lints` to `^6.1.0` and `test` to `^1.31.0`.
+
 ## 0.4.0
 
 - Added `watch()` reactive query streams for SQLite based on `UPDATE_HOOK`.
