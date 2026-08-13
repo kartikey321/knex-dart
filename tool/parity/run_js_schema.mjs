@@ -96,6 +96,58 @@ const cases = [
     t.foreign('user_id').references('id').inTable('users').onUpdate('cascade');
   })],
 
+  // Directly mirrored from the defaultTo() cases in knex.js's sqlite3.js,
+  // mysql.js, and postgres.js schema-builder suites.
+  ['schema/default-string-embedded-quote', (k) => k.schema.alterTable('users', (t) => {
+    t.string('nickname').defaultTo("single 'quoted' value");
+  })],
+
+  ['schema/default-null', (k) => k.schema.alterTable('users', (t) => {
+    t.string('nickname').defaultTo(null);
+  })],
+
+  ['schema/default-string-not-null', (k) => k.schema.alterTable('users', (t) => {
+    t.string('nickname', 100).notNullable().defaultTo('guest');
+  })],
+
+  ['schema/default-raw-current-timestamp', (k) => k.schema.alterTable('users', (t) => {
+    t.timestamp('created_at').defaultTo(k.raw('CURRENT_TIMESTAMP'));
+  })],
+
+  ['schema/default-boolean-false', (k) => k.schema.alterTable('users', (t) => {
+    t.boolean('enabled').defaultTo(false);
+  })],
+
+  ['schema/default-json-object', (k) => k.schema.alterTable('users', (t) => {
+    t.json('preferences').defaultTo({}).notNullable();
+  })],
+
+  ['schema/default-jsonb-object', (k) => k.schema.alterTable('users', (t) => {
+    t.jsonb('preferences').defaultTo({}).notNullable();
+  })],
+
+  ['schema/create-table-column-primary', (k) => k.schema.createTable('users', (t) => {
+    t.string('external_id').primary();
+  })],
+
+  ['schema/create-table-unique-composite-named', (k) => k.schema.createTable('memberships', (t) => {
+    t.integer('user_id');
+    t.integer('org_id');
+    t.unique(['user_id', 'org_id'], 'uq_membership');
+  })],
+
+  ['schema/alter-table-add-unique-composite', (k) => k.schema.alterTable('memberships', (t) => {
+    t.unique(['user_id', 'org_id']);
+  })],
+
+  ['schema/alter-table-add-index-composite', (k) => k.schema.alterTable('memberships', (t) => {
+    t.index(['user_id', 'org_id']);
+  })],
+
+  ['schema/alter-table-add-column-foreign', (k) => k.schema.alterTable('orders', (t) => {
+    t.integer('user_id').references('id').inTable('users');
+  })],
+
   ['schema/alter-table-add-column', (k) => k.schema.alterTable('users', (t) => {
     t.string('nickname');
   })],
@@ -171,6 +223,56 @@ const cases = [
   ['schema/drop-table', (k) => k.schema.dropTable('users')],
   ['schema/drop-table-if-exists', (k) => k.schema.dropTableIfExists('users')],
   ['schema/rename-table', (k) => k.schema.renameTable('users', 'accounts')],
+
+  // Column type + modifier dispatch (unsigned is MySQL-only grammar;
+  // postgres/sqlite silently ignore it — real dialect-dispatch territory).
+  ['schema/create-table-column-unsigned', (k) => k.schema.createTable('t', (t) => {
+    t.integer('qty').unsigned();
+  })],
+
+  // NOTE: exercised as an ADD (not a MODIFY/.alter()) — knex-dart's
+  // ColumnBuilder has no generic .alter() at all (by design: it exposes
+  // narrow setNullable()/dropNullable() instead of a generic "redefine this
+  // column" op — see the alter-table-set-nullable::postgres allowlist entry
+  // for the rationale), so `.unsigned().alter()` has no Dart-side mirror.
+  ['schema/alter-table-column-unsigned', (k) => k.schema.alterTable('t', (t) => {
+    t.integer('qty').unsigned();
+  })],
+
+  // NOTE: column-level .comment() intentionally NOT added here — knex-dart's
+  // ColumnBuilder has no comment() method at all (only TableBuilder.comment()
+  // for table-level comments), so there is no Dart-side call to mirror this
+  // with. Confirmed via `grep -n comment lib/src/schema/*.dart`. This is a
+  // real capability gap (postgres: separate `COMMENT ON COLUMN` statement;
+  // mysql: inline `COMMENT '...'`; sqlite: unsupported) but adding the
+  // feature (new public API + dispatch in schema_compiler/column_builder for
+  // 3 dialect families) is a scoped feature addition, not a parity fix —
+  // left out of this harness and reported separately.
+
+  // NOTE: a `.alter()` type-change case (postgres 3-statement drop-default/
+  // drop-not-null/type-cast sequence vs mysql single MODIFY vs sqlite PRAGMA
+  // rebuild) intentionally NOT added — same reason as the unsigned-alter
+  // note above: no generic .alter() exists on knex-dart's ColumnBuilder to
+  // mirror it with. Already covered in spirit by the existing
+  // alter-table-set-nullable/drop-nullable allowlist entries, which document
+  // this exact API-shape difference.
+
+  // NOTE: a composite (multi-column) named foreign key via alterTable
+  // (`t.foreign(['user_id','org_id'], 'name').references([...]).inTable(...)`)
+  // intentionally NOT added here — knex-dart's `TableBuilder.foreign()` only
+  // accepts a single `String column` (see ForeignBuilder in
+  // table_builder.dart), so there is no Dart-side call to mirror knex.js's
+  // composite-FK fluent form with. `primary()`/`unique()`/`index()` all
+  // accept `dynamic columns` (single or list) + optional name, but
+  // `foreign()` never gained the same treatment — a genuine, real capability
+  // gap. Fixing it means changing a public API signature
+  // (`foreign(String)` -> `foreign(dynamic, [String?])`) and updating
+  // foreign-key generation at ~6 call sites across schema_compiler.dart
+  // (createTable inline, alterTable add-column deferred, alterTable
+  // drop-foreign naming, alterTable fluent foreign, plus duplicated logic
+  // further down the file) that all currently assume a single column/
+  // reference string baked into interpolation — architectural, not a small
+  // fix. Left out of this harness and reported separately.
 ];
 
 const out = [];

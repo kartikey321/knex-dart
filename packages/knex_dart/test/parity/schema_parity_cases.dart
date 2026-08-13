@@ -62,6 +62,56 @@ final Map<String, SchemaParityCase> schemaParityCases = {
         t.foreign('user_id').references('id').inTable('users').onUpdate('cascade');
       }).toSQL(),
 
+  'schema/default-string-embedded-quote': (d) => _sb(d).alterTable('users', (t) {
+        t.string('nickname').defaultTo("single 'quoted' value");
+      }).toSQL(),
+
+  'schema/default-null': (d) => _sb(d).alterTable('users', (t) {
+        t.string('nickname').defaultTo(null);
+      }).toSQL(),
+
+  'schema/default-string-not-null': (d) => _sb(d).alterTable('users', (t) {
+        t.string('nickname', 100).notNullable().defaultTo('guest');
+      }).toSQL(),
+
+  'schema/default-raw-current-timestamp': (d) => _sb(d).alterTable('users', (t) {
+        t.timestamp('created_at').defaultTo(_sb(d).client.raw('CURRENT_TIMESTAMP'));
+      }).toSQL(),
+
+  'schema/default-boolean-false': (d) => _sb(d).alterTable('users', (t) {
+        t.boolean('enabled').defaultTo(false);
+      }).toSQL(),
+
+  'schema/default-json-object': (d) => _sb(d).alterTable('users', (t) {
+        t.json('preferences').defaultTo({}).notNullable();
+      }).toSQL(),
+
+  'schema/default-jsonb-object': (d) => _sb(d).alterTable('users', (t) {
+        t.jsonb('preferences').defaultTo({}).notNullable();
+      }).toSQL(),
+
+  'schema/create-table-column-primary': (d) => _sb(d).createTable('users', (t) {
+        t.string('external_id').primary();
+      }).toSQL(),
+
+  'schema/create-table-unique-composite-named': (d) => _sb(d).createTable('memberships', (t) {
+        t.integer('user_id');
+        t.integer('org_id');
+        t.unique(['user_id', 'org_id'], 'uq_membership');
+      }).toSQL(),
+
+  'schema/alter-table-add-unique-composite': (d) => _sb(d).alterTable('memberships', (t) {
+        t.unique(['user_id', 'org_id']);
+      }).toSQL(),
+
+  'schema/alter-table-add-index-composite': (d) => _sb(d).alterTable('memberships', (t) {
+        t.index(['user_id', 'org_id']);
+      }).toSQL(),
+
+  'schema/alter-table-add-column-foreign': (d) => _sb(d).alterTable('orders', (t) {
+        t.integer('user_id').references('id').inTable('users');
+      }).toSQL(),
+
   'schema/alter-table-add-column': (d) => _sb(d).alterTable('users', (t) {
         t.string('nickname');
       }).toSQL(),
@@ -133,4 +183,12 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/drop-table': (d) => _sb(d).dropTable('users').toSQL(),
   'schema/drop-table-if-exists': (d) => _sb(d).dropTableIfExists('users').toSQL(),
   'schema/rename-table': (d) => _sb(d).renameTable('users', 'accounts').toSQL(),
+
+  'schema/create-table-column-unsigned': (d) => _sb(d).createTable('t', (t) {
+        t.integer('qty').unsigned();
+      }).toSQL(),
+
+  'schema/alter-table-column-unsigned': (d) => _sb(d).alterTable('t', (t) {
+        t.integer('qty').unsigned();
+      }).toSQL(),
 };

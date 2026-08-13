@@ -118,7 +118,7 @@ class TableBuilder {
         return 'datetime';
       case 'mysql':
       case 'mysql2':
-        return 'datetime';
+        return 'timestamp';
       default:
         return useTz ? 'timestamptz' : 'timestamp';
     }
@@ -154,10 +154,12 @@ class TableBuilder {
     switch (_dialect) {
       case 'sqlite':
       case 'sqlite3':
-        return 'text'; // SQLite stores JSON as text
+        return 'json';
       case 'mysql':
       case 'mysql2':
         return 'json';
+      case 'redshift':
+        return 'varchar(max)';
       default:
         return 'json';
     }
@@ -167,10 +169,12 @@ class TableBuilder {
     switch (_dialect) {
       case 'sqlite':
       case 'sqlite3':
-        return 'text';
+        return 'json';
       case 'mysql':
       case 'mysql2':
         return 'json'; // MySQL doesn't distinguish json/jsonb
+      case 'redshift':
+        return 'varchar(max)';
       default:
         return 'jsonb';
     }

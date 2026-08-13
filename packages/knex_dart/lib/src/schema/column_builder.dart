@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:knex_dart/src/raw.dart';
 
 /// A fluent builder for a column definition in a CREATE TABLE or ALTER TABLE statement.
@@ -132,12 +134,25 @@ class ColumnBuilder {
       } else if (_defaultValue is num) {
         parts.add('default $_defaultValue');
       } else if (_defaultValue is String) {
-        parts.add("default '$_defaultValue'");
+        parts.add('default ${_sqlString(_defaultValue as String)}');
+      } else if ((type == 'json' || type == 'jsonb') &&
+          (_defaultValue is Map || _defaultValue is List)) {
+        final value = _sqlString(jsonEncode(_defaultValue));
+        // MySQL 8 requires a JSON literal default to be an expression. knex.js
+        // therefore emits DEFAULT ('{}') rather than DEFAULT '{}'.
+        final isMySql = dialect == 'mysql' ||
+            dialect == 'mysql2' ||
+            dialect == 'mariadb';
+        parts.add('default ${isMySql ? '($value)' : value}');
       } else {
-        parts.add('default $_defaultValue');
+        parts.add('default ${_sqlString(_defaultValue.toString())}');
       }
     }
 
     return parts.join(' ');
   }
+
+  /// Quote a string for use as a SQL literal, escaping embedded `'` by
+  /// doubling it (matches knex.js's `Client.prototype._escapeBinding`).
+  String _sqlString(String value) => "'${value.replaceAll("'", "''")}'";
 }

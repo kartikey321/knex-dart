@@ -76,6 +76,56 @@ void main() {
       expect(sql.sql, 'select "id" from "public"."users"');
       expect(sql.bindings, []);
     });
+
+    test(
+      'Test 7: select([List]) with a { alias: column } map entry '
+      '(verified against real knex.js: select "id", "name" as "user_name" '
+      'from "t")',
+      () {
+        final builder = QueryBuilder(client).table('t').select([
+          'id',
+          {'user_name': 'name'},
+        ]);
+        final sql = builder.toSQL();
+
+        expect(sql.sql, 'select "id", "name" as "user_name" from "t"');
+        expect(sql.bindings, []);
+      },
+    );
+
+    test(
+      'Test 8: select({alias: column}) — a bare Map, not wrapped in a List '
+      '(verified against real knex.js: select "name" as "user_name" from '
+      '"t")',
+      () {
+        final builder = QueryBuilder(client).table('t').select({
+          'user_name': 'name',
+        });
+        final sql = builder.toSQL();
+
+        expect(sql.sql, 'select "name" as "user_name" from "t"');
+        expect(sql.bindings, []);
+      },
+    );
+
+    test(
+      'Test 9: select({alias: subquery}) aliases a QueryBuilder subquery '
+      '(verified against real knex.js: select (select "x" from "t2" limit '
+      '1) as "total" from "t1")',
+      () {
+        final sub = QueryBuilder(client).table('t2').select(['x']).limit(1);
+        final builder = QueryBuilder(client).table('t1').select({
+          'total': sub,
+        });
+        final sql = builder.toSQL();
+
+        expect(
+          sql.sql,
+          'select (select "x" from "t2" limit \$1) as "total" from "t1"',
+        );
+        expect(sql.bindings, [1]);
+      },
+    );
   });
 
   group('QueryCompiler - Structure Tests', () {
@@ -1111,6 +1161,10 @@ void main() {
   });
 
   group('QueryCompiler Step 10 - INSERT', () {
+    // NOTE: knex.js's `_prepInsert` sorts the INSERT column list
+    // alphabetically (`Object.keys(data[i]).sort()`), independent of the
+    // Map's insertion order — so expectations below are column-name-sorted,
+    // with bindings reordered to match. Verified against real knex.js output.
     test('Single row insert', () {
       final builder = QueryBuilder(
         client,
@@ -1119,9 +1173,9 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "users" ("name", "email") values (\$1, \$2)',
+        'insert into "users" ("email", "name") values (\$1, \$2)',
       );
-      expect(sql.bindings, ['John', 'john@example.com']);
+      expect(sql.bindings, ['john@example.com', 'John']);
     });
 
     test('Multiple rows insert', () {
@@ -1133,13 +1187,13 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "users" ("name", "email") values (\$1, \$2), (\$3, \$4)',
+        'insert into "users" ("email", "name") values (\$1, \$2), (\$3, \$4)',
       );
       expect(sql.bindings, [
-        'John',
         'john@example.com',
-        'Jane',
+        'John',
         'jane@example.com',
+        'Jane',
       ]);
     });
 
@@ -1152,9 +1206,9 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "users" ("name", "email") values (\$1, \$2) returning "id"',
+        'insert into "users" ("email", "name") values (\$1, \$2) returning "id"',
       );
-      expect(sql.bindings, ['John', 'john@example.com']);
+      expect(sql.bindings, ['john@example.com', 'John']);
     });
 
     test('Insert with RETURNING - multiple columns', () {
@@ -1166,9 +1220,9 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "users" ("name", "email") values (\$1, \$2) returning "id", "name", "created_at"',
+        'insert into "users" ("email", "name") values (\$1, \$2) returning "id", "name", "created_at"',
       );
-      expect(sql.bindings, ['John', 'john@example.com']);
+      expect(sql.bindings, ['john@example.com', 'John']);
     });
 
     test('Insert with NULL values', () {
@@ -1179,9 +1233,9 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "users" ("name", "email", "phone") values (\$1, \$2, \$3)',
+        'insert into "users" ("email", "name", "phone") values (\$1, \$2, \$3)',
       );
-      expect(sql.bindings, ['John', null, null]);
+      expect(sql.bindings, [null, 'John', null]);
     });
 
     test('Insert with different data types', () {
@@ -1195,9 +1249,9 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "products" ("name", "price", "quantity", "active") values (\$1, \$2, \$3, \$4)',
+        'insert into "products" ("active", "name", "price", "quantity") values (\$1, \$2, \$3, \$4)',
       );
-      expect(sql.bindings, ['Widget', 19.99, 100, true]);
+      expect(sql.bindings, [true, 'Widget', 19.99, 100]);
     });
 
     test('Multiple rows with RETURNING', () {
@@ -1212,9 +1266,9 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "users" ("name", "age") values (\$1, \$2), (\$3, \$4) returning "id", "name"',
+        'insert into "users" ("age", "name") values (\$1, \$2), (\$3, \$4) returning "id", "name"',
       );
-      expect(sql.bindings, ['John', 30, 'Jane', 25]);
+      expect(sql.bindings, [30, 'John', 25, 'Jane']);
     });
 
     test('Insert with schema qualification', () {
@@ -1226,9 +1280,23 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "public"."users" ("name", "email") values (\$1, \$2)',
+        'insert into "public"."users" ("email", "name") values (\$1, \$2)',
       );
-      expect(sql.bindings, ['John', 'john@example.com']);
+      expect(sql.bindings, ['john@example.com', 'John']);
+    });
+
+    test('Insert with a Raw value inlines SQL text instead of binding it', () {
+      final builder = QueryBuilder(client).table('leases').insert({
+        'group_key': 'g1',
+        'fence': client.raw('DEFAULT'),
+      });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'insert into "leases" ("fence", "group_key") values (DEFAULT, \$1)',
+      );
+      expect(sql.bindings, ['g1']);
     });
 
     test('Insert empty array should throw', () {
@@ -1313,6 +1381,45 @@ void main() {
       );
       expect(sql.bindings, [null, 1]);
     });
+
+    test('Update with a Raw value inlines SQL text instead of binding it', () {
+      final builder = QueryBuilder(client)
+          .table('leases')
+          .where('id', 1)
+          .update({
+            'lease_until': client.raw('clock_timestamp()'),
+            'name': 'Updated',
+          });
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'update "leases" set "lease_until" = clock_timestamp(), '
+        '"name" = \$1 where "id" = \$2',
+      );
+      expect(sql.bindings, ['Updated', 1]);
+    });
+
+    test(
+      'A Raw value with its own ? bindings has its \$N placeholders '
+      'renumbered to continue from the surrounding query\'s running '
+      'binding count (via _inlineRaw / Client.offsetPlaceholders), instead '
+      'of colliding at \$1 — same fix applies to where(client.raw(...)), '
+      'joinRaw(), etc.',
+      () {
+        final builder = QueryBuilder(client)
+            .table('t')
+            .where('id', 1)
+            .update({'a': 'x', 'b': client.raw('? + ?', [2, 3])});
+        final sql = builder.toSQL();
+
+        expect(
+          sql.sql,
+          'update "t" set "a" = \$1, "b" = \$2 + \$3 where "id" = \$4',
+        );
+        expect(sql.bindings, ['x', 2, 3, 1]);
+      },
+    );
 
     test('Increment operation', () {
       final builder = QueryBuilder(
@@ -1567,6 +1674,41 @@ void main() {
       expect(sql.sql, 'select "name" from "users"');
       expect(sql.bindings, []);
     });
+
+    test(
+      'A where(raw) placed after a bound where() has its placeholders '
+      'renumbered to continue the running count instead of colliding at '
+      r'$1',
+      () {
+        final builder = QueryBuilder(client)
+            .table('t')
+            .where('id', 1)
+            .where(client.raw('col = ? + ?', [2, 3]));
+        final sql = builder.toSQL();
+
+        expect(sql.sql, 'select * from "t" where "id" = \$1 and col = \$2 + \$3');
+        expect(sql.bindings, [1, 2, 3]);
+      },
+    );
+
+    test(
+      'whereExists() subquery placeholders continue the parent\'s running '
+      'binding count instead of restarting at \$1',
+      () {
+        final builder = QueryBuilder(client)
+            .table('t')
+            .where('a', 1)
+            .whereExists((qb) => qb.table('t2').where('x', 2));
+        final sql = builder.toSQL();
+
+        expect(
+          sql.sql,
+          'select * from "t" where "a" = \$1 and exists '
+          '(select * from "t2" where "x" = \$2)',
+        );
+        expect(sql.bindings, [1, 2]);
+      },
+    );
   });
 
   // QueryCompiler Step 14 - Aggregate Functions

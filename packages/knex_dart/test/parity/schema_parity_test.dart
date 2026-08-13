@@ -132,6 +132,8 @@ const Map<String, String> schemaParityAllowlist = {
           'Both refuse the operation — different failure mode, not a bug.',
   'schema/alter-table-add-index-named::redshift':
       '[ACCEPTED] see schema/alter-table-add-index::redshift.',
+  'schema/alter-table-add-index-composite::redshift':
+      '[ACCEPTED] see schema/alter-table-add-index::redshift.',
   'schema/alter-table-drop-index::redshift':
       '[ACCEPTED] Redshift has no DROP INDEX; knex.js silently emits no SQL '
           '(console warning only), knex-dart throws UnsupportedError.',
@@ -152,6 +154,24 @@ const Map<String, String> schemaParityAllowlist = {
   //                                 — knex.js: PRIMARY KEY name(cols); knex-dart: CONSTRAINT name PRIMARY KEY (cols)
   'schema/alter-table-add-column::mysql':
       '[ACCEPTED] MySQL: `ADD col_def` vs `ADD COLUMN col_def` — COLUMN is optional, both valid.',
+  'schema/default-string-embedded-quote::mysql':
+      '[ACCEPTED] MySQL: knex.js uses backslash quote escaping while knex-dart '
+          'uses standard doubled quotes; both produce the same string literal. '
+          'Also `ADD` vs `ADD COLUMN` — see schema/alter-table-add-column::mysql.',
+  'schema/default-null::mysql':
+      '[ACCEPTED] MySQL: knex.js omits `DEFAULT NULL` (the implicit default); '
+          'knex-dart states it explicitly. Also `ADD` vs `ADD COLUMN`.',
+  'schema/default-string-not-null::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
+  'schema/default-raw-current-timestamp::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
+  'schema/default-boolean-false::mysql':
+      '[ACCEPTED] MySQL BOOLEAN is a TINYINT(1) synonym; also `ADD` vs `ADD COLUMN` '
+          '(see schema/alter-table-add-column::mysql).',
+  'schema/default-json-object::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
+  'schema/default-jsonb-object::mysql':
+      '[ACCEPTED] see schema/default-json-object::mysql (MySQL maps JSONB to JSON).',
   'schema/alter-table-drop-column::mysql':
       '[ACCEPTED] MySQL: `DROP col` vs `DROP COLUMN col` — COLUMN is optional, both valid.',
   'schema/alter-table-add-unique::mysql':
@@ -162,6 +182,27 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] MySQL: `ALTER TABLE ADD INDEX` vs `CREATE INDEX` are equivalent ways to add an index.',
   'schema/alter-table-add-index-named::mysql':
       '[ACCEPTED] see schema/alter-table-add-index::mysql.',
+  'schema/alter-table-add-index-composite::mysql':
+      '[ACCEPTED] see schema/alter-table-add-index::mysql.',
+  'schema/alter-table-add-unique-composite::mysql':
+      '[ACCEPTED] see schema/alter-table-add-unique::mysql.',
+  'schema/create-table-unique-composite-named::mysql':
+      '[ACCEPTED] MySQL INTEGER is an INT synonym — see grouped note above (2).',
+  'schema/create-table-column-primary::redshift':
+      '[ACCEPTED] knex.js defers this Redshift primary key and adds NOT NULL; '
+          'knex-dart emits the valid inline informational constraint. See '
+          'schema/create-table-primary-composite::redshift.',
+  'schema/alter-table-add-column-foreign::mysql':
+      '[ACCEPTED] MySQL INTEGER is an INT synonym and `ADD COLUMN` is equivalent '
+          'to `ADD`; the generated foreign-key constraint matches.',
+  'schema/alter-table-add-column-foreign::sqlite':
+      '[ACCEPTED] SQLite: knex.js starts its PRAGMA-based table rebuild; '
+          'knex-dart refuses ALTER TABLE ADD FOREIGN KEY rather than silently '
+          'dropping it.',
+  'schema/alter-table-add-column-foreign::turso':
+      '[ACCEPTED] see schema/alter-table-add-column-foreign::sqlite (sqlite-family).',
+  'schema/alter-table-add-column-foreign::d1':
+      '[ACCEPTED] see schema/alter-table-add-column-foreign::sqlite (sqlite-family).',
   'schema/alter-table-drop-index::mysql':
       '[ACCEPTED] MySQL: `DROP INDEX name ON table` vs `ALTER TABLE table DROP INDEX name` are equivalent.',
   'schema/alter-table-drop-index-named::mysql':
@@ -318,6 +359,19 @@ const Map<String, String> schemaParityAllowlist = {
           'different spelling.',
   'schema/alter-table-drop-unique-named::cockroachdb':
       '[ACCEPTED] see schema/alter-table-drop-unique::cockroachdb.',
+
+  // ── ACCEPTED: unsigned() column-modifier dispatch — same int/integer
+  // synonym (grouped note (2)) and ADD/ADD COLUMN spelling (grouped note
+  // above) as elsewhere; the `unsigned` keyword itself matches identically
+  // on both sides in both createTable and alterTable-add-column forms,
+  // confirming the unsigned dispatch itself (MySQL-only grammar; postgres/
+  // sqlite silently ignore it, verified against real knex.js output) is
+  // correct — only the pre-existing cosmetic spelling differences repeat.
+  'schema/create-table-column-unsigned::mysql':
+      '[ACCEPTED] MySQL INTEGER is an INT synonym — see grouped note above (2).',
+  'schema/alter-table-column-unsigned::mysql':
+      '[ACCEPTED] MySQL: int/integer synonym + `ADD` vs `ADD COLUMN` — see '
+          'grouped note above (2) and schema/alter-table-add-column::mysql.',
 
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
 };

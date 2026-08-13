@@ -102,6 +102,220 @@ const cases = [
 
   // Known-divergence probe (jsonb key-existence operator).
   ['jsonb/qmark-op', (k) => k('t').where('tags', '?', 'urgent')],
+
+  // Batch 3 — nested subqueries, EXISTS, UNION/INTERSECT, CTEs, window
+  // functions, DML with RETURNING/onConflict. Mined from knex.js's own
+  // test/unit/query/builder.js so every shape here is a real, already-CI
+  // verified call pattern.
+
+  // ── Subqueries (select / where / from, incl. 2+ level nesting) ──────────
+  ['subquery/from-aliased', (k) =>
+    k(k('foo').select('*').as('bar')).join('baz', 'foo.id', 'bar.foo_id')],
+  ['subquery/where-scalar', (k) =>
+    k('users').where('id', '=', k('users').select('id').where('email', 'bar'))],
+  ['subquery/where-scalar-callback', (k) =>
+    k('users').where('id', '=', function () {
+      this.select(k.raw('max(id)')).from('users').where('email', '=', 'bar');
+    })],
+  ['subquery/select-scalar', (k) =>
+    k('employee as e')
+      .select('e.lastname', 'e.salary')
+      .select(
+        k('employee').select('avg(salary)').whereRaw('dept_no = e.dept_no').as('avg_sal_dept'),
+      )
+      .where('dept_no', '=', 'e.dept_no')],
+  ['subquery/select-first-as', (k) =>
+    k('employee as e')
+      .select(
+        'e.lastname',
+        'e.salary',
+        k.queryBuilder().first('salary').from('employee').whereRaw('dept_no = e.dept_no').orderBy('salary', 'desc').as('top_dept_salary'),
+      )
+      .from('employee as e')
+      .where('dept_no', '=', 'e.dept_no')],
+  ['subquery/from-basic-alias', (k) =>
+    k(k('orders').select(k.raw('? as f', ['inner raw select'])).as('g'))
+      .select(k.raw('?', ['outer raw select']), 'g.f')
+      .where('g.secret', 123)],
+  ['subquery/from-nested-2level', (k) =>
+    k(k(k('inner_t').select('*').where('x', 1).as('mid')).select('*').as('outer_alias'))
+      .select('*')],
+  ['subquery/where-in-2level', (k) =>
+    k('users').whereIn(
+      'id',
+      k('orders').select('user_id').whereIn('product_id', k('products').select('id').where('active', true)),
+    )],
+
+  // ── CTEs ──────────────────────────────────────────────────────────────
+  ['cte/nested', (k) =>
+    k.queryBuilder()
+      .with('withClause', function () {
+        this.with('withSubClause', function () {
+          this.select('foo').as('baz').from('users');
+        }).select('*').from('withSubClause');
+      })
+      .select('*')
+      .from('withClause')],
+  ['cte/chained-siblings', (k) =>
+    k.queryBuilder()
+      .with('firstWithClause', function () { this.select('foo').from('users'); })
+      .with('secondWithClause', function () { this.select('bar').from('users'); })
+      .select('*')
+      .from('secondWithClause')],
+  ['cte/raw', (k) =>
+    k.queryBuilder()
+      .with('withRawClause', k.raw('select "foo" as "baz" from "users"'))
+      .select('*')
+      .from('withRawClause')],
+  ['cte/recursive-nested-chained', (k) =>
+    k.queryBuilder()
+      .withRecursive('firstWithClause', function () {
+        this.withRecursive('firstWithSubClause', function () {
+          this.select('foo').as('foz').from('users');
+        }).select('*').from('firstWithSubClause');
+      })
+      .withRecursive('secondWithClause', function () {
+        this.withRecursive('secondWithSubClause', function () {
+          this.select('bar').as('baz').from('users');
+        }).select('*').from('secondWithSubClause');
+      })
+      .select('*')
+      .from('secondWithClause')],
+  ['cte/insert-multi-source', (k) =>
+    k.queryBuilder()
+      .with('withClause', function () {
+        this.select('foo').from('users').where({ name: 'bob' });
+      })
+      .insert([
+        { email: 'thisMail', name: 'sam' },
+        { email: 'thatMail', name: 'jack' },
+      ])
+      .into('users')],
+  ['cte/update-source', (k) =>
+    k.queryBuilder()
+      .with(
+        'updated_group',
+        k.queryBuilder().table('group').update({ group_name: 'bar' }).where({ group_id: 1 }).returning('group_id'),
+      )
+      .table('user')
+      .update({ name: 'foo' })
+      .where({ group_id: 1 })],
+  ['cte/delete-source', (k) =>
+    k.queryBuilder()
+      .with('delete1', (builder) => builder.delete().from('accounts').where('id', 1))
+      .from('accounts')],
+
+  // ── EXISTS / NOT EXISTS ──────────────────────────────────────────────────
+  ['exists/where', (k) =>
+    k('orders').select('*').whereExists(function () {
+      this.select('*').from('products').where('products.id', '=', k.raw('"orders"."id"'));
+    })],
+  ['exists/where-not', (k) =>
+    k('orders').select('*').whereNotExists(function () {
+      this.select('*').from('products').where('products.id', '=', k.raw('"orders"."id"'));
+    })],
+  ['exists/or-where', (k) =>
+    k('orders').select('*').where('id', '=', 1).orWhereExists(function () {
+      this.select('*').from('products').where('products.id', '=', k.raw('"orders"."id"'));
+    })],
+  ['exists/or-where-not', (k) =>
+    k('orders').select('*').where('id', '=', 1).orWhereNotExists(function () {
+      this.select('*').from('products').where('products.id', '=', k.raw('"orders"."id"'));
+    })],
+  ['exists/wrapped-or', (k) =>
+    k('orders').select('*').where('status', 'shipped').where(function () {
+      this.whereExists(function () {
+        this.select('*').from('products').where('products.id', '=', k.raw('"orders"."id"'));
+      }).orWhereExists(function () {
+        this.select('*').from('refunds').where('refunds.order_id', '=', k.raw('"orders"."id"'));
+      });
+    })],
+  ['exists/with-select-subquery', (k) =>
+    k('orders')
+      .select('*', k('order_meta').select('value').where('order_meta.order_id', '=', k.raw('"orders"."id"')).as('meta_value'))
+      .whereExists(function () {
+        this.select('*').from('products').where('products.id', '=', k.raw('"orders"."id"'));
+      })],
+
+  // ── UNION / INTERSECT / EXCEPT ───────────────────────────────────────────
+  ['union/three-way', (k) =>
+    k('a').select('id').where('x', 1)
+      .union(k('b').select('id').where('y', 2), k('c').select('id').where('z', 3))],
+  ['union/array-callbacks', (k) =>
+    k('users').select('*').where({ id: 1 })
+      .union([
+        function () { this.select('*').from('users').where({ id: 2 }); },
+        function () { this.select('*').from('users').where({ id: 3 }); },
+      ])],
+  ['union/order-limit-outer', (k) =>
+    k('a').select('id', 'name').where('x', 1)
+      .union(k('b').select('id', 'name').where('y', 2))
+      .orderBy('name')
+      .limit(10)],
+  ['intersect/basic', (k) =>
+    k('a').select('*').where('id', '=', 1).intersect(k('b').select('*').where('id', '=', 2))],
+  ['intersect/three-way', (k) =>
+    k('a').select('id').intersect(k('b').select('id'), k('c').select('id'))],
+  ['except/basic', (k) =>
+    k('a').select('id').except(k('b').select('id'))],
+  ['union/all-order-limit', (k) =>
+    k('a').select('id').where('x', 1)
+      .unionAll(k('b').select('id').where('y', 2))
+      .orderBy('id', 'desc')
+      .limit(5)
+      .offset(2)],
+
+  // ── Window / analytic functions ──────────────────────────────────────────
+  ['window/rank-string-partition', (k) =>
+    k('accounts').select('*').rank('alias_name', 'email', 'firstName')],
+  ['window/rank-array-both', (k) =>
+    k('accounts').select('*').rank('alias_name', ['email', 'address'], ['firstName', 'lastName'])],
+  ['window/dense-rank-callback', (k) =>
+    k('accounts').select('*').denseRank('test_alias', function () {
+      this.orderBy('email').partitionBy('address');
+    })],
+  ['window/dense-rank-callback-chains', (k) =>
+    k('accounts').select('*').denseRank('test_alias', function () {
+      this.orderBy('email').partitionBy('address').partitionBy('phone').orderBy('name');
+    })],
+  ['window/row-number-array', (k) =>
+    k('accounts').select('*').rowNumber('alias_name', ['email', 'address'], ['firstName', 'lastName'])],
+  ['window/rank-raw', (k) =>
+    k('accounts').select('*').rank(null, k.raw('partition by address order by email'))],
+  ['window/chained-multiple', (k) =>
+    k('accounts').select('*').denseRank('first_alias', 'email').denseRank('second_alias', 'address')],
+  ['window/dense-rank-raw-alias', (k) =>
+    k('accounts').select('*').denseRank('test_alias', k.raw('partition by address order by email'))],
+  ['window/rank-then-orderby', (k) =>
+    k('accounts').select('*').rank('rnk', 'salary').where('dept', '=', 'eng').orderBy('rnk')],
+
+  // ── DML with RETURNING / onConflict ──────────────────────────────────────
+  ['dml/onconflict-ignore', (k) =>
+    k('users').insert([{ email: 'foo' }, { email: 'bar' }]).onConflict('email').ignore()],
+  ['dml/onconflict-composite-ignore', (k) =>
+    k('users').insert([{ org: 'acme-inc', email: 'foo' }]).onConflict(['org', 'email']).ignore()],
+  ['dml/onconflict-merge-explicit', (k) =>
+    k('users').from('users')
+      .insert([{ email: 'foo', name: 'taylor' }, { email: 'bar', name: 'dayle' }])
+      .onConflict('email')
+      .merge({ name: 'overidden' })],
+  ['dml/onconflict-merge-implicit-multi', (k) =>
+    k('users').from('users')
+      .insert([{ email: 'foo', name: 'taylor' }, { email: 'bar', name: 'dayle' }])
+      .onConflict('email')
+      .merge()],
+  ['dml/onconflict-raw-target', (k) =>
+    k('users').insert([{ email: 'foo' }, { email: 'bar' }])
+      .onConflict(k.raw('(value) WHERE deleted_at IS NULL'))
+      .ignore()],
+  ['dml/onconflict-merge-where', (k) =>
+    k('users').insert({ email: 'foo', name: 'taylor' }).onConflict('email').merge().where('email', 'foo2')],
+  ['dml/returning-multi-insert', (k) =>
+    k('users').insert([{ email: 'a' }, { email: 'b' }]).returning(['id', 'email'])],
+  ['dml/returning-update', (k) =>
+    k('users').where('id', 1).update({ name: 'Bob' }).returning('*')],
+  ['dml/returning-delete', (k) =>
+    k('users').where('id', 1).del().returning('id')],
 ];
 
 const out = [];

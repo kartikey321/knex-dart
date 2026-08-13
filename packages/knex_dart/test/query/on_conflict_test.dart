@@ -91,6 +91,29 @@ void main() {
       expect(sql.bindings, contains('Updated Alice'));
     });
 
+    test('merge(Map) inlines a Raw value instead of binding it', () {
+      final sql = QueryBuilder(pg)
+          .table('leases')
+          .insert({'group_key': 'g1', 'fence': 1})
+          .onConflict('group_key')
+          .merge({
+            'fence': pg.raw('DEFAULT'),
+            'lease_until': pg.raw('clock_timestamp()'),
+          })
+          .toSQL();
+
+      expect(
+        sql.sql,
+        contains(
+          'do update set "fence" = DEFAULT, "lease_until" = clock_timestamp()',
+        ),
+      );
+      // Raw fragments must not appear as bound parameters. Binding order
+      // follows the sorted INSERT column order ("fence" before "group_key"),
+      // matching knex.js's `_prepInsert` — verified against real knex.js.
+      expect(sql.bindings, [1, 'g1']);
+    });
+
     test('merge() chained with returning()', () {
       final sql = QueryBuilder(pg)
           .table('users')

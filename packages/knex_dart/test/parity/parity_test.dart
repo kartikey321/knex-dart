@@ -46,6 +46,98 @@ const Map<String, String> parityAllowlist = {
   'upsert/merge::redshift':
       '[ACCEPTED] Redshift does not support ON CONFLICT. knex.js emits a plain '
           'INSERT (silently dropping the upsert!); knex-dart correctly refuses.',
+  'cte/update-source::redshift':
+      '[ACCEPTED] see returning/insert::redshift — the CTE body is an UPDATE '
+          '...RETURNING; Redshift has no RETURNING, knex.js silently omits it, '
+          'knex-dart correctly refuses.',
+  'cte/update-source::mysql':
+      '[ACCEPTED] see returning/insert::mysql — same RETURNING gap, this time '
+          'on the UPDATE used as the CTE body.',
+  'cte/insert-multi-source::sqlite':
+      '[ACCEPTED] Cosmetic multi-row INSERT syntax choice on SQLite: knex.js\'s '
+          "sqlite3 client always compiles multi-row inserts as "
+          '`select ? as col union all select ? as col ...` (a compatibility '
+          'shim for SQLite versions predating multi-row VALUES support, '
+          '<3.7.11/2012). knex-dart emits standard `values (?, ?), (?, ?)`, '
+          'which every SQLite version knex-dart targets supports natively. '
+          'Both are semantically identical INSERTs; same class as the '
+          'documented MySQL `ADD COLUMN` vs `ADD` cosmetic-equivalence entries.',
+  'cte/insert-multi-source::turso':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite (turso is sqlite-family, '
+          'and libSQL/turso has supported multi-row VALUES since inception).',
+  'cte/insert-multi-source::d1':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite (d1 is sqlite-family, '
+          'and Cloudflare D1 (SQLite 3.4x+) supports multi-row VALUES).',
+  'dml/onconflict-ignore::redshift':
+      '[ACCEPTED] see upsert/merge::redshift — Redshift has no ON CONFLICT; '
+          'knex.js silently emits a plain INSERT, knex-dart correctly refuses.',
+  'dml/onconflict-composite-ignore::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (composite conflict target, same '
+          'Redshift ON CONFLICT gap).',
+  'dml/onconflict-merge-explicit::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (.merge() with explicit update '
+          'values, same Redshift ON CONFLICT gap).',
+  'dml/onconflict-merge-implicit-multi::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (.merge() with implicit '
+          'excluded-column updates, same Redshift ON CONFLICT gap).',
+  'dml/onconflict-raw-target::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (raw partial-index conflict '
+          'target, same Redshift ON CONFLICT gap).',
+  'dml/onconflict-merge-where::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (.merge().where() guard, same '
+          'Redshift ON CONFLICT gap).',
+  'dml/returning-multi-insert::redshift':
+      '[ACCEPTED] see returning/insert::redshift (multi-row insert, same '
+          'RETURNING gap).',
+  'dml/returning-multi-insert::mysql':
+      '[ACCEPTED] see returning/insert::mysql (multi-row insert, same '
+          'RETURNING gap).',
+  'dml/returning-update::redshift':
+      '[ACCEPTED] see returning/insert::redshift — same RETURNING gap, this '
+          'time on UPDATE...RETURNING.',
+  'dml/returning-update::mysql':
+      '[ACCEPTED] see returning/insert::mysql — same RETURNING gap, this time '
+          'on UPDATE...RETURNING.',
+  'dml/returning-delete::redshift':
+      '[ACCEPTED] see returning/insert::redshift — same RETURNING gap, this '
+          'time on DELETE...RETURNING.',
+  'dml/returning-delete::mysql':
+      '[ACCEPTED] see returning/insert::mysql — same RETURNING gap, this time '
+          'on DELETE...RETURNING.',
+  'dml/onconflict-ignore::sqlite':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite — multi-row INSERT '
+          '...ON CONFLICT is the same union-all-select vs standard-VALUES '
+          'cosmetic syntax choice.',
+  'dml/onconflict-ignore::turso':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (turso is sqlite-family).',
+  'dml/onconflict-ignore::d1':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (d1 is sqlite-family).',
+  'dml/onconflict-merge-explicit::sqlite':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (same union-all-select vs '
+          'VALUES divergence, this time with .merge() with explicit values).',
+  'dml/onconflict-merge-explicit::turso':
+      '[ACCEPTED] see dml/onconflict-merge-explicit::sqlite (turso is '
+          'sqlite-family).',
+  'dml/onconflict-merge-explicit::d1':
+      '[ACCEPTED] see dml/onconflict-merge-explicit::sqlite (d1 is '
+          'sqlite-family).',
+  'dml/onconflict-merge-implicit-multi::sqlite':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (same union-all-select vs '
+          'VALUES divergence, this time with implicit-excluded-column merge).',
+  'dml/onconflict-merge-implicit-multi::turso':
+      '[ACCEPTED] see dml/onconflict-merge-implicit-multi::sqlite (turso is '
+          'sqlite-family).',
+  'dml/onconflict-merge-implicit-multi::d1':
+      '[ACCEPTED] see dml/onconflict-merge-implicit-multi::sqlite (d1 is '
+          'sqlite-family).',
+  'dml/onconflict-raw-target::sqlite':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (same union-all-select vs '
+          'VALUES divergence, this time with a raw partial-index target).',
+  'dml/onconflict-raw-target::turso':
+      '[ACCEPTED] see dml/onconflict-raw-target::sqlite (turso is '
+          'sqlite-family).',
+  'dml/onconflict-raw-target::d1':
+      '[ACCEPTED] see dml/onconflict-raw-target::sqlite (d1 is sqlite-family).',
 
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
   'returning/insert::sqlite':
@@ -56,6 +148,37 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see returning/insert::sqlite (turso is sqlite-family).',
   'returning/insert::d1':
       '[OPEN BUG] see returning/insert::sqlite (d1 is sqlite-family).',
+  'cte/update-source::sqlite':
+      '[OPEN BUG] see returning/insert::sqlite — same capability-matrix gap, '
+          'this time on an UPDATE...RETURNING used as a CTE body instead of '
+          'INSERT...RETURNING.',
+  'cte/update-source::turso':
+      '[OPEN BUG] see cte/update-source::sqlite (turso is sqlite-family).',
+  'cte/update-source::d1':
+      '[OPEN BUG] see cte/update-source::sqlite (d1 is sqlite-family).',
+  'dml/returning-multi-insert::sqlite':
+      '[OPEN BUG] see returning/insert::sqlite (multi-row insert, same '
+          'capability-matrix gap).',
+  'dml/returning-multi-insert::turso':
+      '[OPEN BUG] see dml/returning-multi-insert::sqlite (turso is '
+          'sqlite-family).',
+  'dml/returning-multi-insert::d1':
+      '[OPEN BUG] see dml/returning-multi-insert::sqlite (d1 is '
+          'sqlite-family).',
+  'dml/returning-update::sqlite':
+      '[OPEN BUG] see returning/insert::sqlite — same capability-matrix gap, '
+          'this time on UPDATE...RETURNING.',
+  'dml/returning-update::turso':
+      '[OPEN BUG] see dml/returning-update::sqlite (turso is sqlite-family).',
+  'dml/returning-update::d1':
+      '[OPEN BUG] see dml/returning-update::sqlite (d1 is sqlite-family).',
+  'dml/returning-delete::sqlite':
+      '[OPEN BUG] see returning/insert::sqlite — same capability-matrix gap, '
+          'this time on DELETE...RETURNING.',
+  'dml/returning-delete::turso':
+      '[OPEN BUG] see dml/returning-delete::sqlite (turso is sqlite-family).',
+  'dml/returning-delete::d1':
+      '[OPEN BUG] see dml/returning-delete::sqlite (d1 is sqlite-family).',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

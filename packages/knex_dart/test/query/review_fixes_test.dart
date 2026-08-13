@@ -30,15 +30,19 @@ void main() {
           .where('cnt', '<', 100)
           .toSQL();
 
+      // Column order is alphabetically sorted ("cnt" before "email"),
+      // matching knex.js's `_prepInsert`/implicit-merge column ordering —
+      // verified against real knex.js output.
       expect(
         sql.sql,
-        'insert into "users" ("email", "cnt") values (\$1, \$2) '
+        'insert into "users" ("cnt", "email") values (\$1, \$2) '
         'on conflict ("email") do update set '
-        '"email" = excluded."email", "cnt" = excluded."cnt" '
+        '"cnt" = excluded."cnt", "email" = excluded."email" '
         'where "cnt" < \$3',
       );
-      // Binding order: insert values first, then the guard predicate.
-      expect(sql.bindings, ['a@b.com', 1, 100]);
+      // Binding order: insert values first (sorted-column order), then the
+      // guard predicate.
+      expect(sql.bindings, [1, 'a@b.com', 100]);
     });
 
     test('MySQL throws — ON DUPLICATE KEY UPDATE has no WHERE guard', () {

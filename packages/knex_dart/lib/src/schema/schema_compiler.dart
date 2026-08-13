@@ -355,6 +355,18 @@ class SchemaCompiler {
     // parity). This is required for SQLite, which cannot add a primary key via
     // ALTER TABLE after creation; it is also valid for Postgres/MySQL.
     var primaryInline = '';
+    // ColumnBuilder.primary() is the fluent counterpart to table.primary().
+    // It must participate in the CREATE TABLE primary-key clause rather than
+    // being silently discarded after the column definition is compiled.
+    final primaryColumn = tb.columns.where((col) => col.isPrimary).firstOrNull;
+    if (primaryColumn != null && !primaryColumn.type.contains('primary key')) {
+      final colStr = _wrap(primaryColumn.name);
+      final omitsConstraintName = _isSqliteLike(client.driverName) ||
+          _isMySqlLike(client.driverName);
+      primaryInline = omitsConstraintName
+          ? ', primary key ($colStr)'
+          : ', constraint ${_wrap('${tableName}_pkey')} primary key ($colStr)';
+    }
     for (final stmt in tb.alterStatements) {
       if (stmt['method'] == 'primary') {
         final args = stmt['args'] as List;
@@ -503,6 +515,25 @@ class SchemaCompiler {
       _pushQuery(
         'alter table $tableRef $addKeyword ${col.toSQL(dialect: client.driverName, wrap: _wrap)}',
       );
+    }
+
+    // A reference declared on a newly-added column is a deferred foreign-key
+    // constraint in knex.js. Previously it was compiled as only ADD COLUMN,
+    // silently losing the constraint.
+    for (final col in tb.columns) {
+      if (col.referencesColumn == null || col.referencesTable == null) continue;
+      if (_isSqliteLike(client.driverName)) {
+        throw UnsupportedError(
+          'foreign is not supported on an existing SQLite table — '
+          'declare it in createTable, or recreate the table instead',
+        );
+      }
+      final constraintName = '${tableName}_${col.name}_foreign';
+      var fk =
+          'alter table $tableRef add constraint ${_wrap(constraintName)} foreign key (${_wrap(col.name)}) references ${_wrap(col.referencesTable!)} (${_wrap(col.referencesColumn!)})';
+      if (col.onDeleteAction != null) fk += ' on delete ${col.onDeleteAction}';
+      if (col.onUpdateAction != null) fk += ' on update ${col.onUpdateAction}';
+      _pushQuery(fk);
     }
 
     // Handle alter statements

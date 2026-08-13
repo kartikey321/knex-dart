@@ -112,4 +112,436 @@ final Map<String, ParityCase> parityCases = {
 
   // Known-divergence probe
   'jsonb/qmark-op': (d) => _qb(d).table('t').where('tags', '?', 'urgent').toSQL(),
+
+  // Batch 3 — nested subqueries, EXISTS, UNION/INTERSECT, CTEs, window
+  // functions, DML with RETURNING/onConflict. Mirrors run_js.mjs 1:1 by id;
+  // shapes mined from knex.js's test/unit/query/builder.js.
+
+  // ── Subqueries (select / where / from, incl. 2+ level nesting) ──────────
+  'subquery/from-aliased': (d) => _qb(d)
+      .table(_qb(d).table('foo').select(['*']).as('bar'))
+      .join('baz', 'foo.id', 'bar.foo_id')
+      .toSQL(),
+  'subquery/where-scalar': (d) => _qb(d)
+      .table('users')
+      .where('id', '=', _qb(d).table('users').select(['id']).where('email', 'bar'))
+      .toSQL(),
+  'subquery/where-scalar-callback': (d) => _qb(d)
+      .table('users')
+      .where('id', '=', (QueryBuilder qb) {
+        qb.select([_qb(d).client.raw('max(id)')]).table('users').where('email', '=', 'bar');
+      })
+      .toSQL(),
+  'subquery/select-scalar': (d) => _qb(d)
+      .table('employee as e')
+      .select(['e.lastname', 'e.salary'])
+      .select([
+        _qb(d)
+            .table('employee')
+            .select(['avg(salary)'])
+            .where(_qb(d).client.raw('dept_no = e.dept_no'))
+            .as('avg_sal_dept'),
+      ])
+      .where('dept_no', '=', 'e.dept_no')
+      .toSQL(),
+  'subquery/select-first-as': (d) => _qb(d)
+      .table('employee as e')
+      .select([
+        'e.lastname',
+        'e.salary',
+        _qb(d)
+            .first('salary')
+            .table('employee')
+            .where(_qb(d).client.raw('dept_no = e.dept_no'))
+            .orderBy('salary', 'desc')
+            .as('top_dept_salary'),
+      ])
+      .where('dept_no', '=', 'e.dept_no')
+      .toSQL(),
+  'subquery/from-basic-alias': (d) => _qb(d)
+      .table(
+        _qb(d)
+            .table('orders')
+            .select([_qb(d).client.raw('? as f', ['inner raw select'])])
+            .as('g'),
+      )
+      .select([_qb(d).client.raw('?', ['outer raw select']), 'g.f'])
+      .where('g.secret', 123)
+      .toSQL(),
+  'subquery/from-nested-2level': (d) => _qb(d)
+      .table(
+        _qb(d)
+            .table(
+              _qb(d).table('inner_t').select(['*']).where('x', 1).as('mid'),
+            )
+            .select(['*'])
+            .as('outer_alias'),
+      )
+      .select(['*'])
+      .toSQL(),
+  'subquery/where-in-2level': (d) => _qb(d)
+      .table('users')
+      .whereIn(
+        'id',
+        _qb(d)
+            .table('orders')
+            .select(['user_id'])
+            .whereIn(
+              'product_id',
+              _qb(d).table('products').select(['id']).where('active', true),
+            ),
+      )
+      .toSQL(),
+
+  // ── CTEs ──────────────────────────────────────────────────────────────
+  'cte/nested': (d) {
+    final withSubClause = _qb(d).select(['foo']).table('users').as('baz');
+    final withClause = _qb(d)
+        .withQuery('withSubClause', withSubClause)
+        .select(['*'])
+        .table('withSubClause');
+    return _qb(d)
+        .withQuery('withClause', withClause)
+        .select(['*'])
+        .table('withClause')
+        .toSQL();
+  },
+  'cte/chained-siblings': (d) => _qb(d)
+      .withQuery('firstWithClause', _qb(d).select(['foo']).table('users'))
+      .withQuery('secondWithClause', _qb(d).select(['bar']).table('users'))
+      .select(['*'])
+      .table('secondWithClause')
+      .toSQL(),
+  'cte/raw': (d) => _qb(d)
+      .withQuery('withRawClause', _qb(d).client.raw('select "foo" as "baz" from "users"'))
+      .select(['*'])
+      .table('withRawClause')
+      .toSQL(),
+  'cte/recursive-nested-chained': (d) {
+    final firstSub = _qb(d).select(['foo']).table('users').as('foz');
+    final firstWith = _qb(d)
+        .withRecursive('firstWithSubClause', firstSub)
+        .select(['*'])
+        .table('firstWithSubClause');
+    final secondSub = _qb(d).select(['bar']).table('users').as('baz');
+    final secondWith = _qb(d)
+        .withRecursive('secondWithSubClause', secondSub)
+        .select(['*'])
+        .table('secondWithSubClause');
+    return _qb(d)
+        .withRecursive('firstWithClause', firstWith)
+        .withRecursive('secondWithClause', secondWith)
+        .select(['*'])
+        .table('secondWithClause')
+        .toSQL();
+  },
+  'cte/insert-multi-source': (d) => _qb(d)
+      .withQuery(
+        'withClause',
+        _qb(d).select(['foo']).table('users').where('name', 'bob'),
+      )
+      .table('users')
+      .insert([
+        {'email': 'thisMail', 'name': 'sam'},
+        {'email': 'thatMail', 'name': 'jack'},
+      ])
+      .toSQL(),
+  'cte/update-source': (d) => _qb(d)
+      .withQuery(
+        'updated_group',
+        _qb(d)
+            .table('group')
+            .update({'group_name': 'bar'})
+            .where('group_id', 1)
+            .returning(['group_id']),
+      )
+      .table('user')
+      .update({'name': 'foo'})
+      .where('group_id', 1)
+      .toSQL(),
+  'cte/delete-source': (d) => _qb(d)
+      .withQuery(
+        'delete1',
+        _qb(d).table('accounts').delete().where('id', 1),
+      )
+      .table('accounts')
+      .toSQL(),
+
+  // ── EXISTS / NOT EXISTS ──────────────────────────────────────────────────
+  'exists/where': (d) => _qb(d)
+      .table('orders')
+      .select(['*'])
+      .whereExists((qb) {
+        qb.select(['*']).table('products').where(
+          'products.id',
+          '=',
+          _qb(d).client.raw('"orders"."id"'),
+        );
+      })
+      .toSQL(),
+  'exists/where-not': (d) => _qb(d)
+      .table('orders')
+      .select(['*'])
+      .whereNotExists((qb) {
+        qb.select(['*']).table('products').where(
+          'products.id',
+          '=',
+          _qb(d).client.raw('"orders"."id"'),
+        );
+      })
+      .toSQL(),
+  'exists/or-where': (d) => _qb(d)
+      .table('orders')
+      .select(['*'])
+      .where('id', '=', 1)
+      .orWhereExists((qb) {
+        qb.select(['*']).table('products').where(
+          'products.id',
+          '=',
+          _qb(d).client.raw('"orders"."id"'),
+        );
+      })
+      .toSQL(),
+  'exists/or-where-not': (d) => _qb(d)
+      .table('orders')
+      .select(['*'])
+      .where('id', '=', 1)
+      .orWhereNotExists((qb) {
+        qb.select(['*']).table('products').where(
+          'products.id',
+          '=',
+          _qb(d).client.raw('"orders"."id"'),
+        );
+      })
+      .toSQL(),
+  'exists/wrapped-or': (d) => _qb(d)
+      .table('orders')
+      .select(['*'])
+      .where('status', 'shipped')
+      .where((qb) {
+        qb
+            .whereExists((inner) {
+              inner.select(['*']).table('products').where(
+                'products.id',
+                '=',
+                _qb(d).client.raw('"orders"."id"'),
+              );
+            })
+            .orWhereExists((inner) {
+              inner.select(['*']).table('refunds').where(
+                'refunds.order_id',
+                '=',
+                _qb(d).client.raw('"orders"."id"'),
+              );
+            });
+      })
+      .toSQL(),
+  'exists/with-select-subquery': (d) => _qb(d)
+      .table('orders')
+      .select([
+        '*',
+        _qb(d)
+            .table('order_meta')
+            .select(['value'])
+            .where('order_meta.order_id', '=', _qb(d).client.raw('"orders"."id"'))
+            .as('meta_value'),
+      ])
+      .whereExists((qb) {
+        qb.select(['*']).table('products').where(
+          'products.id',
+          '=',
+          _qb(d).client.raw('"orders"."id"'),
+        );
+      })
+      .toSQL(),
+
+  // ── UNION / INTERSECT / EXCEPT ───────────────────────────────────────────
+  'union/three-way': (d) => _qb(d)
+      .table('a')
+      .select(['id'])
+      .where('x', 1)
+      .union([
+        _qb(d).table('b').select(['id']).where('y', 2),
+        _qb(d).table('c').select(['id']).where('z', 3),
+      ])
+      .toSQL(),
+  'union/array-callbacks': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .where('id', 1)
+      .union([
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 2);
+        },
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 3);
+        },
+      ])
+      .toSQL(),
+  'union/order-limit-outer': (d) => _qb(d)
+      .table('a')
+      .select(['id', 'name'])
+      .where('x', 1)
+      .union([_qb(d).table('b').select(['id', 'name']).where('y', 2)])
+      .orderBy('name')
+      .limit(10)
+      .toSQL(),
+  'intersect/basic': (d) => _qb(d)
+      .table('a')
+      .select(['*'])
+      .where('id', '=', 1)
+      .intersect([_qb(d).table('b').select(['*']).where('id', '=', 2)])
+      .toSQL(),
+  'intersect/three-way': (d) => _qb(d)
+      .table('a')
+      .select(['id'])
+      .intersect([
+        _qb(d).table('b').select(['id']),
+        _qb(d).table('c').select(['id']),
+      ])
+      .toSQL(),
+  'except/basic': (d) => _qb(d)
+      .table('a')
+      .select(['id'])
+      .except([_qb(d).table('b').select(['id'])])
+      .toSQL(),
+  'union/all-order-limit': (d) => _qb(d)
+      .table('a')
+      .select(['id'])
+      .where('x', 1)
+      .unionAll([_qb(d).table('b').select(['id']).where('y', 2)])
+      .orderBy('id', 'desc')
+      .limit(5)
+      .offset(2)
+      .toSQL(),
+
+  // ── Window / analytic functions ──────────────────────────────────────────
+  'window/rank-string-partition': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank('alias_name', 'email', 'firstName')
+      .toSQL(),
+  'window/rank-array-both': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank('alias_name', ['email', 'address'], ['firstName', 'lastName'])
+      .toSQL(),
+  'window/dense-rank-callback': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .denseRank('test_alias', (a) => a.orderBy('email').partitionBy('address'))
+      .toSQL(),
+  'window/dense-rank-callback-chains': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .denseRank(
+        'test_alias',
+        (a) => a
+            .orderBy('email')
+            .partitionBy('address')
+            .partitionBy('phone')
+            .orderBy('name'),
+      )
+      .toSQL(),
+  'window/row-number-array': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rowNumber('alias_name', ['email', 'address'], ['firstName', 'lastName'])
+      .toSQL(),
+  'window/rank-raw': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank(null, _qb(d).client.raw('partition by address order by email'))
+      .toSQL(),
+  'window/chained-multiple': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .denseRank('first_alias', 'email')
+      .denseRank('second_alias', 'address')
+      .toSQL(),
+  'window/dense-rank-raw-alias': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .denseRank('test_alias', _qb(d).client.raw('partition by address order by email'))
+      .toSQL(),
+  'window/rank-then-orderby': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank('rnk', 'salary')
+      .where('dept', '=', 'eng')
+      .orderBy('rnk')
+      .toSQL(),
+
+  // ── DML with RETURNING / onConflict ──────────────────────────────────────
+  'dml/onconflict-ignore': (d) => _qb(d)
+      .table('users')
+      .insert([
+        {'email': 'foo'},
+        {'email': 'bar'},
+      ])
+      .onConflict('email')
+      .ignore()
+      .toSQL(),
+  'dml/onconflict-composite-ignore': (d) => _qb(d)
+      .table('users')
+      .insert([
+        {'org': 'acme-inc', 'email': 'foo'},
+      ])
+      .onConflict(['org', 'email'])
+      .ignore()
+      .toSQL(),
+  'dml/onconflict-merge-explicit': (d) => _qb(d)
+      .table('users')
+      .insert([
+        {'email': 'foo', 'name': 'taylor'},
+        {'email': 'bar', 'name': 'dayle'},
+      ])
+      .onConflict('email')
+      .merge({'name': 'overidden'})
+      .toSQL(),
+  'dml/onconflict-merge-implicit-multi': (d) => _qb(d)
+      .table('users')
+      .insert([
+        {'email': 'foo', 'name': 'taylor'},
+        {'email': 'bar', 'name': 'dayle'},
+      ])
+      .onConflict('email')
+      .merge()
+      .toSQL(),
+  'dml/onconflict-raw-target': (d) => _qb(d)
+      .table('users')
+      .insert([
+        {'email': 'foo'},
+        {'email': 'bar'},
+      ])
+      .onConflict(_qb(d).client.raw('(value) WHERE deleted_at IS NULL'))
+      .ignore()
+      .toSQL(),
+  'dml/onconflict-merge-where': (d) => _qb(d)
+      .table('users')
+      .insert({'email': 'foo', 'name': 'taylor'})
+      .onConflict('email')
+      .merge()
+      .where('email', 'foo2')
+      .toSQL(),
+  'dml/returning-multi-insert': (d) => _qb(d)
+      .table('users')
+      .insert([
+        {'email': 'a'},
+        {'email': 'b'},
+      ])
+      .returning(['id', 'email'])
+      .toSQL(),
+  'dml/returning-update': (d) => _qb(d)
+      .table('users')
+      .where('id', 1)
+      .update({'name': 'Bob'})
+      .returning(['*'])
+      .toSQL(),
+  'dml/returning-delete': (d) => _qb(d)
+      .table('users')
+      .where('id', 1)
+      .delete()
+      .returning(['id'])
+      .toSQL(),
 };

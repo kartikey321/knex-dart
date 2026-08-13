@@ -113,12 +113,24 @@ class QueryCompiler {
   /// substitution just produced — e.g. with offset 9 a two-binding subquery
   /// rewrote `$2`→`$11`, then `$1`→`$10` also hit the `$1` inside `$11`,
   /// yielding `$101`. Dialects using `?` placeholders are unaffected (no match).
-  String _offsetPlaceholders(String sql, int offset) {
-    if (offset <= 0) return sql;
-    return sql.replaceAllMapped(
-      RegExp(r'\$(\d+)'),
-      (m) => '\$${int.parse(m[1]!) + offset}',
-    );
+  String _offsetPlaceholders(String sql, int offset) =>
+      client.offsetPlaceholders(sql, offset);
+
+  /// Compile a [Raw] fragment for inline embedding into the query under
+  /// construction: offsets any `$N` placeholders in its SQL against the
+  /// bindings already accumulated, then appends its own bindings.
+  ///
+  /// This is the single path every Raw-embedding call site in this compiler
+  /// must go through — inlining `raw.toSQL().sql` directly and appending
+  /// `raw.toSQL().bindings` without offsetting silently corrupts `$N`
+  /// numbering (collisions/gaps) the moment the Raw carries its own `?`
+  /// bindings and isn't first in the query.
+  String _inlineRaw(Raw raw) {
+    final bindingOffset = bindings.length;
+    final sql = raw.toSQL();
+    final offsetSql = _offsetPlaceholders(sql.sql, bindingOffset);
+    bindings.addAll(sql.bindings);
+    return offsetSql;
   }
 
   /// Compile a subquery (QueryBuilder) to SQL with parameter renumbering
@@ -137,12 +149,32 @@ class QueryCompiler {
       sql = '($sql)';
     }
 
-    // Add alias AFTER parentheses
+    // Add alias AFTER parentheses. Use the dialect-aware identifier wrapper
+    // (backticks for MySQL/SQLite, brackets for MSSQL, double quotes for
+    // Postgres) rather than a hardcoded double quote — a bare `"alias"` is
+    // invalid MySQL/MSSQL identifier syntax outside ANSI_QUOTES mode.
     if (subquery.alias != null) {
-      sql = '$sql as "${subquery.alias}"';
+      sql = '$sql as ${formatter.wrapAsIdentifier(subquery.alias!)}';
     }
 
     return sql;
+  }
+
+  /// Compile a `{ alias: column }` select entry to `<column> as "<alias>"`.
+  ///
+  /// [value] may be a plain column name (String), a [Raw] fragment, or a
+  /// [QueryBuilder] subquery — matching knex.js's object-notation column
+  /// aliasing (`select({alias: column})`).
+  String _aliasedColumn(String alias, dynamic value) {
+    final wrappedAlias = client.wrapIdentifier(alias);
+    if (value is QueryBuilder) {
+      final sql = _compileSubquery(value);
+      return '$sql as $wrappedAlias';
+    }
+    if (value is Raw) {
+      return '${_inlineRaw(value)} as $wrappedAlias';
+    }
+    return '${formatter.wrap(value.toString())} as $wrappedAlias';
   }
 
   /// Compile a LATERAL join subquery to `(sql)` — no alias appended.
@@ -159,9 +191,7 @@ class QueryCompiler {
       return '($subSql)';
     }
     if (query is Raw) {
-      final rawSql = query.toSQL();
-      bindings.addAll(rawSql.bindings);
-      return '(${rawSql.sql})';
+      return '(${_inlineRaw(query)})';
     }
     return '($query)';
   }
@@ -285,9 +315,7 @@ class QueryCompiler {
 
     // Raw (from fromRaw())
     if (table is Raw) {
-      final sql = table.toSQL();
-      bindings.addAll(sql.bindings);
-      return _tableNameCache = sql.sql;
+      return _tableNameCache = _inlineRaw(table);
     }
 
     // Simple string table name
@@ -379,19 +407,31 @@ class QueryCompiler {
       // Handle regular columns (but check for QueryBuilder first)
       final columns = stmt['columns'];
       if (columns != null && columns is List && columns.isNotEmpty) {
-        // Check each column - could be string, QueryBuilder, or Raw
+        // Check each column - could be string, QueryBuilder, Raw, or a
+        // { alias: column } aliasing Map
         for (final col in columns) {
           if (col is QueryBuilder) {
             cols.add(_compileSubquery(col));
           } else if (col is Raw) {
-            final rawSql = col.toSQL();
-            bindings.addAll(rawSql.bindings);
-            cols.add(rawSql.sql);
+            cols.add(_inlineRaw(col));
+          } else if (col is Map) {
+            col.forEach((alias, value) {
+              cols.add(_aliasedColumn(alias.toString(), value));
+            });
           } else {
             // Regular string column
             cols.add(formatter.wrap(col.toString()));
           }
         }
+        continue;
+      }
+
+      // { alias: column, ... } passed directly to select() (not wrapped in a
+      // List) — same aliasing notation, applied to every entry.
+      if (columns != null && columns is Map && columns.isNotEmpty) {
+        columns.forEach((alias, value) {
+          cols.add(_aliasedColumn(alias.toString(), value));
+        });
         continue;
       }
 
@@ -405,9 +445,7 @@ class QueryCompiler {
       // Handle Raw in SELECT
       final rawValue = stmt['value'];
       if (rawValue != null && rawValue is Raw) {
-        final sql = rawValue.toSQL();
-        bindings.addAll(sql.bindings);
-        cols.add(sql.sql);
+        cols.add(_inlineRaw(rawValue));
         continue;
       }
 
@@ -580,9 +618,7 @@ class QueryCompiler {
   /// Compiles a Raw SQL condition
   String whereRaw(Map<String, dynamic> statement) {
     final raw = statement['value'] as Raw;
-    final sql = raw.toSQL();
-    bindings.addAll(sql.bindings);
-    return sql.sql;
+    return _inlineRaw(raw);
   }
 
   /// Compile WHERE BETWEEN clause
@@ -617,11 +653,14 @@ class QueryCompiler {
     final subBuilder = QueryBuilder(client);
     callback(subBuilder);
 
-    // Get the SQL for the subquery
+    // Get the SQL for the subquery, renumbering $N placeholders to continue
+    // from the parent's running binding count (mirrors _compileSubquery()).
+    final bindingOffset = bindings.length;
     final subSQL = subBuilder.toSQL();
+    final sql = _offsetPlaceholders(subSQL.sql, bindingOffset);
     bindings.addAll(subSQL.bindings);
 
-    return '${_not(statement, 'exists ')}(${subSQL.sql})';
+    return '${_not(statement, 'exists ')}($sql)';
   }
 
   /// Compile WHERE WRAPPED clause (grouped conditions)
@@ -680,9 +719,7 @@ class QueryCompiler {
       if (stmt['type'] == 'joinRaw') {
         final value = stmt['value'];
         if (value is Raw) {
-          final rawSql = value.toSQL();
-          bindings.addAll(rawSql.bindings);
-          sql.add(rawSql.sql);
+          sql.add(_inlineRaw(value));
         } else {
           sql.add(value.toString());
         }
@@ -855,9 +892,7 @@ class QueryCompiler {
     if (values is QueryBuilder) {
       inValues = _compileSubquery(values);
     } else if (values is Raw) {
-      final sql = values.toSQL();
-      bindings.addAll(sql.bindings);
-      inValues = '(${sql.sql})';
+      inValues = '(${_inlineRaw(values)})';
     } else if (values is List) {
       final placeholders = values
           .map((v) => client.parameter(v, bindings))
@@ -889,17 +924,17 @@ class QueryCompiler {
     final callback = clause['value'] as Function;
     final subBuilder = QueryBuilder(client);
     callback(subBuilder);
+    final bindingOffset = bindings.length;
     final subSQL = subBuilder.toSQL();
+    final sql = _offsetPlaceholders(subSQL.sql, bindingOffset);
     bindings.addAll(subSQL.bindings);
-    return '${_not(clause, 'exists')} (${subSQL.sql})';
+    return '${_not(clause, 'exists')} ($sql)';
   }
 
   String _onRaw(Map<String, dynamic> clause) {
     final value = clause['value'];
     if (value is Raw) {
-      final sql = value.toSQL();
-      bindings.addAll(sql.bindings);
-      return sql.sql;
+      return _inlineRaw(value);
     }
     return value.toString();
   }
@@ -947,9 +982,7 @@ class QueryCompiler {
       if (stmt['type'] == 'groupByRaw') {
         final value = stmt['value'];
         if (value is Raw) {
-          final rawSql = value.toSQL();
-          bindings.addAll(rawSql.bindings);
-          columns.add(rawSql.sql);
+          columns.add(_inlineRaw(value));
         } else {
           columns.add(value.toString());
         }
@@ -1088,9 +1121,7 @@ class QueryCompiler {
       if (stmt['type'] == 'orderByRaw') {
         final value = stmt['value'];
         if (value is Raw) {
-          final rawSql = value.toSQL();
-          bindings.addAll(rawSql.bindings);
-          sql.add(rawSql.sql);
+          sql.add(_inlineRaw(value));
         } else {
           sql.add(value.toString());
         }
@@ -1229,10 +1260,20 @@ class QueryCompiler {
 
     for (final stmt in unions) {
       final type = stmt['type'] as String; // 'union' or 'union all'
-      final query = stmt['value'];
+      var query = stmt['value'];
       final wrap = stmt['wrap'] as bool? ?? false;
 
       String sql;
+
+      // Callback form (`.union([(qb) => qb.select(...), ...])`) — matches
+      // knex.js's array-of-callbacks union shape. Without this, a Function
+      // entry silently fell through to the `else { continue; }` branch below
+      // and the whole UNION branch vanished from the SQL with no error.
+      if (query is Function) {
+        final subBuilder = QueryBuilder(client);
+        query(subBuilder);
+        query = subBuilder;
+      }
 
       if (query is QueryBuilder) {
         // Get current binding count BEFORE compiling unioned query
@@ -1249,9 +1290,7 @@ class QueryCompiler {
         // Merge bindings
         bindings.addAll(queryCompiler.bindings);
       } else if (query is Raw) {
-        final rawSQL = query.toSQL();
-        sql = rawSQL.sql;
-        bindings.addAll(rawSQL.bindings);
+        sql = _inlineRaw(query);
       } else {
         continue;
       }
@@ -1322,12 +1361,9 @@ class QueryCompiler {
     var sql = '$funcCall over (';
 
     if (raw != null && raw is Raw) {
-      final rawSQL = raw.toSQL();
-      bindings.addAll(rawSQL.bindings);
-
       // If caller passes only an order expression (e.g. `"score" desc`),
       // normalize it to `order by ...` inside OVER(...).
-      var overClause = rawSQL.sql.trim();
+      var overClause = _inlineRaw(raw).trim();
       if (overClause.isNotEmpty && !_isCompleteAnalyticOverClause(overClause)) {
         overClause = 'order by $overClause';
       }
@@ -1436,10 +1472,17 @@ class QueryCompiler {
 
         // Merge bindings
         bindings.addAll(cteQuery.bindings);
+
+        // If the CTE body itself carries an alias (`.with('x', builder.as('y'))`
+        // or a nested `.with()` whose inner query used `.as()`), knex.js wraps
+        // the body in its own parens + alias *inside* the outer `"x" as (...)`
+        // wrapper: `"x" as ((select ...) as "y")`. Mirror that here — without
+        // it the alias was silently dropped.
+        if (query.alias != null) {
+          cteSql = '($cteSql) as ${formatter.wrapAsIdentifier(query.alias!)}';
+        }
       } else if (query is Raw) {
-        final rawSQL = query.toSQL();
-        cteSql = rawSQL.sql;
-        bindings.addAll(rawSQL.bindings);
+        cteSql = _inlineRaw(query);
       } else {
         continue;
       }
@@ -1467,6 +1510,14 @@ class QueryCompiler {
   String _insertQuery() {
     final parts = <String>[];
     final onConflict = single['onConflict'] as Map<String, dynamic>?;
+
+    // WITH (CTE) clauses must precede INSERT — mirrors _updateQuery() /
+    // _deleteQuery(), which both already do this. Without it, a `.with(...)`
+    // preceding `.insert(...)` was silently dropped from the compiled SQL.
+    final withSql = _with();
+    if (withSql.isNotEmpty) {
+      parts.add(withSql);
+    }
 
     // MySQL INSERT IGNORE is a prefix modifier — handle it at INSERT level
     final isIgnorePrefixDialect =
@@ -1543,6 +1594,12 @@ class QueryCompiler {
         if (seen.add(key)) columns.add(key);
       }
     }
+    // knex.js's `_prepInsert` sorts the column list alphabetically
+    // (`Object.keys(data[i]).sort()`), not first-seen-order — the row-value
+    // loop below already looks values up by column name (order-independent
+    // per row), so sorting here is a pure ordering fix with no semantic
+    // change to which value lands in which column.
+    columns.sort();
     final columnsSql = columns.map((c) => formatter.wrap(c)).join(', ');
 
     // SQLite (and its family: turso, d1) rejects the DEFAULT keyword inside a
@@ -1629,11 +1686,14 @@ class QueryCompiler {
       Map<String, dynamic>? rawUpdateValues;
 
       if (mergeColumns == null) {
-        // No arg: update all inserted columns
+        // No arg: update all inserted columns. knex.js derives this list from
+        // the same `_prepInsert` pass used for the INSERT column list itself
+        // (`Object.keys(...).sort()`), so it comes out alphabetically sorted
+        // — sort here too rather than using the Map's raw insertion order.
         final rows = insertValue is List
             ? insertValue.cast<Map<String, dynamic>>()
             : [insertValue as Map<String, dynamic>];
-        updateColumns = rows[0].keys.toList();
+        updateColumns = rows[0].keys.toList()..sort();
       } else if (mergeColumns is List) {
         updateColumns = List<String>.from(mergeColumns);
       } else if (mergeColumns is Map) {
@@ -1688,6 +1748,14 @@ class QueryCompiler {
     if (column is String) return ' (${formatter.wrap(column)})';
     if (column is List && column.isNotEmpty) {
       return ' (${column.map((c) => formatter.wrap(c as String)).join(', ')})';
+    }
+    if (column is Raw) {
+      // A raw conflict target (e.g. `onConflict(raw('(value) WHERE deleted_at
+      // IS NULL'))`, a partial-index conflict target) carries its own
+      // parens/guard clause — inline it verbatim, matching knex.js. Without
+      // this branch the entire target was silently dropped, producing a bare
+      // `on conflict do nothing`/`do update` instead of a targeted one.
+      return ' ${_inlineRaw(column)}';
     }
     return '';
   }
@@ -1896,12 +1964,8 @@ class QueryCompiler {
     final distinct = stmt['aggregateDistinct'] == true ? 'distinct ' : '';
     final method = stmt['method'] as String;
     final raw = stmt['value'] as Raw;
-    final sql = raw.toSQL();
 
-    // Add bindings from the Raw instance
-    bindings.addAll(sql.bindings);
-
-    return '$method($distinct${sql.sql})';
+    return '$method($distinct${_inlineRaw(raw)})';
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

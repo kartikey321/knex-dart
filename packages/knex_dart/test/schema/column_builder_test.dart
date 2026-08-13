@@ -76,9 +76,40 @@ void main() {
       expect(col.toSQL(), contains("default 'active'"));
     });
 
-    test('defaultTo with arbitrary object falls through to toString()', () {
-      final col = ColumnBuilder('meta', 'json')..defaultTo(_Stringify('{}'));
-      expect(col.toSQL(), contains('default {}'));
+    test(
+      'defaultTo with arbitrary object falls through to a quoted, '
+      "escaped toString() (matches knex.js's _escapeBinding fallback)",
+      () {
+        final col = ColumnBuilder(
+          'meta',
+          'json',
+        )..defaultTo(_Stringify('{}'));
+        expect(col.toSQL(), contains("default '{}'"));
+      },
+    );
+
+    test('defaultTo(String) with an embedded quote is escaped', () {
+      final col = ColumnBuilder(
+        'name',
+        'varchar(50)',
+      )..defaultTo("O'Brien");
+      expect(col.toSQL(), contains("default 'O''Brien'"));
+    });
+
+    test('defaultTo(Map) on a json column JSON-encodes the value', () {
+      final col = ColumnBuilder(
+        'meta',
+        'json',
+      )..defaultTo({'active': true});
+      expect(col.toSQL(), contains('default \'{"active":true}\''));
+    });
+
+    test('defaultTo(List) on a jsonb column JSON-encodes the value', () {
+      final col = ColumnBuilder(
+        'tags',
+        'jsonb',
+      )..defaultTo(['a', 'b']);
+      expect(col.toSQL(), contains('default \'["a","b"]\''));
     });
   });
 

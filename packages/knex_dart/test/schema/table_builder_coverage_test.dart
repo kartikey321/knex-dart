@@ -89,10 +89,10 @@ void main() {
       expect(t.columns.first.type, equals('char(36)'));
     });
 
-    test('jsonb uses text (SQLite has no jsonb)', () {
+    test('jsonb uses json (matching knex.js SQLite compilation)', () {
       final t = TableBuilder(sqlite, 'create', 'tbl');
       t.jsonb('meta');
-      expect(t.columns.first.type, equals('text'));
+      expect(t.columns.first.type, equals('json'));
     });
 
     test('float uses float', () {
