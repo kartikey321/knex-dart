@@ -574,6 +574,121 @@ const cases = [
     k('users').select()
       .whereJsonSubsetOf('address', { test: 'value' })
       .orWhereJsonSubsetOf('address', { test: 'value2' })],
+
+  // Batch 5 — mined from knex.js test/unit/query/builder.js regions not
+  // covered by batches 1-4 (lines 1918-3546: set-ops wrap flag, JOIN family
+  // cross/full-outer/right/using/raw arg, on-* join-clause family, sub
+  // select where ins, countDistinct multi-column, raw group/order, plus
+  // whereColumn / whereNotBetween).
+
+  // ── Set-ops wrap=true quartet ───────────────────────────────────────
+  ['union/wrapped-array', (k) =>
+    k('users').select('*').where({ id: 1 }).union([
+      function () { this.select('*').from('users').where({ id: 2 }); },
+      function () { this.select('*').from('users').where({ id: 3 }); },
+    ], true)],
+  ['unionAll/wrapped-array', (k) =>
+    k('users').select('*').where({ id: 1 }).unionAll([
+      function () { this.select('*').from('users').where({ id: 2 }); },
+      function () { this.select('*').from('users').where({ id: 3 }); },
+    ], true)],
+  ['intersect/wrapped-array', (k) =>
+    k('users').select('*').where({ id: 1 }).intersect([
+      function () { this.select('*').from('users').where({ id: 2 }); },
+      function () { this.select('*').from('users').where({ id: 3 }); },
+    ], true)],
+  ['except/wrapped-array', (k) =>
+    k('users').select('*').where({ id: 1 }).except([
+      function () { this.select('*').from('users').where({ id: 2 }); },
+      function () { this.select('*').from('users').where({ id: 3 }); },
+    ], true)],
+
+  // ── whereColumn, whereNotBetween ────────────────────────────────────
+  ['where/column', (k) =>
+    k('users').select('*').whereColumn('users.id', '=', 'users.otherId')],
+  ['where/not-between', (k) =>
+    k('users').select('*').whereNotBetween('id', [1, 2])],
+  ['where/not-between-alt', (k) =>
+    k('users').select('*').where('id', 'not between ', [1, 2])],
+
+  // ── countDistinct multi-column (pg wraps in extra parens) ───────────
+  ['agg/count-distinct-multi-col', (k) =>
+    k('users').countDistinct('foo', 'bar')],
+
+  // ── Raw group/order ─────────────────────────────────────────────────
+  ['group/raw', (k) =>
+    k('users').select('*').groupByRaw('id, email')],
+  ['order/raw', (k) =>
+    k('users').select('*').orderByRaw('col NULLS LAST DESC')],
+  ['order/raw-with-binding', (k) =>
+    k('users').select('*').orderByRaw('col NULLS LAST ?', 'dEsc')],
+
+  // ── JOIN family: cross, full-outer, right, joins with raw ───────────
+  ['join/cross-multi', (k) =>
+    k('users').select('*').crossJoin('contracts').crossJoin('photos')],
+  // knex.js `crossJoin('t', 'a', 'b')` form (CROSS JOIN ... ON) has no
+  // knex-dart API equivalent (dart's crossJoin is cross-product only).
+  // Deliberately skipped — see parity_cases.dart for the rationale.
+  ['join/full-outer', (k) =>
+    k('users').select('*').fullOuterJoin('contacts', 'users.id', '=', 'contacts.id')],
+  ['join/right-and-right-outer', (k) =>
+    k('users').select('*')
+      .rightJoin('contacts', 'users.id', '=', 'contacts.id')
+      .rightOuterJoin('photos', 'users.id', '=', 'photos.id')],
+  ['join/raw-operand', (k) =>
+    k('users').select('*')
+      .join('contacts', 'users.id', k.raw(1))
+      .leftJoin('photos', 'photos.title', '=', k.raw('?', ['My Photo']))],
+
+  // ── on-* family in JOIN clause ──────────────────────────────────────
+  ['on/null', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.on('users.id', '=', 'contacts.id').onNull('contacts.address');
+    })],
+  ['on/or-null', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.on('users.id', '=', 'contacts.id')
+        .onNull('contacts.address')
+        .orOnNull('contacts.phone');
+    })],
+  ['on/not-null', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.on('users.id', '=', 'contacts.id').onNotNull('contacts.address');
+    })],
+  ['on/or-not-null', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.on('users.id', '=', 'contacts.id')
+        .onNotNull('contacts.address')
+        .orOnNotNull('contacts.phone');
+    })],
+  ['on/in', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onIn('users.id', [1, 2, 3]);
+    })],
+  ['on/or-in', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onIn('users.id', [1, 2, 3]).orOnIn('users.id', [4, 5]);
+    })],
+  ['on/not-in', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onNotIn('users.id', [1, 2, 3]);
+    })],
+  ['on/between', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onBetween('users.id', [1, 5]);
+    })],
+  ['on/not-between', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onNotBetween('users.id', [1, 5]);
+    })],
+  ['on/exists', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onExists(function () { this.select('*').from('phones').where('phones.contact_id', '=', k.raw('"contacts"."id"')); });
+    })],
+  ['on/not-exists', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onNotExists(function () { this.select('*').from('phones').where('phones.contact_id', '=', k.raw('"contacts"."id"')); });
+    })],
 ];
 
 const out = [];

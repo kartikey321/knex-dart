@@ -402,6 +402,45 @@ const Map<String, String> parityAllowlist = {
           'ref/select-alias::postgres (canonical explanation above); '
           'mariadb surfaces the same Ref.as() defect. Out of scope per the '
           'prompt — delete this entry once Ref.as() is corrected.',
+
+  // ── ACCEPTED: fullOuterJoin capability refusal — knex-dart refuses
+  // where knex.js's mysql2/sqlite3 clients emit invalid-at-runtime SQL.
+  // knex-dart's `knex_dart_capabilities` matrix deliberately excludes
+  // `SqlCapability.fullOuterJoin` for `KnexDialect.mysql`, `sqlite`, `turso`,
+  // `d1` (capabilities.dart line 80-91 — mariadb HAS it; the
+  // `join/full-outer::mariadb` parity test PASSES as a result). MySQL does
+  // not natively support FULL OUTER JOIN syntax (must be emulated via
+  // LEFT JOIN UNION RIGHT JOIN), and SQLite only gained it in 3.39 (2022);
+  // knex.js's mysql2 and sqlite3 clients still emit the syntax verbatim
+  // (would fail at parse time on those engines), while knex-dart throws
+  // `Bad state: FULL OUTER JOIN is not supported by <dialect>`.
+  //
+  // Same class as the existing `upsert/merge::redshift` and
+  // `alter-table-add-index::redshift` ACCEPTED entries (knex.js silently
+  // emits invalid SQL, knex-dart correctly refuses loudly). Verified
+  // against real knex.js 3.3.0:
+  //   mysql2:    `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
+  //   sqlite3:   `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
+  // (knex.js emits the syntax, but neither engine's parser accepts FULL
+  // OUTER JOIN text — these statements would fail at execution time.)
+  'join/full-outer::mysql':
+      '[ACCEPTED] knex-dart refuses FULL OUTER JOIN on mysql (capability '
+          'matrix excludes it — knex_dart_capabilities/lib/src/capabilities.dart '
+          'line 62-68), knex.js\'s mysql2 still emits the syntax (which MySQL '
+          'does not natively support — would fail at parse time). Same class '
+          'as upsert/merge::redshift ACCEPTED — see the note above this block.',
+  'join/full-outer::sqlite':
+      '[ACCEPTED] see join/full-outer::mysql — SQLite only gained FULL '
+          'OUTER JOIN syntax in 3.39 (2022); knex-dart refuses here, '
+          'knex.js\'s sqlite3 client still emits it (would fail on older '
+          'SQLite).',
+  'join/full-outer::turso':
+      '[ACCEPTED] see join/full-outer::sqlite — turso is sqlite-family '
+          '(libSQL is built on SQLite 3.45+, but the capability matrix '
+          'still excludes fullOuterJoin for turso/d1 matching sqlite, and '
+          'the test mirrors the sqlite refusal).',
+  'join/full-outer::d1':
+      '[ACCEPTED] see join/full-outer::sqlite — d1 is sqlite-family.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

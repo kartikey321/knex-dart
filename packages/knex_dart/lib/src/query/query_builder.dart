@@ -671,6 +671,27 @@ class QueryBuilder {
       val = value;
     }
 
+    // Polymorphic whereBetween dispatch: knex.js's `.where(col, 'between',
+    // [a, b])` and `.where(col, 'not between', [a, b])` forms compile to
+    // `whereBetween`/`whereNotBetween`, NOT the basic `col between $1`
+    // form emitted by whereBasic. Previously the polymorphic form went
+    // through whereBasic, which treated `[1, 2]` as a single list-typed
+    // binding and emitted `where "id" not between $1` (one placeholder —
+    // wrong cardinality, no `and $2` clause). Verified against real knex.js
+    // 3.3.0 — see the `'where not between, alternate'` it() block at
+    // builder.js:L1323 which passes `'not between '` verbatim and compiles
+    // to `... "id" not between ? and ?` with bindings `[1, 2]`. Without
+    // this polymorphic dispatch, knex-dart accepted the operator (after a
+    // `.trim()` fix in formatter.operator) but emitted the wrong binding
+    // shape.
+    final opNorm = operator.toString().toLowerCase().trim();
+    if (val is List &&
+        val.length == 2 &&
+        (opNorm == 'between' || opNorm == 'not between')) {
+      return _not(opNorm == 'not between')
+          .whereBetween(column as String, val);
+    }
+
     _statements.add({
       'type': 'whereBasic',
       'grouping': 'where',

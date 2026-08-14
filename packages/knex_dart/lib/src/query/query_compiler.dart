@@ -261,6 +261,22 @@ class QueryCompiler {
     // UNION clauses (before ORDER BY/LIMIT for correct SQL semantics)
     final unionSql = _union();
     if (unionSql.isNotEmpty) {
+      // knex.js's `union([...], wrap=true)` (and unionAll/intersect/except
+      // equivalents) wraps the BASE select too — not just each unioned leg.
+      // When the wrap flag is set on ANY union leg, knex.js parenthesizes
+      // each leg INCLUDING the base; knex-dart was parenthesizing only the
+      // additional legs, dropping the parens around the base. Verified
+      // against real knex.js 3.3.0 for the `union/wrapped-array` parity
+      // case — see the allowlist/failure history for this batch.
+      final unions = grouped['union'];
+      final wrapBase = unions is List &&
+          (unions as List).any((u) => (u['wrap'] as bool? ?? false));
+      if (wrapBase) {
+        final baseSql = parts.join(' ');
+        parts
+          ..clear()
+          ..add('($baseSql)');
+      }
       parts.add(unionSql);
     }
 
@@ -868,7 +884,13 @@ class QueryCompiler {
   String _onBasic(Map<String, dynamic> clause) {
     final first = formatter.wrap(clause['column']);
     final operator = clause['operator'];
-    final second = formatter.wrap(clause['value']);
+    final value = clause['value'];
+    // Raw value: knex.js treats `on('a', '=', raw('?',[v]))` as a raw SQL
+    // fragment on the right of the operator — `on "a" = ?` with `v` as
+    // binding — NOT as an identifier reference. Without this dispatch,
+    // `formatter.wrap` quoted the raw's `?` as a string literal,
+    // producing `on "a" = "?"` instead of `on "a" = ?`.
+    final second = value is Raw ? _inlineRaw(value) : formatter.wrap(value);
     return '$first $operator $second';
   }
 
@@ -2176,8 +2198,29 @@ class QueryCompiler {
       final columns = value
           .map((col) => formatter.wrap(col.toString()))
           .join(', ');
-      final distinctPart = distinct.isNotEmpty ? 'distinct $columns' : columns;
-      final aggregated = '$method($distinctPart)';
+      // Postgres-family: with DISTINCT + multiple columns, knex.js's pg
+      // query-compiler treats the column list as a row constructor — emitting
+      // `count(distinct("foo", "bar"))` (extra parens around the column
+      // list) — unlike mysql/sqlite which emit the standard
+      // `count(distinct \`foo\`, \`bar\`)`. Verified against real knex.js 3.3.0
+      // for all three dialects. (Single-column distinct is identical across
+      // all dialects — `count(distinct "foo")` — already handled by the
+      // string-value path below.)
+      final isPgFamily = const {
+        'pg',
+        'postgres',
+        'postgresql',
+        'cockroachdb',
+        'redshift',
+      }.contains(client.driverName);
+      final String aggregated;
+      if (distinct.isNotEmpty && value.length > 1 && isPgFamily) {
+        aggregated = '$method(distinct($columns))';
+      } else if (distinct.isNotEmpty) {
+        aggregated = '$method(distinct $columns)';
+      } else {
+        aggregated = '$method($columns)';
+      }
       return [addAlias(aggregated, stmt['alias'] as String?)];
     }
 
