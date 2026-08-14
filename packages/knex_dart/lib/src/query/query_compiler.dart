@@ -419,8 +419,12 @@ class QueryCompiler {
               cols.add(_aliasedColumn(alias.toString(), value));
             });
           } else {
-            // Regular string column
-            cols.add(formatter.wrap(col.toString()));
+            // Regular column — pass the raw value (not `.toString()`-ed) so
+            // `formatter.wrap()` can dispatch on its actual type: a numeric
+            // literal (e.g. `select(0)`) must compile to a bare `0`, not a
+            // quoted identifier `"0"` (matches knex.js's `wrap()`, which
+            // returns `typeof value === 'number'` values as-is).
+            cols.add(formatter.wrap(col).toString());
           }
         }
         continue;
@@ -616,10 +620,12 @@ class QueryCompiler {
   /// Compile WHERE raw clause
   ///
   ///
-  /// Compiles a Raw SQL condition
+  /// Compiles a Raw SQL condition. `.whereNot(raw(...))` prefixes with `not `
+  /// (matches knex.js: `where not is_active`), mirroring the `_not()` prefix
+  /// convention used by every other WHERE compiler above.
   String whereRaw(Map<String, dynamic> statement) {
     final raw = statement['value'] as Raw;
-    return _inlineRaw(raw);
+    return '${_not(statement, '')}${_inlineRaw(raw)}';
   }
 
   /// Compile WHERE BETWEEN clause
@@ -2010,6 +2016,14 @@ class QueryCompiler {
 
   /// Compile DELETE query
   ///
+  /// Mirrors knex.js's per-dialect handling of `.del()` combined with
+  /// `.join(...)`. Standard SQL has no JOIN clause on DELETE, so each dialect
+  /// family expresses it differently — silently dropping the join (the
+  /// previous behavior here) would change query semantics, not just syntax:
+  ///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND <join on
+  ///     conditions>` (join ON conditions fold into WHERE).
+  ///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t <join> WHERE
+  ///     ...` (join stays a real JOIN clause; WHERE is untouched).
   String _deleteQuery() {
     final parts = <String>[];
 
@@ -2019,11 +2033,56 @@ class QueryCompiler {
       parts.add(withSql);
     }
 
-    parts.add(_delete());
+    // Side-effect-free emptiness check — deliberately NOT `_join().isEmpty`.
+    // `_join()` compiles ON conditions (via `_compileJoinClauseSequence` →
+    // `client.parameter()`) and appends to `bindings` as a side effect;
+    // calling it here just to probe emptiness, then compiling the same
+    // conditions again in the postgres branch below via
+    // `_deleteUsingJoins()`, would append every bound join value TWICE and
+    // in the wrong slot (before WHERE's bindings instead of after — SQL text
+    // order for the postgres USING transform is `where <where> and <join
+    // conditions>`, so bindings must accumulate WHERE-then-join, not
+    // join-then-WHERE-then-join-again).
+    final hasJoins = (grouped['join']?.isNotEmpty ?? false);
 
-    final where = _where();
-    if (where.isNotEmpty) {
-      parts.add(where);
+    if (!hasJoins) {
+      parts.add(_delete());
+      final where = _where();
+      if (where.isNotEmpty) {
+        parts.add(where);
+      }
+    } else if (_isPostgresLikeForDeleteUsing()) {
+      parts.add(_delete());
+      // Compile WHERE first so its bindings land before the join ON
+      // conditions' bindings, matching the text order below.
+      final where = _where();
+      const wherePrefix = 'where ';
+      final whereBody = where.isEmpty
+          ? ''
+          : (where.startsWith(wherePrefix)
+                ? where.substring(wherePrefix.length)
+                : where); // defensive: never silently drop a non-empty WHERE
+      final usingJoins = _deleteUsingJoins();
+      if (usingJoins.tables.isNotEmpty) {
+        parts.add('using ${usingJoins.tables.join(',')}');
+      }
+      final combined = [
+        if (whereBody.isNotEmpty) whereBody,
+        ...usingJoins.conditions,
+      ].join(' and ');
+      if (combined.isNotEmpty) {
+        parts.add('where $combined');
+      }
+    } else {
+      final table = formatter.wrap(single['table']);
+      // Text order here is `<join> where ...`, so compile the join first —
+      // its bindings must precede WHERE's, matching the SQL text.
+      final joinSql = _join();
+      parts.add('delete $table from $table $joinSql');
+      final where = _where();
+      if (where.isNotEmpty) {
+        parts.add(where);
+      }
     }
 
     final returning = _returning();
@@ -2032,6 +2091,50 @@ class QueryCompiler {
     }
 
     return parts.join(' ');
+  }
+
+  /// Dialects that compile `DELETE ... JOIN` into `DELETE ... USING`
+  /// (Postgres-family, but NOT Redshift — knex.js's redshift-querycompiler
+  /// does not inherit pg-querycompiler's `del()` override, so it keeps the
+  /// generic `DELETE t FROM t JOIN` shape instead; verified against real
+  /// knex.js). Same driver-name set as `_lock()`'s `postgresLike`.
+  bool _isPostgresLikeForDeleteUsing() =>
+      client.driverName == 'pg' ||
+      client.driverName == 'postgres' ||
+      client.driverName == 'postgresql' ||
+      client.driverName == 'cockroachdb' ||
+      client.driverName == 'mock';
+
+  /// Extracts JOIN tables and their ON-condition text for the Postgres
+  /// `DELETE ... USING` transform: each joined table becomes a USING entry
+  /// and its ON condition(s) fold into WHERE (see `_deleteQuery`).
+  ({List<String> tables, List<String> conditions}) _deleteUsingJoins() {
+    final joins = grouped['join'];
+    final tables = <String>[];
+    final conditions = <String>[];
+    if (joins == null) return (tables: tables, conditions: conditions);
+
+    for (final stmt in joins) {
+      // Raw/lateral joins have no table+condition shape to fold into USING;
+      // leave them out rather than emit something incorrect (not exercised
+      // by any known call pattern here).
+      if (stmt['type'] == 'joinRaw' || stmt['type'] == 'joinLateral') {
+        continue;
+      }
+      tables.add(_wrapTableIdentifier(stmt['table'].toString()));
+      if (stmt['join'] == 'cross') {
+        continue; // CROSS JOIN has no ON condition to fold in.
+      }
+      if (stmt['joinClause'] != null) {
+        final cond = _compileJoinClauses(stmt['joinClause']);
+        if (cond.isNotEmpty) conditions.add(cond);
+      } else {
+        final col1 = formatter.wrap(stmt['column1']);
+        final col2 = formatter.wrap(stmt['column2']);
+        conditions.add('$col1 = $col2');
+      }
+    }
+    return (tables: tables, conditions: conditions);
   }
 
   /// Compile TRUNCATE TABLE statement
