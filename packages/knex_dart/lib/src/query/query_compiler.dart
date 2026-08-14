@@ -592,6 +592,7 @@ class QueryCompiler {
   /// Supports:
   /// - Array of values: "column" in (?, ?, ?)
   /// - Subquery: "column" in (SELECT ...)
+  /// - Raw: "column" in (<raw sql>) — e.g. `whereIn('id', raw('select (:test)', {...}))`
   String whereIn(Map<String, dynamic> statement) {
     final column = formatter.wrap(statement['column']);
     final values = statement['value'];
@@ -600,6 +601,12 @@ class QueryCompiler {
     if (values is QueryBuilder) {
       // Subquery
       valueClause = _compileSubquery(values);
+    } else if (values is Raw) {
+      // Raw expression (e.g. a raw subquery) — previously fell through to
+      // `values as List`, which threw a TypeError instead of compiling;
+      // knex.js supports this directly (`whereIn('id', raw('select (:test)',
+      // {test: [1,2,3]}))` → `"id" in (select (?))`).
+      valueClause = '(${_inlineRaw(values)})';
     } else if (values is Function) {
       final subBuilder = QueryBuilder(client);
       values(subBuilder);

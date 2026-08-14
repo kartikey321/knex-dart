@@ -438,4 +438,39 @@ void main() {
       expect(sql.sql, 'select "id" from "t"');
     });
   });
+
+  group('whereIn/whereNotIn with a Raw value', () {
+    // Previously `whereIn()`'s compiler only handled QueryBuilder/Function
+    // values before falling through to an unconditional `values as List`
+    // cast — a Raw value (e.g. a raw subquery with named bindings) threw a
+    // TypeError instead of compiling. knex.js supports this directly.
+    test('whereIn(col, raw(...)) compiles the raw fragment inside IN (...)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .select(['*'])
+          .whereIn(
+            'id',
+            pg.raw('select (:test)', {
+              'test': [1, 2, 3],
+            }),
+          )
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where "id" in (select (\$1))');
+      expect(sql.bindings, [
+        [1, 2, 3],
+      ]);
+    });
+
+    test('whereNotIn(col, raw(...)) also compiles (shares the same '
+        'compiler path)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .whereNotIn('id', pg.raw('select id from banned'))
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where "id" not in (select id from banned)');
+      expect(sql.bindings, isEmpty);
+    });
+  });
 }
