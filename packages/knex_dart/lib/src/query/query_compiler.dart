@@ -1603,10 +1603,20 @@ class QueryCompiler {
     final columnsSql = columns.map((c) => formatter.wrap(c)).join(', ');
 
     // SQLite (and its family: turso, d1) rejects the DEFAULT keyword inside a
-    // VALUES list, so a ragged multi-row insert cannot be expressed there —
-    // knex.js refuses it, and so do we. Detect it up front for a clear error.
+    // VALUES list, so a ragged multi-row insert cannot be expressed there by
+    // default. knex.js has the same restriction unless the caller opts in via
+    // its `useNullAsDefault` config flag (in which case it also switches the
+    // whole multi-row shape to a `select ... union all select ...` form — a
+    // legacy compatibility shim for SQLite versions predating multi-row
+    // VALUES support, <3.7.11/2012, which knex-dart intentionally doesn't
+    // replicate; see the `cte/insert-multi-source::sqlite` parity allowlist
+    // entry). knex-dart honors the same flag (`KnexConfig.useNullAsDefault`)
+    // more simply: a missing cell just binds `null` in the existing native
+    // VALUES syntax, which every SQLite version knex-dart targets accepts
+    // directly — no shim needed.
     const sqliteFamily = {'sqlite', 'sqlite3', 'turso', 'd1'};
     final isSqliteFamily = sqliteFamily.contains(client.driverName);
+    final useNullAsDefault = client.config.useNullAsDefault;
 
     // Build VALUES clauses
     final valuesClauses = <String>[];
@@ -1615,12 +1625,14 @@ class QueryCompiler {
       for (final col in columns) {
         if (row.containsKey(col)) {
           rowBindings.add(client.parameter(row[col], bindings));
+        } else if (useNullAsDefault) {
+          rowBindings.add(client.parameter(null, bindings));
         } else {
           if (isSqliteFamily) {
             throw StateError(
               'SQLite does not support DEFAULT in a multi-row INSERT with '
-              'differing columns. Give every row the same columns, or split '
-              'into separate inserts.',
+              'differing columns. Give every row the same columns, split '
+              'into separate inserts, or set KnexConfig.useNullAsDefault.',
             );
           }
           // Missing cell → SQL DEFAULT keyword (uppercase, matching knex.js and
@@ -1688,12 +1700,19 @@ class QueryCompiler {
       if (mergeColumns == null) {
         // No arg: update all inserted columns. knex.js derives this list from
         // the same `_prepInsert` pass used for the INSERT column list itself
-        // (`Object.keys(...).sort()`), so it comes out alphabetically sorted
-        // — sort here too rather than using the Map's raw insertion order.
+        // — the union of every row's keys (not just row[0]'s: a ragged
+        // multi-row insert can have a column that only appears from the
+        // second row onward, and it must still be merge-updated), sorted
+        // alphabetically (`Object.keys(...).sort()`), matching the INSERT
+        // column list itself.
         final rows = insertValue is List
             ? insertValue.cast<Map<String, dynamic>>()
             : [insertValue as Map<String, dynamic>];
-        updateColumns = rows[0].keys.toList()..sort();
+        final columnSet = <String>{};
+        for (final row in rows) {
+          columnSet.addAll(row.keys);
+        }
+        updateColumns = columnSet.toList()..sort();
       } else if (mergeColumns is List) {
         updateColumns = List<String>.from(mergeColumns);
       } else if (mergeColumns is Map) {

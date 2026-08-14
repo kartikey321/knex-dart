@@ -62,6 +62,16 @@ final Map<String, SchemaParityCase> schemaParityCases = {
         t.foreign('user_id').references('id').inTable('users').onUpdate('cascade');
       }).toSQL(),
 
+  'schema/create-table-foreign-both-actions': (d) => _sb(d).createTable('orders', (t) {
+        t.increments('id');
+        t.integer('user_id');
+        t.foreign('user_id')
+            .references('id')
+            .inTable('users')
+            .onDelete('cascade')
+            .onUpdate('set null');
+      }).toSQL(),
+
   'schema/default-string-embedded-quote': (d) => _sb(d).alterTable('users', (t) {
         t.string('nickname').defaultTo("single 'quoted' value");
       }).toSQL(),

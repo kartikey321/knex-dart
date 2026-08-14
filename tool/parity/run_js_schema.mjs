@@ -96,6 +96,12 @@ const cases = [
     t.foreign('user_id').references('id').inTable('users').onUpdate('cascade');
   })],
 
+  ['schema/create-table-foreign-both-actions', (k) => k.schema.createTable('orders', (t) => {
+    t.increments('id');
+    t.integer('user_id');
+    t.foreign('user_id').references('id').inTable('users').onDelete('cascade').onUpdate('set null');
+  })],
+
   // Directly mirrored from the defaultTo() cases in knex.js's sqlite3.js,
   // mysql.js, and postgres.js schema-builder suites.
   ['schema/default-string-embedded-quote', (k) => k.schema.alterTable('users', (t) => {

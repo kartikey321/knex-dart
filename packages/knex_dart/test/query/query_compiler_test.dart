@@ -1,4 +1,5 @@
 import 'package:test/test.dart';
+import 'package:knex_dart/src/client/knex_config.dart';
 import 'package:knex_dart/src/query/query_builder.dart';
 import 'package:knex_dart/src/query/query_compiler.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
@@ -1312,6 +1313,72 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test(
+      'Ragged multi-row insert uses null bindings (not DEFAULT) when '
+      'useNullAsDefault is set, matching real knex.js',
+      () {
+        final pgClient = MockClient(
+          config: KnexConfig(
+            client: 'pg',
+            connection: {},
+            useNullAsDefault: true,
+          ),
+        );
+        final sql = QueryBuilder(pgClient).table('t').insert([
+          {'Zebra': 1, 'apple': 2},
+          {'apple': 3, 'Zoo': 4},
+        ]).toSQL();
+
+        expect(
+          sql.sql,
+          'insert into "t" ("Zebra", "Zoo", "apple") values '
+          '(\$1, \$2, \$3), (\$4, \$5, \$6)',
+        );
+        expect(sql.bindings, [1, null, 2, null, 4, 3]);
+      },
+    );
+
+    test(
+      'Ragged multi-row insert on SQLite succeeds (via null bindings, not '
+      "knex.js's union-all-select shim) when useNullAsDefault is set",
+      () {
+        final sqliteClient = MockClient(
+          driverName: 'sqlite3',
+          config: KnexConfig(
+            client: 'sqlite3',
+            connection: {},
+            useNullAsDefault: true,
+          ),
+        );
+        final sql = QueryBuilder(sqliteClient).table('t').insert([
+          {'Zebra': 1, 'apple': 2},
+          {'apple': 3, 'Zoo': 4},
+        ]).toSQL();
+
+        expect(
+          sql.sql,
+          'insert into "t" ("Zebra", "Zoo", "apple") values '
+          '(\$1, \$2, \$3), (\$4, \$5, \$6)',
+        );
+        expect(sql.bindings, [1, null, 2, null, 4, 3]);
+      },
+    );
+
+    test(
+      'Ragged multi-row insert on SQLite still throws without '
+      'useNullAsDefault (matches knex.js default-config behavior)',
+      () {
+        final sqliteClient = SqliteMockClient();
+        expect(
+          () => QueryBuilder(sqliteClient).table('t').insert([
+            {'Zebra': 1, 'apple': 2},
+            {'apple': 3, 'Zoo': 4},
+          ]).toSQL(),
+          throwsStateError,
+        );
+      },
+    );
   });
 
   group('QueryCompiler Step 11 - UPDATE', () {
@@ -1688,6 +1755,25 @@ void main() {
 
         expect(sql.sql, 'select * from "t" where "id" = \$1 and col = \$2 + \$3');
         expect(sql.bindings, [1, 2, 3]);
+      },
+    );
+
+    test(
+      'Placeholder offsetting does not corrupt a \$N-shaped substring '
+      'inside a single-quoted string literal in a Raw fragment '
+      '(verified against real knex.js)',
+      () {
+        final builder = QueryBuilder(client).table('t').where('a', 0).where(
+              client.raw(r"note = '$1 discount' and x = ?", [2]),
+            );
+        final sql = builder.toSQL();
+
+        expect(
+          sql.sql,
+          r'select * from "t" where "a" = $1 and '
+          r"note = '$1 discount' and x = $2",
+        );
+        expect(sql.bindings, [0, 2]);
       },
     );
 

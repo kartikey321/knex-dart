@@ -16,10 +16,18 @@ class ColumnBuilder {
   final String name;
   final String type; // SQL type string (e.g. 'varchar(255)', 'integer')
 
+  /// Whether this column was declared via `.json()`/`.jsonb()`. Tracked
+  /// independently of [type] because some dialects (e.g. Redshift) map the
+  /// JSON logical type to a SQL type name — `varchar(max)` — that doesn't
+  /// literally say "json"; a `type`-string check would silently stop
+  /// JSON-encoding Map/List defaults for those dialects.
+  final bool isJson;
+
   bool _nullable = true;
   dynamic _defaultValue;
   bool _hasDefault = false;
   bool _isPrimary = false;
+  String? _primaryConstraintName;
   bool _isUnique = false;
   bool _isUnsigned = false;
   String? _referencesColumn;
@@ -27,13 +35,14 @@ class ColumnBuilder {
   String? _onDelete;
   String? _onUpdate;
 
-  ColumnBuilder(this.name, this.type);
+  ColumnBuilder(this.name, this.type, {this.isJson = false});
 
   // ============================================================================
   // PUBLIC GETTERS (for SchemaCompiler access)
   // ============================================================================
   bool get isUnique => _isUnique;
   bool get isPrimary => _isPrimary;
+  String? get primaryConstraintName => _primaryConstraintName;
   String? get referencesColumn => _referencesColumn;
   String? get referencesTable => _referencesTable;
   String? get onDeleteAction => _onDelete;
@@ -71,6 +80,7 @@ class ColumnBuilder {
   /// Mark column as PRIMARY KEY.
   ColumnBuilder primary({String? constraintName}) {
     _isPrimary = true;
+    _primaryConstraintName = constraintName;
     return this;
   }
 
@@ -134,10 +144,9 @@ class ColumnBuilder {
       } else if (_defaultValue is num) {
         parts.add('default $_defaultValue');
       } else if (_defaultValue is String) {
-        parts.add('default ${_sqlString(_defaultValue as String)}');
-      } else if ((type == 'json' || type == 'jsonb') &&
-          (_defaultValue is Map || _defaultValue is List)) {
-        final value = _sqlString(jsonEncode(_defaultValue));
+        parts.add('default ${_sqlString(_defaultValue as String, dialect)}');
+      } else if (isJson && (_defaultValue is Map || _defaultValue is List)) {
+        final value = _sqlString(jsonEncode(_defaultValue), dialect);
         // MySQL 8 requires a JSON literal default to be an expression. knex.js
         // therefore emits DEFAULT ('{}') rather than DEFAULT '{}'.
         final isMySql = dialect == 'mysql' ||
@@ -145,14 +154,77 @@ class ColumnBuilder {
             dialect == 'mariadb';
         parts.add('default ${isMySql ? '($value)' : value}');
       } else {
-        parts.add('default ${_sqlString(_defaultValue.toString())}');
+        parts.add('default ${_sqlString(_defaultValue.toString(), dialect)}');
       }
     }
 
     return parts.join(' ');
   }
 
-  /// Quote a string for use as a SQL literal, escaping embedded `'` by
-  /// doubling it (matches knex.js's `Client.prototype._escapeBinding`).
-  String _sqlString(String value) => "'${value.replaceAll("'", "''")}'";
+  static const _postgresLike = {
+    'pg',
+    'postgres',
+    'postgresql',
+    'cockroachdb',
+    'redshift',
+  };
+  static const _mysqlLike = {'mysql', 'mysql2', 'mariadb'};
+
+  /// C-style escape map matching knex.js's generic `escapeString` (used by
+  /// its MySQL client, and the fallback for any dialect without a
+  /// dialect-specific `_escapeBinding`, e.g. Redshift/CockroachDB share
+  /// Postgres's; sqlite/mssql/duckdb/bigquery/snowflake fall back to plain
+  /// quote-doubling in knex.js, so they get that below instead).
+  static const _mysqlEscapes = {
+    '\x00': r'\0',
+    '\b': r'\b',
+    '\t': r'\t',
+    '\n': r'\n',
+    '\r': r'\r',
+    '\x1a': r'\Z',
+    '"': r'\"',
+    "'": r"\'",
+    '\\': r'\\',
+  };
+
+  /// Quote a string for use as a SQL literal, with dialect-aware escaping
+  /// matching knex.js's per-client `_escapeBinding`:
+  /// - Postgres-family: doubles `'` and `\`, prefixing `E` only when the
+  ///   value actually contains a backslash (`Client_PG.escapeString`).
+  /// - MySQL-family: full C-style escape sequences, including backslash
+  ///   (knex.js's generic `escapeString`, used by its MySQL client).
+  /// - Everything else: plain `'` doubling only, no backslash handling —
+  ///   matches knex.js's base `Client.prototype._escapeBinding`, which is
+  ///   what sqlite/mssql/duckdb/bigquery/snowflake fall back to (none of
+  ///   them override it).
+  String _sqlString(String value, String dialect) {
+    if (_postgresLike.contains(dialect)) {
+      var hasBackslash = false;
+      final buffer = StringBuffer("'");
+      for (final rune in value.runes) {
+        final ch = String.fromCharCode(rune);
+        if (ch == "'") {
+          buffer.write("''");
+        } else if (ch == '\\') {
+          buffer.write(r'\\');
+          hasBackslash = true;
+        } else {
+          buffer.write(ch);
+        }
+      }
+      buffer.write("'");
+      final escaped = buffer.toString();
+      return hasBackslash ? 'E$escaped' : escaped;
+    }
+    if (_mysqlLike.contains(dialect)) {
+      final buffer = StringBuffer("'");
+      for (final rune in value.runes) {
+        final ch = String.fromCharCode(rune);
+        buffer.write(_mysqlEscapes[ch] ?? ch);
+      }
+      buffer.write("'");
+      return buffer.toString();
+    }
+    return "'${value.replaceAll("'", "''")}'";
+  }
 }

@@ -471,4 +471,70 @@ void main() {
       expect(sql, contains('on update RESTRICT'));
     });
   });
+
+  group('column-level .primary() declared inside alterTable', () {
+    // Found by an adversarial review of the parity-batch fixes: the
+    // createTable-time primary()-inline fix didn't cover the alterTable
+    // path — a column-level .primary() added to an existing table compiled
+    // as only ADD COLUMN, silently losing the primary key constraint. Same
+    // bug family as the earlier .references().inTable()-on-alterTable fix.
+    // All expected SQL verified against real knex.js.
+    test('Postgres emits a deferred ADD CONSTRAINT PRIMARY KEY', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary();
+      });
+      final sqls = schema.toSQL();
+      expect(sqls.length, 2);
+      expect(sqls[0]['sql'], 'alter table "t" add column "id" integer');
+      expect(
+        sqls[1]['sql'],
+        'alter table "t" add constraint "t_pkey" primary key ("id")',
+      );
+    });
+
+    test('MySQL emits its own ADD PRIMARY KEY syntax (no "constraint" '
+        'keyword, name immediately before the parens)', () {
+      final schema = MySQLMockClient().schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary();
+      });
+      final sqls = schema.toSQL();
+      expect(sqls.length, 2);
+      expect(
+        stmtContaining(sqls, 'add primary key'),
+        contains('add primary key `t_pkey`(`id`)'),
+      );
+    });
+
+    test('a custom constraintName is respected instead of the default '
+        '"<table>_pkey"', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary(constraintName: 'custom_pk');
+      });
+      final sql = schema.toSQL()[1]['sql'] as String;
+      expect(sql, contains('constraint "custom_pk" primary key ("id")'));
+    });
+
+    test('a custom constraintName on createTable is also respected (was '
+        'previously always hardcoded to "<table>_pkey")', () {
+      final schema = client.schemaBuilder();
+      schema.createTable('t', (table) {
+        table.integer('id').primary(constraintName: 'custom_pk');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('constraint "custom_pk" primary key ("id")'));
+    });
+
+    test('SQLite refuses rather than silently dropping the constraint '
+        '(cannot ALTER TABLE ADD CONSTRAINT; matches the existing '
+        'foreign()-on-alterTable SQLite precedent)', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary();
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+  });
 }

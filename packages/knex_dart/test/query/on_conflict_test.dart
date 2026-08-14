@@ -65,6 +65,32 @@ void main() {
       );
     });
 
+    test(
+      'merge() with no arg on a ragged multi-row insert updates the union '
+      "of all rows' keys, not just row[0]'s (verified against real "
+      'knex.js)',
+      () {
+        final sql = QueryBuilder(pg)
+            .table('t')
+            .insert([
+              {'Zebra': 1, 'apple': 2},
+              {'apple': 3, 'Zoo': 4},
+            ])
+            .onConflict('apple')
+            .merge()
+            .toSQL();
+
+        expect(
+          sql.sql,
+          'insert into "t" ("Zebra", "Zoo", "apple") values '
+          r'($1, DEFAULT, $2), (DEFAULT, $3, $4) on conflict ("apple") do '
+          'update set "Zebra" = excluded."Zebra", "Zoo" = excluded."Zoo", '
+          '"apple" = excluded."apple"',
+        );
+        expect(sql.bindings, [1, 2, 4, 3]);
+      },
+    );
+
     test('merge(List) updates only specified columns', () {
       final sql = QueryBuilder(pg)
           .table('users')

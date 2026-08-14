@@ -245,6 +245,15 @@ const Map<String, String> schemaParityAllowlist = {
   //     (create-table-primary-named), both sides include it identically —
   //     confirming this is a naming-when-absent style choice, not a
   //     structural difference.
+  // (6) ON DELETE/ON UPDATE clause order when BOTH are set on the same FK:
+  //     knex.js always emits `on update ... on delete ...`; knex-dart always
+  //     emits `on delete ... on update ...`. Standard SQL does not mandate
+  //     an order between the two referential-action clauses in a FOREIGN
+  //     KEY constraint definition (verified: both orderings parse and
+  //     enforce identically) — cosmetic ordering only, not a semantic
+  //     difference. (Caught by an adversarial review after the initial
+  //     grouped note (1) was written covering only the casing difference —
+  //     that note was accurate but incomplete for the both-actions-set case.)
   'schema/create-table-foreign-fluent-cascade::postgres':
       '[ACCEPTED] FK action casing only — see grouped note above (1).',
   'schema/create-table-foreign-fluent-cascade::cockroachdb':
@@ -273,6 +282,20 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see schema/create-table-foreign-fluent-cascade::sqlite (turso is sqlite-family).',
   'schema/create-table-foreign-onupdate::d1':
       '[ACCEPTED] see schema/create-table-foreign-fluent-cascade::sqlite (d1 is sqlite-family).',
+  'schema/create-table-foreign-both-actions::postgres':
+      '[ACCEPTED] FK action casing + ON DELETE/ON UPDATE clause order — see grouped note above (1)(6).',
+  'schema/create-table-foreign-both-actions::cockroachdb':
+      '[ACCEPTED] see schema/create-table-foreign-both-actions::postgres.',
+  'schema/create-table-foreign-both-actions::redshift':
+      '[ACCEPTED] see schema/create-table-foreign-both-actions::postgres.',
+  'schema/create-table-foreign-both-actions::mysql':
+      '[ACCEPTED] int/integer synonym + implicit NOT NULL + FK action casing + clause order — see grouped note above (1)(2)(3)(6).',
+  'schema/create-table-foreign-both-actions::sqlite':
+      '[ACCEPTED] implicit NOT NULL + FK action casing + inline-FK whitespace + clause order — see grouped note above (1)(3)(4)(6).',
+  'schema/create-table-foreign-both-actions::turso':
+      '[ACCEPTED] see schema/create-table-foreign-both-actions::sqlite (turso is sqlite-family).',
+  'schema/create-table-foreign-both-actions::d1':
+      '[ACCEPTED] see schema/create-table-foreign-both-actions::sqlite (d1 is sqlite-family).',
   'schema/create-table-foreign-column::mysql':
       '[ACCEPTED] see grouped note above (2)(3) — int/integer + implicit NOT NULL.',
   'schema/create-table-foreign-column::sqlite':

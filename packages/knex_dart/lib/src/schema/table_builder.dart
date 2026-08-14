@@ -325,14 +325,14 @@ class TableBuilder {
 
   /// JSON column
   ColumnBuilder json(String column) {
-    final cb = ColumnBuilder(column, _jsonType());
+    final cb = ColumnBuilder(column, _jsonType(), isJson: true);
     _columns.add(cb);
     return cb;
   }
 
   /// JSONB column (Postgres)
   ColumnBuilder jsonb(String column) {
-    final cb = ColumnBuilder(column, _jsonbType());
+    final cb = ColumnBuilder(column, _jsonbType(), isJson: true);
     _columns.add(cb);
     return cb;
   }

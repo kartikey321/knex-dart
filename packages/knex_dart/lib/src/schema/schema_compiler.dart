@@ -363,9 +363,11 @@ class SchemaCompiler {
       final colStr = _wrap(primaryColumn.name);
       final omitsConstraintName = _isSqliteLike(client.driverName) ||
           _isMySqlLike(client.driverName);
+      final constraintName =
+          primaryColumn.primaryConstraintName ?? '${tableName}_pkey';
       primaryInline = omitsConstraintName
           ? ', primary key ($colStr)'
-          : ', constraint ${_wrap('${tableName}_pkey')} primary key ($colStr)';
+          : ', constraint ${_wrap(constraintName)} primary key ($colStr)';
     }
     for (final stmt in tb.alterStatements) {
       if (stmt['method'] == 'primary') {
@@ -534,6 +536,31 @@ class SchemaCompiler {
       if (col.onDeleteAction != null) fk += ' on delete ${col.onDeleteAction}';
       if (col.onUpdateAction != null) fk += ' on update ${col.onUpdateAction}';
       _pushQuery(fk);
+    }
+
+    // A column-level .primary() declared on a newly-added column is a
+    // deferred primary-key constraint in knex.js (same shape as the
+    // deferred foreign-key handling above). Previously it was compiled as
+    // only ADD COLUMN, silently losing the constraint.
+    for (final col in tb.columns) {
+      if (!col.isPrimary) continue;
+      if (_isSqliteLike(client.driverName)) {
+        throw UnsupportedError(
+          'primary is not supported on an existing SQLite table — '
+          'declare it in createTable, or recreate the table instead',
+        );
+      }
+      final constraintName = col.primaryConstraintName ?? '${tableName}_pkey';
+      final colStr = _wrap(col.name);
+      if (_isMySqlLike(client.driverName)) {
+        _pushQuery(
+          'alter table $tableRef add primary key ${_wrap(constraintName)}($colStr)',
+        );
+      } else {
+        _pushQuery(
+          'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
+        );
+      }
     }
 
     // Handle alter statements

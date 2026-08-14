@@ -227,17 +227,50 @@ abstract class Client {
   /// from `$1` and colliding with — or leaving gaps in — the placeholders
   /// already emitted for the surrounding query.
   ///
-  /// Performed as a **single** regex pass. Iterated `replaceAll('$1', …)` is
-  /// unsafe: `$1` also matches inside `$10`/`$11`, including tokens the
+  /// Scans character-by-character rather than using a blind regex, because a
+  /// `$N`-shaped substring can legitimately appear inside a single-quoted SQL
+  /// string literal embedded in the fragment (e.g. a `Raw` value like
+  /// `client.raw("note = '\$1 discount'")`) — that text must be left alone,
+  /// not treated as a placeholder. `''` is tracked as the standard SQL
+  /// escaped-quote sequence (stays inside the literal, not a close+reopen).
+  ///
+  /// Placeholder renumbering itself is done digit-by-digit in one pass
+  /// (never via repeated `replaceAll('$1', …)`), which avoids a related bug:
+  /// `$1` also matches inside `$10`/`$11`, including tokens a prior
   /// substitution just produced — e.g. with offset 9 a two-binding fragment
   /// would rewrite `$2`→`$11`, then `$1`→`$10` would also hit the `$1`
   /// inside that new `$11`, yielding `$101`.
   String offsetPlaceholders(String sql, int offset) {
     if (offset <= 0) return sql;
-    return sql.replaceAllMapped(
-      RegExp(r'\$(\d+)'),
-      (m) => '\$${int.parse(m[1]!) + offset}',
-    );
+    final buffer = StringBuffer();
+    var inString = false;
+    var i = 0;
+    while (i < sql.length) {
+      final ch = sql[i];
+      if (ch == "'") {
+        inString = !inString;
+        buffer.write(ch);
+        i++;
+        continue;
+      }
+      if (!inString && ch == r'$' && i + 1 < sql.length) {
+        var j = i + 1;
+        while (j < sql.length &&
+            sql.codeUnitAt(j) >= 0x30 &&
+            sql.codeUnitAt(j) <= 0x39) {
+          j++;
+        }
+        if (j > i + 1) {
+          final n = int.parse(sql.substring(i + 1, j));
+          buffer.write('\$${n + offset}');
+          i = j;
+          continue;
+        }
+      }
+      buffer.write(ch);
+      i++;
+    }
+    return buffer.toString();
   }
 
   /// Add a value to bindings and return the parameter placeholder
