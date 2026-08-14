@@ -239,6 +239,52 @@ const Map<String, String> parityAllowlist = {
   'having/from-alias::d1':
       '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
           'uppercase-AS issue (d1 is sqlite-family).',
+
+  // ── OPEN BUG (out of scope for this pass): uppercase `AS`, but via
+  // Ref.as() (src/ref.dart), NOT client.alias() (src/client/client.dart) —
+  // a distinct code path with the identical defect. Filed separately per
+  // dialect so the ratchet forces re-triage of *this* call site once the
+  // AS-casing sweep lands, independent of the client.alias() entries above.
+  'ref/select-alias::postgres':
+      '[OPEN BUG] Ref.as() (packages/knex_dart/lib/src/ref.dart) hardcodes '
+          'uppercase " AS " when building the aliased SQL string; knex.js '
+          'always emits lowercase "as". Same defect class as '
+          'client.alias()\'s uppercase-AS issue above, but a different code '
+          'path/file — client.alias() is explicitly out of scope for this '
+          'mining pass and Ref.as() was not touched either. Fix: once the '
+          'AS-casing sweep covers Ref.as() too, delete these entries.',
+  'ref/select-alias::cockroachdb':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::redshift':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::mysql':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::sqlite':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::turso':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause, '
+          'turso is sqlite-family).',
+  'ref/select-alias::d1':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause, '
+          'd1 is sqlite-family).',
+
+  // ── OPEN BUG: whereJsonPath() has no CockroachDB implementation ────────────
+  'json/where-path::cockroachdb':
+      '[OPEN BUG] CockroachDB compiles whereJsonPath via '
+          '`json_extract_path("col", seg1, seg2, ...)::cast op val` — the '
+          'JSONPath string (e.g. \'\$.street.number\') split into '
+          'positional segments (\'street\', \'number\'), NOT '
+          'jsonb_path_query_first(col, path) like Postgres. Verified '
+          'against real knex.js: `select * from "users" where '
+          'json_extract_path("address", \$1, \$2)::int > \$3 or '
+          'json_extract_path("address", \$4, \$5)::int < \$6` with '
+          'bindings [\'street\',\'number\',5,\'street\',\'number\',8]. '
+          'Implementing this needs a JSONPath-segment parser distinct from '
+          'the Postgres path — judged out of scope for this pass; '
+          'knex-dart now throws StateError instead of the previous silent '
+          '(and wrong) whereBasic() fallback. Fix: add a CockroachDB branch '
+          'to _whereJsonPath() in query_compiler.dart, then remove this '
+          'entry.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

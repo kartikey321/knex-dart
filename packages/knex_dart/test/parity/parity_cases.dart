@@ -817,4 +817,219 @@ final Map<String, ParityCase> parityCases = {
       .where('tblPersonData.DataId', 1)
       .where('tblPerson.PersonId', 5)
       .toSQL(),
+
+  // Batch 4 — mined from knex.js test/unit/query/builder.js lines 8354-end.
+  // Mirrors run_js.mjs 1:1 by id.
+
+  // ── Window functions (representative shapes) ────────────────────────────
+  'window/rank-callback-orderby-only': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank(null, (a) => a.orderBy('email'))
+      .toSQL(),
+  'window/rank-callback-alias-partition': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank('test_alias', (a) => a.orderBy('email').partitionBy('address'))
+      .toSQL(),
+  'window/rank-callback-arrays': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank(
+        'test_alias',
+        (a) => a
+            .orderBy(['email', 'name'])
+            .partitionBy(['address', 'phone']),
+      )
+      .toSQL(),
+  'window/rank-chained-multiple': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank('first_alias', 'email')
+      .rank('second_alias', 'address')
+      .toSQL(),
+  'window/rank-raw-alias': (d) => _qb(d)
+      .table('accounts')
+      .select(['*'])
+      .rank('test_alias', _qb(d).client.raw('partition by address order by email'))
+      .toSQL(),
+  'window/row-number-no-partition': (d) =>
+      _qb(d).table('accounts').select(['*']).rowNumber(null, 'email').toSQL(),
+
+  // ── Insert / subqueries ───────────────────────────────────────────────
+  'insert/value-subselect': (d) => _qb(d)
+      .table('entries')
+      .insert({
+        'secret': 123,
+        'sequence':
+            _qb(d).table('entries').count('*').where('secret', 123),
+      })
+      .toSQL(),
+  'subquery/from-no-alias': (d) {
+    final subquery = _qb(d).select([
+      _qb(d).client.raw('?', ['inner raw select']),
+      'bar',
+    ]);
+    return _qb(d)
+        .select([_qb(d).client.raw('?', ['outer raw select'])])
+        .table(subquery)
+        .toSQL();
+  },
+
+  // ── select() / where() extras ────────────────────────────────────────
+  'select/fromraw': (d) => _qb(d)
+      .select(['*'])
+      .fromRaw('(select * from users where age > 18)')
+      .toSQL(),
+  'select/modify-callback': (d) => _qb(d)
+      .select(['foo_id'])
+      .table('foos')
+      .modify(
+        (QueryBuilder qb, String table, String fk) {
+          qb.leftJoin('bars', '$table.$fk', 'bars.id').select(['bars.*']);
+        },
+        ['foos', 'bar_id'],
+      )
+      .toSQL(),
+  'where/empty-callback': (d) =>
+      _qb(d).select(['foo']).table('tbl').where((q) {}).toSQL(),
+  'where/not-raw': (d) => _qb(d)
+      .table('testtable')
+      .whereNot(_qb(d).client.raw('is_active'))
+      .toSQL(),
+  'where/or-raw': (d) => _qb(d)
+      .table('users')
+      .where('a', 1)
+      .orWhere(_qb(d).client.raw('b = 2'))
+      .toSQL(),
+  'where/named-binding-array': (d) => _qb(d)
+      .select(['*'])
+      .table('users')
+      .whereIn(
+        'id',
+        _qb(d).client.raw('select (:test)', {
+          'test': [1, 2, 3],
+        }),
+      )
+      .toSQL(),
+  'where/named-binding-identifier': (d) => _qb(d)
+      .select(['*'])
+      .table('users')
+      .where(
+        _qb(d).client.raw(':name: = :thisGuy or :name: = :otherGuy', {
+          'name': 'users.name',
+          'thisGuy': 'Bob',
+          'otherGuy': 'Jay',
+        }),
+      )
+      .toSQL(),
+  'jsonb/pipe-op': (d) => _qb(d).table('users').select(['*']).where('id', '?|', 1).toSQL(),
+  'jsonb/amp-op': (d) => _qb(d).table('users').select(['*']).where('id', '?&', 1).toSQL(),
+  'select/numeric-literal': (d) => _qb(d).select([0]).toSQL(),
+
+  // ── CTE + simple UPDATE/DELETE ───────────────────────────────────────
+  'cte/update-simple': (d) => _qb(d)
+      .withQuery('withClause', _qb(d).select(['foo']).table('users'))
+      .update({'foo': 'updatedFoo'})
+      .where('email', '=', 'foo')
+      .table('users')
+      .toSQL(),
+  'cte/delete-simple': (d) => _qb(d)
+      .withQuery('withClause', _qb(d).select(['email']).table('users'))
+      .delete()
+      .where('foo', '=', 'updatedFoo')
+      .table('users')
+      .toSQL(),
+
+  // ── knex.ref() ────────────────────────────────────────────────────────
+  'ref/where-column': (d) => _qb(d)
+      .table('sometable')
+      .where(
+        'sometable.column',
+        _qb(d).client.ref('someothertable.someothercolumn'),
+      )
+      .select(['*'])
+      .toSQL(),
+  'ref/select-alias': (d) => _qb(d)
+      .table('sometable')
+      .select(['one', _qb(d).client.ref('sometable.two').as('Two')])
+      .toSQL(),
+
+  // ── .first() chained onto a non-select method — must throw ────────────
+  'errors/first-on-update': (d) => _qb(d)
+      .table('sometable')
+      .update({'column': 'value'})
+      .first()
+      .toSQL(),
+  'errors/first-on-insert': (d) => _qb(d)
+      .table('sometable')
+      .insert({'column': 'value'})
+      .first()
+      .toSQL(),
+  'errors/first-on-delete': (d) =>
+      _qb(d).table('sometable').delete().first().toSQL(),
+
+  // ── DELETE + JOIN ─────────────────────────────────────────────────────
+  'delete/join-single': (d) => _qb(d)
+      .table('users')
+      .delete()
+      .join('photos', 'photos.id', 'users.id')
+      .where('user.email', 'mock@example.com')
+      .toSQL(),
+  'delete/join-multi': (d) => _qb(d)
+      .table('users')
+      .delete()
+      .join('photos', 'photos.id', 'users.id')
+      .join('docs', 'docs.id', 'users.id')
+      .where('user.email', 'mock@example.com')
+      .toSQL(),
+  'delete/join-no-where': (d) => _qb(d)
+      .table('users')
+      .delete()
+      .join('photos', 'photos.id', 'users.id')
+      .toSQL(),
+  'delete/join-oncallback-where': (d) => _qb(d)
+      .table('users')
+      .where('activated', false)
+      .join(
+        'accounts',
+        (j) => j
+            .on('accounts.id', 'users.account_id')
+            .andOn('accounts.user_id', 'users.id'),
+      )
+      .delete()
+      .toSQL(),
+
+  // ── JSON where family (adapted: knex-dart has no "Not" variant of these,
+  // so both sides use the plain/OR forms only) ────────────────────────────
+  'json/where-object': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .whereJsonObject('address', {'street': 'street1', 'number': 5})
+      .orWhereJsonObject('address', {'street': 'street2', 'number': 7})
+      .toSQL(),
+  'json/where-path': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .whereJsonPath('address', r'$.street.number', '>', 5)
+      .orWhereJsonPath('address', r'$.street.number', '<', 8)
+      .toSQL(),
+  'json/where-superset-object': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .whereJsonSupersetOf('address', {'test': 'value'})
+      .orWhereJsonSupersetOf('address', {'test': 'value2'})
+      .toSQL(),
+  'json/where-superset-string': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .whereJsonSupersetOf('address', 'test')
+      .orWhereJsonSupersetOf('address', 'test2')
+      .toSQL(),
+  'json/where-subset': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .whereJsonSubsetOf('address', {'test': 'value'})
+      .orWhereJsonSubsetOf('address', {'test': 'value2'})
+      .toSQL(),
 };

@@ -440,6 +440,138 @@ const cases = [
       .join('tblPersonData', 'tblPersonData.PersonId', '=', 'tblPerson.PersonId')
       .where('tblPersonData.DataId', 1)
       .where('tblPerson.PersonId', 5)],
+
+  // Batch 4 — mined from knex.js test/unit/query/builder.js lines 8354-end.
+  // Window-function callback/chain shapes, insert-value subqueries, raw
+  // identifier substitution (?? / :key:), CTE + simple UPDATE/DELETE,
+  // knex.ref(), .first() chained onto a non-select method, DELETE + JOIN
+  // (Postgres/CockroachDB USING transform vs MySQL/SQLite/Redshift JOIN
+  // clause), and the JSON-where family (whereJsonObject/whereJsonPath/
+  // whereJsonSupersetOf/whereJsonSubsetOf).
+
+  // ── Window functions (representative shapes only — rank/denseRank/
+  // rowNumber all share one dispatcher, so one case per *shape* covers all
+  // three; see parity_cases.dart) ──────────────────────────────────────────
+  ['window/rank-callback-orderby-only', (k) =>
+    k('accounts').select('*').rank(null, function () { this.orderBy('email'); })],
+  ['window/rank-callback-alias-partition', (k) =>
+    k('accounts').select('*').rank('test_alias', function () {
+      this.orderBy('email').partitionBy('address');
+    })],
+  ['window/rank-callback-arrays', (k) =>
+    k('accounts').select('*').rank('test_alias', function () {
+      this.orderBy(['email', 'name']).partitionBy(['address', 'phone']);
+    })],
+  ['window/rank-chained-multiple', (k) =>
+    k('accounts').select('*').rank('first_alias', 'email').rank('second_alias', 'address')],
+  ['window/rank-raw-alias', (k) =>
+    k('accounts').select('*').rank('test_alias', k.raw('partition by address order by email'))],
+  ['window/row-number-no-partition', (k) =>
+    k('accounts').select('*').rowNumber(null, 'email')],
+
+  // ── Insert / subqueries ───────────────────────────────────────────────
+  ['insert/value-subselect', (k) =>
+    k('entries').insert({
+      secret: 123,
+      sequence: k('entries').count('*').where('secret', 123),
+    })],
+  ['subquery/from-no-alias', (k) => {
+    const subquery = k.queryBuilder().select(k.raw('?', ['inner raw select']), 'bar');
+    return k.queryBuilder().select(k.raw('?', ['outer raw select'])).from(subquery);
+  }],
+
+  // ── select() / where() extras ────────────────────────────────────────
+  ['select/fromraw', (k) => k.queryBuilder().select('*').fromRaw('(select * from users where age > 18)')],
+  ['select/modify-callback', (k) => {
+    const withBars = function (queryBuilder, table, fk) {
+      this.leftJoin('bars', table + '.' + fk, 'bars.id').select('bars.*');
+    };
+    return k.queryBuilder().select('foo_id').from('foos').modify(withBars, 'foos', 'bar_id');
+  }],
+  ['where/empty-callback', (k) => k.queryBuilder().select('foo').from('tbl').where(() => {})],
+  ['where/not-raw', (k) => k.queryBuilder().from('testtable').whereNot(k.raw('is_active'))],
+  ['where/or-raw', (k) => k('users').where('a', 1).orWhere(k.raw('b = 2'))],
+  ['where/named-binding-array', (k) =>
+    k.queryBuilder().select('*').from('users').whereIn('id', k.raw('select (:test)', { test: [1, 2, 3] }))],
+  ['where/named-binding-identifier', (k) =>
+    k.queryBuilder().select('*').from('users').where(
+      k.raw(':name: = :thisGuy or :name: = :otherGuy', {
+        name: 'users.name',
+        thisGuy: 'Bob',
+        otherGuy: 'Jay',
+      })
+    )],
+  ['jsonb/pipe-op', (k) => k('users').select('*').where('id', '?|', 1)],
+  ['jsonb/amp-op', (k) => k('users').select('*').where('id', '?&', 1)],
+  ['select/numeric-literal', (k) => k.queryBuilder().select(0)],
+
+  // ── CTE + simple UPDATE/DELETE (as opposed to batch-3's cte/update-source
+  // and cte/delete-source, where the WITH body itself is the mutating
+  // statement — here the outer query is the mutation and the CTE is a
+  // plain SELECT feeding it) ───────────────────────────────────────────────
+  ['cte/update-simple', (k) =>
+    k.queryBuilder()
+      .with('withClause', function () { this.select('foo').from('users'); })
+      .update({ foo: 'updatedFoo' })
+      .where('email', '=', 'foo')
+      .from('users')],
+  ['cte/delete-simple', (k) =>
+    k.queryBuilder()
+      .with('withClause', function () { this.select('email').from('users'); })
+      .del()
+      .where('foo', '=', 'updatedFoo')
+      .from('users')],
+
+  // ── knex.ref() ────────────────────────────────────────────────────────
+  ['ref/where-column', (k) =>
+    k.queryBuilder().table('sometable').where('sometable.column', k.ref('someothertable.someothercolumn')).select()],
+  ['ref/select-alias', (k) =>
+    k.queryBuilder().table('sometable').select(['one', k.ref('sometable.two').as('Two')])],
+
+  // ── .first() chained onto a non-select method — must throw ────────────
+  ['errors/first-on-update', (k) => k.queryBuilder().table('sometable').update({ column: 'value' }).first()],
+  ['errors/first-on-insert', (k) => k.queryBuilder().table('sometable').insert({ column: 'value' }).first()],
+  ['errors/first-on-delete', (k) => k.queryBuilder().table('sometable').del().first()],
+
+  // ── DELETE + JOIN (previously silently dropped the join in knex-dart —
+  // see the fix in query_compiler.dart's _deleteQuery()) ──────────────────
+  ['delete/join-single', (k) =>
+    k.queryBuilder().del().from('users').join('photos', 'photos.id', 'users.id').where({ 'user.email': 'mock@example.com' })],
+  ['delete/join-multi', (k) =>
+    k.queryBuilder().del().from('users')
+      .join('photos', 'photos.id', 'users.id')
+      .join('docs', 'docs.id', 'users.id')
+      .where({ 'user.email': 'mock@example.com' })],
+  ['delete/join-no-where', (k) =>
+    k.queryBuilder().del().from('users').join('photos', 'photos.id', 'users.id')],
+  ['delete/join-oncallback-where', (k) =>
+    k.queryBuilder().table('users').where('activated', false).join('accounts', function (jb) {
+      jb.on('accounts.id', 'users.account_id').andOn('accounts.user_id', 'users.id');
+    }).del()],
+
+  // ── JSON where family (adapted from knex.js tests that paired these with
+  // whereJsonNot*/orWhereNotJsonObject — knex-dart has no "Not" variant of
+  // these, so both sides here use the plain/OR forms only) ────────────────
+  ['json/where-object', (k) =>
+    k('users').select()
+      .whereJsonObject('address', { street: 'street1', number: 5 })
+      .orWhereJsonObject('address', { street: 'street2', number: 7 })],
+  ['json/where-path', (k) =>
+    k('users').select()
+      .whereJsonPath('address', '$.street.number', '>', 5)
+      .orWhereJsonPath('address', '$.street.number', '<', 8)],
+  ['json/where-superset-object', (k) =>
+    k('users').select()
+      .whereJsonSupersetOf('address', { test: 'value' })
+      .orWhereJsonSupersetOf('address', { test: 'value2' })],
+  ['json/where-superset-string', (k) =>
+    k('users').select()
+      .whereJsonSupersetOf('address', 'test')
+      .orWhereJsonSupersetOf('address', 'test2')],
+  ['json/where-subset', (k) =>
+    k('users').select()
+      .whereJsonSubsetOf('address', { test: 'value' })
+      .orWhereJsonSubsetOf('address', { test: 'value2' })],
 ];
 
 const out = [];
