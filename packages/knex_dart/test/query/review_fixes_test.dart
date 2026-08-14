@@ -369,4 +369,108 @@ void main() {
       expect(sql.sql, endsWith('group by "region"'));
     });
   });
+
+  group('where(Raw) — bool/not flags', () {
+    // Previously `where()`'s Raw branch hardcoded `'bool': 'and'` and never
+    // stored a `'not'` key at all, so `.orWhere(raw(...))` silently compiled
+    // as AND (dropping the OR), and `.whereNot(raw(...))`/
+    // `.orWhereNot(raw(...))` silently dropped the NOT — both change query
+    // semantics, not just formatting. Verified against real knex.js.
+    test('.whereNot(raw(...)) prefixes with "not "', () {
+      final sql = QueryBuilder(pg)
+          .table('testtable')
+          .whereNot(pg.raw('is_active'))
+          .toSQL();
+      expect(sql.sql, 'select * from "testtable" where not is_active');
+      expect(sql.bindings, isEmpty);
+    });
+
+    test('.orWhereNot(raw(...)) prefixes with "not " and joins with OR', () {
+      final sql = QueryBuilder(pg)
+          .table('t')
+          .where('a', 1)
+          .orWhereNot(pg.raw('is_active'))
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "a" = \$1 or not is_active');
+      expect(sql.bindings, [1]);
+    });
+
+    test('.orWhere(raw(...)) joins with OR, not AND', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .where('a', 1)
+          .orWhere(pg.raw('b = 2'))
+          .toSQL();
+      expect(sql.sql, 'select * from "users" where "a" = \$1 or b = 2');
+      expect(sql.bindings, [1]);
+    });
+
+    test('plain .where(raw(...)) is unaffected (still AND, no NOT)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .where('a', 1)
+          .where(pg.raw('b = 2'))
+          .toSQL();
+      expect(sql.sql, 'select * from "users" where "a" = \$1 and b = 2');
+      expect(sql.bindings, [1]);
+    });
+  });
+
+  group('select() numeric literal', () {
+    // `_columns()` called `.toString()` on every select() column before
+    // handing it to `formatter.wrap()`, which loses the `num` type that
+    // `wrap()` special-cases (numbers pass through bare) — so `select(0)`
+    // compiled to the quoted identifier `"0"` instead of the bare literal
+    // `0`. Verified against real knex.js (`select 0`).
+    test('select(0) compiles to a bare numeric literal, not a quoted '
+        'identifier', () {
+      final sql = QueryBuilder(pg).select([0]).toSQL();
+      expect(sql.sql, 'select 0');
+    });
+
+    test('select(0) with a table still compiles the literal bare', () {
+      final sql = QueryBuilder(pg).table('t').select([0]).toSQL();
+      expect(sql.sql, 'select 0 from "t"');
+    });
+
+    test('string columns are unaffected (still wrapped as identifiers)', () {
+      final sql = QueryBuilder(pg).table('t').select(['id']).toSQL();
+      expect(sql.sql, 'select "id" from "t"');
+    });
+  });
+
+  group('whereIn/whereNotIn with a Raw value', () {
+    // Previously `whereIn()`'s compiler only handled QueryBuilder/Function
+    // values before falling through to an unconditional `values as List`
+    // cast — a Raw value (e.g. a raw subquery with named bindings) threw a
+    // TypeError instead of compiling. knex.js supports this directly.
+    test('whereIn(col, raw(...)) compiles the raw fragment inside IN (...)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .select(['*'])
+          .whereIn(
+            'id',
+            pg.raw('select (:test)', {
+              'test': [1, 2, 3],
+            }),
+          )
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where "id" in (select (\$1))');
+      expect(sql.bindings, [
+        [1, 2, 3],
+      ]);
+    });
+
+    test('whereNotIn(col, raw(...)) also compiles (shares the same '
+        'compiler path)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .whereNotIn('id', pg.raw('select id from banned'))
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where "id" not in (select id from banned)');
+      expect(sql.bindings, isEmpty);
+    });
+  });
 }

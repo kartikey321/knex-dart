@@ -12,7 +12,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 1104,
+  "caseCount": 1376,
   "cases": [
     {
       "id": "where/eq-string",
@@ -8832,6 +8832,2010 @@
         1,
         5
       ]
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "postgres",
+      "sql": "select *, rank() over (order by \"email\") from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "cockroachdb",
+      "sql": "select *, rank() over (order by \"email\") from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "redshift",
+      "sql": "select *, rank() over (order by \"email\") from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "mysql",
+      "sql": "select *, rank() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "sqlite",
+      "sql": "select *, rank() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select *, rank() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select *, rank() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
+      "dialect": "mssql",
+      "sql": "select *, rank() over (order by [email]) from [accounts]",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "postgres",
+      "sql": "select *, rank() over (partition by \"address\" order by \"email\") as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "cockroachdb",
+      "sql": "select *, rank() over (partition by \"address\" order by \"email\") as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "redshift",
+      "sql": "select *, rank() over (partition by \"address\" order by \"email\") as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "mysql",
+      "sql": "select *, rank() over (partition by `address` order by `email`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "sqlite",
+      "sql": "select *, rank() over (partition by `address` order by `email`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select *, rank() over (partition by `address` order by `email`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select *, rank() over (partition by `address` order by `email`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "mssql",
+      "sql": "select *, rank() over (partition by [address] order by [email]) as test_alias from [accounts]",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "postgres",
+      "sql": "select *, rank() over (partition by \"address\", \"phone\" order by \"email\", \"name\") as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "cockroachdb",
+      "sql": "select *, rank() over (partition by \"address\", \"phone\" order by \"email\", \"name\") as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "redshift",
+      "sql": "select *, rank() over (partition by \"address\", \"phone\" order by \"email\", \"name\") as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "mysql",
+      "sql": "select *, rank() over (partition by `address`, `phone` order by `email`, `name`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "sqlite",
+      "sql": "select *, rank() over (partition by `address`, `phone` order by `email`, `name`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select *, rank() over (partition by `address`, `phone` order by `email`, `name`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select *, rank() over (partition by `address`, `phone` order by `email`, `name`) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
+      "dialect": "mssql",
+      "sql": "select *, rank() over (partition by [address], [phone] order by [email], [name]) as test_alias from [accounts]",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "postgres",
+      "sql": "select *, rank() over (order by \"email\") as first_alias, rank() over (order by \"address\") as second_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "cockroachdb",
+      "sql": "select *, rank() over (order by \"email\") as first_alias, rank() over (order by \"address\") as second_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "redshift",
+      "sql": "select *, rank() over (order by \"email\") as first_alias, rank() over (order by \"address\") as second_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "mysql",
+      "sql": "select *, rank() over (order by `email`) as first_alias, rank() over (order by `address`) as second_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "sqlite",
+      "sql": "select *, rank() over (order by `email`) as first_alias, rank() over (order by `address`) as second_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select *, rank() over (order by `email`) as first_alias, rank() over (order by `address`) as second_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select *, rank() over (order by `email`) as first_alias, rank() over (order by `address`) as second_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "mssql",
+      "sql": "select *, rank() over (order by [email]) as first_alias, rank() over (order by [address]) as second_alias from [accounts]",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "postgres",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "cockroachdb",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "redshift",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "mysql",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "sqlite",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
+      "dialect": "mssql",
+      "sql": "select *, rank() over (partition by address order by email) as test_alias from [accounts]",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "postgres",
+      "sql": "select *, row_number() over (order by \"email\") from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "cockroachdb",
+      "sql": "select *, row_number() over (order by \"email\") from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "redshift",
+      "sql": "select *, row_number() over (order by \"email\") from \"accounts\"",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "mysql",
+      "sql": "select *, row_number() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "sqlite",
+      "sql": "select *, row_number() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select *, row_number() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select *, row_number() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "mssql",
+      "sql": "select *, row_number() over (order by [email]) from [accounts]",
+      "bindings": []
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "postgres",
+      "sql": "insert into \"entries\" (\"secret\", \"sequence\") values ($1, (select count(*) from \"entries\" where \"secret\" = $2))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "cockroachdb",
+      "sql": "insert into \"entries\" (\"secret\", \"sequence\") values ($1, (select count(*) from \"entries\" where \"secret\" = $2))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "redshift",
+      "sql": "insert into \"entries\" (\"secret\", \"sequence\") values ($1, (select count(*) from \"entries\" where \"secret\" = $2))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "mysql",
+      "sql": "insert into `entries` (`secret`, `sequence`) values (?, (select count(*) from `entries` where `secret` = ?))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "sqlite",
+      "sql": "insert into `entries` (`secret`, `sequence`) values (?, (select count(*) from `entries` where `secret` = ?))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "insert into `entries` (`secret`, `sequence`) values (?, (select count(*) from `entries` where `secret` = ?))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "insert into `entries` (`secret`, `sequence`) values (?, (select count(*) from `entries` where `secret` = ?))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "mssql",
+      "sql": "insert into [entries] ([secret], [sequence]) values (@p0, (select count(*) from [entries] where [secret] = @p1))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "postgres",
+      "sql": "select $1 from (select $2, \"bar\")",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "cockroachdb",
+      "sql": "select $1 from (select $2, \"bar\")",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "redshift",
+      "sql": "select $1 from (select $2, \"bar\")",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "mysql",
+      "sql": "select ? from (select ?, `bar`)",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "sqlite",
+      "sql": "select ? from (select ?, `bar`)",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select ? from (select ?, `bar`)",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select ? from (select ?, `bar`)",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
+      "dialect": "mssql",
+      "sql": "select @p0 from (select @p1, [bar])",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "postgres",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "cockroachdb",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "redshift",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "mysql",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "sqlite",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
+      "dialect": "mssql",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "postgres",
+      "sql": "select \"foo_id\", \"bars\".* from \"foos\" left join \"bars\" on \"foos\".\"bar_id\" = \"bars\".\"id\"",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "cockroachdb",
+      "sql": "select \"foo_id\", \"bars\".* from \"foos\" left join \"bars\" on \"foos\".\"bar_id\" = \"bars\".\"id\"",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "redshift",
+      "sql": "select \"foo_id\", \"bars\".* from \"foos\" left join \"bars\" on \"foos\".\"bar_id\" = \"bars\".\"id\"",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "mysql",
+      "sql": "select `foo_id`, `bars`.* from `foos` left join `bars` on `foos`.`bar_id` = `bars`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "sqlite",
+      "sql": "select `foo_id`, `bars`.* from `foos` left join `bars` on `foos`.`bar_id` = `bars`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select `foo_id`, `bars`.* from `foos` left join `bars` on `foos`.`bar_id` = `bars`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select `foo_id`, `bars`.* from `foos` left join `bars` on `foos`.`bar_id` = `bars`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "mssql",
+      "sql": "select [foo_id], [bars].* from [foos] left join [bars] on [foos].[bar_id] = [bars].[id]",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "postgres",
+      "sql": "select \"foo\" from \"tbl\"",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "cockroachdb",
+      "sql": "select \"foo\" from \"tbl\"",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "redshift",
+      "sql": "select \"foo\" from \"tbl\"",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "mysql",
+      "sql": "select `foo` from `tbl`",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "sqlite",
+      "sql": "select `foo` from `tbl`",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select `foo` from `tbl`",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select `foo` from `tbl`",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
+      "dialect": "mssql",
+      "sql": "select [foo] from [tbl]",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "postgres",
+      "sql": "select * from \"testtable\" where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"testtable\" where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "redshift",
+      "sql": "select * from \"testtable\" where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "mysql",
+      "sql": "select * from `testtable` where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "sqlite",
+      "sql": "select * from `testtable` where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `testtable` where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `testtable` where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "mssql",
+      "sql": "select * from [testtable] where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"a\" = $1 or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"a\" = $1 or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" where \"a\" = $1 or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "mysql",
+      "sql": "select * from `users` where `a` = ? or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where `a` = ? or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where `a` = ? or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where `a` = ? or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "mssql",
+      "sql": "select * from [users] where [a] = @p0 or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"id\" in (select ($1))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"id\" in (select ($1))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" where \"id\" in (select ($1))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "mysql",
+      "sql": "select * from `users` where `id` in (select (?))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where `id` in (select (?))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where `id` in (select (?))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where `id` in (select (?))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "mssql",
+      "sql": "select * from [users] where [id] in (select (@p0))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"users\".\"name\" = $1 or \"users\".\"name\" = $2",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"users\".\"name\" = $1 or \"users\".\"name\" = $2",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" where \"users\".\"name\" = $1 or \"users\".\"name\" = $2",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "mysql",
+      "sql": "select * from `users` where `users`.`name` = ? or `users`.`name` = ?",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where `users`.`name` = ? or `users`.`name` = ?",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where `users`.`name` = ? or `users`.`name` = ?",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where `users`.`name` = ? or `users`.`name` = ?",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
+      "dialect": "mssql",
+      "sql": "select * from [users] where [users].[name] = @p0 or [users].[name] = @p1",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"id\" ?| $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"id\" ?| $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" where \"id\" ?| $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "mysql",
+      "sql": "select * from `users` where `id` \\?| ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where `id` \\?| ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where `id` \\?| ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where `id` \\?| ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "mssql",
+      "sql": "select * from [users] where [id] ?| @p0",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"id\" ?& $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"id\" ?& $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" where \"id\" ?& $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "mysql",
+      "sql": "select * from `users` where `id` \\?& ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where `id` \\?& ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where `id` \\?& ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where `id` \\?& ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
+      "dialect": "mssql",
+      "sql": "select * from [users] where [id] ?& @p0",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "postgres",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "cockroachdb",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "redshift",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "mysql",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "sqlite",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
+      "dialect": "mssql",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "postgres",
+      "sql": "with \"withClause\" as (select \"foo\" from \"users\") update \"users\" set \"foo\" = $1 where \"email\" = $2",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "cockroachdb",
+      "sql": "with \"withClause\" as (select \"foo\" from \"users\") update \"users\" set \"foo\" = $1 where \"email\" = $2",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "redshift",
+      "sql": "with \"withClause\" as (select \"foo\" from \"users\") update \"users\" set \"foo\" = $1 where \"email\" = $2",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "mysql",
+      "sql": "with `withClause` as (select `foo` from `users`) update `users` set `foo` = ? where `email` = ?",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "sqlite",
+      "sql": "with `withClause` as (select `foo` from `users`) update `users` set `foo` = ? where `email` = ?",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "with `withClause` as (select `foo` from `users`) update `users` set `foo` = ? where `email` = ?",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "with `withClause` as (select `foo` from `users`) update `users` set `foo` = ? where `email` = ?",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "mssql",
+      "sql": "with [withClause] as (select [foo] from [users]) update [users] set [foo] = @p0 where [email] = @p1;select @@rowcount",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "postgres",
+      "sql": "with \"withClause\" as (select \"email\" from \"users\") delete from \"users\" where \"foo\" = $1",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "cockroachdb",
+      "sql": "with \"withClause\" as (select \"email\" from \"users\") delete from \"users\" where \"foo\" = $1",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "redshift",
+      "sql": "with \"withClause\" as (select \"email\" from \"users\") delete from \"users\" where \"foo\" = $1",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "mysql",
+      "sql": "with `withClause` as (select `email` from `users`) delete from `users` where `foo` = ?",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "sqlite",
+      "sql": "with `withClause` as (select `email` from `users`) delete from `users` where `foo` = ?",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "with `withClause` as (select `email` from `users`) delete from `users` where `foo` = ?",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "with `withClause` as (select `email` from `users`) delete from `users` where `foo` = ?",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
+      "dialect": "mssql",
+      "sql": "with [withClause] as (select [email] from [users]) delete from [users] where [foo] = @p0;select @@rowcount",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "postgres",
+      "sql": "select * from \"sometable\" where \"sometable\".\"column\" = \"someothertable\".\"someothercolumn\"",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"sometable\" where \"sometable\".\"column\" = \"someothertable\".\"someothercolumn\"",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "redshift",
+      "sql": "select * from \"sometable\" where \"sometable\".\"column\" = \"someothertable\".\"someothercolumn\"",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "mysql",
+      "sql": "select * from `sometable` where `sometable`.`column` = `someothertable`.`someothercolumn`",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "sqlite",
+      "sql": "select * from `sometable` where `sometable`.`column` = `someothertable`.`someothercolumn`",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `sometable` where `sometable`.`column` = `someothertable`.`someothercolumn`",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `sometable` where `sometable`.`column` = `someothertable`.`someothercolumn`",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
+      "dialect": "mssql",
+      "sql": "select * from [sometable] where [sometable].[column] = [someothertable].[someothercolumn]",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "postgres",
+      "sql": "select \"one\", \"sometable\".\"two\" as \"Two\" from \"sometable\"",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "cockroachdb",
+      "sql": "select \"one\", \"sometable\".\"two\" as \"Two\" from \"sometable\"",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "redshift",
+      "sql": "select \"one\", \"sometable\".\"two\" as \"Two\" from \"sometable\"",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "mysql",
+      "sql": "select `one`, `sometable`.`two` as `Two` from `sometable`",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "sqlite",
+      "sql": "select `one`, `sometable`.`two` as `Two` from `sometable`",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select `one`, `sometable`.`two` as `Two` from `sometable`",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select `one`, `sometable`.`two` as `Two` from `sometable`",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "mssql",
+      "sql": "select [one], [sometable].[two] as [Two] from [sometable]",
+      "bindings": []
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "postgres",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "cockroachdb",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "redshift",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "mysql",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "sqlite",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
+      "dialect": "mssql",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "postgres",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "cockroachdb",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "redshift",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "mysql",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "sqlite",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
+      "dialect": "mssql",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "postgres",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "cockroachdb",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "redshift",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "mysql",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "sqlite",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "mssql",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "postgres",
+      "sql": "delete from \"users\" using \"photos\" where \"user\".\"email\" = $1 and \"photos\".\"id\" = \"users\".\"id\"",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "cockroachdb",
+      "sql": "delete from \"users\" using \"photos\" where \"user\".\"email\" = $1 and \"photos\".\"id\" = \"users\".\"id\"",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "redshift",
+      "sql": "delete \"users\" from \"users\" inner join \"photos\" on \"photos\".\"id\" = \"users\".\"id\" where \"user\".\"email\" = $1",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "mysql",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "mssql",
+      "sql": "delete [users] from [users] inner join [photos] on [photos].[id] = [users].[id] where [user].[email] = @p0;select @@rowcount",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "postgres",
+      "sql": "delete from \"users\" using \"photos\",\"docs\" where \"user\".\"email\" = $1 and \"photos\".\"id\" = \"users\".\"id\" and \"docs\".\"id\" = \"users\".\"id\"",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "cockroachdb",
+      "sql": "delete from \"users\" using \"photos\",\"docs\" where \"user\".\"email\" = $1 and \"photos\".\"id\" = \"users\".\"id\" and \"docs\".\"id\" = \"users\".\"id\"",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "redshift",
+      "sql": "delete \"users\" from \"users\" inner join \"photos\" on \"photos\".\"id\" = \"users\".\"id\" inner join \"docs\" on \"docs\".\"id\" = \"users\".\"id\" where \"user\".\"email\" = $1",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "mysql",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` inner join `docs` on `docs`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` inner join `docs` on `docs`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` inner join `docs` on `docs`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` inner join `docs` on `docs`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
+      "dialect": "mssql",
+      "sql": "delete [users] from [users] inner join [photos] on [photos].[id] = [users].[id] inner join [docs] on [docs].[id] = [users].[id] where [user].[email] = @p0;select @@rowcount",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "postgres",
+      "sql": "delete from \"users\" using \"photos\" where \"photos\".\"id\" = \"users\".\"id\"",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "cockroachdb",
+      "sql": "delete from \"users\" using \"photos\" where \"photos\".\"id\" = \"users\".\"id\"",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "redshift",
+      "sql": "delete \"users\" from \"users\" inner join \"photos\" on \"photos\".\"id\" = \"users\".\"id\"",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "mysql",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
+      "dialect": "mssql",
+      "sql": "delete [users] from [users] inner join [photos] on [photos].[id] = [users].[id];select @@rowcount",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "postgres",
+      "sql": "delete from \"users\" using \"accounts\" where \"activated\" = $1 and \"accounts\".\"id\" = \"users\".\"account_id\" and \"accounts\".\"user_id\" = \"users\".\"id\"",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "cockroachdb",
+      "sql": "delete from \"users\" using \"accounts\" where \"activated\" = $1 and \"accounts\".\"id\" = \"users\".\"account_id\" and \"accounts\".\"user_id\" = \"users\".\"id\"",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "redshift",
+      "sql": "delete \"users\" from \"users\" inner join \"accounts\" on \"accounts\".\"id\" = \"users\".\"account_id\" and \"accounts\".\"user_id\" = \"users\".\"id\" where \"activated\" = $1",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "mysql",
+      "sql": "delete `users` from `users` inner join `accounts` on `accounts`.`id` = `users`.`account_id` and `accounts`.`user_id` = `users`.`id` where `activated` = ?",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "sqlite",
+      "sql": "delete `users` from `users` inner join `accounts` on `accounts`.`id` = `users`.`account_id` and `accounts`.`user_id` = `users`.`id` where `activated` = ?",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `accounts` on `accounts`.`id` = `users`.`account_id` and `accounts`.`user_id` = `users`.`id` where `activated` = ?",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "delete `users` from `users` inner join `accounts` on `accounts`.`id` = `users`.`account_id` and `accounts`.`user_id` = `users`.`id` where `activated` = ?",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "mssql",
+      "sql": "delete [users] from [users] inner join [accounts] on [accounts].[id] = [users].[account_id] and [accounts].[user_id] = [users].[id] where [activated] = @p0;select @@rowcount",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"address\" = $1 or \"address\" = $2",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"address\" = $1 or \"address\" = $2",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" where \"address\" = $1 or \"address\" = $2",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "mysql",
+      "sql": "select * from `users` where json_contains(`address`, ?) or json_contains(`address`, ?)",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where `address` = ? or `address` = ?",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where `address` = ? or `address` = ?",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where `address` = ? or `address` = ?",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
+      "dialect": "mssql",
+      "sql": "select * from [users] where [address] = @p0 or [address] = @p1",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where jsonb_path_query_first(\"address\", $1)::int > $2 or jsonb_path_query_first(\"address\", $3)::int < $4",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where json_extract_path(\"address\", $1, $2)::int > $3 or json_extract_path(\"address\", $4, $5)::int < $6",
+      "bindings": [
+        "street",
+        "number",
+        5,
+        "street",
+        "number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "redshift",
+      "error": "Cannot read properties of undefined (reading 'replace')"
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "mysql",
+      "sql": "select * from `users` where json_extract(`address`, ?) > ? or json_extract(`address`, ?) < ?",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "sqlite",
+      "sql": "select * from `users` where json_extract(`address`, ?) > ? or json_extract(`address`, ?) < ?",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` where json_extract(`address`, ?) > ? or json_extract(`address`, ?) < ?",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` where json_extract(`address`, ?) > ? or json_extract(`address`, ?) < ?",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "mssql",
+      "sql": "select * from [users] where JSON_VALUE([address], @p0) > @p1 or JSON_VALUE([address], @p2) < @p3",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"address\" @> $1 or \"address\" @> $2",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"address\" @> $1 or \"address\" @> $2",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "redshift",
+      "error": "Json superset is not supported by Redshift"
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "mysql",
+      "sql": "select * from `users` where json_contains(`address`,?) or json_contains(`address`,?)",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "sqlite",
+      "error": "Json superset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Json superset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Json superset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-superset-object",
+      "dialect": "mssql",
+      "error": "Json superset where clause not actually supported by MSSQL"
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"address\" @> $1 or \"address\" @> $2",
+      "bindings": [
+        "test",
+        "test2"
+      ]
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"address\" @> $1 or \"address\" @> $2",
+      "bindings": [
+        "test",
+        "test2"
+      ]
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "redshift",
+      "error": "Json superset is not supported by Redshift"
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "mysql",
+      "sql": "select * from `users` where json_contains(`address`,?) or json_contains(`address`,?)",
+      "bindings": [
+        "test",
+        "test2"
+      ]
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "sqlite",
+      "error": "Json superset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Json superset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Json superset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-superset-string",
+      "dialect": "mssql",
+      "error": "Json superset where clause not actually supported by MSSQL"
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" where \"address\" <@ $1 or \"address\" <@ $2",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" where \"address\" <@ $1 or \"address\" <@ $2",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "redshift",
+      "error": "Json subset is not supported by Redshift"
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "mysql",
+      "sql": "select * from `users` where json_contains(?,`address`) or json_contains(?,`address`)",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "sqlite",
+      "error": "Json subset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Json subset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Json subset where clause not actually supported by SQLite"
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "mssql",
+      "error": "Json subset where clause not actually supported by MSSQL"
     }
   ]
 }

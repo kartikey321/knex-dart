@@ -629,7 +629,13 @@ class QueryBuilder {
         'type': 'whereRaw',
         'grouping': 'where',
         'value': column,
-        'bool': 'and',
+        // Read (and reset) the pending bool/not flags, same as every other
+        // branch below — previously hardcoded to 'and' with no 'not' key at
+        // all, so `.orWhere(raw(...))` silently compiled as AND and
+        // `.whereNot(raw(...))`/`.orWhereNot(raw(...))` silently dropped the
+        // NOT, changing query semantics (knex.js: `where not is_active`).
+        'bool': _bool(),
+        'not': _not(),
       });
       return this;
     }

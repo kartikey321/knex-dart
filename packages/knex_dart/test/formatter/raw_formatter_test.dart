@@ -102,5 +102,34 @@ void main() {
         ),
       );
     });
+
+    test(
+      'Test 8: ?? identifier binding splits dotted identifiers into '
+      'separately-wrapped segments (regression)',
+      () {
+        // Previously `??` passed the whole string straight to
+        // `client.wrapIdentifier()`, which treats it as ONE token — a dotted
+        // value like 'users.name' came out as the single quoted identifier
+        // `` `users.name` `` instead of two: `` `users`.`name` ``. Matches
+        // knex.js, which routes `??` through `columnize()` (dot-splitting).
+        final result = RawFormatter.replacePositionalBindings(
+          'SELECT * FROM users WHERE ?? = ?',
+          ['users.name', 'Bob'],
+          client,
+        );
+
+        expect(result.sql, 'SELECT * FROM users WHERE "users"."name" = \$1');
+        expect(result.bindings, ['Bob']);
+      },
+    );
+
+    test('Test 9: ?? identifier binding — non-dotted value is unaffected', () {
+      final result = RawFormatter.replacePositionalBindings(
+        'SELECT ?? FROM t',
+        ['name'],
+        client,
+      );
+      expect(result.sql, 'SELECT "name" FROM t');
+    });
   });
 }

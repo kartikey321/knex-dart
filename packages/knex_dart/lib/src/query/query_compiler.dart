@@ -419,8 +419,12 @@ class QueryCompiler {
               cols.add(_aliasedColumn(alias.toString(), value));
             });
           } else {
-            // Regular string column
-            cols.add(formatter.wrap(col.toString()));
+            // Regular column — pass the raw value (not `.toString()`-ed) so
+            // `formatter.wrap()` can dispatch on its actual type: a numeric
+            // literal (e.g. `select(0)`) must compile to a bare `0`, not a
+            // quoted identifier `"0"` (matches knex.js's `wrap()`, which
+            // returns `typeof value === 'number'` values as-is).
+            cols.add(formatter.wrap(col).toString());
           }
         }
         continue;
@@ -588,6 +592,7 @@ class QueryCompiler {
   /// Supports:
   /// - Array of values: "column" in (?, ?, ?)
   /// - Subquery: "column" in (SELECT ...)
+  /// - Raw: "column" in (`<raw sql>`) — e.g. `whereIn('id', raw('select (:test)', {...}))`
   String whereIn(Map<String, dynamic> statement) {
     final column = formatter.wrap(statement['column']);
     final values = statement['value'];
@@ -596,6 +601,12 @@ class QueryCompiler {
     if (values is QueryBuilder) {
       // Subquery
       valueClause = _compileSubquery(values);
+    } else if (values is Raw) {
+      // Raw expression (e.g. a raw subquery) — previously fell through to
+      // `values as List`, which threw a TypeError instead of compiling;
+      // knex.js supports this directly (`whereIn('id', raw('select (:test)',
+      // {test: [1,2,3]}))` → `"id" in (select (?))`).
+      valueClause = '(${_inlineRaw(values)})';
     } else if (values is Function) {
       final subBuilder = QueryBuilder(client);
       values(subBuilder);
@@ -616,10 +627,12 @@ class QueryCompiler {
   /// Compile WHERE raw clause
   ///
   ///
-  /// Compiles a Raw SQL condition
+  /// Compiles a Raw SQL condition. `.whereNot(raw(...))` prefixes with `not `
+  /// (matches knex.js: `where not is_active`), mirroring the `_not()` prefix
+  /// convention used by every other WHERE compiler above.
   String whereRaw(Map<String, dynamic> statement) {
     final raw = statement['value'] as Raw;
-    return _inlineRaw(raw);
+    return '${_not(statement, '')}${_inlineRaw(raw)}';
   }
 
   /// Compile WHERE BETWEEN clause
@@ -2010,6 +2023,14 @@ class QueryCompiler {
 
   /// Compile DELETE query
   ///
+  /// Mirrors knex.js's per-dialect handling of `.del()` combined with
+  /// `.join(...)`. Standard SQL has no JOIN clause on DELETE, so each dialect
+  /// family expresses it differently — silently dropping the join (the
+  /// previous behavior here) would change query semantics, not just syntax:
+  ///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND` join-on
+  ///     conditions (join ON conditions fold into WHERE).
+  ///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t` join `WHERE
+  ///     ...` (join stays a real JOIN clause; WHERE is untouched).
   String _deleteQuery() {
     final parts = <String>[];
 
@@ -2019,11 +2040,56 @@ class QueryCompiler {
       parts.add(withSql);
     }
 
-    parts.add(_delete());
+    // Side-effect-free emptiness check — deliberately NOT `_join().isEmpty`.
+    // `_join()` compiles ON conditions (via `_compileJoinClauseSequence` →
+    // `client.parameter()`) and appends to `bindings` as a side effect;
+    // calling it here just to probe emptiness, then compiling the same
+    // conditions again in the postgres branch below via
+    // `_deleteUsingJoins()`, would append every bound join value TWICE and
+    // in the wrong slot (before WHERE's bindings instead of after — SQL text
+    // order for the postgres USING transform is `where <where> and <join
+    // conditions>`, so bindings must accumulate WHERE-then-join, not
+    // join-then-WHERE-then-join-again).
+    final hasJoins = (grouped['join']?.isNotEmpty ?? false);
 
-    final where = _where();
-    if (where.isNotEmpty) {
-      parts.add(where);
+    if (!hasJoins) {
+      parts.add(_delete());
+      final where = _where();
+      if (where.isNotEmpty) {
+        parts.add(where);
+      }
+    } else if (_isPostgresLikeDriver) {
+      parts.add(_delete());
+      // Compile WHERE first so its bindings land before the join ON
+      // conditions' bindings, matching the text order below.
+      final where = _where();
+      const wherePrefix = 'where ';
+      final whereBody = where.isEmpty
+          ? ''
+          : (where.startsWith(wherePrefix)
+                ? where.substring(wherePrefix.length)
+                : where); // defensive: never silently drop a non-empty WHERE
+      final usingJoins = _deleteUsingJoins();
+      if (usingJoins.tables.isNotEmpty) {
+        parts.add('using ${usingJoins.tables.join(',')}');
+      }
+      final combined = [
+        if (whereBody.isNotEmpty) whereBody,
+        ...usingJoins.conditions,
+      ].join(' and ');
+      if (combined.isNotEmpty) {
+        parts.add('where $combined');
+      }
+    } else {
+      final table = formatter.wrap(single['table']);
+      // Text order here is `<join> where ...`, so compile the join first —
+      // its bindings must precede WHERE's, matching the SQL text.
+      final joinSql = _join();
+      parts.add('delete $table from $table $joinSql');
+      final where = _where();
+      if (where.isNotEmpty) {
+        parts.add(where);
+      }
     }
 
     final returning = _returning();
@@ -2032,6 +2098,38 @@ class QueryCompiler {
     }
 
     return parts.join(' ');
+  }
+
+  /// Extracts JOIN tables and their ON-condition text for the Postgres
+  /// `DELETE ... USING` transform: each joined table becomes a USING entry
+  /// and its ON condition(s) fold into WHERE (see `_deleteQuery`).
+  ({List<String> tables, List<String> conditions}) _deleteUsingJoins() {
+    final joins = grouped['join'];
+    final tables = <String>[];
+    final conditions = <String>[];
+    if (joins == null) return (tables: tables, conditions: conditions);
+
+    for (final stmt in joins) {
+      // Raw/lateral joins have no table+condition shape to fold into USING;
+      // leave them out rather than emit something incorrect (not exercised
+      // by any known call pattern here).
+      if (stmt['type'] == 'joinRaw' || stmt['type'] == 'joinLateral') {
+        continue;
+      }
+      tables.add(_wrapTableIdentifier(stmt['table'].toString()));
+      if (stmt['join'] == 'cross') {
+        continue; // CROSS JOIN has no ON condition to fold in.
+      }
+      if (stmt['joinClause'] != null) {
+        final cond = _compileJoinClauses(stmt['joinClause']);
+        if (cond.isNotEmpty) conditions.add(cond);
+      } else {
+        final col1 = formatter.wrap(stmt['column1']);
+        final col2 = formatter.wrap(stmt['column2']);
+        conditions.add('$col1 = $col2');
+      }
+    }
+    return (tables: tables, conditions: conditions);
   }
 
   /// Compile TRUNCATE TABLE statement
@@ -2137,12 +2235,57 @@ class QueryCompiler {
   // JSON OPERATORS (PG, MySQL, SQLite)
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // These three driver-family checks previously used bare `client.driverName
+  // == 'mysql'` / `== 'sqlite'` / `== 'pg'` comparisons, which never matched
+  // this codebase's actual driver-name strings for the core dialects
+  // (`mysql2`, `sqlite3`) — the mysql/sqlite branches below were dead code
+  // for every dialect built via `KnexQuery.forClient`. Widened to the same
+  // alias sets used elsewhere in this file (`_lock()`'s `postgresLike`, the
+  // `isMySQL` checks throughout) and to the sqlite-family set (turso/d1),
+  // matching the family-aware-dispatch convention this codebase otherwise
+  // follows for SQLite-family dialects.
+  //
+  // `_isPostgresLikeDriver` is also used by `_deleteQuery()`'s
+  // Postgres-vs-JOIN-clause DELETE dispatch (deliberately NOT Redshift —
+  // knex.js's redshift-querycompiler doesn't inherit pg-querycompiler's
+  // `del()` override, and none of Redshift's JSON-where shapes are exercised
+  // by knex.js's own test suite either — verified against real knex.js).
+  bool get _isMySqlLikeDriver =>
+      client.driverName == 'mysql' || client.driverName == 'mysql2';
+  bool get _isSqliteLikeDriver => const {
+    'sqlite',
+    'sqlite3',
+    'turso',
+    'd1',
+  }.contains(client.driverName);
+  bool get _isPostgresLikeDriver => const {
+    'pg',
+    'postgres',
+    'postgresql',
+    'cockroachdb',
+    'mock',
+  }.contains(client.driverName);
+
   String _whereJsonObject(Map<String, dynamic> statement) {
-    return '${_not(statement, '') + formatter.wrap(statement['column'])} = ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isMySqlLikeDriver) {
+      // MySQL has no `=` semantics for JSON columns; knex.js wraps in
+      // json_contains() instead.
+      return '${_not(statement, '')}json_contains($col, $val)';
+    }
+    return '${_not(statement, '') + col} = $val';
   }
 
   String _whereJsonPath(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
+    // Postgres only (NOT cockroachdb — cockroachdb uses `json_extract_path`
+    // with the JSONPath split into positional segments, a materially
+    // different transform not implemented here; see the
+    // `json/where-path::cockroachdb` parity allowlist entry).
+    final isPg = client.driverName == 'pg' ||
+        client.driverName == 'postgres' ||
+        client.driverName == 'postgresql';
+    if (isPg) {
       final col = formatter.wrap(statement['column']);
       final path = client.parameter(statement['jsonPath'], bindings);
       final op = formatter.operator(statement['operator']);
@@ -2157,31 +2300,55 @@ class QueryCompiler {
 
       final valClause = _valueClause(statement);
       return '${_not(statement, '')}jsonb_path_query_first($col, $path)$castValue $op $valClause';
-    } else if (client.driverName == 'mysql' || client.driverName == 'sqlite') {
+    } else if (_isMySqlLikeDriver || _isSqliteLikeDriver) {
       final col = formatter.wrap(statement['column']);
       final path = client.parameter(statement['jsonPath'], bindings);
       final op = formatter.operator(statement['operator']);
       final valClause = _valueClause(statement);
       return '${_not(statement, '')}json_extract($col, $path) $op $valClause';
     }
-    // Fallback if not supported
-    return whereBasic(statement);
+    // Not implemented for this dialect (cockroachdb) or genuinely
+    // unsupported (redshift — real knex.js itself throws compiling this).
+    // Previously fell through to whereBasic(), silently compiling a plain
+    // (wrong) column comparison instead of refusing.
+    throw StateError('whereJsonPath is not supported by ${client.driverName}');
   }
 
   String _whereJsonSupersetOf(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
-      return '${_not(statement, '') + formatter.wrap(statement['column'])} @> ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isPostgresLikeDriver) {
+      return '${_not(statement, '')}$col @> $val';
     }
-    statement['operator'] = '=';
-    return whereBasic(statement); // Unsupported on other dialects right now
+    if (_isMySqlLikeDriver) {
+      // No space after the comma here — matches knex.js's mysql-querycompiler
+      // for whereJsonSupersetOf specifically (whereJsonObject's json_contains
+      // call, above, does have a space; knex.js is simply inconsistent about
+      // it between the two).
+      return '${_not(statement, '')}json_contains($col,$val)';
+    }
+    // Previously fell through to whereBasic() with operator forced to '=',
+    // silently compiling a plain (wrong) equality check instead of
+    // refusing.
+    throw StateError(
+      'whereJsonSupersetOf is not supported by ${client.driverName}',
+    );
   }
 
   String _whereJsonSubsetOf(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
-      return '${_not(statement, '') + formatter.wrap(statement['column'])} <@ ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isPostgresLikeDriver) {
+      return '${_not(statement, '')}$col <@ $val';
     }
-    statement['operator'] = '=';
-    return whereBasic(statement); // Unsupported on other dialects right now
+    if (_isMySqlLikeDriver) {
+      // Argument order is reversed vs. supersetOf — matches knex.js. No
+      // space after the comma (see the note in _whereJsonSupersetOf).
+      return '${_not(statement, '')}json_contains($val,$col)';
+    }
+    throw StateError(
+      'whereJsonSubsetOf is not supported by ${client.driverName}',
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
