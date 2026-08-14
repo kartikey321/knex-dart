@@ -544,4 +544,81 @@ final Map<String, ParityCase> parityCases = {
       .delete()
       .returning(['id'])
       .toSQL(),
+
+  // Batch 4 — mined from knex.js test/unit/query/builder.js lines 385-1917.
+  // Mirrors run_js.mjs 1:1 by id.
+  'select/star': (d) => _qb(d).table('users').select(['*']).toSQL(),
+  'select/multi-calls': (d) => _qb(d)
+      .table('users')
+      .select(['foo'])
+      .select(['bar'])
+      .select(['baz', 'boom'])
+      .toSQL(),
+  'select/distinct-then-select': (d) =>
+      _qb(d).table('users').distinct().select(['foo', 'bar']).toSQL(),
+  'select/alias-map': (d) => _qb(d).table('users').select({'bar': 'foo'}).toSQL(),
+  'select/alias-array-mixed': (d) => _qb(d)
+      .table('users')
+      .select([
+        'baz',
+        {'bar': 'foo'},
+      ])
+      .toSQL(),
+  'select/old-style-alias': (d) =>
+      _qb(d).table('users').select(['foo as bar']).toSQL(),
+  'select/alias-trim-spaces': (d) =>
+      _qb(d).table('users').select([' foo   as bar ']).toSQL(),
+  'select/alias-case-insensitive': (d) =>
+      _qb(d).table('users').select([' foo   aS bar ']).toSQL(),
+  'select/alias-dotted': (d) =>
+      _qb(d).table('users').select(['foo as bar.baz']).toSQL(),
+  'table/dotted-schema': (d) => _qb(d).table('public.users').select(['*']).toSQL(),
+
+  'clear/select-basic': (d) =>
+      _qb(d).table('users').select(['id', 'email']).clearSelect().toSQL(),
+  'clear/select-then-reselect': (d) => _qb(d)
+      .table('users')
+      .select(['id'])
+      .clearSelect()
+      .select(['email'])
+      .toSQL(),
+  'clear/where-basic': (d) => _qb(d)
+      .table('users')
+      .select(['id'])
+      .where('id', '=', 1)
+      .clearWhere()
+      .toSQL(),
+  'clear/where-then-rewhere': (d) => _qb(d)
+      .table('users')
+      .select(['id'])
+      .where('id', '=', 1)
+      .clearWhere()
+      .where('id', '=', 2)
+      .toSQL(),
+  'clear/group-basic': (d) => _qb(d).table('users').groupBy('name').clearGroup().toSQL(),
+  'clear/group-then-regroup': (d) =>
+      _qb(d).table('users').groupBy('name').clearGroup().groupBy('id').toSQL(),
+  'clear/order-basic': (d) =>
+      _qb(d).table('users').orderBy('name', 'desc').clearOrder().toSQL(),
+  'clear/order-then-reorder': (d) => _qb(d)
+      .table('users')
+      .orderBy('name', 'desc')
+      .clearOrder()
+      .orderBy('id', 'asc')
+      .toSQL(),
+  'clear/having-then-rehaving': (d) => _qb(d)
+      .table('users')
+      .having('id', '>', 100)
+      .clearHaving()
+      .having('id', '>', 10)
+      .toSQL(),
+  'clear/counters': (d) => _qb(d)
+      .table('users')
+      .where('id', '=', 1)
+      .update({'email': 'foo@bar.com'})
+      .increment('balance', 10)
+      .clearCounters()
+      .decrement('value', 50)
+      .clearCounters()
+      .toSQL(),
 };
