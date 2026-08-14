@@ -316,6 +316,44 @@ const cases = [
     k('users').where('id', 1).update({ name: 'Bob' }).returning('*')],
   ['dml/returning-delete', (k) =>
     k('users').where('id', 1).del().returning('id')],
+
+  // Batch 4 — mined from knex.js test/unit/query/builder.js lines 385-1917
+  // (select/alias shapes, clear(), where variants, raw wheres, where-in edge
+  // cases). Only shapes with a knex-dart API equivalent are mined; JS-only
+  // overloads (multi-arg select(), whereLike/whereILike family, custom
+  // wrapIdentifier/queryContext, toQuery()-only assertions) are out of scope
+  // — see the parity mining report for the full skip list.
+  ['select/star', (k) => k('users').select('*')],
+  ['select/multi-calls', (k) => k('users').select('foo').select('bar').select(['baz', 'boom'])],
+  ['select/distinct-then-select', (k) => k('users').distinct().select('foo', 'bar')],
+  ['select/alias-map', (k) => k('users').select({ bar: 'foo' })],
+  ['select/alias-array-mixed', (k) => k('users').select(['baz', { bar: 'foo' }])],
+  ['select/old-style-alias', (k) => k('users').select('foo as bar')],
+  ['select/alias-trim-spaces', (k) => k('users').select(' foo   as bar ')],
+  ['select/alias-case-insensitive', (k) => k('users').select(' foo   aS bar ')],
+  ['select/alias-dotted', (k) => k('users').select('foo as bar.baz')],
+  ['table/dotted-schema', (k) => k('public.users').select('*')],
+
+  ['clear/select-basic', (k) => k('users').select('id', 'email').clearSelect()],
+  ['clear/select-then-reselect', (k) => k('users').select('id').clearSelect().select('email')],
+  ['clear/where-basic', (k) => k('users').select('id').where('id', '=', 1).clearWhere()],
+  ['clear/where-then-rewhere', (k) =>
+    k('users').select('id').where('id', '=', 1).clearWhere().where('id', '=', 2)],
+  ['clear/group-basic', (k) => k('users').groupBy('name').clearGroup()],
+  ['clear/group-then-regroup', (k) => k('users').groupBy('name').clearGroup().groupBy('id')],
+  ['clear/order-basic', (k) => k('users').orderBy('name', 'desc').clearOrder()],
+  ['clear/order-then-reorder', (k) =>
+    k('users').orderBy('name', 'desc').clearOrder().orderBy('id', 'asc')],
+  ['clear/having-then-rehaving', (k) =>
+    k('users').having('id', '>', 100).clearHaving().having('id', '>', 10)],
+  ['clear/counters', (k) =>
+    k('users')
+      .where('id', '=', 1)
+      .update({ email: 'foo@bar.com' })
+      .increment('balance', 10)
+      .clear('counter')
+      .decrement('value', 50)
+      .clear('counters')],
 ];
 
 const out = [];

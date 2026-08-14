@@ -179,6 +179,73 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see dml/returning-delete::sqlite (turso is sqlite-family).',
   'dml/returning-delete::d1':
       '[OPEN BUG] see dml/returning-delete::sqlite (d1 is sqlite-family).',
+
+  // ── OPEN BUG (out of scope for this pass): uppercase `AS` ──────────────────
+  // `select('foo as bar')`-style inline string aliasing routes through
+  // formatter.dart's alias-detection → client.alias(wrapped, wrapped), which
+  // emits uppercase `AS`. knex.js emits lowercase `as`. This is the same
+  // known, separately-scoped client.alias() defect this mining pass was told
+  // not to touch (packages/knex_dart/lib/src/client/client.dart) — confirmed
+  // here to also affect the inline "col as alias" string-parsing path in
+  // formatter.dart, not just explicit .as() calls. Fix: once client.alias()
+  // is corrected to lowercase `as`, delete these entries (the ratchet will
+  // force it).
+  'select/old-style-alias::postgres':
+      '[OPEN BUG] uppercase `AS` — see client.alias() note above this block.',
+  'select/old-style-alias::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::postgres':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::postgres':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::postgres':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

@@ -456,6 +456,7 @@ class QueryCompiler {
       }
     }
 
+
     // Build SELECT clause
     final columnList = cols.isEmpty ? '*' : cols.join(', ');
     final distinctClause = hasDistinct ? 'distinct ' : '';
