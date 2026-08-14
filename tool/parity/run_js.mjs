@@ -403,6 +403,43 @@ const cases = [
   ['having/not-in', (k) => k('users').select('*').havingNotIn('baz', [5, 10, 37])],
   ['having/or-not-in', (k) =>
     k('users').select('*').havingNotIn('baz', [5, 10, 37]).orHavingNotIn('foo', ['Batman', 'Joker'])],
+
+  // ── Batch 3 (lines 5950-8353 of knex.js's builder.js) ────────────────────
+  // insert edge cases, update() basic variations, and MySQL UPDATE...
+  // ORDER BY/LIMIT/JOIN probes.
+
+  // ── Insert edge cases ──────────────────────────────────────────────────
+  ['insert/ragged-defaults-3col', (k) =>
+    k('table').insert([{ a: 1 }, { b: 2 }, { a: 2, c: 3 }])],
+  ['insert/empty-array-noop', (k) =>
+    k.queryBuilder().into('users').insert([])],
+  ['insert/empty-object-returning', (k) =>
+    k.queryBuilder().into('users').insert([{}], 'id')],
+  ['insert/raw-value', (k) =>
+    k.queryBuilder().insert({ email: k.raw('CURRENT TIMESTAMP') }).into('users')],
+
+  // ── update() basic variations ────────────────────────────────────────────
+  ['update/two-cols', (k) =>
+    k.queryBuilder().update({ email: 'foo', name: 'bar' }).table('users').where('id', '=', 1)],
+  ['update/null-value', (k) =>
+    k.queryBuilder().update({ email: null, name: 'bar' }).table('users').where('id', 1)],
+  ['update/from-where-then-update', (k) =>
+    k('users').where('id', '=', 1).update({ email: 'foo', name: 'bar' })],
+  ['update/raw-value', (k) =>
+    k('users').where('id', '=', 1).update({ email: k.raw('foo'), name: 'bar' })],
+
+  // ── update() + orderBy/limit/join — probing whether they're honored ─────
+  ['update/orderby-limit', (k) =>
+    k('users').where('id', '=', 1).orderBy('foo', 'desc').limit(5).update({ email: 'foo', name: 'bar' })],
+  ['update/join-mysql', (k) =>
+    k('users').join('orders', 'users.id', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })],
+  ['update/limit-mysql', (k) =>
+    k('users').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' }).limit(1)],
+  ['update/join-mysql-qualified-col', (k) =>
+    k('tblPerson').update({ 'tblPerson.City': 'Boonesville' })
+      .join('tblPersonData', 'tblPersonData.PersonId', '=', 'tblPerson.PersonId')
+      .where('tblPersonData.DataId', 1)
+      .where('tblPerson.PersonId', 5)],
 ];
 
 const out = [];

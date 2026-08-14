@@ -38,21 +38,9 @@ import 'parity_cases.dart';
 ///               the entry (the ratchet will fail the test until you do).
 const Map<String, String> parityAllowlist = {
   // ── ACCEPTED: knex-dart refuses where knex.js silently drops ───────────────
-  'returning/insert::mysql':
-      '[ACCEPTED] MySQL has no RETURNING. knex.js silently omits the clause '
-          '(warning only); knex-dart throws rather than drop it silently.',
-  'returning/insert::redshift':
-      '[ACCEPTED] Redshift has no RETURNING. knex-dart throws; knex.js omits.',
   'upsert/merge::redshift':
       '[ACCEPTED] Redshift does not support ON CONFLICT. knex.js emits a plain '
           'INSERT (silently dropping the upsert!); knex-dart correctly refuses.',
-  'cte/update-source::redshift':
-      '[ACCEPTED] see returning/insert::redshift — the CTE body is an UPDATE '
-          '...RETURNING; Redshift has no RETURNING, knex.js silently omits it, '
-          'knex-dart correctly refuses.',
-  'cte/update-source::mysql':
-      '[ACCEPTED] see returning/insert::mysql — same RETURNING gap, this time '
-          'on the UPDATE used as the CTE body.',
   'cte/insert-multi-source::sqlite':
       '[ACCEPTED] Cosmetic multi-row INSERT syntax choice on SQLite: knex.js\'s '
           "sqlite3 client always compiles multi-row inserts as "
@@ -86,24 +74,6 @@ const Map<String, String> parityAllowlist = {
   'dml/onconflict-merge-where::redshift':
       '[ACCEPTED] see upsert/merge::redshift (.merge().where() guard, same '
           'Redshift ON CONFLICT gap).',
-  'dml/returning-multi-insert::redshift':
-      '[ACCEPTED] see returning/insert::redshift (multi-row insert, same '
-          'RETURNING gap).',
-  'dml/returning-multi-insert::mysql':
-      '[ACCEPTED] see returning/insert::mysql (multi-row insert, same '
-          'RETURNING gap).',
-  'dml/returning-update::redshift':
-      '[ACCEPTED] see returning/insert::redshift — same RETURNING gap, this '
-          'time on UPDATE...RETURNING.',
-  'dml/returning-update::mysql':
-      '[ACCEPTED] see returning/insert::mysql — same RETURNING gap, this time '
-          'on UPDATE...RETURNING.',
-  'dml/returning-delete::redshift':
-      '[ACCEPTED] see returning/insert::redshift — same RETURNING gap, this '
-          'time on DELETE...RETURNING.',
-  'dml/returning-delete::mysql':
-      '[ACCEPTED] see returning/insert::mysql — same RETURNING gap, this time '
-          'on DELETE...RETURNING.',
   'dml/onconflict-ignore::sqlite':
       '[ACCEPTED] see cte/insert-multi-source::sqlite — multi-row INSERT '
           '...ON CONFLICT is the same union-all-select vs standard-VALUES '
@@ -172,13 +142,10 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see dml/returning-update::sqlite (turso is sqlite-family).',
   'dml/returning-update::d1':
       '[OPEN BUG] see dml/returning-update::sqlite (d1 is sqlite-family).',
-  'dml/returning-delete::sqlite':
-      '[OPEN BUG] see returning/insert::sqlite — same capability-matrix gap, '
-          'this time on DELETE...RETURNING.',
-  'dml/returning-delete::turso':
-      '[OPEN BUG] see dml/returning-delete::sqlite (turso is sqlite-family).',
-  'dml/returning-delete::d1':
-      '[OPEN BUG] see dml/returning-delete::sqlite (d1 is sqlite-family).',
+  // Note: DELETE...RETURNING on sqlite/turso/d1 is NOT the same capability
+  // gap as INSERT/UPDATE...RETURNING above — knex.js's own sqlite3 dialect
+  // doesn't emit RETURNING for DELETE either (verified against real
+  // knex.js), so knex-dart dropping it there is a correct match, not a bug.
 
   // ── OPEN BUG (out of scope for this pass): uppercase `AS` ──────────────────
   // `select('foo as bar')`-style inline string aliasing routes through

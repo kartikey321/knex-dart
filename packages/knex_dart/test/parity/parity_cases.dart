@@ -746,4 +746,75 @@ final Map<String, ParityCase> parityCases = {
       .havingNotIn('baz', [5, 10, 37])
       .orHavingNotIn('foo', ['Batman', 'Joker'])
       .toSQL(),
+
+  // ── Batch 3 (lines 5950-8353) — insert edge cases, update/counter
+  // overwrite semantics, locks, joins in DML, misc operators/raw, and
+  // denseRank/rank null-alias variants.
+
+  // Insert edge cases
+  'insert/ragged-defaults-3col': (d) => _qb(d).table('table').insert([
+        {'a': 1},
+        {'b': 2},
+        {'a': 2, 'c': 3},
+      ]).toSQL(),
+  'insert/empty-array-noop': (d) => _qb(d).table('users').insert([]).toSQL(),
+  'insert/empty-object-returning': (d) =>
+      _qb(d).table('users').insert([{}], ['id']).toSQL(),
+  'insert/raw-value': (d) => _qb(d)
+      .table('users')
+      .insert({'email': _qb(d).client.raw('CURRENT TIMESTAMP')})
+      .toSQL(),
+
+  // update() basic variations
+  'update/two-cols': (d) => _qb(d)
+      .update({'email': 'foo', 'name': 'bar'})
+      .table('users')
+      .where('id', '=', 1)
+      .toSQL(),
+  'update/null-value': (d) => _qb(d)
+      .update({'email': null, 'name': 'bar'})
+      .table('users')
+      .where('id', 1)
+      .toSQL(),
+  'update/from-where-then-update': (d) => _qb(d)
+      .table('users')
+      .where('id', '=', 1)
+      .update({'email': 'foo', 'name': 'bar'})
+      .toSQL(),
+  'update/raw-value': (d) => _qb(d)
+      .table('users')
+      .where('id', '=', 1)
+      .update({'email': _qb(d).client.raw('foo'), 'name': 'bar'})
+      .toSQL(),
+
+  // update() + orderBy/limit/join — probing whether they're honored
+  'update/orderby-limit': (d) => _qb(d)
+      .table('users')
+      .where('id', '=', 1)
+      .orderBy('foo', 'desc')
+      .limit(5)
+      .update({'email': 'foo', 'name': 'bar'})
+      .toSQL(),
+  'update/join-mysql': (d) => _qb(d)
+      .table('users')
+      .join('orders', 'users.id', 'orders.user_id')
+      .where('users.id', '=', 1)
+      .update({'email': 'foo', 'name': 'bar'})
+      .toSQL(),
+  'update/limit-mysql': (d) => _qb(d)
+      .table('users')
+      .where('users.id', '=', 1)
+      .update({'email': 'foo', 'name': 'bar'})
+      .limit(1)
+      .toSQL(),
+  'update/join-mysql-qualified-col': (d) => _qb(d)
+      .table('tblPerson')
+      .update({'tblPerson.City': 'Boonesville'})
+      .join(
+        'tblPersonData',
+        (j) => j.on('tblPersonData.PersonId', '=', 'tblPerson.PersonId'),
+      )
+      .where('tblPersonData.DataId', 1)
+      .where('tblPerson.PersonId', 5)
+      .toSQL(),
 };

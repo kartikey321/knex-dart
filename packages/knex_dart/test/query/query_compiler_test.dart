@@ -1300,19 +1300,20 @@ void main() {
       expect(sql.bindings, ['g1']);
     });
 
-    test('Insert empty array should throw', () {
-      expect(
-        () => QueryBuilder(client).table('users').insert([]).toSQL(),
-        throwsArgumentError,
-      );
+    test('Insert empty array is a no-op, matching real knex.js', () {
+      final sql = QueryBuilder(client).table('users').insert([]).toSQL();
+      expect(sql.sql, '');
+      expect(sql.bindings, isEmpty);
     });
 
-    test('Insert empty object should throw', () {
-      expect(
-        () => QueryBuilder(client).table('users').insert({}).toSQL(),
-        throwsArgumentError,
-      );
-    });
+    test(
+      'Insert empty object compiles to DEFAULT VALUES, matching real knex.js',
+      () {
+        final sql = QueryBuilder(client).table('users').insert({}).toSQL();
+        expect(sql.sql, 'insert into "users" default values');
+        expect(sql.bindings, isEmpty);
+      },
+    );
 
     test(
       'Ragged multi-row insert uses null bindings (not DEFAULT) when '
@@ -2213,36 +2214,12 @@ void main() {
   });
 
   group('Dialect capability guards', () {
-    test('RETURNING throws on mysql dialect', () {
+    test('RETURNING is silently dropped on mysql dialect (matches knex.js)', () {
       final my = MySQLMockClient();
-      expect(
-        () => QueryBuilder(
-          my,
-        ).table('users').insert({'name': 'John'}).returning(['id']).toSQL(),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            contains('RETURNING is not supported'),
-          ),
-        ),
-      );
-    });
-
-    test('RETURNING throws on sqlite dialect', () {
-      final sqlite = SqliteMockClient();
-      expect(
-        () => QueryBuilder(
-          sqlite,
-        ).table('users').insert({'name': 'John'}).returning(['id']).toSQL(),
-        throwsA(
-          isA<StateError>().having(
-            (e) => e.message,
-            'message',
-            contains('RETURNING is not supported'),
-          ),
-        ),
-      );
+      final sql = QueryBuilder(
+        my,
+      ).table('users').insert({'name': 'John'}).returning(['id']).toSQL();
+      expect(sql.sql, 'insert into `users` (`name`) values (?)');
     });
 
     test('fullOuterJoin throws on sqlite dialect', () {
