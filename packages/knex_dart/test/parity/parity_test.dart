@@ -294,6 +294,114 @@ const Map<String, String> parityAllowlist = {
           '(and wrong) whereBasic() fallback. Fix: add a CockroachDB branch '
           'to _whereJsonPath() in query_compiler.dart, then remove this '
           'entry.',
+
+  // ── ACCEPTED: mariadb RETURNING — knex-dart is more correct than the
+  // harness's mysql2 reference. knex.js has no dedicated mariadb client, so
+  // the harness uses the wire-compatible `mysql2` client for mariadb too
+  // (see `family: 'mysql'` in run_js.mjs / run_js_schema.mjs). knex.js's
+  // mysql2 client silently drops `.returning()` with a console warning
+  // (".returning() is not supported by mysql and will not have any effect"),
+  // because MySQL itself does not support RETURNING. But MariaDB 10.5+
+  // *does* support RETURNING on INSERT/UPDATE/DELETE — and knex-dart's
+  // `knex_dart_capabilities` matrix correctly lists `SqlCapability.returning`
+  // for `KnexDialect.mariadb` (see capabilities.dart lines 48 and 82-83:
+  // `// returning on MariaDB requires 10.5+.`, `KnexDialect.mariadb: {
+  // SqlCapability.returning, ... }`). knex-dart therefore emits the
+  // RETURNING clause for mariadb and is right to do so; the harness's
+  // mysql2-shaped expected fixture is the artifact of using mysql2 as a
+  // cross-family proxy for mariadb. Same class as the existing
+  // `upsert/merge::redshift` ACCEPTED entries (knex-dart refuses where
+  // knex.js silently emits a no-op), just the inverse direction (knex-dart
+  // emits where knex.js silently drops).
+  //
+  // Verified against real knex.js 3.3.0 — `node -e` literal output for each
+  // shape (all show the warning followed by SQL with no RETURNING clause):
+  //   returning/insert:           `insert into \`users\` (\`email\`) values (?)` (bindings: `["a@b.com"]`)
+  //   dml/returning-update:        `update \`users\` set \`name\` = ? where \`id\` = ?` (bindings: `["Bob",1]`)
+  //   dml/returning-delete:        `delete from \`users\` where \`id\` = ?` (bindings: `[1]`)
+  //   dml/returning-multi-insert:  `insert into \`users\` (\`email\`) values (?), (?)` (bindings: `["a","b"]`)
+  //   insert/empty-object-returning: `insert into \`users\` () values ()` (bindings: `[]`)
+  //   cte/update-source:           `with \`updated_group\` as (update \`group\` set \`group_name\` = ? where \`group_id\` = ?) update \`user\` set \`name\` = ? where \`group_id\` = ?` (bindings: `["bar",1,"foo",1]`)
+  'returning/insert::mariadb':
+      '[ACCEPTED] MariaDB 10.5+ supports RETURNING; knex-dart correctly '
+          'emits it (capabilities.dart line 83 lists `SqlCapability.returning` '
+          'for `KnexDialect.mariadb`). The harness uses knex.js\'s `mysql2` '
+          'client as the wire-compatible reference for mariadb (no dedicated '
+          'mariadb client exists in knex.js), and `mysql2` silently drops '
+          '`.returning()` with a console warning (MySQL does not support '
+          'RETURNING). knex-dart is right; the mysql2-shaped expected here is '
+          'a proxy artifact. See the note above this block for the `node -e` '
+          'confirmation.',
+  'dml/returning-update::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence (this time on UPDATE with `.returning(\'*\')`).',
+  'dml/returning-delete::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence (this time on DELETE with `.returning(\'id\')`).',
+  'dml/returning-multi-insert::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence (multi-row INSERT with `.returning([\'id\',\'email\'])`).',
+  'insert/empty-object-returning::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence (insert of a single empty-row `{}` with '
+          '`.returning(\'id\')`).',
+  'cte/update-source::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence, applied to the inner CTE source statement '
+          '(the `.with(...).(...).returning([\'group_id\'])` chained inside '
+          'the WITH body). knex.js\'s mysql2 silently drops the RETURNING '
+          'from the WITH body too. The harness compares the whole '
+          '`with ... update ...` outer statement, where the only difference '
+          'is the presence/absence of `returning `group_id`` in the CTE '
+          'body — pure capability-drop difference, not a structural '
+          'divergence.',
+
+  // ── OPEN BUG: uppercase `AS` siblings of the existing entries, surfaced
+  // for the new `mariadb` dialect in this harness pass. These route through
+  // the same `client.alias()` (formatter.dart → client.dart) and `Ref.as()`
+  // (ref.dart) code paths as the existing postgres/mysql/sqlite entries
+  // already triaged and scoped out — see the canonical explanation at
+  // `'select/old-style-alias::postgres'` and `'ref/select-alias::postgres'`
+  // above. Dart's `KnexDialect.mariadb` shares the mysql formatter
+  // (backtick-quoting), but the alias-emitting helper is dialect-agnostic
+  // (uppercase AS hardcoded in the alias() method itself, not in any
+  // dialect-specific branch) — so adding the mariadb dialect to the harness
+  // surfaces these sibling divergences for free. Both `[OPEN BUG]` root
+  // causes (client.alias() uppercase-AS, Ref.as() uppercase-AS) are
+  // explicitly out of scope for this mining pass per the prompt's
+  // "Do NOT touch client.alias() or Ref.as()" ground rule. Same fix path:
+  // once the AS-casing sweep lands in those two files, delete these entries
+  // (the ratchet will force it). Verified against real knex.js 3.3.0 —
+  // `node -e` literal output:
+  //   select/old-style-alias: `select \`foo\` as \`bar\` from \`users\`` (knex.js) vs `select \`foo\` AS \`bar\` from \`users\`` (knex-dart)
+  //   select/alias-trim-spaces: same — knex.js normalizes `' foo   as bar '` to ``\`foo\` as \`bar\``; knex-dart emits uppercase AS.
+  //   select/alias-case-insensitive: same — knex.js normalizes `' foo   aS bar '` to ``\`foo\` as \`bar\``; knex-dart emits uppercase AS.
+  //   select/alias-dotted: `select \`foo\` as \`bar.baz\` from \`users\`` (knex.js) vs `select \`foo\` AS \`bar.baz\` from \`users\`` (knex-dart).
+  //   having/from-alias: `select \`email\` as \`foo_email\` from \`users\` having \`foo_email\` > ?` (knex.js) vs `select \`email\` AS \`foo_email\` from \`users\` having \`foo_email\` > ?` (knex-dart).
+  //   ref/select-alias: `select \`one\`, \`sometable\`.\`two\` as \`Two\` from \`sometable\`` (knex.js) vs `select \`one\`, \`sometable\`.\`two\` AS \`Two\` from \`sometable\`` (knex-dart).
+  'select/old-style-alias::mariadb':
+      '[OPEN BUG] uppercase `AS` via client.alias() — sibling of '
+          'select/old-style-alias::postgres (canonical explanation above); '
+          'mariadb is mysql-family and shares the same alias() code path. '
+          'Out of scope per the prompt — fix by correcting client.alias() to '
+          'lowercase `as`, then delete this entry.',
+  'select/alias-trim-spaces::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause.',
+  'select/alias-case-insensitive::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause.',
+  'select/alias-dotted::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause.',
+  'having/from-alias::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause (HAVING with a `col as alias` select).',
+  'ref/select-alias::mariadb':
+      '[OPEN BUG] uppercase `AS` via Ref.as() — sibling of '
+          'ref/select-alias::postgres (canonical explanation above); '
+          'mariadb surfaces the same Ref.as() defect. Out of scope per the '
+          'prompt — delete this entry once Ref.as() is corrected.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].
