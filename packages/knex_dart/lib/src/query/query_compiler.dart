@@ -1037,6 +1037,10 @@ class QueryCompiler {
         return havingBetween(statement);
       case 'havingNull':
         return havingNull(statement);
+      case 'havingExists':
+        return havingExists(statement);
+      case 'havingWrapped':
+        return havingWrapped(statement);
       default:
         throw Exception('Unknown HAVING type: $type');
     }
@@ -1105,6 +1109,66 @@ class QueryCompiler {
     final column = formatter.wrap(statement['column']);
     final not = statement['not'] as bool? ?? false;
     return not ? '$column is not null' : '$column is null';
+  }
+
+  /// Compile HAVING EXISTS clause
+  ///
+  ///
+  /// Examples:
+  /// - having exists (SELECT ...)
+  /// - having not exists (SELECT ...)
+  String havingExists(Map<String, dynamic> statement) {
+    final callback = statement['value'] as QueryBuilderCallback;
+
+    // Create a new QueryBuilder for the subquery
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+
+    // Get the SQL for the subquery, renumbering $N placeholders to continue
+    // from the parent's running binding count (mirrors _compileSubquery()).
+    final bindingOffset = bindings.length;
+    final subSQL = subBuilder.toSQL();
+    final sql = _offsetPlaceholders(subSQL.sql, bindingOffset);
+    bindings.addAll(subSQL.bindings);
+
+    return '${_not(statement, 'exists ')}($sql)';
+  }
+
+  /// Compile grouped HAVING conditions (parentheses)
+  ///
+  ///
+  /// Mirrors [whereWrapped]: builds the nested HAVING clauses on a fresh
+  /// sub-builder, renumbers `$N` placeholders to continue from the parent's
+  /// binding count, and strips the leading `having ` prefix.
+  String havingWrapped(Map<String, dynamic> statement) {
+    final callback = statement['value'] as QueryBuilderCallback;
+
+    // Create a new QueryBuilder for the wrapped conditions
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+
+    // Get the current binding count before adding subquery bindings
+    final bindingOffset = bindings.length;
+
+    // Compile the HAVING clauses from the sub-builder
+    final subCompiler = client.queryCompiler(subBuilder);
+    var havingSQL = subCompiler._having();
+
+    if (havingSQL.isEmpty) return '';
+
+    // Renumber parameter placeholders to continue from parent's count
+    havingSQL = _offsetPlaceholders(havingSQL, bindingOffset);
+
+    // Merge bindings from subquery into parent bindings
+    bindings.addAll(subCompiler.bindings);
+
+    // Remove the leading "having " (7 characters)
+    final condition = havingSQL.substring(7);
+
+    // Apply NOT if needed
+    final notStr = (statement['not'] as bool? ?? false) ? 'not ' : '';
+
+    return '$notStr($condition)';
   }
 
   /// Compile ORDER BY clause

@@ -1149,6 +1149,27 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add grouped HAVING conditions in parentheses
+  ///
+  ///
+  /// Example:
+  /// ```dart
+  /// havingWrapped((qb) {
+  ///   qb.having('email', '>', 10).orHaving('email', '=', 7);
+  /// })
+  /// // Generates: HAVING (email > 10 OR email = 7)
+  /// ```
+  QueryBuilder havingWrapped(QueryBuilderCallback callback) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingWrapped',
+      'value': callback,
+      'not': _not(),
+      'bool': _bool(),
+    });
+    return this;
+  }
+
   /// Add a HAVING clause
   ///
   ///
@@ -1331,6 +1352,23 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add an OR HAVING NOT BETWEEN clause
+  QueryBuilder orHavingNotBetween(String column, List<dynamic> values) {
+    assert(
+      values.length == 2,
+      'orHavingNotBetween requires a list of exactly 2 values',
+    );
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingBetween',
+      'column': column,
+      'value': values,
+      'bool': 'or',
+      'not': true,
+    });
+    return this;
+  }
+
   /// Add a HAVING NULL clause
   ///
   QueryBuilder havingNull(String column) {
@@ -1378,6 +1416,41 @@ class QueryBuilder {
       'not': true,
     });
     return this;
+  }
+
+  /// Add a HAVING EXISTS clause with a subquery
+  ///
+  ///
+  /// Example:
+  /// ```dart
+  /// havingExists((qb) {
+  ///   qb.select('baz').table('users');
+  /// })
+  /// ```
+  QueryBuilder havingExists(QueryBuilderCallback callback) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingExists',
+      'value': callback,
+      'not': _not(),
+      'bool': _bool(),
+    });
+    return this;
+  }
+
+  /// Add a HAVING NOT EXISTS clause
+  QueryBuilder havingNotExists(QueryBuilderCallback callback) {
+    return _not(true).havingExists(callback) as QueryBuilder;
+  }
+
+  /// OR version of HAVING EXISTS
+  QueryBuilder orHavingExists(QueryBuilderCallback callback) {
+    return _bool('or').havingExists(callback) as QueryBuilder;
+  }
+
+  /// OR version of HAVING NOT EXISTS
+  QueryBuilder orHavingNotExists(QueryBuilderCallback callback) {
+    return _bool('or')._not(true).havingExists(callback) as QueryBuilder;
   }
 
   /// Set a row-level lock FOR UPDATE

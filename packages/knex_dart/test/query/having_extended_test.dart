@@ -181,6 +181,119 @@ void main() {
     });
   });
 
+  group('HAVING EXISTS variants', () {
+    test('havingExists', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingExists((q) {
+            q.select(['baz']).table('users');
+          })
+          .toSQL();
+      // JS pg: select * from "users" having exists (select "baz" from "users")
+      expect(
+        sql.sql,
+        'select * from "users" having exists (select "baz" from "users")',
+      );
+      expect(sql.bindings, []);
+    });
+
+    test('havingNotExists', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingNotExists((q) {
+            q.select(['baz']).table('users');
+          })
+          .toSQL();
+      // JS pg: select * from "users" having not exists (select "baz" from "users")
+      expect(
+        sql.sql,
+        'select * from "users" having not exists (select "baz" from "users")',
+      );
+      expect(sql.bindings, []);
+    });
+
+    test('orHavingExists', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingExists((q) {
+            q.select(['baz']).table('users');
+          })
+          .orHavingExists((q) {
+            q.select(['foo']).table('users');
+          })
+          .toSQL();
+      // JS pg: select * from "users" having exists (select "baz" from "users")
+      //        or exists (select "foo" from "users")
+      expect(
+        sql.sql,
+        'select * from "users" having exists (select "baz" from "users") '
+        'or exists (select "foo" from "users")',
+      );
+      expect(sql.bindings, []);
+    });
+
+    test('orHavingNotExists', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingNotExists((q) {
+            q.select(['baz']).table('users');
+          })
+          .orHavingNotExists((q) {
+            q.select(['foo']).table('users');
+          })
+          .toSQL();
+      // JS pg: select * from "users" having not exists (select "baz" from "users")
+      //        or not exists (select "foo" from "users")
+      expect(
+        sql.sql,
+        'select * from "users" having not exists (select "baz" from "users") '
+        'or not exists (select "foo" from "users")',
+      );
+      expect(sql.bindings, []);
+    });
+  });
+
+  group('HAVING wrapped (grouped) variants', () {
+    test('havingWrapped single condition', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingWrapped((q) {
+            q.having('email', '>', 1);
+          })
+          .toSQL();
+      // JS pg: select * from "users" having ("email" > ?)
+      expect(sql.sql, 'select * from "users" having ("email" > \$1)');
+      expect(sql.bindings, [1]);
+    });
+
+    test('havingWrapped with internal or', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingWrapped((q) {
+            q.having('email', '>', 10).orHaving('email', '=', 7);
+          })
+          .toSQL();
+      // JS pg: select * from "users" having ("email" > ? or "email" = ?)
+      expect(
+        sql.sql,
+        'select * from "users" having ("email" > \$1 or "email" = \$2)',
+      );
+      expect(sql.bindings, [10, 7]);
+    });
+  });
+
   group('orHaving and orHavingRaw', () {
     test('orHaving', () {
       final sql = client
