@@ -2058,7 +2058,7 @@ class QueryCompiler {
       if (where.isNotEmpty) {
         parts.add(where);
       }
-    } else if (_isPostgresLikeForDeleteUsing()) {
+    } else if (_isPostgresLikeDriver) {
       parts.add(_delete());
       // Compile WHERE first so its bindings land before the join ON
       // conditions' bindings, matching the text order below.
@@ -2099,18 +2099,6 @@ class QueryCompiler {
 
     return parts.join(' ');
   }
-
-  /// Dialects that compile `DELETE ... JOIN` into `DELETE ... USING`
-  /// (Postgres-family, but NOT Redshift — knex.js's redshift-querycompiler
-  /// does not inherit pg-querycompiler's `del()` override, so it keeps the
-  /// generic `DELETE t FROM t JOIN` shape instead; verified against real
-  /// knex.js). Same driver-name set as `_lock()`'s `postgresLike`.
-  bool _isPostgresLikeForDeleteUsing() =>
-      client.driverName == 'pg' ||
-      client.driverName == 'postgres' ||
-      client.driverName == 'postgresql' ||
-      client.driverName == 'cockroachdb' ||
-      client.driverName == 'mock';
 
   /// Extracts JOIN tables and their ON-condition text for the Postgres
   /// `DELETE ... USING` transform: each joined table becomes a USING entry
@@ -2256,6 +2244,12 @@ class QueryCompiler {
   // `isMySQL` checks throughout) and to the sqlite-family set (turso/d1),
   // matching the family-aware-dispatch convention this codebase otherwise
   // follows for SQLite-family dialects.
+  //
+  // `_isPostgresLikeDriver` is also used by `_deleteQuery()`'s
+  // Postgres-vs-JOIN-clause DELETE dispatch (deliberately NOT Redshift —
+  // knex.js's redshift-querycompiler doesn't inherit pg-querycompiler's
+  // `del()` override, and none of Redshift's JSON-where shapes are exercised
+  // by knex.js's own test suite either — verified against real knex.js).
   bool get _isMySqlLikeDriver =>
       client.driverName == 'mysql' || client.driverName == 'mysql2';
   bool get _isSqliteLikeDriver => const {
