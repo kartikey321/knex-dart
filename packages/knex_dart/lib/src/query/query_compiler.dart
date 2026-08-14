@@ -2247,12 +2247,51 @@ class QueryCompiler {
   // JSON OPERATORS (PG, MySQL, SQLite)
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // These three driver-family checks previously used bare `client.driverName
+  // == 'mysql'` / `== 'sqlite'` / `== 'pg'` comparisons, which never matched
+  // this codebase's actual driver-name strings for the core dialects
+  // (`mysql2`, `sqlite3`) — the mysql/sqlite branches below were dead code
+  // for every dialect built via `KnexQuery.forClient`. Widened to the same
+  // alias sets used elsewhere in this file (`_lock()`'s `postgresLike`, the
+  // `isMySQL` checks throughout) and to the sqlite-family set (turso/d1),
+  // matching the family-aware-dispatch convention this codebase otherwise
+  // follows for SQLite-family dialects.
+  bool get _isMySqlLikeDriver =>
+      client.driverName == 'mysql' || client.driverName == 'mysql2';
+  bool get _isSqliteLikeDriver => const {
+    'sqlite',
+    'sqlite3',
+    'turso',
+    'd1',
+  }.contains(client.driverName);
+  bool get _isPostgresLikeDriver => const {
+    'pg',
+    'postgres',
+    'postgresql',
+    'cockroachdb',
+    'mock',
+  }.contains(client.driverName);
+
   String _whereJsonObject(Map<String, dynamic> statement) {
-    return '${_not(statement, '') + formatter.wrap(statement['column'])} = ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isMySqlLikeDriver) {
+      // MySQL has no `=` semantics for JSON columns; knex.js wraps in
+      // json_contains() instead.
+      return '${_not(statement, '')}json_contains($col, $val)';
+    }
+    return '${_not(statement, '') + col} = $val';
   }
 
   String _whereJsonPath(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
+    // Postgres only (NOT cockroachdb — cockroachdb uses `json_extract_path`
+    // with the JSONPath split into positional segments, a materially
+    // different transform not implemented here; see the
+    // `json/where-path::cockroachdb` parity allowlist entry).
+    final isPg = client.driverName == 'pg' ||
+        client.driverName == 'postgres' ||
+        client.driverName == 'postgresql';
+    if (isPg) {
       final col = formatter.wrap(statement['column']);
       final path = client.parameter(statement['jsonPath'], bindings);
       final op = formatter.operator(statement['operator']);
@@ -2267,31 +2306,55 @@ class QueryCompiler {
 
       final valClause = _valueClause(statement);
       return '${_not(statement, '')}jsonb_path_query_first($col, $path)$castValue $op $valClause';
-    } else if (client.driverName == 'mysql' || client.driverName == 'sqlite') {
+    } else if (_isMySqlLikeDriver || _isSqliteLikeDriver) {
       final col = formatter.wrap(statement['column']);
       final path = client.parameter(statement['jsonPath'], bindings);
       final op = formatter.operator(statement['operator']);
       final valClause = _valueClause(statement);
       return '${_not(statement, '')}json_extract($col, $path) $op $valClause';
     }
-    // Fallback if not supported
-    return whereBasic(statement);
+    // Not implemented for this dialect (cockroachdb) or genuinely
+    // unsupported (redshift — real knex.js itself throws compiling this).
+    // Previously fell through to whereBasic(), silently compiling a plain
+    // (wrong) column comparison instead of refusing.
+    throw StateError('whereJsonPath is not supported by ${client.driverName}');
   }
 
   String _whereJsonSupersetOf(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
-      return '${_not(statement, '') + formatter.wrap(statement['column'])} @> ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isPostgresLikeDriver) {
+      return '${_not(statement, '')}$col @> $val';
     }
-    statement['operator'] = '=';
-    return whereBasic(statement); // Unsupported on other dialects right now
+    if (_isMySqlLikeDriver) {
+      // No space after the comma here — matches knex.js's mysql-querycompiler
+      // for whereJsonSupersetOf specifically (whereJsonObject's json_contains
+      // call, above, does have a space; knex.js is simply inconsistent about
+      // it between the two).
+      return '${_not(statement, '')}json_contains($col,$val)';
+    }
+    // Previously fell through to whereBasic() with operator forced to '=',
+    // silently compiling a plain (wrong) equality check instead of
+    // refusing.
+    throw StateError(
+      'whereJsonSupersetOf is not supported by ${client.driverName}',
+    );
   }
 
   String _whereJsonSubsetOf(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
-      return '${_not(statement, '') + formatter.wrap(statement['column'])} <@ ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isPostgresLikeDriver) {
+      return '${_not(statement, '')}$col <@ $val';
     }
-    statement['operator'] = '=';
-    return whereBasic(statement); // Unsupported on other dialects right now
+    if (_isMySqlLikeDriver) {
+      // Argument order is reversed vs. supersetOf — matches knex.js. No
+      // space after the comma (see the note in _whereJsonSupersetOf).
+      return '${_not(statement, '')}json_contains($val,$col)';
+    }
+    throw StateError(
+      'whereJsonSubsetOf is not supported by ${client.driverName}',
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

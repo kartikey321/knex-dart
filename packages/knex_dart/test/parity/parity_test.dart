@@ -259,15 +259,29 @@ String _normalizeSql(String sql, String dialect) =>
 bool _isRefusal(Object e) =>
     e is StateError || e is ArgumentError || e is UnsupportedError;
 
+/// Compares two binding *values* (not the whole bindings list — see
+/// [_bindingsEqual]). A single binding can itself be a `List` (e.g.
+/// `whereIn('id', raw('select (:test)', {test: [1,2,3]}))` binds the whole
+/// array `[1,2,3]` as ONE parameter) — those need element-wise recursion,
+/// not `List.==`, which is reference equality in Dart and would fail two
+/// structurally-identical-but-distinct list instances (exactly what
+/// `jsonDecode`'d fixture values vs. freshly-built Dart bindings always are).
+bool _bindingValueEqual(dynamic a, dynamic b) {
+  if (a is num && b is num) return a == b; // int/double width not distinguished
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_bindingValueEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b; // strict otherwise: "1" != 1, true != 1, etc.
+}
+
 bool _bindingsEqual(List<dynamic> got, List<dynamic> expected) {
   if (got.length != expected.length) return false;
   for (var i = 0; i < got.length; i++) {
-    final a = got[i], b = expected[i];
-    if (a is num && b is num) {
-      if (a != b) return false; // by value (int/double width not distinguished)
-    } else if (a != b) {
-      return false; // strict: "1" != 1, true != 1, etc.
-    }
+    if (!_bindingValueEqual(got[i], expected[i])) return false;
   }
   return true;
 }
