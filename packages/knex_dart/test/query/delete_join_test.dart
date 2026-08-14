@@ -4,9 +4,9 @@
 /// all, so any join attached to a DELETE was silently dropped — a query with
 /// a join meant to scope which rows get deleted would instead delete every
 /// row in the table. Fixed to mirror knex.js's per-dialect handling:
-///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND <join on>`
-///     (join ON conditions fold into WHERE, after the original predicate).
-///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t <join> WHERE
+///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND` join-on
+///     conditions (fold into WHERE, after the original predicate).
+///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t` join `WHERE
 ///     ...` (join stays a real JOIN clause).
 /// Expected SQL cross-checked against real knex.js (`node -e "require(...)"`)
 /// for every dialect below.

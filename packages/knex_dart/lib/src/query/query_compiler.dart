@@ -592,7 +592,7 @@ class QueryCompiler {
   /// Supports:
   /// - Array of values: "column" in (?, ?, ?)
   /// - Subquery: "column" in (SELECT ...)
-  /// - Raw: "column" in (<raw sql>) — e.g. `whereIn('id', raw('select (:test)', {...}))`
+  /// - Raw: "column" in (`<raw sql>`) — e.g. `whereIn('id', raw('select (:test)', {...}))`
   String whereIn(Map<String, dynamic> statement) {
     final column = formatter.wrap(statement['column']);
     final values = statement['value'];
@@ -2027,9 +2027,9 @@ class QueryCompiler {
   /// `.join(...)`. Standard SQL has no JOIN clause on DELETE, so each dialect
   /// family expresses it differently — silently dropping the join (the
   /// previous behavior here) would change query semantics, not just syntax:
-  ///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND <join on
-  ///     conditions>` (join ON conditions fold into WHERE).
-  ///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t <join> WHERE
+  ///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND` join-on
+  ///     conditions (join ON conditions fold into WHERE).
+  ///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t` join `WHERE
   ///     ...` (join stays a real JOIN clause; WHERE is untouched).
   String _deleteQuery() {
     final parts = <String>[];
