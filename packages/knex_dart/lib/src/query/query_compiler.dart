@@ -1573,6 +1573,15 @@ class QueryCompiler {
   /// Compile INSERT query
   ///
   String _insertQuery() {
+    // An empty INSERT (e.g. `insert([])`, or `insert([{}, {}])` — multiple
+    // all-empty rows) is a no-op in knex.js: compiles to nothing at all,
+    // dropping WITH/ON CONFLICT/RETURNING too, not just the insert clause
+    // itself. Checked up front, before any binding-generating compilation,
+    // so it can't touch `bindings` (which would desync placeholder numbers
+    // in the non-empty path below, since WITH must be compiled — and its
+    // bindings recorded — before INSERT's).
+    if (_isEmptyInsert()) return '';
+
     final parts = <String>[];
     final onConflict = single['onConflict'] as Map<String, dynamic>?;
 
@@ -1627,24 +1636,54 @@ class QueryCompiler {
     return parts.join(' ');
   }
 
+  /// Whether `.insert(...)` compiles to nothing at all (a no-op), mirroring
+  /// [_insert]'s empty-array/all-empty-rows handling without generating any
+  /// SQL or touching `bindings` — see [_insertQuery] for why that matters.
+  bool _isEmptyInsert() {
+    final insertValue = single['insert'];
+    if (insertValue == null) return true;
+    if (insertValue is List) {
+      if (insertValue.isEmpty) return true;
+      if (insertValue.length > 1) {
+        return insertValue.every((row) => (row as Map).isEmpty);
+      }
+    }
+    return false;
+  }
+
   /// Compile INSERT statement
   ///
   String _insert({bool ignorePrefix = false}) {
     final insertValue = single['insert'];
     if (insertValue == null) return '';
 
-    // Normalize to list of maps
+    final table = formatter.wrap(single['table']);
+    final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
+    final isMySQL =
+        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    // Mirrors knex.js's per-dialect `_emptyInsertValue`: MySQL requires an
+    // explicit empty column/value list, everyone else accepts DEFAULT VALUES.
+    final emptyInsertValue = isMySQL ? '() values ()' : 'default values';
+
+    // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
+    // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
+    // `Map<String, dynamic>`), so convert element-by-element rather than a
+    // blind `List.cast()`, which defers the type check to iteration time and
+    // throws deep inside the values-building loop below instead of here.
     final List<Map<String, dynamic>> rows;
     if (insertValue is List) {
       if (insertValue.isEmpty) {
-        throw ArgumentError('Cannot insert empty array');
+        // knex.js treats `insert([])` as a no-op — compiles to nothing.
+        return '';
       }
-      rows = insertValue.cast<Map<String, dynamic>>();
-    } else if (insertValue is Map<String, dynamic>) {
+      rows = insertValue
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+    } else if (insertValue is Map) {
       if (insertValue.isEmpty) {
-        throw ArgumentError('Cannot insert empty object');
+        return '$keyword $table $emptyInsertValue';
       }
-      rows = [insertValue];
+      rows = [Map<String, dynamic>.from(insertValue)];
     } else {
       throw ArgumentError('INSERT values must be Map or List<Map>');
     }
@@ -1665,6 +1704,18 @@ class QueryCompiler {
     // per row), so sorting here is a pure ordering fix with no semantic
     // change to which value lands in which column.
     columns.sort();
+
+    if (columns.isEmpty) {
+      // Every row was an empty map (e.g. `insert([{}])`). A single all-empty
+      // row inserts default values for the whole row; more than one is
+      // ambiguous — DEFAULT VALUES can't be repeated per-row — so knex.js
+      // drops it as a no-op, same as `insert([])`.
+      if (rows.length == 1) {
+        return '$keyword $table $emptyInsertValue';
+      }
+      return '';
+    }
+
     final columnsSql = columns.map((c) => formatter.wrap(c)).join(', ');
 
     // SQLite (and its family: turso, d1) rejects the DEFAULT keyword inside a
@@ -1708,8 +1759,6 @@ class QueryCompiler {
       valuesClauses.add('(${rowBindings.join(', ')})');
     }
 
-    final table = formatter.wrap(single['table']);
-    final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
     return '$keyword $table ($columnsSql) values ${valuesClauses.join(', ')}';
   }
 
@@ -1854,13 +1903,20 @@ class QueryCompiler {
       return '';
     }
 
+    if (!_supports(SqlCapability.returning)) {
+      // Mirrors knex.js: dialects without RETURNING support (mysql,
+      // redshift, ...) log a warning and silently drop the clause rather
+      // than failing the whole query.
+      client.logger.warning(
+        '.returning() is not supported by ${client.driverName} and will '
+        'not have any effect.',
+      );
+      return '';
+    }
+
     final columns = (returningCols as List<String>)
         .map((c) => formatter.wrap(c))
         .join(', ');
-
-    if (!_supports(SqlCapability.returning)) {
-      throw StateError('RETURNING is not supported by ${client.driverName}');
-    }
 
     return 'returning $columns';
   }
@@ -1881,6 +1937,22 @@ class QueryCompiler {
     final where = _where();
     if (where.isNotEmpty) {
       parts.add(where);
+    }
+
+    // MySQL-only extension: `UPDATE ... SET ... WHERE ... ORDER BY ...
+    // LIMIT ...`. Standard SQL doesn't allow ORDER BY/LIMIT on UPDATE, so
+    // this is gated to MySQL to match knex.js's mysql-querycompiler.
+    final isMySQL =
+        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    if (isMySQL) {
+      final order = _order();
+      if (order.isNotEmpty) {
+        parts.add(order);
+      }
+      final limit = _limit();
+      if (limit.isNotEmpty) {
+        parts.add(limit);
+      }
     }
 
     final returning = _returning();
@@ -1924,7 +1996,16 @@ class QueryCompiler {
     }
 
     final table = formatter.wrap(single['table']);
-    return 'update $table set ${updates.join(', ')}';
+
+    // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
+    // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
+    // to match knex.js's mysql-querycompiler.
+    final isMySQL =
+        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final join = isMySQL ? _join() : '';
+    final joinClause = join.isNotEmpty ? ' $join' : '';
+
+    return 'update $table$joinClause set ${updates.join(', ')}';
   }
 
   /// Compile DELETE query
