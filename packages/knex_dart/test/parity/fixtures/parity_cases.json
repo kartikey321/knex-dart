@@ -7,12 +7,13 @@
     "cockroachdb": "cockroachdb",
     "redshift": "redshift",
     "mysql": "mysql2",
+    "mariadb": "mysql2 (family:mysql)",
     "sqlite": "sqlite3",
     "turso": "sqlite3 (family:sqlite)",
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 1384,
+  "caseCount": 1557,
   "cases": [
     {
       "id": "where/eq-string",
@@ -41,6 +42,15 @@
     {
       "id": "where/eq-string",
       "dialect": "mysql",
+      "sql": "select * from `users` where `status` = ?",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "where/eq-string",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `status` = ?",
       "bindings": [
         "active"
@@ -114,6 +124,15 @@
     },
     {
       "id": "where/eq-number",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `age` = ?",
+      "bindings": [
+        25
+      ]
+    },
+    {
+      "id": "where/eq-number",
       "dialect": "sqlite",
       "sql": "select * from `users` where `age` = ?",
       "bindings": [
@@ -173,6 +192,15 @@
     {
       "id": "where/op-gt",
       "dialect": "mysql",
+      "sql": "select * from `users` where `age` > ?",
+      "bindings": [
+        18
+      ]
+    },
+    {
+      "id": "where/op-gt",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `age` > ?",
       "bindings": [
         18
@@ -246,6 +274,15 @@
     },
     {
       "id": "where/op-lte",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `age` <= ?",
+      "bindings": [
+        65
+      ]
+    },
+    {
+      "id": "where/op-lte",
       "dialect": "sqlite",
       "sql": "select * from `users` where `age` <= ?",
       "bindings": [
@@ -308,6 +345,16 @@
     {
       "id": "where/and-chain",
       "dialect": "mysql",
+      "sql": "select * from `users` where `a` = ? and `b` = ?",
+      "bindings": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/and-chain",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `a` = ? and `b` = ?",
       "bindings": [
         1,
@@ -390,6 +437,16 @@
     },
     {
       "id": "where/or",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `a` = ? or `b` = ?",
+      "bindings": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or",
       "dialect": "sqlite",
       "sql": "select * from `users` where `a` = ? or `b` = ?",
       "bindings": [
@@ -452,6 +509,13 @@
     },
     {
       "id": "where/null",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `deleted_at` is null",
+      "bindings": []
+    },
+    {
+      "id": "where/null",
       "dialect": "sqlite",
       "sql": "select * from `users` where `deleted_at` is null",
       "bindings": []
@@ -497,6 +561,13 @@
     {
       "id": "where/not-null",
       "dialect": "mysql",
+      "sql": "select * from `users` where `email` is not null",
+      "bindings": []
+    },
+    {
+      "id": "where/not-null",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `email` is not null",
       "bindings": []
     },
@@ -559,6 +630,17 @@
     {
       "id": "where/in",
       "dialect": "mysql",
+      "sql": "select * from `users` where `id` in (?, ?, ?)",
+      "bindings": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "where/in",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `id` in (?, ?, ?)",
       "bindings": [
         1,
@@ -646,6 +728,16 @@
     },
     {
       "id": "where/not-in",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `id` not in (?, ?)",
+      "bindings": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/not-in",
       "dialect": "sqlite",
       "sql": "select * from `users` where `id` not in (?, ?)",
       "bindings": [
@@ -715,6 +807,17 @@
     {
       "id": "where/or-in",
       "dialect": "mysql",
+      "sql": "select * from `users` where `a` = ? or `role` in (?, ?)",
+      "bindings": [
+        1,
+        "x",
+        "y"
+      ]
+    },
+    {
+      "id": "where/or-in",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `a` = ? or `role` in (?, ?)",
       "bindings": [
         1,
@@ -802,6 +905,16 @@
     },
     {
       "id": "where/between",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `age` between ? and ?",
+      "bindings": [
+        18,
+        65
+      ]
+    },
+    {
+      "id": "where/between",
       "dialect": "sqlite",
       "sql": "select * from `users` where `age` between ? and ?",
       "bindings": [
@@ -871,6 +984,17 @@
     {
       "id": "where/grouped",
       "dialect": "mysql",
+      "sql": "select * from `users` where `a` = ? and (`b` = ? or `c` = ?)",
+      "bindings": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "where/grouped",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `a` = ? and (`b` = ? or `c` = ?)",
       "bindings": [
         1,
@@ -954,6 +1078,15 @@
     },
     {
       "id": "where/subquery-in",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `id` in (select `user_id` from `orders` where `total` > ?)",
+      "bindings": [
+        100
+      ]
+    },
+    {
+      "id": "where/subquery-in",
       "dialect": "sqlite",
       "sql": "select * from `users` where `id` in (select `user_id` from `orders` where `total` > ?)",
       "bindings": [
@@ -1012,6 +1145,13 @@
     },
     {
       "id": "select/columns",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `id`, `name` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/columns",
       "dialect": "sqlite",
       "sql": "select `id`, `name` from `users`",
       "bindings": []
@@ -1057,6 +1197,13 @@
     {
       "id": "select/orderby-multi",
       "dialect": "mysql",
+      "sql": "select * from `users` order by `a` asc, `b` desc",
+      "bindings": []
+    },
+    {
+      "id": "select/orderby-multi",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` order by `a` asc, `b` desc",
       "bindings": []
     },
@@ -1116,6 +1263,16 @@
     {
       "id": "select/limit-offset",
       "dialect": "mysql",
+      "sql": "select * from `users` limit ? offset ?",
+      "bindings": [
+        10,
+        5
+      ]
+    },
+    {
+      "id": "select/limit-offset",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` limit ? offset ?",
       "bindings": [
         10,
@@ -1186,6 +1343,13 @@
     },
     {
       "id": "join/inner",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/inner",
       "dialect": "sqlite",
       "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`a_id`",
       "bindings": []
@@ -1231,6 +1395,13 @@
     {
       "id": "join/left",
       "dialect": "mysql",
+      "sql": "select * from `a` left join `b` on `a`.`id` = `b`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/left",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `a` left join `b` on `a`.`id` = `b`.`a_id`",
       "bindings": []
     },
@@ -1290,6 +1461,16 @@
     {
       "id": "insert/single",
       "dialect": "mysql",
+      "sql": "insert into `users` (`email`, `name`) values (?, ?)",
+      "bindings": [
+        "a@b.com",
+        "Alice"
+      ]
+    },
+    {
+      "id": "insert/single",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert into `users` (`email`, `name`) values (?, ?)",
       "bindings": [
         "a@b.com",
@@ -1380,6 +1561,18 @@
     },
     {
       "id": "insert/multi-ragged",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert into `t` (`a`, `b`, `c`) values (?, ?, DEFAULT), (?, DEFAULT, ?)",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "insert/multi-ragged",
       "dialect": "sqlite",
       "error": "`sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag. (see docs https://knexjs.org/guide/query-builder.html#insert)."
     },
@@ -1436,6 +1629,16 @@
     {
       "id": "update/set",
       "dialect": "mysql",
+      "sql": "update `users` set `name` = ? where `id` = ?",
+      "bindings": [
+        "Bob",
+        2
+      ]
+    },
+    {
+      "id": "update/set",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "update `users` set `name` = ? where `id` = ?",
       "bindings": [
         "Bob",
@@ -1514,6 +1717,15 @@
     },
     {
       "id": "delete/where",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "delete from `users` where `id` = ?",
+      "bindings": [
+        2
+      ]
+    },
+    {
+      "id": "delete/where",
       "dialect": "sqlite",
       "sql": "delete from `users` where `id` = ?",
       "bindings": [
@@ -1576,6 +1788,16 @@
     {
       "id": "union/two",
       "dialect": "mysql",
+      "sql": "select `id` from `a` where `x` = ? union select `id` from `b` where `y` = ?",
+      "bindings": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "union/two",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `a` where `x` = ? union select `id` from `b` where `y` = ?",
       "bindings": [
         1,
@@ -1654,6 +1876,15 @@
     },
     {
       "id": "cte/select",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "with `recent` as (select `id` from `src` where `flag` = ?) select * from `t`",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "cte/select",
       "dialect": "sqlite",
       "sql": "with `recent` as (select `id` from `src` where `flag` = ?) select * from `t`",
       "bindings": [
@@ -1716,6 +1947,16 @@
     {
       "id": "upsert/merge",
       "dialect": "mysql",
+      "sql": "insert into `users` (`email`, `name`) values (?, ?) on duplicate key update `email` = values(`email`), `name` = values(`name`)",
+      "bindings": [
+        "a@b.com",
+        "Alice"
+      ]
+    },
+    {
+      "id": "upsert/merge",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert into `users` (`email`, `name`) values (?, ?) on duplicate key update `email` = values(`email`), `name` = values(`name`)",
       "bindings": [
         "a@b.com",
@@ -1790,6 +2031,15 @@
     },
     {
       "id": "returning/insert",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert into `users` (`email`) values (?)",
+      "bindings": [
+        "a@b.com"
+      ]
+    },
+    {
+      "id": "returning/insert",
       "dialect": "sqlite",
       "sql": "insert into `users` (`email`) values (?) returning `id`",
       "bindings": [
@@ -1856,6 +2106,15 @@
     },
     {
       "id": "where/not",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where not `status` = ?",
+      "bindings": [
+        "banned"
+      ]
+    },
+    {
+      "id": "where/not",
       "dialect": "sqlite",
       "sql": "select * from `users` where not `status` = ?",
       "bindings": [
@@ -1914,6 +2173,13 @@
     },
     {
       "id": "select/distinct",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select distinct `name` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct",
       "dialect": "sqlite",
       "sql": "select distinct `name` from `users`",
       "bindings": []
@@ -1959,6 +2225,13 @@
     {
       "id": "select/desc",
       "dialect": "mysql",
+      "sql": "select * from `users` order by `created_at` desc",
+      "bindings": []
+    },
+    {
+      "id": "select/desc",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` order by `created_at` desc",
       "bindings": []
     },
@@ -2014,6 +2287,13 @@
     },
     {
       "id": "agg/count-col",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select count(`id`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-col",
       "dialect": "sqlite",
       "sql": "select count(`id`) from `t`",
       "bindings": []
@@ -2064,6 +2344,13 @@
     },
     {
       "id": "agg/sum",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select sum(`amount`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/sum",
       "dialect": "sqlite",
       "sql": "select sum(`amount`) from `t`",
       "bindings": []
@@ -2109,6 +2396,13 @@
     {
       "id": "agg/min-max",
       "dialect": "mysql",
+      "sql": "select min(`lo`), max(`hi`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/min-max",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select min(`lo`), max(`hi`) from `t`",
       "bindings": []
     },
@@ -2165,6 +2459,15 @@
     {
       "id": "having/basic",
       "dialect": "mysql",
+      "sql": "select * from `t` group by `cat` having `cnt` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/basic",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `t` group by `cat` having `cnt` > ?",
       "bindings": [
         1
@@ -2242,6 +2545,16 @@
     },
     {
       "id": "update/increment",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `t` set `views` = `views` + ? where `id` = ?",
+      "bindings": [
+        5,
+        1
+      ]
+    },
+    {
+      "id": "update/increment",
       "dialect": "sqlite",
       "sql": "update `t` set `views` = `views` + ? where `id` = ?",
       "bindings": [
@@ -2304,6 +2617,13 @@
     },
     {
       "id": "delete/all",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "delete from `users`",
+      "bindings": []
+    },
+    {
+      "id": "delete/all",
       "dialect": "sqlite",
       "sql": "delete from `users`",
       "bindings": []
@@ -2354,6 +2674,16 @@
     },
     {
       "id": "delete/limit-mysql",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "delete from `users` where `id` > ? limit ?",
+      "bindings": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "delete/limit-mysql",
       "dialect": "sqlite",
       "error": "Aborted query compilation: `limit` has no effect on a `delete` statement"
     },
@@ -2395,6 +2725,13 @@
     {
       "id": "union/all",
       "dialect": "mysql",
+      "sql": "select `id` from `a` union all select `id` from `b`",
+      "bindings": []
+    },
+    {
+      "id": "union/all",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `a` union all select `id` from `b`",
       "bindings": []
     },
@@ -2451,6 +2788,15 @@
     {
       "id": "jsonb/qmark-op",
       "dialect": "mysql",
+      "sql": "select * from `t` where `tags` \\? ?",
+      "bindings": [
+        "urgent"
+      ]
+    },
+    {
+      "id": "jsonb/qmark-op",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `t` where `tags` \\? ?",
       "bindings": [
         "urgent"
@@ -2516,6 +2862,13 @@
     },
     {
       "id": "subquery/from-aliased",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from (select * from `foo`) as `bar` inner join `baz` on `foo`.`id` = `bar`.`foo_id`",
+      "bindings": []
+    },
+    {
+      "id": "subquery/from-aliased",
       "dialect": "sqlite",
       "sql": "select * from (select * from `foo`) as `bar` inner join `baz` on `foo`.`id` = `bar`.`foo_id`",
       "bindings": []
@@ -2567,6 +2920,15 @@
     {
       "id": "subquery/where-scalar",
       "dialect": "mysql",
+      "sql": "select * from `users` where `id` = (select `id` from `users` where `email` = ?)",
+      "bindings": [
+        "bar"
+      ]
+    },
+    {
+      "id": "subquery/where-scalar",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `id` = (select `id` from `users` where `email` = ?)",
       "bindings": [
         "bar"
@@ -2640,6 +3002,15 @@
     },
     {
       "id": "subquery/where-scalar-callback",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `id` = (select max(id) from `users` where `email` = ?)",
+      "bindings": [
+        "bar"
+      ]
+    },
+    {
+      "id": "subquery/where-scalar-callback",
       "dialect": "sqlite",
       "sql": "select * from `users` where `id` = (select max(id) from `users` where `email` = ?)",
       "bindings": [
@@ -2699,6 +3070,15 @@
     {
       "id": "subquery/select-scalar",
       "dialect": "mysql",
+      "sql": "select `e`.`lastname`, `e`.`salary`, (select `avg(salary)` from `employee` where dept_no = e.dept_no) as `avg_sal_dept` from `employee` as `e` where `dept_no` = ?",
+      "bindings": [
+        "e.dept_no"
+      ]
+    },
+    {
+      "id": "subquery/select-scalar",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `e`.`lastname`, `e`.`salary`, (select `avg(salary)` from `employee` where dept_no = e.dept_no) as `avg_sal_dept` from `employee` as `e` where `dept_no` = ?",
       "bindings": [
         "e.dept_no"
@@ -2768,6 +3148,16 @@
     {
       "id": "subquery/select-first-as",
       "dialect": "mysql",
+      "sql": "select `e`.`lastname`, `e`.`salary`, (select `salary` from `employee` where dept_no = e.dept_no order by `salary` desc limit ?) as `top_dept_salary` from `employee` as `e` where `dept_no` = ?",
+      "bindings": [
+        1,
+        "e.dept_no"
+      ]
+    },
+    {
+      "id": "subquery/select-first-as",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `e`.`lastname`, `e`.`salary`, (select `salary` from `employee` where dept_no = e.dept_no order by `salary` desc limit ?) as `top_dept_salary` from `employee` as `e` where `dept_no` = ?",
       "bindings": [
         1,
@@ -2854,6 +3244,17 @@
     },
     {
       "id": "subquery/from-basic-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select ?, `g`.`f` from (select ? as f from `orders`) as `g` where `g`.`secret` = ?",
+      "bindings": [
+        "outer raw select",
+        "inner raw select",
+        123
+      ]
+    },
+    {
+      "id": "subquery/from-basic-alias",
       "dialect": "sqlite",
       "sql": "select ?, `g`.`f` from (select ? as f from `orders`) as `g` where `g`.`secret` = ?",
       "bindings": [
@@ -2928,6 +3329,15 @@
     },
     {
       "id": "subquery/from-nested-2level",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from (select * from (select * from `inner_t` where `x` = ?) as `mid`) as `outer_alias`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "subquery/from-nested-2level",
       "dialect": "sqlite",
       "sql": "select * from (select * from (select * from `inner_t` where `x` = ?) as `mid`) as `outer_alias`",
       "bindings": [
@@ -2994,6 +3404,15 @@
     },
     {
       "id": "subquery/where-in-2level",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `id` in (select `user_id` from `orders` where `product_id` in (select `id` from `products` where `active` = ?))",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "subquery/where-in-2level",
       "dialect": "sqlite",
       "sql": "select * from `users` where `id` in (select `user_id` from `orders` where `product_id` in (select `id` from `products` where `active` = ?))",
       "bindings": [
@@ -3052,6 +3471,13 @@
     },
     {
       "id": "cte/nested",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "with `withClause` as (with `withSubClause` as ((select `foo` from `users`) as `baz`) select * from `withSubClause`) select * from `withClause`",
+      "bindings": []
+    },
+    {
+      "id": "cte/nested",
       "dialect": "sqlite",
       "sql": "with `withClause` as (with `withSubClause` as ((select `foo` from `users`) as `baz`) select * from `withSubClause`) select * from `withClause`",
       "bindings": []
@@ -3097,6 +3523,13 @@
     {
       "id": "cte/chained-siblings",
       "dialect": "mysql",
+      "sql": "with `firstWithClause` as (select `foo` from `users`), `secondWithClause` as (select `bar` from `users`) select * from `secondWithClause`",
+      "bindings": []
+    },
+    {
+      "id": "cte/chained-siblings",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "with `firstWithClause` as (select `foo` from `users`), `secondWithClause` as (select `bar` from `users`) select * from `secondWithClause`",
       "bindings": []
     },
@@ -3152,6 +3585,13 @@
     },
     {
       "id": "cte/raw",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "with `withRawClause` as (select \"foo\" as \"baz\" from \"users\") select * from `withRawClause`",
+      "bindings": []
+    },
+    {
+      "id": "cte/raw",
       "dialect": "sqlite",
       "sql": "with `withRawClause` as (select \"foo\" as \"baz\" from \"users\") select * from `withRawClause`",
       "bindings": []
@@ -3197,6 +3637,13 @@
     {
       "id": "cte/recursive-nested-chained",
       "dialect": "mysql",
+      "sql": "with recursive `firstWithClause` as (with recursive `firstWithSubClause` as ((select `foo` from `users`) as `foz`) select * from `firstWithSubClause`), `secondWithClause` as (with recursive `secondWithSubClause` as ((select `bar` from `users`) as `baz`) select * from `secondWithSubClause`) select * from `secondWithClause`",
+      "bindings": []
+    },
+    {
+      "id": "cte/recursive-nested-chained",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "with recursive `firstWithClause` as (with recursive `firstWithSubClause` as ((select `foo` from `users`) as `foz`) select * from `firstWithSubClause`), `secondWithClause` as (with recursive `secondWithSubClause` as ((select `bar` from `users`) as `baz`) select * from `secondWithSubClause`) select * from `secondWithClause`",
       "bindings": []
     },
@@ -3265,6 +3712,19 @@
     {
       "id": "cte/insert-multi-source",
       "dialect": "mysql",
+      "sql": "with `withClause` as (select `foo` from `users` where `name` = ?) insert into `users` (`email`, `name`) values (?, ?), (?, ?)",
+      "bindings": [
+        "bob",
+        "thisMail",
+        "sam",
+        "thatMail",
+        "jack"
+      ]
+    },
+    {
+      "id": "cte/insert-multi-source",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "with `withClause` as (select `foo` from `users` where `name` = ?) insert into `users` (`email`, `name`) values (?, ?), (?, ?)",
       "bindings": [
         "bob",
@@ -3370,6 +3830,18 @@
     },
     {
       "id": "cte/update-source",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "with `updated_group` as (update `group` set `group_name` = ? where `group_id` = ?) update `user` set `name` = ? where `group_id` = ?",
+      "bindings": [
+        "bar",
+        1,
+        "foo",
+        1
+      ]
+    },
+    {
+      "id": "cte/update-source",
       "dialect": "sqlite",
       "sql": "with `updated_group` as (update `group` set `group_name` = ? where `group_id` = ? returning `group_id`) update `user` set `name` = ? where `group_id` = ?",
       "bindings": [
@@ -3448,6 +3920,15 @@
     },
     {
       "id": "cte/delete-source",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "with `delete1` as (delete from `accounts` where `id` = ?) select * from `accounts`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "cte/delete-source",
       "dialect": "sqlite",
       "sql": "with `delete1` as (delete from `accounts` where `id` = ?) select * from `accounts`",
       "bindings": [
@@ -3506,6 +3987,13 @@
     },
     {
       "id": "exists/where",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `orders` where exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
+      "bindings": []
+    },
+    {
+      "id": "exists/where",
       "dialect": "sqlite",
       "sql": "select * from `orders` where exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
       "bindings": []
@@ -3551,6 +4039,13 @@
     {
       "id": "exists/where-not",
       "dialect": "mysql",
+      "sql": "select * from `orders` where not exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
+      "bindings": []
+    },
+    {
+      "id": "exists/where-not",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `orders` where not exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
       "bindings": []
     },
@@ -3607,6 +4102,15 @@
     {
       "id": "exists/or-where",
       "dialect": "mysql",
+      "sql": "select * from `orders` where `id` = ? or exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "exists/or-where",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `orders` where `id` = ? or exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
       "bindings": [
         1
@@ -3680,6 +4184,15 @@
     },
     {
       "id": "exists/or-where-not",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `orders` where `id` = ? or not exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "exists/or-where-not",
       "dialect": "sqlite",
       "sql": "select * from `orders` where `id` = ? or not exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
       "bindings": [
@@ -3746,6 +4259,15 @@
     },
     {
       "id": "exists/wrapped-or",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `orders` where `status` = ? and (exists (select * from `products` where `products`.`id` = \"orders\".\"id\") or exists (select * from `refunds` where `refunds`.`order_id` = \"orders\".\"id\"))",
+      "bindings": [
+        "shipped"
+      ]
+    },
+    {
+      "id": "exists/wrapped-or",
       "dialect": "sqlite",
       "sql": "select * from `orders` where `status` = ? and (exists (select * from `products` where `products`.`id` = \"orders\".\"id\") or exists (select * from `refunds` where `refunds`.`order_id` = \"orders\".\"id\"))",
       "bindings": [
@@ -3799,6 +4321,13 @@
     {
       "id": "exists/with-select-subquery",
       "dialect": "mysql",
+      "sql": "select *, (select `value` from `order_meta` where `order_meta`.`order_id` = \"orders\".\"id\") as `meta_value` from `orders` where exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
+      "bindings": []
+    },
+    {
+      "id": "exists/with-select-subquery",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, (select `value` from `order_meta` where `order_meta`.`order_id` = \"orders\".\"id\") as `meta_value` from `orders` where exists (select * from `products` where `products`.`id` = \"orders\".\"id\")",
       "bindings": []
     },
@@ -3861,6 +4390,17 @@
     {
       "id": "union/three-way",
       "dialect": "mysql",
+      "sql": "select `id` from `a` where `x` = ? union select `id` from `b` where `y` = ? union select `id` from `c` where `z` = ?",
+      "bindings": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "union/three-way",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `a` where `x` = ? union select `id` from `b` where `y` = ? union select `id` from `c` where `z` = ?",
       "bindings": [
         1,
@@ -3952,6 +4492,17 @@
     },
     {
       "id": "union/array-callbacks",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `id` = ? union select * from `users` where `id` = ? union select * from `users` where `id` = ?",
+      "bindings": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "union/array-callbacks",
       "dialect": "sqlite",
       "sql": "select * from `users` where `id` = ? union select * from `users` where `id` = ? union select * from `users` where `id` = ?",
       "bindings": [
@@ -4025,6 +4576,17 @@
     {
       "id": "union/order-limit-outer",
       "dialect": "mysql",
+      "sql": "select `id`, `name` from `a` where `x` = ? union select `id`, `name` from `b` where `y` = ? order by `name` asc limit ?",
+      "bindings": [
+        1,
+        2,
+        10
+      ]
+    },
+    {
+      "id": "union/order-limit-outer",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id`, `name` from `a` where `x` = ? union select `id`, `name` from `b` where `y` = ? order by `name` asc limit ?",
       "bindings": [
         1,
@@ -4112,6 +4674,16 @@
     },
     {
       "id": "intersect/basic",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `a` where `id` = ? intersect select * from `b` where `id` = ?",
+      "bindings": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "intersect/basic",
       "dialect": "sqlite",
       "sql": "select * from `a` where `id` = ? intersect select * from `b` where `id` = ?",
       "bindings": [
@@ -4174,6 +4746,13 @@
     },
     {
       "id": "intersect/three-way",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `id` from `a` intersect select `id` from `b` intersect select `id` from `c`",
+      "bindings": []
+    },
+    {
+      "id": "intersect/three-way",
       "dialect": "sqlite",
       "sql": "select `id` from `a` intersect select `id` from `b` intersect select `id` from `c`",
       "bindings": []
@@ -4219,6 +4798,13 @@
     {
       "id": "except/basic",
       "dialect": "mysql",
+      "sql": "select `id` from `a` except select `id` from `b`",
+      "bindings": []
+    },
+    {
+      "id": "except/basic",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `a` except select `id` from `b`",
       "bindings": []
     },
@@ -4284,6 +4870,18 @@
     {
       "id": "union/all-order-limit",
       "dialect": "mysql",
+      "sql": "select `id` from `a` where `x` = ? union all select `id` from `b` where `y` = ? order by `id` desc limit ? offset ?",
+      "bindings": [
+        1,
+        2,
+        5,
+        2
+      ]
+    },
+    {
+      "id": "union/all-order-limit",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `a` where `x` = ? union all select `id` from `b` where `y` = ? order by `id` desc limit ? offset ?",
       "bindings": [
         1,
@@ -4364,6 +4962,13 @@
     },
     {
       "id": "window/rank-string-partition",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, rank() over (partition by `firstName` order by `email`) as `alias_name` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-string-partition",
       "dialect": "sqlite",
       "sql": "select *, rank() over (partition by `firstName` order by `email`) as `alias_name` from `accounts`",
       "bindings": []
@@ -4409,6 +5014,13 @@
     {
       "id": "window/rank-array-both",
       "dialect": "mysql",
+      "sql": "select *, rank() over (partition by `firstName`, `lastName` order by `email`, `address`) as `alias_name` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-array-both",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, rank() over (partition by `firstName`, `lastName` order by `email`, `address`) as `alias_name` from `accounts`",
       "bindings": []
     },
@@ -4464,6 +5076,13 @@
     },
     {
       "id": "window/dense-rank-callback",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, dense_rank() over (partition by `address` order by `email`) as `test_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/dense-rank-callback",
       "dialect": "sqlite",
       "sql": "select *, dense_rank() over (partition by `address` order by `email`) as `test_alias` from `accounts`",
       "bindings": []
@@ -4509,6 +5128,13 @@
     {
       "id": "window/dense-rank-callback-chains",
       "dialect": "mysql",
+      "sql": "select *, dense_rank() over (partition by `address`, `phone` order by `email`, `name`) as `test_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/dense-rank-callback-chains",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, dense_rank() over (partition by `address`, `phone` order by `email`, `name`) as `test_alias` from `accounts`",
       "bindings": []
     },
@@ -4564,6 +5190,13 @@
     },
     {
       "id": "window/row-number-array",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, row_number() over (partition by `firstName`, `lastName` order by `email`, `address`) as `alias_name` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-array",
       "dialect": "sqlite",
       "sql": "select *, row_number() over (partition by `firstName`, `lastName` order by `email`, `address`) as `alias_name` from `accounts`",
       "bindings": []
@@ -4609,6 +5242,13 @@
     {
       "id": "window/rank-raw",
       "dialect": "mysql",
+      "sql": "select *, rank() over (partition by address order by email) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, rank() over (partition by address order by email) from `accounts`",
       "bindings": []
     },
@@ -4664,6 +5304,13 @@
     },
     {
       "id": "window/chained-multiple",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, dense_rank() over (order by `email`) as `first_alias`, dense_rank() over (order by `address`) as `second_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/chained-multiple",
       "dialect": "sqlite",
       "sql": "select *, dense_rank() over (order by `email`) as `first_alias`, dense_rank() over (order by `address`) as `second_alias` from `accounts`",
       "bindings": []
@@ -4709,6 +5356,13 @@
     {
       "id": "window/dense-rank-raw-alias",
       "dialect": "mysql",
+      "sql": "select *, dense_rank() over (partition by address order by email) as `test_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/dense-rank-raw-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, dense_rank() over (partition by address order by email) as `test_alias` from `accounts`",
       "bindings": []
     },
@@ -4765,6 +5419,15 @@
     {
       "id": "window/rank-then-orderby",
       "dialect": "mysql",
+      "sql": "select *, rank() over (order by `salary`) as `rnk` from `accounts` where `dept` = ? order by `rnk` asc",
+      "bindings": [
+        "eng"
+      ]
+    },
+    {
+      "id": "window/rank-then-orderby",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, rank() over (order by `salary`) as `rnk` from `accounts` where `dept` = ? order by `rnk` asc",
       "bindings": [
         "eng"
@@ -4834,6 +5497,16 @@
     {
       "id": "dml/onconflict-ignore",
       "dialect": "mysql",
+      "sql": "insert ignore into `users` (`email`) values (?), (?)",
+      "bindings": [
+        "foo",
+        "bar"
+      ]
+    },
+    {
+      "id": "dml/onconflict-ignore",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert ignore into `users` (`email`) values (?), (?)",
       "bindings": [
         "foo",
@@ -4912,6 +5585,16 @@
     },
     {
       "id": "dml/onconflict-composite-ignore",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert ignore into `users` (`email`, `org`) values (?, ?)",
+      "bindings": [
+        "foo",
+        "acme-inc"
+      ]
+    },
+    {
+      "id": "dml/onconflict-composite-ignore",
       "dialect": "sqlite",
       "sql": "insert into `users` (`email`, `org`) values (?, ?) on conflict (`org`, `email`) do nothing",
       "bindings": [
@@ -4982,6 +5665,19 @@
     {
       "id": "dml/onconflict-merge-explicit",
       "dialect": "mysql",
+      "sql": "insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `name` = ?",
+      "bindings": [
+        "foo",
+        "taylor",
+        "bar",
+        "dayle",
+        "overidden"
+      ]
+    },
+    {
+      "id": "dml/onconflict-merge-explicit",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `name` = ?",
       "bindings": [
         "foo",
@@ -5080,6 +5776,18 @@
     },
     {
       "id": "dml/onconflict-merge-implicit-multi",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `email` = values(`email`), `name` = values(`name`)",
+      "bindings": [
+        "foo",
+        "taylor",
+        "bar",
+        "dayle"
+      ]
+    },
+    {
+      "id": "dml/onconflict-merge-implicit-multi",
       "dialect": "sqlite",
       "sql": "insert into `users` (`email`, `name`) select ? as `email`, ? as `name` union all select ? as `email`, ? as `name` where true on conflict (`email`) do update set `email` = excluded.`email`, `name` = excluded.`name`",
       "bindings": [
@@ -5156,6 +5864,16 @@
     },
     {
       "id": "dml/onconflict-raw-target",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert ignore into `users` (`email`) values (?), (?)",
+      "bindings": [
+        "foo",
+        "bar"
+      ]
+    },
+    {
+      "id": "dml/onconflict-raw-target",
       "dialect": "sqlite",
       "sql": "insert into `users` (`email`) select ? as `email` union all select ? as `email` where true on conflict (value) WHERE deleted_at IS NULL do nothing",
       "bindings": [
@@ -5220,6 +5938,12 @@
     {
       "id": "dml/onconflict-merge-where",
       "dialect": "mysql",
+      "error": ".onConflict().merge().where() is not supported for mysql"
+    },
+    {
+      "id": "dml/onconflict-merge-where",
+      "dialect": "mariadb",
+      "family": "mysql",
       "error": ".onConflict().merge().where() is not supported for mysql"
     },
     {
@@ -5289,6 +6013,16 @@
     {
       "id": "dml/returning-multi-insert",
       "dialect": "mysql",
+      "sql": "insert into `users` (`email`) values (?), (?)",
+      "bindings": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "id": "dml/returning-multi-insert",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert into `users` (`email`) values (?), (?)",
       "bindings": [
         "a",
@@ -5371,6 +6105,16 @@
     },
     {
       "id": "dml/returning-update",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `users` set `name` = ? where `id` = ?",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "dml/returning-update",
       "dialect": "sqlite",
       "sql": "update `users` set `name` = ? where `id` = ? returning *",
       "bindings": [
@@ -5441,6 +6185,15 @@
     },
     {
       "id": "dml/returning-delete",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "delete from `users` where `id` = ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "dml/returning-delete",
       "dialect": "sqlite",
       "sql": "delete from `users` where `id` = ?",
       "bindings": [
@@ -5499,6 +6252,13 @@
     },
     {
       "id": "select/star",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/star",
       "dialect": "sqlite",
       "sql": "select * from `users`",
       "bindings": []
@@ -5544,6 +6304,13 @@
     {
       "id": "select/multi-calls",
       "dialect": "mysql",
+      "sql": "select `foo`, `bar`, `baz`, `boom` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/multi-calls",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `foo`, `bar`, `baz`, `boom` from `users`",
       "bindings": []
     },
@@ -5599,6 +6366,13 @@
     },
     {
       "id": "select/distinct-then-select",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select distinct `foo`, `bar` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-then-select",
       "dialect": "sqlite",
       "sql": "select distinct `foo`, `bar` from `users`",
       "bindings": []
@@ -5649,6 +6423,13 @@
     },
     {
       "id": "select/alias-map",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `foo` as `bar` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/alias-map",
       "dialect": "sqlite",
       "sql": "select `foo` as `bar` from `users`",
       "bindings": []
@@ -5694,6 +6475,13 @@
     {
       "id": "select/alias-array-mixed",
       "dialect": "mysql",
+      "sql": "select `baz`, `foo` as `bar` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/alias-array-mixed",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `baz`, `foo` as `bar` from `users`",
       "bindings": []
     },
@@ -5749,6 +6537,13 @@
     },
     {
       "id": "select/old-style-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `foo` as `bar` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/old-style-alias",
       "dialect": "sqlite",
       "sql": "select `foo` as `bar` from `users`",
       "bindings": []
@@ -5799,6 +6594,13 @@
     },
     {
       "id": "select/alias-trim-spaces",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `foo` as `bar` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/alias-trim-spaces",
       "dialect": "sqlite",
       "sql": "select `foo` as `bar` from `users`",
       "bindings": []
@@ -5849,6 +6651,13 @@
     },
     {
       "id": "select/alias-case-insensitive",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `foo` as `bar` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/alias-case-insensitive",
       "dialect": "sqlite",
       "sql": "select `foo` as `bar` from `users`",
       "bindings": []
@@ -5894,6 +6703,13 @@
     {
       "id": "select/alias-dotted",
       "dialect": "mysql",
+      "sql": "select `foo` as `bar.baz` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "select/alias-dotted",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `foo` as `bar.baz` from `users`",
       "bindings": []
     },
@@ -5949,6 +6765,13 @@
     },
     {
       "id": "table/dotted-schema",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `public`.`users`",
+      "bindings": []
+    },
+    {
+      "id": "table/dotted-schema",
       "dialect": "sqlite",
       "sql": "select * from `public`.`users`",
       "bindings": []
@@ -5994,6 +6817,13 @@
     {
       "id": "clear/select-basic",
       "dialect": "mysql",
+      "sql": "select * from `users`",
+      "bindings": []
+    },
+    {
+      "id": "clear/select-basic",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users`",
       "bindings": []
     },
@@ -6049,6 +6879,13 @@
     },
     {
       "id": "clear/select-then-reselect",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `email` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "clear/select-then-reselect",
       "dialect": "sqlite",
       "sql": "select `email` from `users`",
       "bindings": []
@@ -6094,6 +6931,13 @@
     {
       "id": "clear/where-basic",
       "dialect": "mysql",
+      "sql": "select `id` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "clear/where-basic",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `users`",
       "bindings": []
     },
@@ -6150,6 +6994,15 @@
     {
       "id": "clear/where-then-rewhere",
       "dialect": "mysql",
+      "sql": "select `id` from `users` where `id` = ?",
+      "bindings": [
+        2
+      ]
+    },
+    {
+      "id": "clear/where-then-rewhere",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `id` from `users` where `id` = ?",
       "bindings": [
         2
@@ -6215,6 +7068,13 @@
     },
     {
       "id": "clear/group-basic",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users`",
+      "bindings": []
+    },
+    {
+      "id": "clear/group-basic",
       "dialect": "sqlite",
       "sql": "select * from `users`",
       "bindings": []
@@ -6260,6 +7120,13 @@
     {
       "id": "clear/group-then-regroup",
       "dialect": "mysql",
+      "sql": "select * from `users` group by `id`",
+      "bindings": []
+    },
+    {
+      "id": "clear/group-then-regroup",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` group by `id`",
       "bindings": []
     },
@@ -6315,6 +7182,13 @@
     },
     {
       "id": "clear/order-basic",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users`",
+      "bindings": []
+    },
+    {
+      "id": "clear/order-basic",
       "dialect": "sqlite",
       "sql": "select * from `users`",
       "bindings": []
@@ -6360,6 +7234,13 @@
     {
       "id": "clear/order-then-reorder",
       "dialect": "mysql",
+      "sql": "select * from `users` order by `id` asc",
+      "bindings": []
+    },
+    {
+      "id": "clear/order-then-reorder",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` order by `id` asc",
       "bindings": []
     },
@@ -6416,6 +7297,15 @@
     {
       "id": "clear/having-then-rehaving",
       "dialect": "mysql",
+      "sql": "select * from `users` having `id` > ?",
+      "bindings": [
+        10
+      ]
+    },
+    {
+      "id": "clear/having-then-rehaving",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `id` > ?",
       "bindings": [
         10
@@ -6485,6 +7375,16 @@
     {
       "id": "clear/counters",
       "dialect": "mysql",
+      "sql": "update `users` set `email` = ? where `id` = ?",
+      "bindings": [
+        "foo@bar.com",
+        1
+      ]
+    },
+    {
+      "id": "clear/counters",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "update `users` set `email` = ? where `id` = ?",
       "bindings": [
         "foo@bar.com",
@@ -6563,6 +7463,15 @@
     },
     {
       "id": "having/nested",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having (`email` > ?)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
       "dialect": "sqlite",
       "sql": "select * from `users` having (`email` > ?)",
       "bindings": [
@@ -6625,6 +7534,16 @@
     {
       "id": "having/nested-or",
       "dialect": "mysql",
+      "sql": "select * from `users` having (`email` > ? or `email` = ?)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having (`email` > ? or `email` = ?)",
       "bindings": [
         10,
@@ -6703,6 +7622,15 @@
     },
     {
       "id": "having/grouped",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` group by `email` having `email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
       "dialect": "sqlite",
       "sql": "select * from `users` group by `email` having `email` > ?",
       "bindings": [
@@ -6769,6 +7697,15 @@
     },
     {
       "id": "having/from-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `email` as `foo_email` from `users` having `foo_email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
       "dialect": "sqlite",
       "sql": "select `email` as `foo_email` from `users` having `foo_email` > ?",
       "bindings": [
@@ -6827,6 +7764,13 @@
     },
     {
       "id": "having/raw",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
       "dialect": "sqlite",
       "sql": "select * from `users` having user_foo < user_bar",
       "bindings": []
@@ -6878,6 +7822,15 @@
     {
       "id": "having/raw-or",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` = ? or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` = ? or user_foo < user_bar",
       "bindings": [
         1
@@ -6943,6 +7896,13 @@
     },
     {
       "id": "having/null",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having `baz` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
       "dialect": "sqlite",
       "sql": "select * from `users` having `baz` is null",
       "bindings": []
@@ -6988,6 +7948,13 @@
     {
       "id": "having/or-null",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` is null or `foo` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` is null or `foo` is null",
       "bindings": []
     },
@@ -7043,6 +8010,13 @@
     },
     {
       "id": "having/not-null",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having `baz` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
       "dialect": "sqlite",
       "sql": "select * from `users` having `baz` is not null",
       "bindings": []
@@ -7088,6 +8062,13 @@
     {
       "id": "having/or-not-null",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` is not null or `foo` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` is not null or `foo` is not null",
       "bindings": []
     },
@@ -7143,6 +8124,13 @@
     },
     {
       "id": "having/exists",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
       "dialect": "sqlite",
       "sql": "select * from `users` having exists (select `baz` from `users`)",
       "bindings": []
@@ -7188,6 +8176,13 @@
     {
       "id": "having/or-exists",
       "dialect": "mysql",
+      "sql": "select * from `users` having exists (select `baz` from `users`) or exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having exists (select `baz` from `users`) or exists (select `foo` from `users`)",
       "bindings": []
     },
@@ -7243,6 +8238,13 @@
     },
     {
       "id": "having/not-exists",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having not exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
       "dialect": "sqlite",
       "sql": "select * from `users` having not exists (select `baz` from `users`)",
       "bindings": []
@@ -7288,6 +8290,13 @@
     {
       "id": "having/or-not-exists",
       "dialect": "mysql",
+      "sql": "select * from `users` having not exists (select `baz` from `users`) or not exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having not exists (select `baz` from `users`) or not exists (select `foo` from `users`)",
       "bindings": []
     },
@@ -7347,6 +8356,16 @@
     {
       "id": "having/between",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` between ? and ?",
       "bindings": [
         5,
@@ -7427,6 +8446,18 @@
     {
       "id": "having/or-between",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` between ? and ? or `baz` between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` between ? and ? or `baz` between ? and ?",
       "bindings": [
         5,
@@ -7519,6 +8550,16 @@
     },
     {
       "id": "having/not-between",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
       "dialect": "sqlite",
       "sql": "select * from `users` having `baz` not between ? and ?",
       "bindings": [
@@ -7591,6 +8632,18 @@
     {
       "id": "having/or-not-between",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` not between ? and ? or `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` not between ? and ? or `baz` not between ? and ?",
       "bindings": [
         5,
@@ -7687,6 +8740,17 @@
     },
     {
       "id": "having/in",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having `baz` in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
       "dialect": "sqlite",
       "sql": "select * from `users` having `baz` in (?, ?, ?)",
       "bindings": [
@@ -7766,6 +8830,19 @@
     {
       "id": "having/or-in",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` in (?, ?, ?) or `foo` in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` in (?, ?, ?) or `foo` in (?, ?)",
       "bindings": [
         5,
@@ -7867,6 +8944,17 @@
     },
     {
       "id": "having/not-in",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
       "dialect": "sqlite",
       "sql": "select * from `users` having `baz` not in (?, ?, ?)",
       "bindings": [
@@ -7946,6 +9034,19 @@
     {
       "id": "having/or-not-in",
       "dialect": "mysql",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?) or `foo` not in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` having `baz` not in (?, ?, ?) or `foo` not in (?, ?)",
       "bindings": [
         5,
@@ -8051,6 +9152,18 @@
     },
     {
       "id": "insert/ragged-defaults-3col",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert into `table` (`a`, `b`, `c`) values (?, DEFAULT, DEFAULT), (DEFAULT, ?, DEFAULT), (?, DEFAULT, ?)",
+      "bindings": [
+        1,
+        2,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
       "dialect": "sqlite",
       "error": "`sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag. (see docs https://knexjs.org/guide/query-builder.html#insert)."
     },
@@ -8098,6 +9211,13 @@
     {
       "id": "insert/empty-array-noop",
       "dialect": "mysql",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "",
       "bindings": []
     },
@@ -8153,6 +9273,13 @@
     },
     {
       "id": "insert/empty-object-returning",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "insert into `users` () values ()",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
       "dialect": "sqlite",
       "sql": "insert into `users` default values returning `id`",
       "bindings": []
@@ -8198,6 +9325,13 @@
     {
       "id": "insert/raw-value",
       "dialect": "mysql",
+      "sql": "insert into `users` (`email`) values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert into `users` (`email`) values (CURRENT TIMESTAMP)",
       "bindings": []
     },
@@ -8269,6 +9403,17 @@
     },
     {
       "id": "update/two-cols",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
       "dialect": "sqlite",
       "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
       "bindings": [
@@ -8351,6 +9496,17 @@
     },
     {
       "id": "update/null-value",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
       "dialect": "sqlite",
       "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
       "bindings": [
@@ -8433,6 +9589,17 @@
     },
     {
       "id": "update/from-where-then-update",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
       "dialect": "sqlite",
       "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
       "bindings": [
@@ -8503,6 +9670,16 @@
     {
       "id": "update/raw-value",
       "dialect": "mysql",
+      "sql": "update `users` set `email` = foo, `name` = ? where `id` = ?",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "update `users` set `email` = foo, `name` = ? where `id` = ?",
       "bindings": [
         "bar",
@@ -8580,6 +9757,18 @@
     {
       "id": "update/orderby-limit",
       "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ? order by `foo` desc limit ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "update `users` set `email` = ?, `name` = ? where `id` = ? order by `foo` desc limit ?",
       "bindings": [
         "foo",
@@ -8673,6 +9862,17 @@
     },
     {
       "id": "update/join-mysql",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `users` inner join `orders` on `users`.`id` = `orders`.`user_id` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
       "dialect": "sqlite",
       "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
       "bindings": [
@@ -8746,6 +9946,18 @@
     {
       "id": "update/limit-mysql",
       "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ? limit ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1,
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ? limit ?",
       "bindings": [
         "foo",
@@ -8839,6 +10051,17 @@
     },
     {
       "id": "update/join-mysql-qualified-col",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "update `tblPerson` inner join `tblPersonData` on `tblPersonData`.`PersonId` = `tblPerson`.`PersonId` set `tblPerson`.`City` = ? where `tblPersonData`.`DataId` = ? and `tblPerson`.`PersonId` = ?",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
       "dialect": "sqlite",
       "sql": "update `tblPerson` set `tblPerson`.`City` = ? where `tblPersonData`.`DataId` = ? and `tblPerson`.`PersonId` = ?",
       "bindings": [
@@ -8905,6 +10128,13 @@
     },
     {
       "id": "window/rank-callback-orderby-only",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, rank() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-orderby-only",
       "dialect": "sqlite",
       "sql": "select *, rank() over (order by `email`) from `accounts`",
       "bindings": []
@@ -8950,6 +10180,13 @@
     {
       "id": "window/rank-callback-alias-partition",
       "dialect": "mysql",
+      "sql": "select *, rank() over (partition by `address` order by `email`) as `test_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-alias-partition",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, rank() over (partition by `address` order by `email`) as `test_alias` from `accounts`",
       "bindings": []
     },
@@ -9005,6 +10242,13 @@
     },
     {
       "id": "window/rank-callback-arrays",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, rank() over (partition by `address`, `phone` order by `email`, `name`) as `test_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-callback-arrays",
       "dialect": "sqlite",
       "sql": "select *, rank() over (partition by `address`, `phone` order by `email`, `name`) as `test_alias` from `accounts`",
       "bindings": []
@@ -9050,6 +10294,13 @@
     {
       "id": "window/rank-chained-multiple",
       "dialect": "mysql",
+      "sql": "select *, rank() over (order by `email`) as `first_alias`, rank() over (order by `address`) as `second_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-chained-multiple",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, rank() over (order by `email`) as `first_alias`, rank() over (order by `address`) as `second_alias` from `accounts`",
       "bindings": []
     },
@@ -9105,6 +10356,13 @@
     },
     {
       "id": "window/rank-raw-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select *, rank() over (partition by address order by email) as `test_alias` from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/rank-raw-alias",
       "dialect": "sqlite",
       "sql": "select *, rank() over (partition by address order by email) as `test_alias` from `accounts`",
       "bindings": []
@@ -9150,6 +10408,13 @@
     {
       "id": "window/row-number-no-partition",
       "dialect": "mysql",
+      "sql": "select *, row_number() over (order by `email`) from `accounts`",
+      "bindings": []
+    },
+    {
+      "id": "window/row-number-no-partition",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select *, row_number() over (order by `email`) from `accounts`",
       "bindings": []
     },
@@ -9209,6 +10474,16 @@
     {
       "id": "insert/value-subselect",
       "dialect": "mysql",
+      "sql": "insert into `entries` (`secret`, `sequence`) values (?, (select count(*) from `entries` where `secret` = ?))",
+      "bindings": [
+        123,
+        123
+      ]
+    },
+    {
+      "id": "insert/value-subselect",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "insert into `entries` (`secret`, `sequence`) values (?, (select count(*) from `entries` where `secret` = ?))",
       "bindings": [
         123,
@@ -9291,6 +10566,16 @@
     },
     {
       "id": "subquery/from-no-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select ? from (select ?, `bar`)",
+      "bindings": [
+        "outer raw select",
+        "inner raw select"
+      ]
+    },
+    {
+      "id": "subquery/from-no-alias",
       "dialect": "sqlite",
       "sql": "select ? from (select ?, `bar`)",
       "bindings": [
@@ -9353,6 +10638,13 @@
     },
     {
       "id": "select/fromraw",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from (select * from users where age > 18)",
+      "bindings": []
+    },
+    {
+      "id": "select/fromraw",
       "dialect": "sqlite",
       "sql": "select * from (select * from users where age > 18)",
       "bindings": []
@@ -9398,6 +10690,13 @@
     {
       "id": "select/modify-callback",
       "dialect": "mysql",
+      "sql": "select `foo_id`, `bars`.* from `foos` left join `bars` on `foos`.`bar_id` = `bars`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "select/modify-callback",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `foo_id`, `bars`.* from `foos` left join `bars` on `foos`.`bar_id` = `bars`.`id`",
       "bindings": []
     },
@@ -9453,6 +10752,13 @@
     },
     {
       "id": "where/empty-callback",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select `foo` from `tbl`",
+      "bindings": []
+    },
+    {
+      "id": "where/empty-callback",
       "dialect": "sqlite",
       "sql": "select `foo` from `tbl`",
       "bindings": []
@@ -9498,6 +10804,13 @@
     {
       "id": "where/not-raw",
       "dialect": "mysql",
+      "sql": "select * from `testtable` where not is_active",
+      "bindings": []
+    },
+    {
+      "id": "where/not-raw",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `testtable` where not is_active",
       "bindings": []
     },
@@ -9554,6 +10867,15 @@
     {
       "id": "where/or-raw",
       "dialect": "mysql",
+      "sql": "select * from `users` where `a` = ? or b = 2",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/or-raw",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `a` = ? or b = 2",
       "bindings": [
         1
@@ -9632,6 +10954,19 @@
     {
       "id": "where/named-binding-array",
       "dialect": "mysql",
+      "sql": "select * from `users` where `id` in (select (?))",
+      "bindings": [
+        [
+          1,
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "where/named-binding-array",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `id` in (select (?))",
       "bindings": [
         [
@@ -9729,6 +11064,16 @@
     },
     {
       "id": "where/named-binding-identifier",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `users`.`name` = ? or `users`.`name` = ?",
+      "bindings": [
+        "Bob",
+        "Jay"
+      ]
+    },
+    {
+      "id": "where/named-binding-identifier",
       "dialect": "sqlite",
       "sql": "select * from `users` where `users`.`name` = ? or `users`.`name` = ?",
       "bindings": [
@@ -9792,6 +11137,15 @@
     {
       "id": "jsonb/pipe-op",
       "dialect": "mysql",
+      "sql": "select * from `users` where `id` \\?| ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/pipe-op",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where `id` \\?| ?",
       "bindings": [
         1
@@ -9865,6 +11219,15 @@
     },
     {
       "id": "jsonb/amp-op",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where `id` \\?& ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "jsonb/amp-op",
       "dialect": "sqlite",
       "sql": "select * from `users` where `id` \\?& ?",
       "bindings": [
@@ -9923,6 +11286,13 @@
     },
     {
       "id": "select/numeric-literal",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select 0",
+      "bindings": []
+    },
+    {
+      "id": "select/numeric-literal",
       "dialect": "sqlite",
       "sql": "select 0",
       "bindings": []
@@ -9977,6 +11347,16 @@
     {
       "id": "cte/update-simple",
       "dialect": "mysql",
+      "sql": "with `withClause` as (select `foo` from `users`) update `users` set `foo` = ? where `email` = ?",
+      "bindings": [
+        "updatedFoo",
+        "foo"
+      ]
+    },
+    {
+      "id": "cte/update-simple",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "with `withClause` as (select `foo` from `users`) update `users` set `foo` = ? where `email` = ?",
       "bindings": [
         "updatedFoo",
@@ -10055,6 +11435,15 @@
     },
     {
       "id": "cte/delete-simple",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "with `withClause` as (select `email` from `users`) delete from `users` where `foo` = ?",
+      "bindings": [
+        "updatedFoo"
+      ]
+    },
+    {
+      "id": "cte/delete-simple",
       "dialect": "sqlite",
       "sql": "with `withClause` as (select `email` from `users`) delete from `users` where `foo` = ?",
       "bindings": [
@@ -10113,6 +11502,13 @@
     },
     {
       "id": "ref/where-column",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `sometable` where `sometable`.`column` = `someothertable`.`someothercolumn`",
+      "bindings": []
+    },
+    {
+      "id": "ref/where-column",
       "dialect": "sqlite",
       "sql": "select * from `sometable` where `sometable`.`column` = `someothertable`.`someothercolumn`",
       "bindings": []
@@ -10158,6 +11554,13 @@
     {
       "id": "ref/select-alias",
       "dialect": "mysql",
+      "sql": "select `one`, `sometable`.`two` as `Two` from `sometable`",
+      "bindings": []
+    },
+    {
+      "id": "ref/select-alias",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select `one`, `sometable`.`two` as `Two` from `sometable`",
       "bindings": []
     },
@@ -10209,6 +11612,12 @@
     },
     {
       "id": "errors/first-on-update",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "error": "Cannot chain .first() on \"update\" query"
+    },
+    {
+      "id": "errors/first-on-update",
       "dialect": "sqlite",
       "error": "Cannot chain .first() on \"update\" query"
     },
@@ -10251,6 +11660,12 @@
     },
     {
       "id": "errors/first-on-insert",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "error": "Cannot chain .first() on \"insert\" query"
+    },
+    {
+      "id": "errors/first-on-insert",
       "dialect": "sqlite",
       "error": "Cannot chain .first() on \"insert\" query"
     },
@@ -10289,6 +11704,12 @@
     {
       "id": "errors/first-on-delete",
       "dialect": "mysql",
+      "error": "Cannot chain .first() on \"del\" query"
+    },
+    {
+      "id": "errors/first-on-delete",
+      "dialect": "mariadb",
+      "family": "mysql",
       "error": "Cannot chain .first() on \"del\" query"
     },
     {
@@ -10340,6 +11761,15 @@
     {
       "id": "delete/join-single",
       "dialect": "mysql",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-single",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` where `user`.`email` = ?",
       "bindings": [
         "mock@example.com"
@@ -10413,6 +11843,15 @@
     },
     {
       "id": "delete/join-multi",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` inner join `docs` on `docs`.`id` = `users`.`id` where `user`.`email` = ?",
+      "bindings": [
+        "mock@example.com"
+      ]
+    },
+    {
+      "id": "delete/join-multi",
       "dialect": "sqlite",
       "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id` inner join `docs` on `docs`.`id` = `users`.`id` where `user`.`email` = ?",
       "bindings": [
@@ -10471,6 +11910,13 @@
     },
     {
       "id": "delete/join-no-where",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id`",
+      "bindings": []
+    },
+    {
+      "id": "delete/join-no-where",
       "dialect": "sqlite",
       "sql": "delete `users` from `users` inner join `photos` on `photos`.`id` = `users`.`id`",
       "bindings": []
@@ -10522,6 +11968,15 @@
     {
       "id": "delete/join-oncallback-where",
       "dialect": "mysql",
+      "sql": "delete `users` from `users` inner join `accounts` on `accounts`.`id` = `users`.`account_id` and `accounts`.`user_id` = `users`.`id` where `activated` = ?",
+      "bindings": [
+        false
+      ]
+    },
+    {
+      "id": "delete/join-oncallback-where",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "delete `users` from `users` inner join `accounts` on `accounts`.`id` = `users`.`account_id` and `accounts`.`user_id` = `users`.`id` where `activated` = ?",
       "bindings": [
         false
@@ -10599,6 +12054,16 @@
     },
     {
       "id": "json/where-object",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where json_contains(`address`, ?) or json_contains(`address`, ?)",
+      "bindings": [
+        "{\"street\":\"street1\",\"number\":5}",
+        "{\"street\":\"street2\",\"number\":7}"
+      ]
+    },
+    {
+      "id": "json/where-object",
       "dialect": "sqlite",
       "sql": "select * from `users` where `address` = ? or `address` = ?",
       "bindings": [
@@ -10667,6 +12132,18 @@
     {
       "id": "json/where-path",
       "dialect": "mysql",
+      "sql": "select * from `users` where json_extract(`address`, ?) > ? or json_extract(`address`, ?) < ?",
+      "bindings": [
+        "$.street.number",
+        5,
+        "$.street.number",
+        8
+      ]
+    },
+    {
+      "id": "json/where-path",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where json_extract(`address`, ?) > ? or json_extract(`address`, ?) < ?",
       "bindings": [
         "$.street.number",
@@ -10755,6 +12232,16 @@
     },
     {
       "id": "json/where-superset-object",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where json_contains(`address`,?) or json_contains(`address`,?)",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-superset-object",
       "dialect": "sqlite",
       "error": "Json superset where clause not actually supported by SQLite"
     },
@@ -10809,6 +12296,16 @@
     },
     {
       "id": "json/where-superset-string",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "sql": "select * from `users` where json_contains(`address`,?) or json_contains(`address`,?)",
+      "bindings": [
+        "test",
+        "test2"
+      ]
+    },
+    {
+      "id": "json/where-superset-string",
       "dialect": "sqlite",
       "error": "Json superset where clause not actually supported by SQLite"
     },
@@ -10855,6 +12352,16 @@
     {
       "id": "json/where-subset",
       "dialect": "mysql",
+      "sql": "select * from `users` where json_contains(?,`address`) or json_contains(?,`address`)",
+      "bindings": [
+        "{\"test\":\"value\"}",
+        "{\"test\":\"value2\"}"
+      ]
+    },
+    {
+      "id": "json/where-subset",
+      "dialect": "mariadb",
+      "family": "mysql",
       "sql": "select * from `users` where json_contains(?,`address`) or json_contains(?,`address`)",
       "bindings": [
         "{\"test\":\"value\"}",

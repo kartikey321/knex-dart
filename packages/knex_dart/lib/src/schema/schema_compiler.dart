@@ -717,7 +717,8 @@ class SchemaCompiler {
         case 'dropTimestamps':
           // JS PG: alter table "t" drop column "created_at", drop column "updated_at"
           // JS MySQL: alter table `t` drop `created_at`, drop `updated_at`
-          if (client.driverName == 'mysql' || client.driverName == 'mysql2') {
+          // Includes mariadb (which uses the same `drop X` spelling as mysql).
+          if (_isMySqlLike(client.driverName)) {
             final dropParts = args
                 .map((col) => 'drop ${_wrap(col)}')
                 .join(', ');

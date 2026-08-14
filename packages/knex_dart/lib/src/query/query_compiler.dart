@@ -1265,14 +1265,11 @@ class QueryCompiler {
     final lock = single['lock'] as String?;
     if (lock == null) return '';
 
-    final mysqlLike =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final postgresLike =
-        client.driverName == 'pg' ||
-        client.driverName == 'postgres' ||
-        client.driverName == 'postgresql' ||
-        client.driverName == 'cockroachdb' ||
-        client.driverName == 'mock';
+    // Use the family-aware helper so mariadb (and any future mysql-family
+    // driver name) is dispatched correctly here too — same fix as the JSON
+    // where family.
+    final mysqlLike = _isMySqlLikeDriver;
+    final postgresLike = _isPostgresLikeDriver;
 
     switch (lock) {
       case 'forUpdate':
@@ -1608,8 +1605,7 @@ class QueryCompiler {
     }
 
     // MySQL INSERT IGNORE is a prefix modifier — handle it at INSERT level
-    final isIgnorePrefixDialect =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final isIgnorePrefixDialect = _isMySqlLikeDriver;
     final isIgnore = onConflict?['strategy'] == 'ignore';
 
     parts.add(_insert(ignorePrefix: isIgnorePrefixDialect && isIgnore));
@@ -1627,9 +1623,7 @@ class QueryCompiler {
         final whereStmts = grouped['where'];
         final hasWhere = whereStmts != null && whereStmts.isNotEmpty;
         if (hasWhere) {
-          final isMySQL =
-              client.driverName == 'mysql' || client.driverName == 'mysql2';
-          if (isMySQL) {
+          if (_isMySqlLikeDriver) {
             throw StateError(
               '.onConflict().merge().where() is not supported for mysql',
             );
@@ -1673,11 +1667,10 @@ class QueryCompiler {
 
     final table = formatter.wrap(single['table']);
     final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
     // Mirrors knex.js's per-dialect `_emptyInsertValue`: MySQL requires an
     // explicit empty column/value list, everyone else accepts DEFAULT VALUES.
-    final emptyInsertValue = isMySQL ? '() values ()' : 'default values';
+    final emptyInsertValue =
+        _isMySqlLikeDriver ? '() values ()' : 'default values';
 
     // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
     // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
@@ -1791,11 +1784,8 @@ class QueryCompiler {
     final strategy = onConflict['strategy'] as String;
     final column = onConflict['columns']; // String | List<String> | null
 
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-
     if (strategy == 'ignore') {
-      if (isMySQL) {
+      if (_isMySqlLikeDriver) {
         // MySQL: INSERT IGNORE is a prefix — nothing to add here
         return '';
       }
@@ -1850,7 +1840,7 @@ class QueryCompiler {
         updateColumns = [];
       }
 
-      if (isMySQL) {
+      if (_isMySqlLikeDriver) {
         // MySQL: ON DUPLICATE KEY UPDATE col=VALUES(col), ...
         final setClauses = <String>[];
         if (rawUpdateValues != null) {
@@ -1956,9 +1946,7 @@ class QueryCompiler {
     // MySQL-only extension: `UPDATE ... SET ... WHERE ... ORDER BY ...
     // LIMIT ...`. Standard SQL doesn't allow ORDER BY/LIMIT on UPDATE, so
     // this is gated to MySQL to match knex.js's mysql-querycompiler.
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    if (isMySQL) {
+    if (_isMySqlLikeDriver) {
       final order = _order();
       if (order.isNotEmpty) {
         parts.add(order);
@@ -2014,9 +2002,7 @@ class QueryCompiler {
     // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
     // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
     // to match knex.js's mysql-querycompiler.
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final join = isMySQL ? _join() : '';
+    final join = _isMySqlLikeDriver ? _join() : '';
     final joinClause = join.isNotEmpty ? ' $join' : '';
 
     return 'update $table$joinClause set ${updates.join(', ')}';
@@ -2096,7 +2082,7 @@ class QueryCompiler {
     // MySQL-only extension: `DELETE ... WHERE ... LIMIT ...`. Standard SQL
     // has no LIMIT on DELETE, so this is gated to MySQL to match knex.js's
     // mysql-querycompiler.
-    if (client.driverName == 'mysql' || client.driverName == 'mysql2') {
+    if (_isMySqlLikeDriver) {
       final limit = _limit();
       if (limit.isNotEmpty) {
         parts.add(limit);
@@ -2267,8 +2253,21 @@ class QueryCompiler {
   // knex.js's redshift-querycompiler doesn't inherit pg-querycompiler's
   // `del()` override, and none of Redshift's JSON-where shapes are exercised
   // by knex.js's own test suite either — verified against real knex.js).
+  //
+  // Includes `mariadb` (knex-dart supports `KnexDialect.mariadb`, which emits
+  // driver-name `'mariadb'`, uses the mysql formatter and `?` placeholders
+  // — see knex_query.dart `_driverStr`/`wrapIdentifierImpl`/`parameterPlaceholder`).
+  // Previously missing here, which silently routed JSON-where, INSERT IGNORE,
+  // onConflict merge/ignore, UPDATE join/order/limit and DELETE limit off the
+  // intended MySQL-shaped compile path for mariadb — leaving compiled SQL
+  // semantically wrong (e.g. `where \`c\` = ?` instead of
+  // `where json_contains(\`c\`, ?)`, or a JOIN clause dropped from an UPDATE
+  // entirely). Mirrors the `mariadb` inclusion in `schema_compiler`'s
+  // `_isMySqlLike`.
   bool get _isMySqlLikeDriver =>
-      client.driverName == 'mysql' || client.driverName == 'mysql2';
+      client.driverName == 'mysql' ||
+      client.driverName == 'mysql2' ||
+      client.driverName == 'mariadb';
   bool get _isSqliteLikeDriver => const {
     'sqlite',
     'sqlite3',

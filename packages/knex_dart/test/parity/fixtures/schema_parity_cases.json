@@ -7,11 +7,12 @@
     "cockroachdb": "cockroachdb",
     "redshift": "redshift",
     "mysql": "mysql2",
+    "mariadb": "mysql2 (family:mysql)",
     "sqlite": "sqlite3",
     "turso": "sqlite3 (family:sqlite)",
     "d1": "sqlite3 (family:sqlite)"
   },
-  "caseCount": 301,
+  "caseCount": 344,
   "cases": [
     {
       "id": "schema/create-table-basic",
@@ -46,6 +47,17 @@
     {
       "id": "schema/create-table-basic",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255), `age` int)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-basic",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255), `age` int)",
@@ -127,6 +139,17 @@
     },
     {
       "id": "schema/create-table-primary-composite",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `memberships` (`user_id` int, `org_id` int, primary key (`user_id`, `org_id`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-composite",
       "dialect": "sqlite",
       "statements": [
         {
@@ -190,6 +213,17 @@
     {
       "id": "schema/create-table-primary-named",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `memberships` (`user_id` int, `org_id` int, constraint `membership_pk` primary key (`user_id`, `org_id`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-named",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "create table `memberships` (`user_id` int, `org_id` int, constraint `membership_pk` primary key (`user_id`, `org_id`))",
@@ -274,6 +308,21 @@
     {
       "id": "schema/create-table-unique-column",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255))",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `users` add unique `users_email_unique`(`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-unique-column",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255))",
@@ -387,6 +436,21 @@
     },
     {
       "id": "schema/create-table-unique-named",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255))",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `users` add unique `uq_users_email`(`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-unique-named",
       "dialect": "sqlite",
       "statements": [
         {
@@ -474,6 +538,21 @@
     {
       "id": "schema/create-table-foreign-column",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `orders` (`id` int unsigned not null auto_increment primary key, `user_id` int)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-column",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "create table `orders` (`id` int unsigned not null auto_increment primary key, `user_id` int)",
@@ -575,6 +654,21 @@
     },
     {
       "id": "schema/create-table-foreign-fluent-cascade",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `orders` (`id` int unsigned not null auto_increment primary key, `user_id` int)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`) on delete cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-fluent-cascade",
       "dialect": "sqlite",
       "statements": [
         {
@@ -650,6 +744,21 @@
     {
       "id": "schema/create-table-foreign-onupdate",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `orders` (`id` int unsigned not null auto_increment primary key, `user_id` int)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`) on update cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-onupdate",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "create table `orders` (`id` int unsigned not null auto_increment primary key, `user_id` int)",
@@ -751,6 +860,21 @@
     },
     {
       "id": "schema/create-table-foreign-both-actions",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `orders` (`id` int unsigned not null auto_increment primary key, `user_id` int)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`) on update set null on delete cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-both-actions",
       "dialect": "sqlite",
       "statements": [
         {
@@ -814,6 +938,17 @@
     {
       "id": "schema/default-string-embedded-quote",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `nickname` varchar(255) default 'single \\'quoted\\' value'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-string-embedded-quote",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` add `nickname` varchar(255) default 'single \\'quoted\\' value'",
@@ -895,6 +1030,17 @@
     },
     {
       "id": "schema/default-null",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `nickname` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-null",
       "dialect": "sqlite",
       "statements": [
         {
@@ -958,6 +1104,17 @@
     {
       "id": "schema/default-string-not-null",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `nickname` varchar(100) not null default 'guest'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-string-not-null",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` add `nickname` varchar(100) not null default 'guest'",
@@ -1039,6 +1196,17 @@
     },
     {
       "id": "schema/default-raw-current-timestamp",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `created_at` timestamp default CURRENT_TIMESTAMP",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-raw-current-timestamp",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1102,6 +1270,17 @@
     {
       "id": "schema/default-boolean-false",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `enabled` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-boolean-false",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` add `enabled` boolean default '0'",
@@ -1183,6 +1362,17 @@
     },
     {
       "id": "schema/default-json-object",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `preferences` json not null default ('{}')",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-json-object",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1246,6 +1436,17 @@
     {
       "id": "schema/default-jsonb-object",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `preferences` json not null default ('{}')",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-jsonb-object",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` add `preferences` json not null default ('{}')",
@@ -1322,6 +1523,17 @@
     {
       "id": "schema/create-table-column-primary",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users` (`external_id` varchar(255), primary key (`external_id`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-column-primary",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "create table `users` (`external_id` varchar(255), primary key (`external_id`))",
@@ -1419,6 +1631,21 @@
     },
     {
       "id": "schema/create-table-unique-composite-named",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `memberships` (`user_id` int, `org_id` int)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `memberships` add unique `uq_membership`(`user_id`, `org_id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-unique-composite-named",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1503,6 +1730,17 @@
     },
     {
       "id": "schema/alter-table-add-unique-composite",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `memberships` add unique `memberships_user_id_org_id_unique`(`user_id`, `org_id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-unique-composite",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1561,6 +1799,17 @@
     {
       "id": "schema/alter-table-add-index-composite",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `memberships` add index `memberships_user_id_org_id_index`(`user_id`, `org_id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-index-composite",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `memberships` add index `memberships_user_id_org_id_index`(`user_id`, `org_id`)",
@@ -1658,6 +1907,21 @@
     },
     {
       "id": "schema/alter-table-add-column-foreign",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `orders` add `user_id` int",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-foreign",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1742,6 +2006,17 @@
     },
     {
       "id": "schema/alter-table-add-column",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `nickname` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1805,6 +2080,17 @@
     {
       "id": "schema/alter-table-drop-column",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop `nickname`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-column",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` drop `nickname`",
@@ -1888,6 +2174,19 @@
     },
     {
       "id": "schema/alter-table-rename-column",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "show full fields from `users` where field = ?",
+          "bindings": [
+            "nickname"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-rename-column",
       "dialect": "sqlite",
       "statements": [
         {
@@ -1951,6 +2250,17 @@
     {
       "id": "schema/alter-table-add-unique",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add unique `users_email_unique`(`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-unique",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` add unique `users_email_unique`(`email`)",
@@ -2032,6 +2342,17 @@
     },
     {
       "id": "schema/alter-table-add-unique-named",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add unique `uq_users_email`(`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-unique-named",
       "dialect": "sqlite",
       "statements": [
         {
@@ -2099,6 +2420,17 @@
     },
     {
       "id": "schema/alter-table-add-index",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add index `users_email_index`(`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-index",
       "dialect": "sqlite",
       "statements": [
         {
@@ -2157,6 +2489,17 @@
     {
       "id": "schema/alter-table-add-index-named",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add index `idx_users_email`(`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-index-named",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` add index `idx_users_email`(`email`)",
@@ -2238,6 +2581,17 @@
     },
     {
       "id": "schema/alter-table-drop-unique",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop index `users_email_unique`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-unique",
       "dialect": "sqlite",
       "statements": [
         {
@@ -2301,6 +2655,17 @@
     {
       "id": "schema/alter-table-drop-unique-named",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop index `uq_users_email`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-unique-named",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` drop index `uq_users_email`",
@@ -2377,6 +2742,17 @@
     },
     {
       "id": "schema/alter-table-drop-index",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop index `users_email_index`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index",
       "dialect": "sqlite",
       "statements": [
         {
@@ -2435,6 +2811,17 @@
     {
       "id": "schema/alter-table-drop-index-named",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop index `idx_users_email`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-named",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` drop index `idx_users_email`",
@@ -2516,6 +2903,17 @@
     },
     {
       "id": "schema/alter-table-drop-primary",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `memberships` drop primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary",
       "dialect": "sqlite",
       "statements": [
         {
@@ -2579,6 +2977,17 @@
     {
       "id": "schema/alter-table-drop-foreign",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `orders` drop foreign key `orders_user_id_foreign`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-foreign",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `orders` drop foreign key `orders_user_id_foreign`",
@@ -2660,6 +3069,17 @@
     },
     {
       "id": "schema/alter-table-primary",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `memberships` add primary key `memberships_pkey`(`user_id`, `org_id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary",
       "dialect": "sqlite",
       "statements": [
         {
@@ -2723,6 +3143,17 @@
     {
       "id": "schema/alter-table-foreign",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-foreign",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `orders` add constraint `orders_user_id_foreign` foreign key (`user_id`) references `users` (`id`)",
@@ -2823,6 +3254,17 @@
     {
       "id": "schema/alter-table-set-nullable",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` modify `email` varchar(255) null",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-set-nullable",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `users` modify `email` varchar(255) null",
@@ -2944,6 +3386,17 @@
     },
     {
       "id": "schema/alter-table-drop-nullable",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` modify `email` varchar(255) not null",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-nullable",
       "dialect": "sqlite",
       "statements": [
         {
@@ -3016,6 +3469,17 @@
     },
     {
       "id": "schema/drop-table",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "drop table `users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table",
       "dialect": "sqlite",
       "statements": [
         {
@@ -3079,6 +3543,17 @@
     {
       "id": "schema/drop-table-if-exists",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "drop table if exists `users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "drop table if exists `users`",
@@ -3160,6 +3635,17 @@
     },
     {
       "id": "schema/rename-table",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "rename table `users` to `accounts`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-table",
       "dialect": "sqlite",
       "statements": [
         {
@@ -3232,6 +3718,17 @@
     },
     {
       "id": "schema/create-table-column-unsigned",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `t` (`qty` int unsigned)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-column-unsigned",
       "dialect": "sqlite",
       "statements": [
         {
@@ -3295,6 +3792,17 @@
     {
       "id": "schema/alter-table-column-unsigned",
       "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `t` add `qty` int unsigned",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-column-unsigned",
+      "dialect": "mariadb",
+      "family": "mysql",
       "statements": [
         {
           "sql": "alter table `t` add `qty` int unsigned",
