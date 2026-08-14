@@ -354,6 +354,55 @@ const cases = [
       .clear('counter')
       .decrement('value', 50)
       .clear('counters')],
+
+  // Batch 2 (HAVING) — mined from knex.js test/unit/query/builder.js lines
+  // 3547-5949.
+
+  // ── HAVING ────────────────────────────────────────────────────────────
+  ['having/nested', (k) =>
+    k('users').select('*').having(function () { this.where('email', '>', 1); })],
+  ['having/nested-or', (k) =>
+    k('users').select('*').having(function () {
+      this.where('email', '>', 10);
+      this.orWhere('email', '=', 7);
+    })],
+  ['having/grouped', (k) =>
+    k('users').select('*').from('users').groupBy('email').having('email', '>', 1)],
+  ['having/from-alias', (k) =>
+    k('users').select('email as foo_email').from('users').having('foo_email', '>', 1)],
+  ['having/raw', (k) =>
+    k('users').select('*').from('users').having(k.raw('user_foo < user_bar'))],
+  ['having/raw-or', (k) =>
+    k('users').select('*').from('users').having('baz', '=', 1).orHaving(k.raw('user_foo < user_bar'))],
+  ['having/null', (k) => k('users').select('*').havingNull('baz')],
+  ['having/or-null', (k) => k('users').select('*').havingNull('baz').orHavingNull('foo')],
+  ['having/not-null', (k) => k('users').select('*').havingNotNull('baz')],
+  ['having/or-not-null', (k) =>
+    k('users').select('*').havingNotNull('baz').orHavingNotNull('foo')],
+  ['having/exists', (k) =>
+    k('users').select('*').havingExists(function () { this.select('baz').from('users'); })],
+  ['having/or-exists', (k) =>
+    k('users').select('*')
+      .havingExists(function () { this.select('baz').from('users'); })
+      .orHavingExists(function () { this.select('foo').from('users'); })],
+  ['having/not-exists', (k) =>
+    k('users').select('*').havingNotExists(function () { this.select('baz').from('users'); })],
+  ['having/or-not-exists', (k) =>
+    k('users').select('*')
+      .havingNotExists(function () { this.select('baz').from('users'); })
+      .orHavingNotExists(function () { this.select('foo').from('users'); })],
+  ['having/between', (k) => k('users').select('*').havingBetween('baz', [5, 10])],
+  ['having/or-between', (k) =>
+    k('users').select('*').havingBetween('baz', [5, 10]).orHavingBetween('baz', [20, 30])],
+  ['having/not-between', (k) => k('users').select('*').havingNotBetween('baz', [5, 10])],
+  ['having/or-not-between', (k) =>
+    k('users').select('*').havingNotBetween('baz', [5, 10]).orHavingNotBetween('baz', [20, 30])],
+  ['having/in', (k) => k('users').select('*').havingIn('baz', [5, 10, 37])],
+  ['having/or-in', (k) =>
+    k('users').select('*').havingIn('baz', [5, 10, 37]).orHavingIn('foo', ['Batman', 'Joker'])],
+  ['having/not-in', (k) => k('users').select('*').havingNotIn('baz', [5, 10, 37])],
+  ['having/or-not-in', (k) =>
+    k('users').select('*').havingNotIn('baz', [5, 10, 37]).orHavingNotIn('foo', ['Batman', 'Joker'])],
 ];
 
 const out = [];

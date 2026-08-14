@@ -12,7 +12,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 832,
+  "caseCount": 1008,
   "cases": [
     {
       "id": "where/eq-string",
@@ -6481,6 +6481,1482 @@
       "bindings": [
         "foo@bar.com",
         1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having (\"email\" > $1)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having (\"email\" > $1)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having (\"email\" > $1)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "mysql",
+      "sql": "select * from `users` having (`email` > ?)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having (`email` > ?)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having (`email` > ?)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having (`email` > ?)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested",
+      "dialect": "mssql",
+      "sql": "select * from [users] having ([email] > @p0)",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having (\"email\" > $1 or \"email\" = $2)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having (\"email\" > $1 or \"email\" = $2)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having (\"email\" > $1 or \"email\" = $2)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "mysql",
+      "sql": "select * from `users` having (`email` > ? or `email` = ?)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having (`email` > ? or `email` = ?)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having (`email` > ? or `email` = ?)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having (`email` > ? or `email` = ?)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/nested-or",
+      "dialect": "mssql",
+      "sql": "select * from [users] having ([email] > @p0 or [email] = @p1)",
+      "bindings": [
+        10,
+        7
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" group by \"email\" having \"email\" > $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" group by \"email\" having \"email\" > $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" group by \"email\" having \"email\" > $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "mysql",
+      "sql": "select * from `users` group by `email` having `email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "sqlite",
+      "sql": "select * from `users` group by `email` having `email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` group by `email` having `email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` group by `email` having `email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/grouped",
+      "dialect": "mssql",
+      "sql": "select * from [users] group by [email] having [email] > @p0",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "postgres",
+      "sql": "select \"email\" as \"foo_email\" from \"users\" having \"foo_email\" > $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "cockroachdb",
+      "sql": "select \"email\" as \"foo_email\" from \"users\" having \"foo_email\" > $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "redshift",
+      "sql": "select \"email\" as \"foo_email\" from \"users\" having \"foo_email\" > $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "mysql",
+      "sql": "select `email` as `foo_email` from `users` having `foo_email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "sqlite",
+      "sql": "select `email` as `foo_email` from `users` having `foo_email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select `email` as `foo_email` from `users` having `foo_email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select `email` as `foo_email` from `users` having `foo_email` > ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/from-alias",
+      "dialect": "mssql",
+      "sql": "select [email] as [foo_email] from [users] having [foo_email] > @p0",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "mysql",
+      "sql": "select * from `users` having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw",
+      "dialect": "mssql",
+      "sql": "select * from [users] having user_foo < user_bar",
+      "bindings": []
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" = $1 or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" = $1 or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" = $1 or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` = ? or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` = ? or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` = ? or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` = ? or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/raw-or",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] = @p0 or user_foo < user_bar",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "having/null",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/null",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" is null or \"foo\" is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" is null or \"foo\" is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" is null or \"foo\" is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` is null or `foo` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` is null or `foo` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is null or `foo` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is null or `foo` is null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-null",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] is null or [foo] is null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/not-null",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" is not null or \"foo\" is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" is not null or \"foo\" is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" is not null or \"foo\" is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` is not null or `foo` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` is not null or `foo` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is not null or `foo` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` is not null or `foo` is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-null",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] is not null or [foo] is not null",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having exists (select \"baz\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having exists (select \"baz\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having exists (select \"baz\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "mysql",
+      "sql": "select * from `users` having exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/exists",
+      "dialect": "mssql",
+      "sql": "select * from [users] having exists (select [baz] from [users])",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having exists (select \"baz\" from \"users\") or exists (select \"foo\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having exists (select \"baz\" from \"users\") or exists (select \"foo\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having exists (select \"baz\" from \"users\") or exists (select \"foo\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "mysql",
+      "sql": "select * from `users` having exists (select `baz` from `users`) or exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having exists (select `baz` from `users`) or exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having exists (select `baz` from `users`) or exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having exists (select `baz` from `users`) or exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-exists",
+      "dialect": "mssql",
+      "sql": "select * from [users] having exists (select [baz] from [users]) or exists (select [foo] from [users])",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having not exists (select \"baz\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having not exists (select \"baz\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having not exists (select \"baz\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "mysql",
+      "sql": "select * from `users` having not exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having not exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having not exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having not exists (select `baz` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/not-exists",
+      "dialect": "mssql",
+      "sql": "select * from [users] having not exists (select [baz] from [users])",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having not exists (select \"baz\" from \"users\") or not exists (select \"foo\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having not exists (select \"baz\" from \"users\") or not exists (select \"foo\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having not exists (select \"baz\" from \"users\") or not exists (select \"foo\" from \"users\")",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "mysql",
+      "sql": "select * from `users` having not exists (select `baz` from `users`) or not exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having not exists (select `baz` from `users`) or not exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having not exists (select `baz` from `users`) or not exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having not exists (select `baz` from `users`) or not exists (select `foo` from `users`)",
+      "bindings": []
+    },
+    {
+      "id": "having/or-not-exists",
+      "dialect": "mssql",
+      "sql": "select * from [users] having not exists (select [baz] from [users]) or not exists (select [foo] from [users])",
+      "bindings": []
+    },
+    {
+      "id": "having/between",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" between $1 and $2",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" between $1 and $2",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" between $1 and $2",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/between",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] between @p0 and @p1",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" between $1 and $2 or \"baz\" between $3 and $4",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" between $1 and $2 or \"baz\" between $3 and $4",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" between $1 and $2 or \"baz\" between $3 and $4",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` between ? and ? or `baz` between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` between ? and ? or `baz` between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` between ? and ? or `baz` between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` between ? and ? or `baz` between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-between",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] between @p0 and @p1 or [baz] between @p2 and @p3",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" not between $1 and $2",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" not between $1 and $2",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" not between $1 and $2",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/not-between",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] not between @p0 and @p1",
+      "bindings": [
+        5,
+        10
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" not between $1 and $2 or \"baz\" not between $3 and $4",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" not between $1 and $2 or \"baz\" not between $3 and $4",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" not between $1 and $2 or \"baz\" not between $3 and $4",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` not between ? and ? or `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` not between ? and ? or `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not between ? and ? or `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not between ? and ? or `baz` not between ? and ?",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/or-not-between",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] not between @p0 and @p1 or [baz] not between @p2 and @p3",
+      "bindings": [
+        5,
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" in ($1, $2, $3)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" in ($1, $2, $3)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" in ($1, $2, $3)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/in",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] in (@p0, @p1, @p2)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" in ($1, $2, $3) or \"foo\" in ($4, $5)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" in ($1, $2, $3) or \"foo\" in ($4, $5)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" in ($1, $2, $3) or \"foo\" in ($4, $5)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` in (?, ?, ?) or `foo` in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` in (?, ?, ?) or `foo` in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` in (?, ?, ?) or `foo` in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` in (?, ?, ?) or `foo` in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-in",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] in (@p0, @p1, @p2) or [foo] in (@p3, @p4)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" not in ($1, $2, $3)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" not in ($1, $2, $3)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" not in ($1, $2, $3)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/not-in",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] not in (@p0, @p1, @p2)",
+      "bindings": [
+        5,
+        10,
+        37
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" having \"baz\" not in ($1, $2, $3) or \"foo\" not in ($4, $5)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" having \"baz\" not in ($1, $2, $3) or \"foo\" not in ($4, $5)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" having \"baz\" not in ($1, $2, $3) or \"foo\" not in ($4, $5)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "mysql",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?) or `foo` not in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "sqlite",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?) or `foo` not in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?) or `foo` not in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` having `baz` not in (?, ?, ?) or `foo` not in (?, ?)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
+      ]
+    },
+    {
+      "id": "having/or-not-in",
+      "dialect": "mssql",
+      "sql": "select * from [users] having [baz] not in (@p0, @p1, @p2) or [foo] not in (@p3, @p4)",
+      "bindings": [
+        5,
+        10,
+        37,
+        "Batman",
+        "Joker"
       ]
     }
   ]

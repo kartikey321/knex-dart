@@ -246,6 +246,32 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-dotted::d1':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+
+  // having/from-alias hits the same client.alias() uppercase-AS defect noted
+  // above, via a "col as alias" select() string used as the HAVING column.
+  'having/from-alias::postgres':
+      '[OPEN BUG] knex-dart\'s Client.alias() emits uppercase "AS"; knex.js '
+          'always emits lowercase "as". Known issue, scoped to '
+          'client.alias() (out of bounds for this change) — see '
+          'having/from-alias::postgres for the canonical explanation.',
+  'having/from-alias::cockroachdb':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+          'uppercase-AS issue (cockroachdb shares the postgres formatter).',
+  'having/from-alias::redshift':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+          'uppercase-AS issue (redshift shares the postgres formatter).',
+  'having/from-alias::mysql':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+          'uppercase-AS issue.',
+  'having/from-alias::sqlite':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+          'uppercase-AS issue.',
+  'having/from-alias::turso':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+          'uppercase-AS issue (turso is sqlite-family).',
+  'having/from-alias::d1':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+          'uppercase-AS issue (d1 is sqlite-family).',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

@@ -621,4 +621,129 @@ final Map<String, ParityCase> parityCases = {
       .decrement('value', 50)
       .clearCounters()
       .toSQL(),
+
+  // Batch 2 (HAVING) — mined from knex.js test/unit/query/builder.js lines
+  // 3547-5949.
+
+  // ── HAVING ────────────────────────────────────────────────────────────
+  'having/nested': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingWrapped((q) => q.having('email', '>', 1))
+      .toSQL(),
+  'having/nested-or': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingWrapped(
+        (q) => q.having('email', '>', 10).orHaving('email', '=', 7),
+      )
+      .toSQL(),
+  'having/grouped': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .groupBy(['email'])
+      .having('email', '>', 1)
+      .toSQL(),
+  'having/from-alias': (d) => _qb(d)
+      .table('users')
+      .select(['email as foo_email'])
+      .having('foo_email', '>', 1)
+      .toSQL(),
+  // JS: having(raw(...)) — Dart's having() requires a String column, so this
+  // is adapted to havingRaw(), which compiles to identical SQL.
+  'having/raw': (d) =>
+      _qb(d).table('users').select(['*']).havingRaw('user_foo < user_bar').toSQL(),
+  'having/raw-or': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .having('baz', '=', 1)
+      .orHavingRaw('user_foo < user_bar')
+      .toSQL(),
+  'having/null': (d) => _qb(d).table('users').select(['*']).havingNull('baz').toSQL(),
+  'having/or-null': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNull('baz')
+      .orHavingNull('foo')
+      .toSQL(),
+  'having/not-null': (d) =>
+      _qb(d).table('users').select(['*']).havingNotNull('baz').toSQL(),
+  'having/or-not-null': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotNull('baz')
+      .orHavingNotNull('foo')
+      .toSQL(),
+  'having/exists': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingExists((q) {
+        q.select(['baz']).table('users');
+      })
+      .toSQL(),
+  'having/or-exists': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingExists((q) {
+        q.select(['baz']).table('users');
+      })
+      .orHavingExists((q) {
+        q.select(['foo']).table('users');
+      })
+      .toSQL(),
+  'having/not-exists': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotExists((q) {
+        q.select(['baz']).table('users');
+      })
+      .toSQL(),
+  'having/or-not-exists': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotExists((q) {
+        q.select(['baz']).table('users');
+      })
+      .orHavingNotExists((q) {
+        q.select(['foo']).table('users');
+      })
+      .toSQL(),
+  'having/between': (d) =>
+      _qb(d).table('users').select(['*']).havingBetween('baz', [5, 10]).toSQL(),
+  'having/or-between': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingBetween('baz', [5, 10])
+      .orHavingBetween('baz', [20, 30])
+      .toSQL(),
+  'having/not-between': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotBetween('baz', [5, 10])
+      .toSQL(),
+  'having/or-not-between': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotBetween('baz', [5, 10])
+      .orHavingNotBetween('baz', [20, 30])
+      .toSQL(),
+  'having/in': (d) =>
+      _qb(d).table('users').select(['*']).havingIn('baz', [5, 10, 37]).toSQL(),
+  'having/or-in': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingIn('baz', [5, 10, 37])
+      .orHavingIn('foo', ['Batman', 'Joker'])
+      .toSQL(),
+  'having/not-in': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotIn('baz', [5, 10, 37])
+      .toSQL(),
+  'having/or-not-in': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .havingNotIn('baz', [5, 10, 37])
+      .orHavingNotIn('foo', ['Batman', 'Joker'])
+      .toSQL(),
 };
