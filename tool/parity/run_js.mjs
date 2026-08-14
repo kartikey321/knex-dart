@@ -98,6 +98,7 @@ const cases = [
   ['having/basic', (k) => k('t').groupBy('cat').having('cnt', '>', 1)],
   ['update/increment', (k) => k('t').where('id', 1).increment('views', 5)],
   ['delete/all', (k) => k('users').del()],
+  ['delete/limit-mysql', (k) => k('users').where('id', '>', 1).del().limit(1)],
   ['union/all', (k) => k('a').select('id').unionAll([k('b').select('id')])],
 
   // Known-divergence probe (jsonb key-existence operator).

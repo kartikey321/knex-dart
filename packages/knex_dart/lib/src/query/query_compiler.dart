@@ -1392,7 +1392,8 @@ class QueryCompiler {
   /// [stmt] keys (all):
   ///   - `method`       — SQL function name: 'row_number', 'rank', 'dense_rank',
   ///                      'lead', 'lag', 'first_value', 'last_value', 'nth_value'
-  ///   - `alias`        — optional alias string (NOT quoted, matching JS behaviour)
+  ///   - `alias`        — optional alias string (identifier-wrapped, matching
+  ///                      knex.js 3.2.10+'s analytic-function alias escaping)
   ///   - `raw`          — optional [Raw] whose .sql replaces the entire OVER body
   ///   - `partitions`   — List of String or `{'column': String, 'order': String?}`
   ///   - `order`        — List of String or `{'column': String, 'order': String?}`
@@ -1489,7 +1490,7 @@ class QueryCompiler {
     sql += ')';
 
     if (alias != null && alias.isNotEmpty) {
-      sql += ' as $alias';
+      sql += ' as ${formatter.wrap(alias)}';
     }
 
     return sql;
@@ -2092,9 +2093,25 @@ class QueryCompiler {
       }
     }
 
-    final returning = _returning();
-    if (returning.isNotEmpty) {
-      parts.add(returning);
+    // MySQL-only extension: `DELETE ... WHERE ... LIMIT ...`. Standard SQL
+    // has no LIMIT on DELETE, so this is gated to MySQL to match knex.js's
+    // mysql-querycompiler.
+    if (client.driverName == 'mysql' || client.driverName == 'mysql2') {
+      final limit = _limit();
+      if (limit.isNotEmpty) {
+        parts.add(limit);
+      }
+    }
+
+    // SQLite supports RETURNING on INSERT/UPDATE but NOT DELETE (verified
+    // against real knex.js — its sqlite3 dialect never emits it there),
+    // unlike every other capability-gated verb, which is symmetric. Skip it
+    // here regardless of the `returning` capability flag.
+    if (!_isSqliteLikeDriver) {
+      final returning = _returning();
+      if (returning.isNotEmpty) {
+        parts.add(returning);
+      }
     }
 
     return parts.join(' ');

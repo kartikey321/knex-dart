@@ -473,4 +473,98 @@ void main() {
       expect(sql.bindings, isEmpty);
     });
   });
+
+  group('DELETE ... LIMIT — MySQL-only extension (knex.js 3.2.9+)', () {
+    test('MySQL: .delete().limit(n) compiles a trailing LIMIT clause', () {
+      final sql = QueryBuilder(
+        my,
+      ).table('users').where('id', '>', 1).delete().limit(1).toSQL();
+
+      expect(sql.sql, 'delete from `users` where `id` > ? limit ?');
+      expect(sql.bindings, [1, 1]);
+    });
+
+    test('Postgres: .delete().limit(n) silently ignores the no-op LIMIT '
+        '(standard SQL has no DELETE...LIMIT)', () {
+      final sql = QueryBuilder(
+        pg,
+      ).table('users').where('id', '>', 1).delete().limit(1).toSQL();
+
+      expect(sql.sql, 'delete from "users" where "id" > \$1');
+      expect(sql.bindings, [1]);
+    });
+
+    test('SQLite: .delete().limit(n) silently ignores the no-op LIMIT', () {
+      final sql = QueryBuilder(
+        SqliteMockClient(),
+      ).table('users').where('id', '>', 1).delete().limit(1).toSQL();
+
+      expect(sql.sql, 'delete from "users" where "id" > ?');
+      expect(sql.bindings, [1]);
+    });
+  });
+
+  group(
+    'Analytic/window function alias — identifier-wrapped (knex.js 3.2.10+)',
+    () {
+      test('rank() alias is wrapped like any other identifier', () {
+        final sql = QueryBuilder(
+          pg,
+        ).table('accounts').select(['*']).rank('test_alias', 'email', 'address').toSQL();
+
+        expect(
+          sql.sql,
+          'select *, rank() over (partition by "address" order by "email") as "test_alias" from "accounts"',
+        );
+      });
+    },
+  );
+
+  group('SQLite RETURNING — supported on INSERT/UPDATE, not DELETE '
+      '(knex.js 3.2.9+ for the empty-insert shape specifically)', () {
+    test('SQLite: insert().returning() emits RETURNING', () {
+      final sql = QueryBuilder(
+        SqliteMockClient(),
+      ).table('users').insert({'email': 'a'}).returning(['id']).toSQL();
+
+      expect(sql.sql, 'insert into "users" ("email") values (?) returning "id"');
+    });
+
+    test('SQLite: insert([{}]).returning() emits DEFAULT VALUES + RETURNING', () {
+      final sql = QueryBuilder(
+        SqliteMockClient(),
+      ).table('users').insert([{}]).returning(['id']).toSQL();
+
+      expect(sql.sql, 'insert into "users" default values returning "id"');
+    });
+
+    test('SQLite: update().returning() emits RETURNING', () {
+      final sql = QueryBuilder(SqliteMockClient())
+          .table('users')
+          .where('id', 1)
+          .update({'email': 'a'})
+          .returning(['id'])
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "email" = ? where "id" = ? returning "id"',
+      );
+    });
+
+    test(
+      'SQLite: delete().returning() silently drops RETURNING (matches '
+      'knex.js — sqlite3 never supports RETURNING on DELETE)',
+      () {
+        final sql = QueryBuilder(SqliteMockClient())
+            .table('users')
+            .where('id', 1)
+            .delete()
+            .returning(['id'])
+            .toSQL();
+
+        expect(sql.sql, 'delete from "users" where "id" = ?');
+      },
+    );
+  });
 }

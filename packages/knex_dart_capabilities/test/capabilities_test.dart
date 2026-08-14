@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('supportsCapability', () {
-    test('returning is supported on postgres only', () {
+    test('returning is supported on postgres and sqlite (not mysql)', () {
       expect(
         supportsCapability(KnexDialect.postgres, SqlCapability.returning),
         isTrue,
@@ -12,9 +12,12 @@ void main() {
         supportsCapability(KnexDialect.mysql, SqlCapability.returning),
         isFalse,
       );
+      // SQLite >=3.35 supports RETURNING on INSERT/UPDATE (verified against
+      // real knex.js) — the DELETE-specific exception to that lives as a
+      // dialect carve-out in knex_dart's QueryCompiler, not here.
       expect(
         supportsCapability(KnexDialect.sqlite, SqlCapability.returning),
-        isFalse,
+        isTrue,
       );
     });
 

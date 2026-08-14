@@ -37,6 +37,30 @@ import 'parity_cases.dart';
 ///   [OPEN BUG] — a real knex-dart defect the harness caught; fix then DELETE
 ///               the entry (the ratchet will fail the test until you do).
 const Map<String, String> parityAllowlist = {
+  // ── ACCEPTED: knex-dart is more permissive than knex.js ─────────────────────
+  // knex.js 3.2.0+ added a `_preValidate()` safety net that throws at compile
+  // time when a clause has no effect for the verb it's attached to (e.g.
+  // `.limit()` on `.delete()` for a dialect that doesn't support it — only
+  // MySQL does). knex-dart doesn't have an equivalent cross-cutting
+  // validator; it silently ignores the no-op clause and compiles valid SQL
+  // instead. This is a deliberate design choice (fail loudly vs. stay
+  // permissive), not a bug — porting the full invalidClauses mechanism would
+  // be a separate, larger feature addition if ever wanted.
+  'delete/limit-mysql::postgres':
+      '[ACCEPTED] knex.js throws (`limit` has no effect on `delete` outside '
+          "MySQL); knex-dart silently ignores the no-op .limit() and compiles "
+          'valid SQL. See the note above this block.',
+  'delete/limit-mysql::cockroachdb':
+      '[ACCEPTED] see delete/limit-mysql::postgres.',
+  'delete/limit-mysql::redshift':
+      '[ACCEPTED] see delete/limit-mysql::postgres.',
+  'delete/limit-mysql::sqlite':
+      '[ACCEPTED] see delete/limit-mysql::postgres.',
+  'delete/limit-mysql::turso':
+      '[ACCEPTED] see delete/limit-mysql::postgres (turso is sqlite-family).',
+  'delete/limit-mysql::d1':
+      '[ACCEPTED] see delete/limit-mysql::postgres (d1 is sqlite-family).',
+
   // ── ACCEPTED: knex-dart refuses where knex.js silently drops ───────────────
   'upsert/merge::redshift':
       '[ACCEPTED] Redshift does not support ON CONFLICT. knex.js emits a plain '
@@ -110,42 +134,27 @@ const Map<String, String> parityAllowlist = {
       '[ACCEPTED] see dml/onconflict-raw-target::sqlite (d1 is sqlite-family).',
 
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
-  'returning/insert::sqlite':
-      '[OPEN BUG] SQLite >=3.35 supports RETURNING and knex.js emits it, but '
-          "knex-dart's capability matrix omits `returning` for sqlite, so it "
-          'wrongly throws. Fix: add returning to the sqlite/turso/d1 caps.',
-  'returning/insert::turso':
-      '[OPEN BUG] see returning/insert::sqlite (turso is sqlite-family).',
-  'returning/insert::d1':
-      '[OPEN BUG] see returning/insert::sqlite (d1 is sqlite-family).',
-  'cte/update-source::sqlite':
-      '[OPEN BUG] see returning/insert::sqlite — same capability-matrix gap, '
-          'this time on an UPDATE...RETURNING used as a CTE body instead of '
-          'INSERT...RETURNING.',
-  'cte/update-source::turso':
-      '[OPEN BUG] see cte/update-source::sqlite (turso is sqlite-family).',
-  'cte/update-source::d1':
-      '[OPEN BUG] see cte/update-source::sqlite (d1 is sqlite-family).',
+  // Note: DELETE...RETURNING on sqlite/turso/d1 was never a capability-matrix
+  // gap — knex.js's own sqlite3 dialect doesn't emit RETURNING for DELETE
+  // either (verified against real knex.js), so knex-dart dropping it there
+  // (in _deleteQuery, unconditionally for sqlite-family) is a correct match.
+  //
+  // The general sqlite/turso/d1 RETURNING gap (INSERT/UPDATE) was fixed by
+  // adding `SqlCapability.returning` to their capability sets. What's left
+  // below is the SEPARATE, already-[ACCEPTED] multi-row-insert-syntax choice
+  // (knex.js's sqlite3 compiles multi-row inserts as a legacy `select ...
+  // union all select ...` shim; knex-dart uses standard `values (...), '
+  // '(...)`) — same divergence class as cte/insert-multi-source::sqlite.
   'dml/returning-multi-insert::sqlite':
-      '[OPEN BUG] see returning/insert::sqlite (multi-row insert, same '
-          'capability-matrix gap).',
+      '[ACCEPTED] see cte/insert-multi-source::sqlite — multi-row INSERT '
+          '...RETURNING is the same union-all-select vs standard-VALUES '
+          'cosmetic syntax choice (the RETURNING gap itself is fixed).',
   'dml/returning-multi-insert::turso':
-      '[OPEN BUG] see dml/returning-multi-insert::sqlite (turso is '
+      '[ACCEPTED] see dml/returning-multi-insert::sqlite (turso is '
           'sqlite-family).',
   'dml/returning-multi-insert::d1':
-      '[OPEN BUG] see dml/returning-multi-insert::sqlite (d1 is '
+      '[ACCEPTED] see dml/returning-multi-insert::sqlite (d1 is '
           'sqlite-family).',
-  'dml/returning-update::sqlite':
-      '[OPEN BUG] see returning/insert::sqlite — same capability-matrix gap, '
-          'this time on UPDATE...RETURNING.',
-  'dml/returning-update::turso':
-      '[OPEN BUG] see dml/returning-update::sqlite (turso is sqlite-family).',
-  'dml/returning-update::d1':
-      '[OPEN BUG] see dml/returning-update::sqlite (d1 is sqlite-family).',
-  // Note: DELETE...RETURNING on sqlite/turso/d1 is NOT the same capability
-  // gap as INSERT/UPDATE...RETURNING above — knex.js's own sqlite3 dialect
-  // doesn't emit RETURNING for DELETE either (verified against real
-  // knex.js), so knex-dart dropping it there is a correct match, not a bug.
 
   // ── OPEN BUG (out of scope for this pass): uppercase `AS` ──────────────────
   // `select('foo as bar')`-style inline string aliasing routes through

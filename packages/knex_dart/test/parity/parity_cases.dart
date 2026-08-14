@@ -104,6 +104,8 @@ final Map<String, ParityCase> parityCases = {
   'having/basic': (d) => _qb(d).table('t').groupBy('cat').having('cnt', '>', 1).toSQL(),
   'update/increment': (d) => _qb(d).table('t').where('id', 1).increment('views', 5).toSQL(),
   'delete/all': (d) => _qb(d).table('users').delete().toSQL(),
+  'delete/limit-mysql': (d) =>
+      _qb(d).table('users').where('id', '>', 1).delete().limit(1).toSQL(),
   'union/all': (d) => _qb(d)
       .table('a')
       .select(['id'])
