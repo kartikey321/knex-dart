@@ -12,7 +12,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 1008,
+  "caseCount": 1104,
   "cases": [
     {
       "id": "where/eq-string",
@@ -7957,6 +7957,880 @@
         37,
         "Batman",
         "Joker"
+      ]
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "postgres",
+      "sql": "insert into \"table\" (\"a\", \"b\", \"c\") values ($1, DEFAULT, DEFAULT), (DEFAULT, $2, DEFAULT), ($3, DEFAULT, $4)",
+      "bindings": [
+        1,
+        2,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "cockroachdb",
+      "sql": "insert into \"table\" (\"a\", \"b\", \"c\") values ($1, DEFAULT, DEFAULT), (DEFAULT, $2, DEFAULT), ($3, DEFAULT, $4)",
+      "bindings": [
+        1,
+        2,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "redshift",
+      "sql": "insert into \"table\" (\"a\", \"b\", \"c\") values ($1, DEFAULT, DEFAULT), (DEFAULT, $2, DEFAULT), ($3, DEFAULT, $4)",
+      "bindings": [
+        1,
+        2,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "mysql",
+      "sql": "insert into `table` (`a`, `b`, `c`) values (?, DEFAULT, DEFAULT), (DEFAULT, ?, DEFAULT), (?, DEFAULT, ?)",
+      "bindings": [
+        1,
+        2,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "sqlite",
+      "error": "`sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag. (see docs https://knexjs.org/guide/query-builder.html#insert)."
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "`sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag. (see docs https://knexjs.org/guide/query-builder.html#insert)."
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "`sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag. (see docs https://knexjs.org/guide/query-builder.html#insert)."
+    },
+    {
+      "id": "insert/ragged-defaults-3col",
+      "dialect": "mssql",
+      "sql": "insert into [table] ([a], [b], [c]) values (@p0, DEFAULT, DEFAULT), (DEFAULT, @p1, DEFAULT), (@p2, DEFAULT, @p3)",
+      "bindings": [
+        1,
+        2,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "postgres",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "cockroachdb",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "redshift",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "mysql",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "sqlite",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-array-noop",
+      "dialect": "mssql",
+      "sql": "",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "postgres",
+      "sql": "insert into \"users\" default values returning \"id\"",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "cockroachdb",
+      "sql": "insert into \"users\" default values returning \"id\"",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "redshift",
+      "sql": "insert into \"users\" default values",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "mysql",
+      "sql": "insert into `users` () values ()",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "sqlite",
+      "sql": "insert into `users` default values",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "insert into `users` default values",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "insert into `users` default values",
+      "bindings": []
+    },
+    {
+      "id": "insert/empty-object-returning",
+      "dialect": "mssql",
+      "sql": "insert into [users] output inserted.[id] default values",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "postgres",
+      "sql": "insert into \"users\" (\"email\") values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "cockroachdb",
+      "sql": "insert into \"users\" (\"email\") values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "redshift",
+      "sql": "insert into \"users\" (\"email\") values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "mysql",
+      "sql": "insert into `users` (`email`) values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "sqlite",
+      "sql": "insert into `users` (`email`) values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "insert into `users` (`email`) values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "insert into `users` (`email`) values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "insert/raw-value",
+      "dialect": "mssql",
+      "sql": "insert into [users] ([email]) values (CURRENT TIMESTAMP)",
+      "bindings": []
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/two-cols",
+      "dialect": "mssql",
+      "sql": "update [users] set [email] = @p0, [name] = @p1 where [id] = @p2;select @@rowcount",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/null-value",
+      "dialect": "mssql",
+      "sql": "update [users] set [email] = @p0, [name] = @p1 where [id] = @p2;select @@rowcount",
+      "bindings": [
+        null,
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/from-where-then-update",
+      "dialect": "mssql",
+      "sql": "update [users] set [email] = @p0, [name] = @p1 where [id] = @p2;select @@rowcount",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = foo, \"name\" = $1 where \"id\" = $2",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = foo, \"name\" = $1 where \"id\" = $2",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = foo, \"name\" = $1 where \"id\" = $2",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "mysql",
+      "sql": "update `users` set `email` = foo, `name` = ? where `id` = ?",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = foo, `name` = ? where `id` = ?",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = foo, `name` = ? where `id` = ?",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = foo, `name` = ? where `id` = ?",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/raw-value",
+      "dialect": "mssql",
+      "sql": "update [users] set [email] = foo, [name] = @p0 where [id] = @p1;select @@rowcount",
+      "bindings": [
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ? order by `foo` desc limit ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/orderby-limit",
+      "dialect": "mssql",
+      "sql": "update top (@p0) [users] set [email] = @p1, [name] = @p2 where [id] = @p3 order by [foo] desc;select @@rowcount",
+      "bindings": [
+        5,
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"users\".\"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"users\".\"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"users\".\"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "mysql",
+      "sql": "update `users` inner join `orders` on `users`.`id` = `orders`.`user_id` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql",
+      "dialect": "mssql",
+      "sql": "update [users] set [email] = @p0, [name] = @p1 from [users] inner join [orders] on [users].[id] = [orders].[user_id] where [users].[id] = @p2;select @@rowcount",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "postgres",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"users\".\"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "cockroachdb",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"users\".\"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "redshift",
+      "sql": "update \"users\" set \"email\" = $1, \"name\" = $2 where \"users\".\"id\" = $3",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "mysql",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ? limit ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1,
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `users` set `email` = ?, `name` = ? where `users`.`id` = ?",
+      "bindings": [
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/limit-mysql",
+      "dialect": "mssql",
+      "sql": "update top (@p0) [users] set [email] = @p1, [name] = @p2 where [users].[id] = @p3;select @@rowcount",
+      "bindings": [
+        1,
+        "foo",
+        "bar",
+        1
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "postgres",
+      "sql": "update \"tblPerson\" set \"tblPerson\".\"City\" = $1 where \"tblPersonData\".\"DataId\" = $2 and \"tblPerson\".\"PersonId\" = $3",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "cockroachdb",
+      "sql": "update \"tblPerson\" set \"tblPerson\".\"City\" = $1 where \"tblPersonData\".\"DataId\" = $2 and \"tblPerson\".\"PersonId\" = $3",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "redshift",
+      "sql": "update \"tblPerson\" set \"tblPerson\".\"City\" = $1 where \"tblPersonData\".\"DataId\" = $2 and \"tblPerson\".\"PersonId\" = $3",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "mysql",
+      "sql": "update `tblPerson` inner join `tblPersonData` on `tblPersonData`.`PersonId` = `tblPerson`.`PersonId` set `tblPerson`.`City` = ? where `tblPersonData`.`DataId` = ? and `tblPerson`.`PersonId` = ?",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "sqlite",
+      "sql": "update `tblPerson` set `tblPerson`.`City` = ? where `tblPersonData`.`DataId` = ? and `tblPerson`.`PersonId` = ?",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `tblPerson` set `tblPerson`.`City` = ? where `tblPersonData`.`DataId` = ? and `tblPerson`.`PersonId` = ?",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `tblPerson` set `tblPerson`.`City` = ? where `tblPersonData`.`DataId` = ? and `tblPerson`.`PersonId` = ?",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
+      ]
+    },
+    {
+      "id": "update/join-mysql-qualified-col",
+      "dialect": "mssql",
+      "sql": "update [tblPerson] set [tblPerson].[City] = @p0 from [tblPerson] inner join [tblPersonData] on [tblPersonData].[PersonId] = [tblPerson].[PersonId] where [tblPersonData].[DataId] = @p1 and [tblPerson].[PersonId] = @p2;select @@rowcount",
+      "bindings": [
+        "Boonesville",
+        1,
+        5
       ]
     }
   ]
