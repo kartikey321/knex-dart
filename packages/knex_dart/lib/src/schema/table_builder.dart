@@ -55,6 +55,14 @@ class TableBuilder {
       case 'redshift':
         // Redshift has no SERIAL type; IDENTITY is the equivalent.
         return 'integer identity(1,1) primary key not null';
+      case 'mssql':
+        // MSSQL has no SERIAL type either; IDENTITY(1,1) is the equivalent.
+        // Verified against real knex.js 3.3.0's mssql-columncompiler.js:
+        // `increments()` -> 'int identity(1,1) not null' + ' primary key'
+        // when the column can carry an inline PK (the common case; the
+        // `{primaryKey: false}` escape hatch has no Dart-side call to mirror
+        // it with — TableBuilder.increments() takes no options argument).
+        return 'int identity(1,1) not null primary key';
       default: // pg
         return 'serial primary key';
     }
@@ -70,6 +78,9 @@ class TableBuilder {
         return 'bigint unsigned auto_increment primary key';
       case 'redshift':
         return 'bigint identity(1,1) primary key not null';
+      case 'mssql':
+        // See _incrementsType's mssql case — same reasoning, bigint width.
+        return 'bigint identity(1,1) not null primary key';
       default: // pg
         return 'bigserial primary key';
     }
@@ -80,6 +91,10 @@ class TableBuilder {
       case 'sqlite':
       case 'sqlite3':
         return 'varchar($length)';
+      case 'mssql':
+        // MSSQL's varchar() column compiler emits nvarchar (Unicode),
+        // not varchar — verified against real knex.js 3.3.0.
+        return 'nvarchar($length)';
       default:
         return 'varchar($length)';
     }
@@ -93,6 +108,10 @@ class TableBuilder {
       case 'mysql':
       case 'mysql2':
         return 'tinyint(1)';
+      case 'mssql':
+        // MSSQL has no native BOOLEAN type; BIT is the equivalent (verified
+        // against real knex.js 3.3.0's mssql-columncompiler.js `bit()`).
+        return 'bit';
       default:
         return 'boolean';
     }
@@ -106,12 +125,21 @@ class TableBuilder {
       case 'mysql':
       case 'mysql2':
         return 'datetime';
+      case 'mssql':
+        // Verified against real knex.js 3.3.0:
+        // `ColumnCompiler_MSSQL.prototype.datetime = 'datetime2'`.
+        return 'datetime2';
       default:
         return 'timestamptz';
     }
   }
 
-  String _timestampType([bool useTz = true]) {
+  /// [useTz] is `null` when the caller never explicitly passed a value
+  /// (Dart's [TableBuilder.timestamp] default), vs. an explicit
+  /// `true`/`false`. This distinction only matters for MSSQL below — every
+  /// other branch already treats "not passed" the same as `true`, matching
+  /// prior behavior exactly.
+  String _timestampType([bool? useTz]) {
     switch (_dialect) {
       case 'sqlite':
       case 'sqlite3':
@@ -119,8 +147,16 @@ class TableBuilder {
       case 'mysql':
       case 'mysql2':
         return 'timestamp';
+      case 'mssql':
+        // MSSQL's own default is useTz=false (datetime2); datetimeoffset
+        // only when explicitly requested. Verified against real knex.js
+        // 3.3.0's mssql-columncompiler.js: `timestamp({useTz = false})`.
+        // Note this default direction is the OPPOSITE of every other
+        // dialect here (which default to timezone-aware) — deliberate,
+        // matches knex.js's own per-dialect default, not a bug.
+        return useTz == true ? 'datetimeoffset' : 'datetime2';
       default:
-        return useTz ? 'timestamptz' : 'timestamp';
+        return (useTz ?? true) ? 'timestamptz' : 'timestamp';
     }
   }
 
@@ -137,6 +173,12 @@ class TableBuilder {
         // falls back to varchar(max), same as its text()/json()/jsonb()
         // handling (verified against real knex.js 3.3.0).
         return 'varchar(max)';
+      case 'mssql':
+        // Bare binary() (no length) -> varbinary(max) — verified against
+        // real knex.js 3.3.0's mssql-columncompiler.js `binary(length)`.
+        // The length-specifying overload has no Dart-side call to mirror
+        // it with (TableBuilder.binary() takes no length argument).
+        return 'varbinary(max)';
       default:
         return 'bytea';
     }
@@ -155,6 +197,13 @@ class TableBuilder {
         // compiler falls back to the same char(36) as MySQL/SQLite
         // (verified against real knex.js 3.3.0), not Postgres's `uuid`.
         return 'char(36)';
+      case 'mssql':
+        // Verified against real knex.js 3.3.0's mssql-columncompiler.js:
+        // `uuid = ({useBinaryUuid = false}) => useBinaryUuid ? 'binary(16)'
+        // : 'uniqueidentifier'`. The useBinaryUuid overload has no
+        // Dart-side call to mirror it with (TableBuilder.uuid() takes no
+        // options argument).
+        return 'uniqueidentifier';
       default:
         return 'uuid';
     }
@@ -170,6 +219,11 @@ class TableBuilder {
         return 'json';
       case 'redshift':
         return 'varchar(max)';
+      case 'mssql':
+        // MSSQL has no native JSON type; knex.js's mssql column compiler
+        // maps both json and jsonb to nvarchar(max) (verified against real
+        // knex.js 3.3.0).
+        return 'nvarchar(max)';
       default:
         return 'json';
     }
@@ -185,6 +239,9 @@ class TableBuilder {
         return 'json'; // MySQL doesn't distinguish json/jsonb
       case 'redshift':
         return 'varchar(max)';
+      case 'mssql':
+        // See _jsonType's mssql case — jsonb maps to the same nvarchar(max).
+        return 'nvarchar(max)';
       default:
         return 'jsonb';
     }
@@ -203,6 +260,11 @@ class TableBuilder {
         // real knex.js 3.3.0: `t.float('foo')` on mysql2 compiles to
         // `float(8, 2)`, not bare `float`.
         return 'float(8, 2)';
+      case 'mssql':
+        // MSSQL's floating() column compiler ignores precision/scale
+        // entirely and always emits bare `float` (verified against real
+        // knex.js 3.3.0's mssql-columncompiler.js `floating()`).
+        return 'float';
       default:
         return 'real';
     }
@@ -219,6 +281,11 @@ class TableBuilder {
         return 'double';
       case 'sqlite':
       case 'sqlite3':
+        return 'float';
+      case 'mssql':
+        // MSSQL's double() column compiler also ignores precision/scale
+        // and emits bare `float` — verified against real knex.js 3.3.0's
+        // mssql-columncompiler.js `double(precision, scale)`.
         return 'float';
       default:
         return 'double precision';
@@ -255,6 +322,14 @@ class TableBuilder {
         // varchar(255), dropping the value list entirely (verified against
         // real knex.js 3.3.0).
         return 'varchar(255)';
+      case 'mssql':
+        // MSSQL has no native ENUM type; knex.js's mssql column compiler
+        // hardcodes a bare nvarchar(100), dropping the value list entirely
+        // (verified against real knex.js 3.3.0:
+        // `ColumnCompiler_MSSQL.prototype.enu = 'nvarchar(100)'`). A real
+        // CHECK-constraint-backed enum is possible on MSSQL but that's not
+        // what knex.js emits here.
+        return 'nvarchar(100)';
       default: // PG and SQLite use CHECK constraint
         final valuesStr = values.map(quote).join(', ');
         return 'text check ("$column" in ($valuesStr))';
@@ -304,8 +379,14 @@ class TableBuilder {
   ColumnBuilder text(String column) {
     // Redshift has no TEXT type — knex.js's redshift compiler falls back to
     // varchar(max), same as binary()/json()/jsonb() (verified against real
-    // knex.js 3.3.0).
-    final type = _dialect == 'redshift' ? 'varchar(max)' : 'text';
+    // knex.js 3.3.0). MSSQL's text/mediumtext/longtext all alias to
+    // nvarchar(max) (verified against real knex.js 3.3.0's
+    // mssql-columncompiler.js prototype overrides).
+    final type = _dialect == 'redshift'
+        ? 'varchar(max)'
+        : _dialect == 'mssql'
+            ? 'nvarchar(max)'
+            : 'text';
     final cb = ColumnBuilder(column, type);
     _columns.add(cb);
     return cb;
@@ -335,11 +416,19 @@ class TableBuilder {
   /// Timestamp column.
   ///
   /// For PostgreSQL:
-  /// - `useTz = true`  -> `timestamptz` (default)
+  /// - `useTz = true` (or omitted) -> `timestamptz` (default)
   /// - `useTz = false` -> `timestamp`
   ///
   /// For MySQL/SQLite, this maps to `datetime` regardless of [useTz].
-  ColumnBuilder timestamp(String column, [bool useTz = true]) {
+  ///
+  /// For MSSQL, the default direction is reversed from every other
+  /// dialect: omitting [useTz] (or passing `false`) maps to `datetime2`;
+  /// only an explicit `useTz: true` maps to `datetimeoffset` — matching
+  /// knex.js's own mssql-specific default (verified against real knex.js
+  /// 3.3.0). [useTz] is nullable here (rather than defaulting to `true`)
+  /// so `_timestampType` can distinguish "never specified" from an
+  /// explicit `true`, which only matters for that MSSQL branch.
+  ColumnBuilder timestamp(String column, [bool? useTz]) {
     final cb = ColumnBuilder(column, _timestampType(useTz));
     _columns.add(cb);
     return cb;
@@ -434,9 +523,23 @@ class TableBuilder {
     // output already matches `_timestampType(useTz)` (including SQLite's
     // shared `datetime` and knex-dart's Postgres-only `useTz` extension,
     // which has no knex.js equivalent and is intentionally preserved here).
+    //
+    // MSSQL is also special-cased: knex.js's own `timestamps()` helper
+    // calls the `datetime` column method (not `timestamp`) whenever
+    // `useTimestamps` isn't explicitly `true` — mssql's `datetime` prototype
+    // is a fixed `datetime2` with no useTz knob at all (verified against
+    // real knex.js 3.3.0: `lib/schema/tablebuilder.js`'s `timestamps()`
+    // picks `this[useTimestamps === true ? 'timestamp' : 'datetime']`, and
+    // `timestamps()` is never called here with the JS-side `useTimestamps`
+    // meaning — this [useTz] param is knex-dart's own, unrelated,
+    // Postgres-only extension). Threading `useTz` straight into
+    // `_timestampType` for mssql would wrongly emit `datetimeoffset` for a
+    // bare `t.timestamps()` call.
     final type = (_dialect == 'mysql' || _dialect == 'mysql2')
         ? 'datetime'
-        : _timestampType(useTz);
+        : _dialect == 'mssql'
+            ? 'datetime2'
+            : _timestampType(useTz);
     final createdAt = ColumnBuilder('created_at', type);
     final updatedAt = ColumnBuilder('updated_at', type);
 

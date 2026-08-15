@@ -9,9 +9,10 @@
     "mysql": "mysql2",
     "sqlite": "sqlite3",
     "turso": "sqlite3 (family:sqlite)",
-    "d1": "sqlite3 (family:sqlite)"
+    "d1": "sqlite3 (family:sqlite)",
+    "mssql": "mssql"
   },
-  "caseCount": 735,
+  "caseCount": 840,
   "cases": [
     {
       "id": "schema/create-table-basic",
@@ -81,6 +82,16 @@
       "statements": [
         {
           "sql": "create table `users` (`id` integer not null primary key autoincrement, `email` varchar(255), `age` integer)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-basic",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [users] ([id] int identity(1,1) not null primary key, [email] nvarchar(255), [age] int)",
           "bindings": []
         }
       ]
@@ -158,6 +169,16 @@
       ]
     },
     {
+      "id": "schema/create-table-primary-composite",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [memberships] ([user_id] int, [org_id] int, CONSTRAINT [memberships_pkey] PRIMARY KEY ([user_id], [org_id]))",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-primary-named",
       "dialect": "postgres",
       "statements": [
@@ -225,6 +246,16 @@
       "statements": [
         {
           "sql": "create table `memberships` (`user_id` integer, `org_id` integer, constraint `membership_pk` primary key (`user_id`, `org_id`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [memberships] ([user_id] int, [org_id] int, CONSTRAINT [membership_pk] PRIMARY KEY ([user_id], [org_id]))",
           "bindings": []
         }
       ]
@@ -330,6 +361,20 @@
       ]
     },
     {
+      "id": "schema/create-table-unique-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [users] ([id] int identity(1,1) not null primary key, [email] nvarchar(255))",
+          "bindings": []
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX [users_email_unique] ON [users] ([email]) WHERE [email] IS NOT NULL",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-unique-named",
       "dialect": "postgres",
       "statements": [
@@ -430,6 +475,20 @@
       ]
     },
     {
+      "id": "schema/create-table-unique-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [users] ([id] int identity(1,1) not null primary key, [email] nvarchar(255))",
+          "bindings": []
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX [uq_users_email] ON [users] ([email]) WHERE [email] IS NOT NULL",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-foreign-column",
       "dialect": "postgres",
       "statements": [
@@ -513,6 +572,16 @@
       "statements": [
         {
           "sql": "create table `orders` (`id` integer not null primary key autoincrement, `user_id` integer, foreign key(`user_id`) references `users`(`id`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [orders] ([id] int identity(1,1) not null primary key, [user_id] int, CONSTRAINT [orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] ([id]))",
           "bindings": []
         }
       ]
@@ -606,6 +675,16 @@
       ]
     },
     {
+      "id": "schema/create-table-foreign-fluent-cascade",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [orders] ([id] int identity(1,1) not null primary key, [user_id] int, CONSTRAINT [orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] ([id]) ON DELETE cascade)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-foreign-onupdate",
       "dialect": "postgres",
       "statements": [
@@ -689,6 +768,16 @@
       "statements": [
         {
           "sql": "create table `orders` (`id` integer not null primary key autoincrement, `user_id` integer, foreign key(`user_id`) references `users`(`id`) on update cascade)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-onupdate",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [orders] ([id] int identity(1,1) not null primary key, [user_id] int, CONSTRAINT [orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] ([id]) ON UPDATE cascade)",
           "bindings": []
         }
       ]
@@ -782,6 +871,16 @@
       ]
     },
     {
+      "id": "schema/create-table-foreign-both-actions",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [orders] ([id] int identity(1,1) not null primary key, [user_id] int, CONSTRAINT [orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] ([id]) ON UPDATE set null ON DELETE cascade)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/default-string-embedded-quote",
       "dialect": "postgres",
       "statements": [
@@ -849,6 +948,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `nickname` varchar(255) default 'single ''quoted'' value'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-string-embedded-quote",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [nickname] nvarchar(255) CONSTRAINT [users_nickname_default] DEFAULT 'single ''quoted'' value'",
           "bindings": []
         }
       ]
@@ -926,6 +1035,16 @@
       ]
     },
     {
+      "id": "schema/default-null",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [nickname] nvarchar(255) CONSTRAINT [users_nickname_default] DEFAULT null",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/default-string-not-null",
       "dialect": "postgres",
       "statements": [
@@ -993,6 +1112,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `nickname` varchar(100) not null default 'guest'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-string-not-null",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [nickname] nvarchar(100) not null CONSTRAINT [users_nickname_default] DEFAULT 'guest'",
           "bindings": []
         }
       ]
@@ -1070,6 +1199,16 @@
       ]
     },
     {
+      "id": "schema/default-raw-current-timestamp",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [created_at] datetime2 CONSTRAINT [users_created_at_default] DEFAULT CURRENT_TIMESTAMP",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/default-boolean-false",
       "dialect": "postgres",
       "statements": [
@@ -1142,6 +1281,16 @@
       ]
     },
     {
+      "id": "schema/default-boolean-false",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [enabled] bit CONSTRAINT [users_enabled_default] DEFAULT '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/default-json-object",
       "dialect": "postgres",
       "statements": [
@@ -1214,6 +1363,16 @@
       ]
     },
     {
+      "id": "schema/default-json-object",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [preferences] nvarchar(max) not null CONSTRAINT [users_preferences_default] DEFAULT '{}'",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/default-jsonb-object",
       "dialect": "postgres",
       "statements": [
@@ -1281,6 +1440,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `preferences` json not null default '{}'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/default-jsonb-object",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [preferences] nvarchar(max) not null CONSTRAINT [users_preferences_default] DEFAULT '{}'",
           "bindings": []
         }
       ]
@@ -1357,6 +1526,16 @@
       "statements": [
         {
           "sql": "create table `users` (`external_id` varchar(255), primary key (`external_id`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-column-primary",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [users] ([external_id] nvarchar(255), CONSTRAINT [users_pkey] PRIMARY KEY ([external_id]))",
           "bindings": []
         }
       ]
@@ -1462,6 +1641,20 @@
       ]
     },
     {
+      "id": "schema/create-table-unique-composite-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [memberships] ([user_id] int, [org_id] int)",
+          "bindings": []
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX [uq_membership] ON [memberships] ([user_id], [org_id]) WHERE [user_id] IS NOT NULL AND [org_id] IS NOT NULL",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-unique-composite",
       "dialect": "postgres",
       "statements": [
@@ -1534,6 +1727,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-unique-composite",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE UNIQUE INDEX [memberships_user_id_org_id_unique] ON [memberships] ([user_id], [org_id]) WHERE [user_id] IS NOT NULL AND [org_id] IS NOT NULL",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-index-composite",
       "dialect": "postgres",
       "statements": [
@@ -1596,6 +1799,16 @@
       "statements": [
         {
           "sql": "create index `memberships_user_id_org_id_index` on `memberships` (`user_id`, `org_id`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-index-composite",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE INDEX [memberships_user_id_org_id_index] ON [memberships] ([user_id], [org_id])",
           "bindings": []
         }
       ]
@@ -1701,6 +1914,20 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-column-foreign",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [orders] ADD [user_id] int",
+          "bindings": []
+        },
+        {
+          "sql": "ALTER TABLE [orders] ADD CONSTRAINT [orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] ([id])",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-column",
       "dialect": "postgres",
       "statements": [
@@ -1773,6 +2000,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [nickname] nvarchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-column",
       "dialect": "postgres",
       "statements": [
@@ -1840,6 +2077,20 @@
       "statements": [
         {
           "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "\n              DECLARE @constraint varchar(100) = (SELECT default_constraints.name\n                                                  FROM sys.all_columns\n                                                  INNER JOIN sys.tables\n                                                    ON all_columns.object_id = tables.object_id\n                                                  INNER JOIN sys.schemas\n                                                    ON tables.schema_id = schemas.schema_id\n                                                  INNER JOIN sys.default_constraints\n                                                    ON all_columns.default_object_id = default_constraints.object_id\n                                                  WHERE schemas.name = 'dbo'\n                                                  AND tables.name = 'users'\n                                                  AND all_columns.name = 'nickname')\n\n              IF @constraint IS NOT NULL EXEC('ALTER TABLE users DROP CONSTRAINT ' + @constraint)",
+          "bindings": []
+        },
+        {
+          "sql": "ALTER TABLE [users] DROP COLUMN [nickname]",
           "bindings": []
         }
       ]
@@ -1919,6 +2170,19 @@
       ]
     },
     {
+      "id": "schema/alter-table-rename-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "exec sp_rename ?, ?, 'COLUMN'",
+          "bindings": [
+            "[users].nickname",
+            "nick"
+          ]
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-unique",
       "dialect": "postgres",
       "statements": [
@@ -1986,6 +2250,16 @@
       "statements": [
         {
           "sql": "create unique index `users_email_unique` on `users` (`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-unique",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE UNIQUE INDEX [users_email_unique] ON [users] ([email]) WHERE [email] IS NOT NULL",
           "bindings": []
         }
       ]
@@ -2063,6 +2337,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-unique-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE UNIQUE INDEX [uq_users_email] ON [users] ([email]) WHERE [email] IS NOT NULL",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-index",
       "dialect": "postgres",
       "statements": [
@@ -2130,6 +2414,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-index",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE INDEX [users_email_index] ON [users] ([email])",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-index-named",
       "dialect": "postgres",
       "statements": [
@@ -2192,6 +2486,16 @@
       "statements": [
         {
           "sql": "create index `idx_users_email` on `users` (`email`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-index-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE INDEX [idx_users_email] ON [users] ([email])",
           "bindings": []
         }
       ]
@@ -2269,6 +2573,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-unique",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [users_email_unique] ON [users]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-unique-named",
       "dialect": "postgres",
       "statements": [
@@ -2341,6 +2655,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-unique-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [uq_users_email] ON [users]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-index",
       "dialect": "postgres",
       "statements": [
@@ -2408,6 +2732,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-index",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [users_email_index] ON [users]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-index-named",
       "dialect": "postgres",
       "statements": [
@@ -2470,6 +2804,16 @@
       "statements": [
         {
           "sql": "drop index `idx_users_email`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [idx_users_email] ON [users]",
           "bindings": []
         }
       ]
@@ -2547,6 +2891,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-primary",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [memberships] DROP CONSTRAINT [memberships_pkey]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-foreign",
       "dialect": "postgres",
       "statements": [
@@ -2614,6 +2968,16 @@
       "statements": [
         {
           "sql": "PRAGMA table_info(`orders`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-foreign",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [orders] DROP CONSTRAINT [orders_user_id_foreign]",
           "bindings": []
         }
       ]
@@ -2691,6 +3055,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-primary",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [memberships] ADD CONSTRAINT [memberships_pkey] PRIMARY KEY ([user_id], [org_id])",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-foreign",
       "dialect": "postgres",
       "statements": [
@@ -2758,6 +3132,16 @@
       "statements": [
         {
           "sql": "PRAGMA table_info(`orders`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-foreign",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [orders] ADD CONSTRAINT [orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] ([id])",
           "bindings": []
         }
       ]
@@ -2858,6 +3242,16 @@
       "statements": [
         {
           "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-set-nullable",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ALTER COLUMN [email] nvarchar(255) null",
           "bindings": []
         }
       ]
@@ -2975,6 +3369,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-nullable",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ALTER COLUMN [email] nvarchar(255) not null",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/drop-table",
       "dialect": "postgres",
       "statements": [
@@ -3047,6 +3451,16 @@
       ]
     },
     {
+      "id": "schema/drop-table",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP TABLE [users]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/drop-table-if-exists",
       "dialect": "postgres",
       "statements": [
@@ -3114,6 +3528,16 @@
       "statements": [
         {
           "sql": "drop table if exists `users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "if object_id('[users]', 'U') is not null DROP TABLE [users]",
           "bindings": []
         }
       ]
@@ -3191,6 +3615,19 @@
       ]
     },
     {
+      "id": "schema/rename-table",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "exec sp_rename ?, ?",
+          "bindings": [
+            "users",
+            "accounts"
+          ]
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-column-unsigned",
       "dialect": "postgres",
       "statements": [
@@ -3258,6 +3695,16 @@
       "statements": [
         {
           "sql": "create table `t` (`qty` integer)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-column-unsigned",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [t] ([qty] int)",
           "bindings": []
         }
       ]
@@ -3335,6 +3782,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-column-unsigned",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [t] ADD [qty] int",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-like-basic",
       "dialect": "postgres",
       "statements": [
@@ -3402,6 +3859,16 @@
       "statements": [
         {
           "sql": "create table `users_like` as select * from `users` where 0=1",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like-basic",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "SELECT * INTO [users_like] FROM [users] WHERE 0=1",
           "bindings": []
         }
       ]
@@ -3515,6 +3982,20 @@
       ]
     },
     {
+      "id": "schema/create-table-like-with-columns",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "SELECT * INTO [users_like] FROM [users] WHERE 0=1",
+          "bindings": []
+        },
+        {
+          "sql": "ALTER TABLE [users_like] ADD [add_col] nvarchar(max), [numeric_col] int",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-primary-composite-with-increments",
       "dialect": "postgres",
       "statements": [
@@ -3591,6 +4072,16 @@
       ]
     },
     {
+      "id": "schema/create-table-primary-composite-with-increments",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [users] ([userId] int identity(1,1) not null, [name] nvarchar(255), CONSTRAINT [users_pkey] PRIMARY KEY ([userId], [name]))",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/view-create-basic",
       "dialect": "postgres",
       "statements": [
@@ -3658,6 +4149,16 @@
       "statements": [
         {
           "sql": "create view `adults` as select `name` from `users` where `age` > '18'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-basic",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE VIEW [adults] AS select [name] from [users] where [age] > '18'",
           "bindings": []
         }
       ]
@@ -3747,6 +4248,16 @@
       ]
     },
     {
+      "id": "schema/view-create-or-replace",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE OR ALTER VIEW [adults] AS select [name] from [users] where [age] > '18'",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/view-drop",
       "dialect": "postgres",
       "statements": [
@@ -3819,6 +4330,16 @@
       ]
     },
     {
+      "id": "schema/view-drop",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "drop view [users]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/view-drop-with-schema",
       "dialect": "postgres",
       "statements": [
@@ -3886,6 +4407,16 @@
       "statements": [
         {
           "sql": "drop view `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-drop-with-schema",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "drop view [myschema].[users]",
           "bindings": []
         }
       ]
@@ -3948,6 +4479,19 @@
       "error": "rename view is not supported by this dialect (instead drop then create another view)."
     },
     {
+      "id": "schema/view-rename",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "exec sp_rename ?, ?",
+          "bindings": [
+            "old_view",
+            "new_view"
+          ]
+        }
+      ]
+    },
+    {
       "id": "schema/view-create-materialized",
       "dialect": "postgres",
       "statements": [
@@ -4000,6 +4544,11 @@
       "error": "materialized views are not supported by this dialect."
     },
     {
+      "id": "schema/view-create-materialized",
+      "dialect": "mssql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
       "id": "schema/view-refresh-materialized",
       "dialect": "postgres",
       "statements": [
@@ -4049,6 +4598,11 @@
       "id": "schema/view-refresh-materialized",
       "dialect": "d1",
       "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-refresh-materialized",
+      "dialect": "mssql",
       "error": "materialized views are not supported by this dialect."
     },
     {
@@ -4124,6 +4678,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-json",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [user] ADD [preferences] nvarchar(max)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-jsonb",
       "dialect": "postgres",
       "statements": [
@@ -4191,6 +4755,16 @@
       "statements": [
         {
           "sql": "alter table `user` add column `preferences` json",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-jsonb",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [user] ADD [preferences] nvarchar(max)",
           "bindings": []
         }
       ]
@@ -4268,6 +4842,24 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-columns-multiple",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "\n              DECLARE @constraint varchar(100) = (SELECT default_constraints.name\n                                                  FROM sys.all_columns\n                                                  INNER JOIN sys.tables\n                                                    ON all_columns.object_id = tables.object_id\n                                                  INNER JOIN sys.schemas\n                                                    ON tables.schema_id = schemas.schema_id\n                                                  INNER JOIN sys.default_constraints\n                                                    ON all_columns.default_object_id = default_constraints.object_id\n                                                  WHERE schemas.name = 'dbo'\n                                                  AND tables.name = 'users'\n                                                  AND all_columns.name = 'foo')\n\n              IF @constraint IS NOT NULL EXEC('ALTER TABLE users DROP CONSTRAINT ' + @constraint)",
+          "bindings": []
+        },
+        {
+          "sql": "\n              DECLARE @constraint varchar(100) = (SELECT default_constraints.name\n                                                  FROM sys.all_columns\n                                                  INNER JOIN sys.tables\n                                                    ON all_columns.object_id = tables.object_id\n                                                  INNER JOIN sys.schemas\n                                                    ON tables.schema_id = schemas.schema_id\n                                                  INNER JOIN sys.default_constraints\n                                                    ON all_columns.default_object_id = default_constraints.object_id\n                                                  WHERE schemas.name = 'dbo'\n                                                  AND tables.name = 'users'\n                                                  AND all_columns.name = 'bar')\n\n              IF @constraint IS NOT NULL EXEC('ALTER TABLE users DROP CONSTRAINT ' + @constraint)",
+          "bindings": []
+        },
+        {
+          "sql": "ALTER TABLE [users] DROP COLUMN [foo], [bar]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-unique-null-columns-named",
       "dialect": "postgres",
       "statements": [
@@ -4340,6 +4932,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-unique-null-columns-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [foo] ON [users]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-index-null-columns-named",
       "dialect": "postgres",
       "statements": [
@@ -4402,6 +5004,16 @@
       "statements": [
         {
           "sql": "drop index `foo`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-null-columns-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [foo] ON [users]",
           "bindings": []
         }
       ]
@@ -4479,6 +5091,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-foreign-null-columns-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] DROP CONSTRAINT [foo]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-drop-timestamps",
       "dialect": "postgres",
       "statements": [
@@ -4546,6 +5168,24 @@
       "statements": [
         {
           "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-timestamps",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "\n              DECLARE @constraint varchar(100) = (SELECT default_constraints.name\n                                                  FROM sys.all_columns\n                                                  INNER JOIN sys.tables\n                                                    ON all_columns.object_id = tables.object_id\n                                                  INNER JOIN sys.schemas\n                                                    ON tables.schema_id = schemas.schema_id\n                                                  INNER JOIN sys.default_constraints\n                                                    ON all_columns.default_object_id = default_constraints.object_id\n                                                  WHERE schemas.name = 'dbo'\n                                                  AND tables.name = 'users'\n                                                  AND all_columns.name = 'created_at')\n\n              IF @constraint IS NOT NULL EXEC('ALTER TABLE users DROP CONSTRAINT ' + @constraint)",
+          "bindings": []
+        },
+        {
+          "sql": "\n              DECLARE @constraint varchar(100) = (SELECT default_constraints.name\n                                                  FROM sys.all_columns\n                                                  INNER JOIN sys.tables\n                                                    ON all_columns.object_id = tables.object_id\n                                                  INNER JOIN sys.schemas\n                                                    ON tables.schema_id = schemas.schema_id\n                                                  INNER JOIN sys.default_constraints\n                                                    ON all_columns.default_object_id = default_constraints.object_id\n                                                  WHERE schemas.name = 'dbo'\n                                                  AND tables.name = 'users'\n                                                  AND all_columns.name = 'updated_at')\n\n              IF @constraint IS NOT NULL EXEC('ALTER TABLE users DROP CONSTRAINT ' + @constraint)",
+          "bindings": []
+        },
+        {
+          "sql": "ALTER TABLE [users] DROP COLUMN [created_at], [updated_at]",
           "bindings": []
         }
       ]
@@ -4623,6 +5263,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-primary-single-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD CONSTRAINT [bar] PRIMARY KEY ([foo])",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-unique-single-column",
       "dialect": "postgres",
       "statements": [
@@ -4690,6 +5340,16 @@
       "statements": [
         {
           "sql": "create unique index `bar` on `users` (`foo`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-unique-single-column",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE UNIQUE INDEX [bar] ON [users] ([foo]) WHERE [foo] IS NOT NULL",
           "bindings": []
         }
       ]
@@ -4767,6 +5427,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-primary-named",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD CONSTRAINT [testconstraintname] PRIMARY KEY ([test1], [test2])",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-increments",
       "dialect": "postgres",
       "statements": [
@@ -4834,6 +5504,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `id` integer not null primary key autoincrement",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-increments",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [id] int identity(1,1) not null primary key",
           "bindings": []
         }
       ]
@@ -4911,6 +5591,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-bigincrements",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [id] bigint identity(1,1) not null primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-text",
       "dialect": "postgres",
       "statements": [
@@ -4978,6 +5668,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` text",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-text",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(max)",
           "bindings": []
         }
       ]
@@ -5055,6 +5755,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-biginteger",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-boolean",
       "dialect": "postgres",
       "statements": [
@@ -5122,6 +5832,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` boolean",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-boolean",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] bit",
           "bindings": []
         }
       ]
@@ -5199,6 +5919,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-enum",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(100)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-date",
       "dialect": "postgres",
       "statements": [
@@ -5266,6 +5996,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` date",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-date",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] date",
           "bindings": []
         }
       ]
@@ -5343,6 +6083,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-datetime",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] datetime2",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-time",
       "dialect": "postgres",
       "statements": [
@@ -5415,6 +6165,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-time",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] time",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-timestamp",
       "dialect": "postgres",
       "statements": [
@@ -5482,6 +6242,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` datetime",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-timestamp",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] datetime2",
           "bindings": []
         }
       ]
@@ -5575,6 +6345,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-timestamps",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [created_at] datetime2, [updated_at] datetime2",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-binary",
       "dialect": "postgres",
       "statements": [
@@ -5642,6 +6422,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-binary",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] varbinary(max)",
           "bindings": []
         }
       ]
@@ -5719,6 +6509,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-uuid",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] uniqueidentifier",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-add-decimal",
       "dialect": "postgres",
       "statements": [
@@ -5786,6 +6586,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` float",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-decimal",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] decimal(5, 2)",
           "bindings": []
         }
       ]
@@ -5863,6 +6673,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-add-double",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] float",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/create-table-default-raw-timestamp",
       "dialect": "postgres",
       "statements": [
@@ -5930,6 +6750,16 @@
       "statements": [
         {
           "sql": "create table `default_raw_test` (`created_at` datetime default CURRENT_TIMESTAMP)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-default-raw-timestamp",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [default_raw_test] ([created_at] datetime2 CONSTRAINT [default_raw_test_created_at_default] DEFAULT CURRENT_TIMESTAMP)",
           "bindings": []
         }
       ]
@@ -6007,6 +6837,16 @@
       ]
     },
     {
+      "id": "schema/alter-table-drop-unique-composite",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "DROP INDEX [composite_key_test_column_a_column_b_unique] ON [composite_key_test]",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/alter-table-comment",
       "dialect": "postgres",
       "statements": [
@@ -6062,6 +6902,16 @@
       "dialect": "d1",
       "family": "sqlite",
       "statements": []
+    },
+    {
+      "id": "schema/alter-table-comment",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "IF EXISTS(SELECT * FROM sys.fn_listextendedproperty(N'MS_Description', N'Schema', N'dbo', N'Table', N'users', NULL, NULL))\n  EXEC sys.sp_updateextendedproperty N'MS_Description', N'Custom comment', N'Schema', N'dbo', N'Table', N'users'\nELSE\n  EXEC sys.sp_addextendedproperty N'MS_Description', N'Custom comment', N'Schema', N'dbo', N'Table', N'users'",
+          "bindings": []
+        }
+      ]
     },
     {
       "id": "schema/create-table-comment",
@@ -6148,6 +6998,20 @@
       ]
     },
     {
+      "id": "schema/create-table-comment",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE TABLE [users] ([username] nvarchar(255))",
+          "bindings": []
+        },
+        {
+          "sql": "IF EXISTS(SELECT * FROM sys.fn_listextendedproperty(N'MS_Description', N'Schema', N'dbo', N'Table', N'users', NULL, NULL))\n  EXEC sys.sp_updateextendedproperty N'MS_Description', N'Custom comment', N'Schema', N'dbo', N'Table', N'users'\nELSE\n  EXEC sys.sp_addextendedproperty N'MS_Description', N'Custom comment', N'Schema', N'dbo', N'Table', N'users'",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-increments",
       "dialect": "postgres",
       "statements": [
@@ -6215,6 +7079,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` integer not null primary key autoincrement",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-increments",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] int identity(1,1) not null primary key",
           "bindings": []
         }
       ]
@@ -6292,6 +7166,16 @@
       ]
     },
     {
+      "id": "schema/column-bigincrements",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] bigint identity(1,1) not null primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-string-length",
       "dialect": "postgres",
       "statements": [
@@ -6359,6 +7243,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` varchar(100)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-string-length",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(100)",
           "bindings": []
         }
       ]
@@ -6436,6 +7330,16 @@
       ]
     },
     {
+      "id": "schema/column-string-default",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(100) CONSTRAINT [users_foo_default] DEFAULT 'bar'",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-text",
       "dialect": "postgres",
       "statements": [
@@ -6503,6 +7407,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` text",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-text",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(max)",
           "bindings": []
         }
       ]
@@ -6580,6 +7494,16 @@
       ]
     },
     {
+      "id": "schema/column-biginteger",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-integer",
       "dialect": "postgres",
       "statements": [
@@ -6647,6 +7571,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` integer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-integer",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] int",
           "bindings": []
         }
       ]
@@ -6724,6 +7658,16 @@
       ]
     },
     {
+      "id": "schema/column-float",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] float",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-double",
       "dialect": "postgres",
       "statements": [
@@ -6791,6 +7735,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` float",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-double",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] float",
           "bindings": []
         }
       ]
@@ -6868,6 +7822,16 @@
       ]
     },
     {
+      "id": "schema/column-decimal",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] decimal(5, 2)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-boolean-default",
       "dialect": "postgres",
       "statements": [
@@ -6935,6 +7899,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean-default",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] bit CONSTRAINT [users_foo_default] DEFAULT '0'",
           "bindings": []
         }
       ]
@@ -7012,6 +7986,16 @@
       ]
     },
     {
+      "id": "schema/column-enum",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(100)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-date",
       "dialect": "postgres",
       "statements": [
@@ -7079,6 +8063,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` date",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-date",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] date",
           "bindings": []
         }
       ]
@@ -7156,6 +8150,16 @@
       ]
     },
     {
+      "id": "schema/column-datetime",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] datetime2",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-time",
       "dialect": "postgres",
       "statements": [
@@ -7228,6 +8232,16 @@
       ]
     },
     {
+      "id": "schema/column-time",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] time",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-timestamp",
       "dialect": "postgres",
       "statements": [
@@ -7295,6 +8309,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` datetime",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-timestamp",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] datetime2",
           "bindings": []
         }
       ]
@@ -7383,6 +8407,16 @@
         },
         {
           "sql": "alter table `users` add column `updated_at` datetime",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-timestamps-basic",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [created_at] datetime2, [updated_at] datetime2",
           "bindings": []
         }
       ]
@@ -7476,6 +8510,16 @@
       ]
     },
     {
+      "id": "schema/column-timestamps-defaults",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [created_at] datetime2 not null CONSTRAINT [users_created_at_default] DEFAULT CURRENT_TIMESTAMP, [updated_at] datetime2 not null CONSTRAINT [users_updated_at_default] DEFAULT CURRENT_TIMESTAMP",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-binary",
       "dialect": "postgres",
       "statements": [
@@ -7543,6 +8587,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] varbinary(max)",
           "bindings": []
         }
       ]
@@ -7620,6 +8674,16 @@
       ]
     },
     {
+      "id": "schema/column-jsonb",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(max)",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-uuid",
       "dialect": "postgres",
       "statements": [
@@ -7692,6 +8756,16 @@
       ]
     },
     {
+      "id": "schema/column-uuid",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] uniqueidentifier",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/column-json-default-notnull",
       "dialect": "postgres",
       "statements": [
@@ -7759,6 +8833,16 @@
       "statements": [
         {
           "sql": "alter table `users` add column `foo` json not null default '{}'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-json-default-notnull",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] nvarchar(max) not null CONSTRAINT [users_foo_default] DEFAULT '{}'",
           "bindings": []
         }
       ]
@@ -7859,6 +8943,20 @@
         },
         {
           "sql": "create unique index `users_foo_unique` on `users` (`foo`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-specifictype-unique-notnull",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [foo] CITEXT not null",
+          "bindings": []
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX [users_foo_unique] ON [users] ([foo]) WHERE [foo] IS NOT NULL",
           "bindings": []
         }
       ]

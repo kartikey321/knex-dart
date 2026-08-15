@@ -207,6 +207,8 @@ KnexDialect? dialectFromDriverName(String? driverName) {
     case 'bigquery':
     case 'big_query':
       return KnexDialect.bigquery;
+    case 'mssql':
+      return KnexDialect.mssql;
     default:
       return null;
   }

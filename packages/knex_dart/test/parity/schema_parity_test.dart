@@ -694,7 +694,10 @@ const Map<String, String> schemaParityAllowlist = {
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
 };
 
-const Set<String> _skipDialects = {'mssql'};
+// Previously {'mssql'} — mssql was skipped entirely because it was never
+// wired into the JS-side fixture generator either (see run_js_schema.mjs's
+// DIALECTS map). Both are now fixed; mssql runs like every other dialect.
+const Set<String> _skipDialects = {};
 
 const Set<String> _sqliteFamily = {'sqlite', 'turso', 'd1'};
 

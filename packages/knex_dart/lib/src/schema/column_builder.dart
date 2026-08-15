@@ -24,6 +24,14 @@ class ColumnBuilder {
   final bool isJson;
 
   bool _nullable = true;
+  /// Whether `.nullable()` was explicitly called (vs. the implicit default
+  /// nullable state). knex.js's `nullable` column modifier only fires when
+  /// the caller explicitly invoked `.nullable()`/`.notNullable()` (it checks
+  /// a `modified` set, not the resolved boolean) — mirrored here so the
+  /// mssql-only explicit `null` suffix in [toSQL] doesn't fire on every
+  /// bare, never-touched column (verified against real knex.js 3.3.0's
+  /// `nvarchar(255)` with no suffix for a bare `t.string('foo')`).
+  bool _nullableExplicit = false;
   dynamic _defaultValue;
   bool _hasDefault = false;
   bool _isPrimary = false;
@@ -63,6 +71,7 @@ class ColumnBuilder {
   /// Mark column as NULL (default).
   ColumnBuilder nullable() {
     _nullable = true;
+    _nullableExplicit = true;
     return this;
   }
 
@@ -133,7 +142,17 @@ class ColumnBuilder {
   // ============================================================================
 
   /// Compile to DDL SQL fragment (column definition only).
-  String toSQL({String dialect = 'pg', String Function(String)? wrap}) {
+  ///
+  /// [tableName] is only used for MSSQL, which names every DEFAULT as its
+  /// own constraint (`CONSTRAINT [table_col_default] DEFAULT ...` instead of
+  /// a bare `DEFAULT ...`) — verified against real knex.js 3.3.0's
+  /// mssql-columncompiler.js `defaultTo()`. It's optional/nullable because
+  /// every other dialect ignores it.
+  String toSQL({
+    String dialect = 'pg',
+    String Function(String)? wrap,
+    String? tableName,
+  }) {
     final wrapFn = wrap ?? (String v) => '"$v"';
     final parts = <String>['${wrapFn(name)} $type'];
 
@@ -144,36 +163,53 @@ class ColumnBuilder {
 
     if (!_nullable) {
       parts.add('not null');
-    } else if (dialect == 'mssql') {
+    } else if (dialect == 'mssql' && _nullableExplicit) {
+      // knex.js only emits the modifier when the caller explicitly called
+      // .nullable() (it checks a "was this modifier touched" set, not the
+      // resolved boolean) — a bare, never-touched column stays implicitly
+      // nullable with no suffix. See _nullableExplicit's doc comment.
       parts.add('null');
     }
 
     if (_hasDefault) {
-      if (_defaultValue == null) {
-        parts.add('default null');
-      } else if (_defaultValue is Raw) {
-        final rawSql = (_defaultValue as Raw).toSQL();
-        parts.add('default ${rawSql.sql}');
-      } else if (_defaultValue is bool) {
-        parts.add("default '${_defaultValue ? '1' : '0'}'");
-      } else if (_defaultValue is num) {
-        parts.add('default $_defaultValue');
-      } else if (_defaultValue is String) {
-        parts.add('default ${_sqlString(_defaultValue as String, dialect)}');
-      } else if (isJson && (_defaultValue is Map || _defaultValue is List)) {
-        final value = _sqlString(jsonEncode(_defaultValue), dialect);
-        // MySQL 8 requires a JSON literal default to be an expression. knex.js
-        // therefore emits DEFAULT ('{}') rather than DEFAULT '{}'.
-        final isMySql = dialect == 'mysql' ||
-            dialect == 'mysql2' ||
-            dialect == 'mariadb';
-        parts.add('default ${isMySql ? '($value)' : value}');
+      final valueSql = _formatDefaultValue(dialect);
+      if (dialect == 'mssql' && tableName != null) {
+        final constraintName = '${tableName}_${name}_default'.toLowerCase();
+        parts.add('CONSTRAINT ${wrapFn(constraintName)} DEFAULT $valueSql');
       } else {
-        parts.add('default ${_sqlString(_defaultValue.toString(), dialect)}');
+        parts.add('default $valueSql');
       }
     }
 
     return parts.join(' ');
+  }
+
+  /// Formats [_defaultValue] as a bare SQL value expression, WITHOUT the
+  /// leading `default`/`DEFAULT` keyword — callers prepend that themselves
+  /// (differently per dialect; see [toSQL]'s MSSQL `CONSTRAINT ... DEFAULT`
+  /// wrapping).
+  String _formatDefaultValue(String dialect) {
+    if (_defaultValue == null) {
+      return 'null';
+    } else if (_defaultValue is Raw) {
+      final rawSql = (_defaultValue as Raw).toSQL();
+      return rawSql.sql;
+    } else if (_defaultValue is bool) {
+      return "'${_defaultValue ? '1' : '0'}'";
+    } else if (_defaultValue is num) {
+      return '$_defaultValue';
+    } else if (_defaultValue is String) {
+      return _sqlString(_defaultValue as String, dialect);
+    } else if (isJson && (_defaultValue is Map || _defaultValue is List)) {
+      final value = _sqlString(jsonEncode(_defaultValue), dialect);
+      // MySQL 8 requires a JSON literal default to be an expression. knex.js
+      // therefore emits DEFAULT ('{}') rather than DEFAULT '{}'.
+      final isMySql =
+          dialect == 'mysql' || dialect == 'mysql2' || dialect == 'mariadb';
+      return isMySql ? '($value)' : value;
+    } else {
+      return _sqlString(_defaultValue.toString(), dialect);
+    }
   }
 
   static const _postgresLike = {
