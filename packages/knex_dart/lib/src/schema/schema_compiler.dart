@@ -459,7 +459,18 @@ class SchemaCompiler {
     );
   }
 
-  String _escapeComment(String value) => value.replaceAll("'", "''");
+  /// Escapes a table comment for use as a SQL string literal, dialect-aware
+  /// like ColumnBuilder._sqlString: MySQL-family strings treat `\` as an
+  /// escape character (NO_BACKSLASH_ESCAPES is off by default), so an
+  /// unescaped backslash right before the closing quote would escape the
+  /// quote itself and break out of the literal. Everywhere else, plain `'`
+  /// doubling is sufficient.
+  String _escapeComment(String value) {
+    if (_isMySqlLike(client.driverName)) {
+      return value.replaceAll('\\', r'\\').replaceAll("'", r"\'");
+    }
+    return value.replaceAll("'", "''");
+  }
 
   /// Drop a table
   void _dropTable(String tableName) {
@@ -530,6 +541,11 @@ class SchemaCompiler {
 
     // Handle added columns
     for (final col in tb.columns) {
+      // MySQL's `ADD col_def` (no COLUMN keyword) is what knex.js emits, but
+      // `ADD COLUMN col_def` is equally valid MySQL syntax — this divergence
+      // is a deliberate, already-documented [ACCEPTED] cosmetic difference
+      // (see schema/alter-table-add-column::mysql in schema_parity_test.dart's
+      // allowlist), not something to chase here.
       final addKeyword = driver == 'mssql' ? 'add' : 'add column';
       _pushQuery(
         'alter table $tableRef $addKeyword ${col.toSQL(dialect: client.driverName, wrap: _wrap)}',
@@ -630,9 +646,17 @@ class SchemaCompiler {
           _pushQuery('alter table $tableRef drop column ${_wrap(args[0])}');
           break;
         case 'dropColumns':
-          // Combined into a single ALTER TABLE (knex.js parity — see
-          // TableBuilder.dropColumns doc comment).
-          if (_isMySqlLike(client.driverName)) {
+          // SQLite's ALTER TABLE grammar allows exactly one operation per
+          // statement — a comma-joined multi-drop is a syntax error there
+          // (knex.js instead reroutes through a PRAGMA-based table rebuild,
+          // same as the single-column dropColumn case above; not
+          // implemented here for the same reason). Fall back to one valid
+          // statement per column rather than the combined form.
+          if (_isSqliteLike(client.driverName)) {
+            for (final col in args) {
+              _pushQuery('alter table $tableRef drop column ${_wrap(col)}');
+            }
+          } else if (_isMySqlLike(client.driverName)) {
             final dropParts = args.map((col) => 'drop ${_wrap(col)}').join(', ');
             _pushQuery('alter table $tableRef $dropParts');
           } else {
@@ -676,6 +700,10 @@ class SchemaCompiler {
           if (_isSqliteLike(client.driverName)) {
             _pushQuery(
               'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
+            );
+          } else if (_isMySqlLike(client.driverName)) {
+            _pushQuery(
+              'alter table $tableRef add unique ${_wrap(constraintName)}($colStr)',
             );
           } else {
             _pushQuery(
@@ -786,7 +814,13 @@ class SchemaCompiler {
         case 'dropTimestamps':
           // JS PG: alter table "t" drop column "created_at", drop column "updated_at"
           // JS MySQL: alter table `t` drop `created_at`, drop `updated_at`
-          if (_isMySqlLike(client.driverName)) {
+          // SQLite: same one-operation-per-statement limitation as
+          // dropColumns above — comma-joining is a syntax error there.
+          if (_isSqliteLike(client.driverName)) {
+            for (final col in args) {
+              _pushQuery('alter table $tableRef drop column ${_wrap(col)}');
+            }
+          } else if (_isMySqlLike(client.driverName)) {
             final dropParts = args
                 .map((col) => 'drop ${_wrap(col)}')
                 .join(', ');
@@ -810,9 +844,15 @@ class SchemaCompiler {
           final constraintName = args.length > 1 && args[1] != null
               ? args[1] as String
               : '${tableName}_pkey';
-          _pushQuery(
-            'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
-          );
+          if (_isMySqlLike(client.driverName)) {
+            _pushQuery(
+              'alter table $tableRef add primary key ${_wrap(constraintName)}($colStr)',
+            );
+          } else {
+            _pushQuery(
+              'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
+            );
+          }
           break;
         case 'dropPrimary':
           if (client.driverName == 'mysql' ||

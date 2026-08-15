@@ -132,6 +132,11 @@ class TableBuilder {
       case 'mysql':
       case 'mysql2':
         return 'blob';
+      case 'redshift':
+        // Redshift has no BLOB/BYTEA type — knex.js's redshift compiler
+        // falls back to varchar(max), same as its text()/json()/jsonb()
+        // handling (verified against real knex.js 3.3.0).
+        return 'varchar(max)';
       default:
         return 'bytea';
     }
@@ -144,6 +149,11 @@ class TableBuilder {
         return 'char(36)';
       case 'mysql':
       case 'mysql2':
+        return 'char(36)';
+      case 'redshift':
+        // Redshift has no native UUID type either — knex.js's redshift
+        // compiler falls back to the same char(36) as MySQL/SQLite
+        // (verified against real knex.js 3.3.0), not Postgres's `uuid`.
         return 'char(36)';
       default:
         return 'uuid';
@@ -292,7 +302,11 @@ class TableBuilder {
 
   /// Text column
   ColumnBuilder text(String column) {
-    final cb = ColumnBuilder(column, 'text');
+    // Redshift has no TEXT type — knex.js's redshift compiler falls back to
+    // varchar(max), same as binary()/json()/jsonb() (verified against real
+    // knex.js 3.3.0).
+    final type = _dialect == 'redshift' ? 'varchar(max)' : 'text';
+    final cb = ColumnBuilder(column, type);
     _columns.add(cb);
     return cb;
   }
@@ -414,7 +428,15 @@ class TableBuilder {
     bool defaultToNow = false,
     bool useTz = true,
   ]) {
-    final type = _timestampType(useTz);
+    // MySQL is a special case: `timestamps()` uses `datetime`, not the
+    // `timestamp` that a single `.timestamp()` column maps to — verified
+    // against real knex.js 3.3.0. Every other dialect's `timestamps()`
+    // output already matches `_timestampType(useTz)` (including SQLite's
+    // shared `datetime` and knex-dart's Postgres-only `useTz` extension,
+    // which has no knex.js equivalent and is intentionally preserved here).
+    final type = (_dialect == 'mysql' || _dialect == 'mysql2')
+        ? 'datetime'
+        : _timestampType(useTz);
     final createdAt = ColumnBuilder('created_at', type);
     final updatedAt = ColumnBuilder('updated_at', type);
 

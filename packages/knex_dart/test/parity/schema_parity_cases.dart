@@ -201,4 +201,215 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/alter-table-column-unsigned': (d) => _sb(d).alterTable('t', (t) {
         t.integer('qty').unsigned();
       }).toSQL(),
+
+  // ── Mined from knex.js test/unit/schema-builder/mysql.js ──────────────────
+
+  'schema/create-table-like-basic': (d) => _sb(d).createTableLike('users_like', 'users').toSQL(),
+  'schema/create-table-like-with-columns': (d) => _sb(d).createTableLike('users_like', 'users', (t) {
+        t.text('add_col');
+        t.integer('numeric_col');
+      }).toSQL(),
+
+  'schema/create-table-primary-composite-with-increments': (d) => _sb(d).createTable('users', (t) {
+        t.primary(['userId', 'name']);
+        t.increments('userId');
+        t.string('name');
+      }).toSQL(),
+
+  'schema/view-create-basic': (d) => _sb(d)
+      .createView(
+        'adults',
+        KnexQuery.forClient(d).from('users').select(['name']).where('age', '>', '18'),
+      )
+      .toSQL(),
+  'schema/view-create-or-replace': (d) => _sb(d)
+      .createViewOrReplace(
+        'adults',
+        KnexQuery.forClient(d).from('users').select(['name']).where('age', '>', '18'),
+      )
+      .toSQL(),
+  'schema/view-drop': (d) => _sb(d).dropView('users').toSQL(),
+  'schema/view-drop-with-schema': (d) => _sb(d).withSchema('myschema').dropView('users').toSQL(),
+  'schema/view-rename': (d) => _sb(d).renameView('old_view', 'new_view').toSQL(),
+  'schema/view-create-materialized': (d) => _sb(d)
+      .createMaterializedView(
+        'mat_view',
+        KnexQuery.forClient(d).from('users').select(['name']).where('age', '>', '18'),
+      )
+      .toSQL(),
+  'schema/view-refresh-materialized': (d) => _sb(d).refreshMaterializedView('view_to_refresh').toSQL(),
+
+  'schema/alter-table-add-json': (d) => _sb(d).alterTable('user', (t) {
+        t.json('preferences');
+      }).toSQL(),
+  'schema/alter-table-add-jsonb': (d) => _sb(d).alterTable('user', (t) {
+        t.jsonb('preferences');
+      }).toSQL(),
+
+  'schema/alter-table-drop-columns-multiple': (d) => _sb(d).alterTable('users', (t) {
+        t.dropColumns(['foo', 'bar']);
+      }).toSQL(),
+
+  'schema/alter-table-drop-unique-null-columns-named': (d) => _sb(d).alterTable('users', (t) {
+        t.dropUnique(null, 'foo');
+      }).toSQL(),
+  'schema/alter-table-drop-index-null-columns-named': (d) => _sb(d).alterTable('users', (t) {
+        t.dropIndex(null, 'foo');
+      }).toSQL(),
+  'schema/alter-table-drop-foreign-null-columns-named': (d) => _sb(d).alterTable('users', (t) {
+        t.dropForeign(null, 'foo');
+      }).toSQL(),
+
+  'schema/alter-table-drop-timestamps': (d) => _sb(d).alterTable('users', (t) {
+        t.dropTimestamps();
+      }).toSQL(),
+
+  'schema/alter-table-primary-single-column': (d) => _sb(d).alterTable('users', (t) {
+        t.primary('foo', 'bar');
+      }).toSQL(),
+  'schema/alter-table-unique-single-column': (d) => _sb(d).alterTable('users', (t) {
+        t.unique('foo', 'bar');
+      }).toSQL(),
+
+  'schema/alter-table-primary-named': (d) => _sb(d).alterTable('users', (t) {
+        t.primary(['test1', 'test2'], 'testconstraintname');
+      }).toSQL(),
+
+  'schema/alter-table-add-increments': (d) => _sb(d).alterTable('users', (t) {
+        t.increments('id');
+      }).toSQL(),
+  'schema/alter-table-add-bigincrements': (d) => _sb(d).alterTable('users', (t) {
+        t.bigIncrements('id');
+      }).toSQL(),
+
+  'schema/alter-table-add-text': (d) => _sb(d).alterTable('users', (t) {
+        t.text('foo');
+      }).toSQL(),
+  'schema/alter-table-add-biginteger': (d) => _sb(d).alterTable('users', (t) {
+        t.bigInteger('foo');
+      }).toSQL(),
+  'schema/alter-table-add-boolean': (d) => _sb(d).alterTable('users', (t) {
+        t.boolean('foo');
+      }).toSQL(),
+  'schema/alter-table-add-enum': (d) => _sb(d).alterTable('users', (t) {
+        t.enu('foo', ['bar', 'baz']);
+      }).toSQL(),
+  'schema/alter-table-add-date': (d) => _sb(d).alterTable('users', (t) {
+        t.date('foo');
+      }).toSQL(),
+  'schema/alter-table-add-datetime': (d) => _sb(d).alterTable('users', (t) {
+        t.datetime('foo');
+      }).toSQL(),
+  'schema/alter-table-add-time': (d) => _sb(d).alterTable('users', (t) {
+        t.time('foo');
+      }).toSQL(),
+  'schema/alter-table-add-timestamp': (d) => _sb(d).alterTable('users', (t) {
+        t.timestamp('foo');
+      }).toSQL(),
+  'schema/alter-table-add-timestamps': (d) => _sb(d).alterTable('users', (t) {
+        t.timestamps();
+      }).toSQL(),
+  'schema/alter-table-add-binary': (d) => _sb(d).alterTable('users', (t) {
+        t.binary('foo');
+      }).toSQL(),
+  'schema/alter-table-add-uuid': (d) => _sb(d).alterTable('users', (t) {
+        t.uuid('foo');
+      }).toSQL(),
+  'schema/alter-table-add-decimal': (d) => _sb(d).alterTable('users', (t) {
+        t.decimal('foo', 5, 2);
+      }).toSQL(),
+  'schema/alter-table-add-double': (d) => _sb(d).alterTable('users', (t) {
+        t.doublePrecision('foo');
+      }).toSQL(),
+
+  'schema/create-table-default-raw-timestamp': (d) => _sb(d).createTable('default_raw_test', (t) {
+        t.timestamp('created_at').defaultTo(_sb(d).client.raw('CURRENT_TIMESTAMP'));
+      }).toSQL(),
+
+  'schema/alter-table-drop-unique-composite': (d) => _sb(d).alterTable('composite_key_test', (t) {
+        t.dropUnique(['column_a', 'column_b']);
+      }).toSQL(),
+
+  'schema/alter-table-comment': (d) => _sb(d).alterTable('users', (t) {
+        t.comment('Custom comment');
+      }).toSQL(),
+  'schema/create-table-comment': (d) => _sb(d).createTable('users', (t) {
+        t.string('username');
+        t.comment('Custom comment');
+      }).toSQL(),
+
+  // ── Mined from knex.js test/unit/schema-builder/redshift.js ──────────────
+  // (schema DDL batch 4 — see tool/parity/README.md). Same ids/theming as
+  // the mirror block in tool/parity/run_js_schema.mjs.
+
+  // ── Column types (via alterTable, one column each) ────────────────────────
+  'schema/column-increments': (d) => _sb(d).alterTable('users', (t) {
+        t.increments('foo');
+      }).toSQL(),
+  'schema/column-bigincrements': (d) => _sb(d).alterTable('users', (t) {
+        t.bigIncrements('foo');
+      }).toSQL(),
+  'schema/column-string-length': (d) => _sb(d).alterTable('users', (t) {
+        t.string('foo', 100);
+      }).toSQL(),
+  'schema/column-string-default': (d) => _sb(d).alterTable('users', (t) {
+        t.string('foo', 100).defaultTo('bar');
+      }).toSQL(),
+  'schema/column-text': (d) => _sb(d).alterTable('users', (t) {
+        t.text('foo');
+      }).toSQL(),
+  'schema/column-biginteger': (d) => _sb(d).alterTable('users', (t) {
+        t.bigInteger('foo');
+      }).toSQL(),
+  'schema/column-integer': (d) => _sb(d).alterTable('users', (t) {
+        t.integer('foo');
+      }).toSQL(),
+  'schema/column-float': (d) => _sb(d).alterTable('users', (t) {
+        t.float('foo');
+      }).toSQL(),
+  'schema/column-double': (d) => _sb(d).alterTable('users', (t) {
+        t.doublePrecision('foo');
+      }).toSQL(),
+  'schema/column-decimal': (d) => _sb(d).alterTable('users', (t) {
+        t.decimal('foo', 5, 2);
+      }).toSQL(),
+  'schema/column-boolean-default': (d) => _sb(d).alterTable('users', (t) {
+        t.boolean('foo').defaultTo(false);
+      }).toSQL(),
+  'schema/column-enum': (d) => _sb(d).alterTable('users', (t) {
+        t.enu('foo', ['bar', 'baz']);
+      }).toSQL(),
+  'schema/column-date': (d) => _sb(d).alterTable('users', (t) {
+        t.date('foo');
+      }).toSQL(),
+  'schema/column-datetime': (d) => _sb(d).alterTable('users', (t) {
+        t.datetime('foo');
+      }).toSQL(),
+  'schema/column-time': (d) => _sb(d).alterTable('users', (t) {
+        t.time('foo');
+      }).toSQL(),
+  'schema/column-timestamp': (d) => _sb(d).alterTable('users', (t) {
+        t.timestamp('foo');
+      }).toSQL(),
+  'schema/column-timestamps-basic': (d) => _sb(d).alterTable('users', (t) {
+        t.timestamps();
+      }).toSQL(),
+  'schema/column-timestamps-defaults': (d) => _sb(d).alterTable('users', (t) {
+        t.timestamps(false, true);
+      }).toSQL(),
+  'schema/column-binary': (d) => _sb(d).alterTable('users', (t) {
+        t.binary('foo');
+      }).toSQL(),
+  'schema/column-jsonb': (d) => _sb(d).alterTable('users', (t) {
+        t.jsonb('foo');
+      }).toSQL(),
+  'schema/column-uuid': (d) => _sb(d).alterTable('users', (t) {
+        t.uuid('foo');
+      }).toSQL(),
+  'schema/column-json-default-notnull': (d) => _sb(d).alterTable('users', (t) {
+        t.json('foo').defaultTo(<String, dynamic>{}).notNullable();
+      }).toSQL(),
+  'schema/column-specifictype-unique-notnull': (d) => _sb(d).alterTable('users', (t) {
+        t.specificType('foo', 'CITEXT').unique().notNullable();
+      }).toSQL(),
 };
