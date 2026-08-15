@@ -11,7 +11,7 @@
     "turso": "sqlite3 (family:sqlite)",
     "d1": "sqlite3 (family:sqlite)"
   },
-  "caseCount": 735,
+  "caseCount": 840,
   "cases": [
     {
       "id": "schema/create-table-basic",
@@ -7859,6 +7859,1058 @@
         },
         {
           "sql": "create unique index `users_foo_unique` on `users` (`foo`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "refresh materialized view concurrently \"view_to_refresh\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "refresh materialized view concurrently \"view_to_refresh\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "refresh materialized view concurrently \"view_to_refresh\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-refresh-materialized-concurrently",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop table \"myschema\".\"users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop table \"myschema\".\"users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "drop table \"myschema\".\"users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "drop table `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop table `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop table `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-with-schema",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop table `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop table if exists \"myschema\".\"users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop table if exists \"myschema\".\"users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "drop table if exists \"myschema\".\"users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "drop table if exists `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop table if exists `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop table if exists `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-table-if-exists-with-schema",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop table if exists `myschema`.`users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop index \"mySchema\".\"users_foo_index\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop index \"mySchema\".\"users_foo_index\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "redshift",
+      "statements": []
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `mySchema`.`users` drop index `users_foo_index`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop index `users_foo_index`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop index `users_foo_index`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-index-with-schema",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop index `users_foo_index`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" drop constraint \"testconstraintname\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" drop constraint \"testconstraintname\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" drop constraint \"testconstraintname\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-primary-named",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add constraint \"users_pkey\" primary key (\"foo\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add constraint \"users_pkey\" primary key (\"foo\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add constraint \"users_pkey\" primary key (\"foo\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add primary key `users_pkey`(`foo`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-primary-single-column-unnamed",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create table \"person\" (\"user_id\" integer not null, \"account_id\" integer not null)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"person\" add constraint \"person_user_id_foreign\" foreign key (\"user_id\") references \"users\" (\"id\") on delete SET NULL",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"person\" add constraint \"person_account_id_foreign\" foreign key (\"account_id\") references \"accounts\" (\"id\") on update cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create table \"person\" (\"user_id\" integer not null, \"account_id\" integer not null)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"person\" add constraint \"person_user_id_foreign\" foreign key (\"user_id\") references \"users\" (\"id\") on delete SET NULL",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"person\" add constraint \"person_account_id_foreign\" foreign key (\"account_id\") references \"accounts\" (\"id\") on update cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create table \"person\" (\"user_id\" integer not null, \"account_id\" integer not null)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"person\" add constraint \"person_user_id_foreign\" foreign key (\"user_id\") references \"users\" (\"id\") on delete SET NULL",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"person\" add constraint \"person_account_id_foreign\" foreign key (\"account_id\") references \"accounts\" (\"id\") on update cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `person` (`user_id` int not null, `account_id` int not null)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `person` add constraint `person_user_id_foreign` foreign key (`user_id`) references `users` (`id`) on delete SET NULL",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `person` add constraint `person_account_id_foreign` foreign key (`account_id`) references `accounts` (`id`) on update cascade",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `person` (`user_id` integer not null, `account_id` integer not null, foreign key(`user_id`) references `users`(`id`) on delete SET NULL, foreign key(`account_id`) references `accounts`(`id`) on update cascade)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `person` (`user_id` integer not null, `account_id` integer not null, foreign key(`user_id`) references `users`(`id`) on delete SET NULL, foreign key(`account_id`) references `accounts`(`id`) on update cascade)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-foreign-mixed-actions",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `person` (`user_id` integer not null, `account_id` integer not null, foreign key(`user_id`) references `users`(`id`) on delete SET NULL, foreign key(`account_id`) references `accounts`(`id`) on update cascade)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "comment on table \"user\" is ''",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "comment on table \"user\" is ''",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "comment on table \"user\" is ''",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `user` comment = ''",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "sqlite",
+      "statements": []
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": []
+    },
+    {
+      "id": "schema/alter-table-comment-empty",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": []
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create extension \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create extension \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create extension \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "mysql",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create extension if not exists \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create extension if not exists \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create extension if not exists \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "mysql",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/create-extension-if-not-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop extension \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop extension \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "drop extension \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "mysql",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop extension if exists \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop extension if exists \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "drop extension if exists \"test\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "mysql",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/drop-extension-if-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "Cannot read properties of undefined (reading 'apply')"
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"test\" varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"users_pkey\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"test\" varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"users_pkey\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"test\" varchar(255) not null",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"users_pkey\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `users` add primary key `users_pkey`(`test`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"test\" varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"testname\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"test\" varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"testname\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"test\" varchar(255) not null",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"testname\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table `users` add primary key `testname`(`test`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-add-column-primary-fluent-named",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `test` varchar(255)",
+          "bindings": []
+        },
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create table \"users\" (\"test\" varchar(255), constraint \"testconstraintname\" primary key (\"test\"))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create table \"users\" (\"test\" varchar(255), constraint \"testconstraintname\" primary key (\"test\"))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create table \"users\" (\"test\" varchar(255) not null)",
+          "bindings": []
+        },
+        {
+          "sql": "alter table \"users\" add constraint \"testconstraintname\" primary key (\"test\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users` (`test` varchar(255), constraint `testconstraintname` primary key (`test`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `users` (`test` varchar(255), constraint `testconstraintname` primary key (`test`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `users` (`test` varchar(255), constraint `testconstraintname` primary key (`test`))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-primary-fluent-named",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `users` (`test` varchar(255), constraint `testconstraintname` primary key (`test`))",
           "bindings": []
         }
       ]

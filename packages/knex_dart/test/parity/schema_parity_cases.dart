@@ -412,4 +412,59 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/column-specifictype-unique-notnull': (d) => _sb(d).alterTable('users', (t) {
         t.specificType('foo', 'CITEXT').unique().notNullable();
       }).toSQL(),
+
+  // ── Mined from knex.js test/unit/schema-builder/postgres.js ──────────────
+  // (schema DDL batch 6). Same ids/theming as the mirror block in
+  // tool/parity/run_js_schema.mjs.
+
+  'schema/view-refresh-materialized-concurrently': (d) =>
+      _sb(d).refreshMaterializedView('view_to_refresh', true).toSQL(),
+
+  'schema/drop-table-with-schema': (d) =>
+      _sb(d).withSchema('myschema').dropTable('users').toSQL(),
+  'schema/drop-table-if-exists-with-schema': (d) =>
+      _sb(d).withSchema('myschema').dropTableIfExists('users').toSQL(),
+
+  'schema/alter-table-drop-index-with-schema': (d) =>
+      _sb(d).withSchema('mySchema').alterTable('users', (t) {
+        t.dropIndex('foo');
+      }).toSQL(),
+
+  'schema/alter-table-drop-primary-named': (d) => _sb(d).alterTable('users', (t) {
+        t.dropPrimary('testconstraintname');
+      }).toSQL(),
+
+  'schema/alter-table-primary-single-column-unnamed': (d) => _sb(d).alterTable('users', (t) {
+        t.primary('foo');
+      }).toSQL(),
+
+  'schema/create-table-foreign-mixed-actions': (d) => _sb(d).createTable('person', (t) {
+        t.integer('user_id').notNullable().references('users.id').onDelete('SET NULL');
+        t.integer('account_id')
+            .notNullable()
+            .references('id')
+            .inTable('accounts')
+            .onUpdate('cascade');
+      }).toSQL(),
+
+  'schema/alter-table-comment-empty': (d) => _sb(d).alterTable('user', (t) {
+        t.comment('');
+      }).toSQL(),
+
+  'schema/create-extension': (d) => _sb(d).createExtension('test').toSQL(),
+  'schema/create-extension-if-not-exists': (d) =>
+      _sb(d).createExtensionIfNotExists('test').toSQL(),
+  'schema/drop-extension': (d) => _sb(d).dropExtension('test').toSQL(),
+  'schema/drop-extension-if-exists': (d) => _sb(d).dropExtensionIfExists('test').toSQL(),
+
+  'schema/alter-table-add-column-primary-fluent': (d) => _sb(d).alterTable('users', (t) {
+        t.string('test').primary();
+      }).toSQL(),
+  'schema/alter-table-add-column-primary-fluent-named': (d) => _sb(d).alterTable('users', (t) {
+        t.string('test').primary(constraintName: 'testname');
+      }).toSQL(),
+
+  'schema/create-table-primary-fluent-named': (d) => _sb(d).createTable('users', (t) {
+        t.string('test').primary(constraintName: 'testconstraintname');
+      }).toSQL(),
 };
