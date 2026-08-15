@@ -40,39 +40,44 @@ class TableBuilder {
     return driver;
   }
 
+  /// MySQL-family driver-name set. Includes `mariadb` (which emits
+  /// driver-name `'mariadb'`, not `'mysql2'`). Previously every per-type
+  /// `switch (_dialect) { case 'mysql': case 'mysql2': ... }` block below
+  /// silently dispatched mariadb to the Postgres-shaped `default` branch —
+  /// dropping the unsigned/auto_increment-friendly type, the tinyint(1)
+  /// boolean synonym, the float-with-precision spelling, etc. Same family-
+  /// missing bug pattern the parity harness's mariadb dialect caught for
+  /// the query-compiler family-aware helpers — see the commit history for
+  /// `_isMySqlLikeDriver` (query_compiler.dart) and `_mysqlLike`
+  /// (column_builder.dart).
+  static const _mysqlLike = {'mysql', 'mysql2', 'mariadb'};
+
+  bool get _isMysqlDialect => _mysqlLike.contains(_dialect);
+  bool get _isRedshiftDialect => _dialect == 'redshift';
+
   // ============================================================================
   // DIALECT-AWARE TYPE RESOLUTION
   // ============================================================================
 
   String _incrementsType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'integer primary key autoincrement';
-      case 'mysql':
-      case 'mysql2':
-        return 'int unsigned auto_increment primary key';
-      case 'redshift':
-        // Redshift has no SERIAL type; IDENTITY is the equivalent.
-        return 'integer identity(1,1) primary key not null';
-      default: // pg
-        return 'serial primary key';
+    if (_dialect == 'sqlite') return 'integer primary key autoincrement';
+    if (_isMysqlDialect) return 'int unsigned auto_increment primary key';
+    if (_isRedshiftDialect) {
+      // Redshift has no SERIAL type; IDENTITY is the equivalent.
+      return 'integer identity(1,1) primary key not null';
     }
+    return 'serial primary key'; // pg, cockroachdb
   }
 
   String _bigIncrementsType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'integer primary key autoincrement';
-      case 'mysql':
-      case 'mysql2':
-        return 'bigint unsigned auto_increment primary key';
-      case 'redshift':
-        return 'bigint identity(1,1) primary key not null';
-      default: // pg
-        return 'bigserial primary key';
+    if (_dialect == 'sqlite') return 'integer primary key autoincrement';
+    if (_isMysqlDialect) {
+      return 'bigint unsigned auto_increment primary key';
     }
+    if (_isRedshiftDialect) {
+      return 'bigint identity(1,1) primary key not null';
+    }
+    return 'bigserial primary key'; // pg, cockroachdb
   }
 
   String _stringType(int length) {
@@ -86,126 +91,87 @@ class TableBuilder {
   }
 
   String _booleanType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'boolean'; // SQLite stores as 0/1
-      case 'mysql':
-      case 'mysql2':
-        return 'tinyint(1)';
-      default:
-        return 'boolean';
-    }
+    // knex.js 3.x: ALL clients (pg, mysql2, sqlite3, cockroachdb, redshift,
+    // and the mysql/mariadb family) emit `boolean` for `table.boolean(col)`.
+    // Verified against real knex.js 3.3.0:
+    //   pg:          alter table "users" add column "foo" boolean
+    //   mysql2:      alter table `users` add `foo` boolean
+    //   sqlite3:     alter table `users` add column `foo` boolean
+    //   cockroachdb: alter table "users" add column "foo" boolean
+    //   redshift:    alter table "users" add column "foo" boolean
+    // Previously knex-dart emitted `tinyint(1)` for mysql/mariadb — a legacy
+    // spelling knex.js dropped. MariaDB 10.0+ has `BOOLEAN` as a true alias
+    // for `TINYINT(1)` (column means the same thing, just different keyword
+    // spelling); Postgres/SQLite both treat `BOOLEAN` as a real type.
+    return 'boolean';
   }
 
   String _datetimeType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'datetime';
-      case 'mysql':
-      case 'mysql2':
-        return 'datetime';
-      default:
-        return 'timestamptz';
-    }
+    if (_isMysqlDialect) return 'datetime';
+    if (_dialect == 'sqlite') return 'datetime';
+    return 'timestamptz';
   }
 
   String _timestampType([bool useTz = true]) {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'datetime';
-      case 'mysql':
-      case 'mysql2':
-        return 'timestamp';
-      default:
-        return useTz ? 'timestamptz' : 'timestamp';
-    }
+    if (_isMysqlDialect) return 'timestamp';
+    if (_dialect == 'sqlite') return 'datetime';
+    return useTz ? 'timestamptz' : 'timestamp';
   }
 
   String _binaryType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'blob';
-      case 'mysql':
-      case 'mysql2':
-        return 'blob';
-      default:
-        return 'bytea';
-    }
+    if (_dialect == 'sqlite' || _isMysqlDialect) return 'blob';
+    if (_isRedshiftDialect) return 'varchar(max)';
+    return 'bytea'; // pg, cockroachdb
   }
 
   String _uuidType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'char(36)';
-      case 'mysql':
-      case 'mysql2':
-        return 'char(36)';
-      default:
-        return 'uuid';
-    }
+    if (_dialect == 'sqlite' || _isMysqlDialect) return 'char(36)';
+    if (_isRedshiftDialect) return 'char(36)';
+    return 'uuid'; // pg, cockroachdb
   }
 
   String _jsonType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'json';
-      case 'mysql':
-      case 'mysql2':
-        return 'json';
-      case 'redshift':
-        return 'varchar(max)';
-      default:
-        return 'json';
-    }
+    if (_isMysqlDialect) return 'json';
+    if (_isRedshiftDialect) return 'varchar(max)';
+    // sqlite, pg, cockroachdb all use `json`
+    return 'json';
   }
 
   String _jsonbType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'json';
-      case 'mysql':
-      case 'mysql2':
-        return 'json'; // MySQL doesn't distinguish json/jsonb
-      case 'redshift':
-        return 'varchar(max)';
-      default:
-        return 'jsonb';
-    }
+    if (_dialect == 'sqlite' || _isMysqlDialect) return 'json';
+    if (_isRedshiftDialect) return 'varchar(max)';
+    return 'jsonb'; // pg, cockroachdb
   }
 
   String _floatType() {
-    switch (_dialect) {
-      case 'sqlite':
-      case 'sqlite3':
-        return 'float';
-      case 'mysql':
-      case 'mysql2':
-        return 'float';
-      default:
-        return 'real';
-    }
+    if (_dialect == 'sqlite') return 'float';
+    if (_isMysqlDialect) return 'float';
+    // pg, cockroachdb, redshift all use `real` (verified against real knex.js
+    // 3.3.0 — pg AND redshift AND cockroachdb's clients all emit `real` for
+    // `table.float`, NOT `float` or `float(p,s)`). Note: when the caller
+    // passes precision/scale args (knex.js's `table.float('x', 5, 2)`), the
+    // mysql2 client emits `float(5, 2)` and the other dialects still emit
+    // `real`/`float` (ignoring the args). knex-dart's `float(column)` API
+    // doesn't expose precision/scale — see the `schema/column-float::mysql`
+    // parity allowlist entry for the cosmetic divergence.
+    return 'real';
   }
 
   String _enumType(String column, List<String> values) {
     // Escape single quotes in enum values to prevent broken SQL / injection
     // (e.g. a value like `O'Brien` must become `'O''Brien'`).
     String quote(String v) => "'${v.replaceAll("'", "''")}'";
-    switch (_dialect) {
-      case 'mysql':
-      case 'mysql2':
-        final valuesStr = values.map(quote).join(', ');
-        return 'enum($valuesStr)';
-      default: // PG and SQLite use CHECK constraint
-        final valuesStr = values.map(quote).join(', ');
-        return 'text check ("$column" in ($valuesStr))';
+    if (_isMysqlDialect) {
+      return 'enum(${values.map(quote).join(', ')})';
     }
+    // Redshift has no CHECK-constraint or ENUM-type support — knex.js's
+    // redshift client emits `varchar(255)` as the type (verified against
+    // real knex.js 3.3.0). Without this branch, knex-dart emitted
+    // `text check (...)`, which Redshift rejects at parse time (no
+    // inline CHECK on CREATE/ALTER).
+    if (_isRedshiftDialect) return 'varchar(255)';
+    // pg, sqlite, cockroachdb use text + CHECK constraint
+    return 'text check ("$column" in (${values.map(quote).join(', ')}))';
   }
 
   // ============================================================================
@@ -396,11 +362,19 @@ class TableBuilder {
     });
   }
 
-  /// Drop multiple columns
+  /// Drop multiple columns.
+  ///
+  /// knex.js emits a single combined `alter table t drop column X, drop
+  /// column Y` statement (or `drop X, drop Y` for MySQL), NOT one statement
+  /// per column — verified against real knex.js 3.3.0 for pg/mysql/sqlite/
+  /// redshift. Previously this looped and pushed N separate `dropColumn`
+  /// statements, producing N `alter table ... drop column X` statements
+  /// instead of the combined form the harness expected.
   void dropColumns(List<String> columns) {
-    for (final col in columns) {
-      dropColumn(col);
-    }
+    _alterStatements.add({
+      'method': 'dropColumns',
+      'args': [columns],
+    });
   }
 
   /// Rename a column

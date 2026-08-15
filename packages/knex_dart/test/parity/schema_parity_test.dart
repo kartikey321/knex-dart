@@ -608,6 +608,161 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see schema/alter-table-column-unsigned::mysql — int/integer '
           'synonym + `ADD` vs `ADD COLUMN` (unsigned itself matches after '
           'the fix).',
+
+  // ── Batch 6 mariadb siblings for the new column-type cases. All are
+  // [ACCEPTED] mirror entries of established mysql allowlist patterns:
+  // `ADD`/`ADD COLUMN` cosmetic spelling difference plus (for column-float
+  // only) dart's `float`-without-precision/spelling vs knex.js mysql2's
+  // `float(8, 2)` default-precision spelling. Verified against real knex.js
+  // 3.3.0:
+  //   mysql2 binary:    `alter table \`users\` add \`avatar\` blob`
+  //   mysql2 boolean:   `alter table \`users\` add \`enabled\` boolean default '0'`
+  //   mysql2 enum:       `alter table \`users\` add \`role\` enum('admin', 'user', 'guest')`
+  //   mysql2 enu:        `alter table \`users\` add \`status\` enum('active', 'idle')`
+  //   mysql2 float:      `alter table \`users\` add \`score\` float(8, 2)`  (default p=8,s=2)
+  //   mysql2 uuid:       `alter table \`users\` add \`external_id\` char(36)`
+  // dart mariadb emits `add column <type> ...` (the COLUMN keyword + the
+  // base type without precision); the harness compares against the mysql2
+  // (family:mysql proxy) output. The `ADD` vs `ADD COLUMN` divergence is
+  // the established cosmetic pattern at schema/alter-table-add-column::mysql.
+  'schema/column-binary::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
+          '`ADD COLUMN` only (the `blob` type spelling now matches after '
+          'the _binaryType mariadb-family fix in table_builder.dart).',
+  'schema/column-binary::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
+          '`ADD COLUMN` only (binary itself matches).',
+  'schema/column-boolean::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
+          '`ADD COLUMN` only (the `boolean` type spelling now matches after '
+          'the _booleanType fix; previously dart emitted legacy `tinyint(1)` '
+          'which knex.js 3.x dropped).',
+  'schema/column-boolean::mysql':
+      '[ACCEPTED] see schema/column-boolean::mariadb — `ADD` vs `ADD COLUMN` '
+          'only (boolean type matches after the _booleanType fix).',
+  'schema/column-enum::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
+          '`ADD COLUMN` only (the `enum(...)` spelling now matches after '
+          'the _enumType mariadb-family fix).',
+  'schema/column-enum::mysql':
+      '[ACCEPTED] see schema/column-enum::mariadb — `ADD` vs `ADD COLUMN` '
+          'only (enum type matches after the _enumType fix).',
+  'schema/column-enu::mariadb':
+      '[ACCEPTED] see schema/column-enum::mariadb — `enu` is the dart method '
+          'name; same dispatch path as `enum`, same `ADD` vs `ADD COLUMN` '
+          'cosmetic divergence only.',
+  'schema/column-enu::mysql':
+      '[ACCEPTED] see schema/column-enum::mariadb — `ADD` vs `ADD COLUMN` '
+          'only (enu type matches after the _enumType fix).',
+  'schema/column-float::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql (`ADD` vs `ADD '
+          'COLUMN`) plus dart emits `float` (no precision) where knex.js '
+          'mysql2 emits `float(8, 2)` (knex.js\'s default precision/scale '
+          'when none is given). dart\'s `float(column)` API doesn\'t expose '
+          'precision/scale args — a deliberate narrower API, same as the '
+          'narrow setNullable/dropNullable ops. MariaDB 10.0+ treats '
+          '`float` as a synonym for `float(p, s)` with default precision '
+          '(same column type).',
+  'schema/column-float::mysql':
+      '[ACCEPTED] see schema/column-float::mariadb — `ADD` vs `ADD COLUMN` '
+          '+ `float` vs `float(8, 2)` default-precision cosmetic spelling.',
+  'schema/column-uuid-bare::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
+          '`ADD COLUMN` only (the `char(36)` uuid spelling now matches after '
+          'the _uuidType mariadb-family fix).',
+  'schema/column-uuid-bare::mysql':
+      '[ACCEPTED] see schema/column-uuid-bare::mariadb — `ADD` vs `ADD '
+          'COLUMN` only (uuid spelling matches after the _uuidType fix).',
+
+  // ── Batch 6 create-table-if-not-exists siblings — same int/integer,
+  // serial-vs-auto_increment, and implicit-NOT-NULL cosmetic divergences
+  // as the existing create-table-basic::mysql/sqlite entries. Verified
+  // against real knex.js 3.3.0:
+  //   mysql2:  `create table if not exists \`users\` (\`id\` int unsigned not null auto_increment primary key, \`email\` varchar(255))`
+  //   sqlite3: `create table if not exists "users" ("id" integer not null primary key autoincrement, "email" varchar(255))`
+  'schema/create-table-if-not-exists::mysql':
+      '[ACCEPTED] see schema/create-table-basic::mysql — int/integer '
+          'synonym + serial-vs-auto_increment + implicit NOT NULL + '
+          '`if not exists` prefix (the prefix branch was already exercised '
+          'by create-table-basic; this case adds the if-not-exists-specific '
+          'coverage and the same cosmetic divergences repeat).',
+  'schema/create-table-if-not-exists::mariadb':
+      '[ACCEPTED] see schema/create-table-if-not-exists::mysql — mariadb '
+          'mirrors the same cosmetic divergences (int/integer, serial-vs-'
+          'auto_increment, implicit NOT NULL) under the `if not exists` '
+          'prefix; `ADD` vs `ADD COLUMN` not relevant here (no alter-table '
+          'follow-up).',
+  'schema/create-table-if-not-exists::sqlite':
+      '[ACCEPTED] see schema/create-table-basic::sqlite — implicit NOT NULL '
+          'on `integer primary key autoincrement` + `if not exists` prefix.',
+  'schema/create-table-if-not-exists::turso':
+      '[ACCEPTED] see schema/create-table-if-not-exists::sqlite (turso is '
+          'sqlite-family).',
+  'schema/create-table-if-not-exists::d1':
+      '[ACCEPTED] see schema/create-table-if-not-exists::sqlite (d1 is '
+          'sqlite-family).',
+
+  // ── Batch 6 alter-table-drop-columns-multi sqlite-family siblings —
+  // same PRAGMA-reroute-vs-direct-emit ACCEPTED pattern as the existing
+  // alter-table-drop-column::sqlite/turso/d1 entries. knex.js still
+  // reroutes `dropColumns([a, b])` through the PRAGMA-based rebuild (a
+  // single `PRAGMA table_info(...)` probe statement is emitted, NOT the
+  // direct `drop column X, drop column Y`); knex-dart emits the direct
+  // combined form (now a single statement, after the multi-column
+  // combining fix in schema_compiler.dart's `case 'dropColumns':` branch).
+  // Same "modern vs legacy-compat" cosmetic choice as the single-column
+  // drop — see the `'alter-table-drop-column::sqlite'` entry's explanation.
+  'schema/alter-table-drop-columns-multi::sqlite':
+      '[ACCEPTED] knex.js routes `dropColumns([X, Y])` through the PRAGMA-'
+          'based rebuild for pre-3.35 SQLite compat; knex-dart emits the '
+          'direct combined `alter table ... drop column X, drop column Y` '
+          '(valid since SQLite 3.35, 2021). See schema/alter-table-drop-'
+          'column::sqlite — same family-divergence pattern, multi-col form.',
+  'schema/alter-table-drop-columns-multi::turso':
+      '[ACCEPTED] see schema/alter-table-drop-columns-multi::sqlite (turso '
+          'is sqlite-family).',
+  'schema/alter-table-drop-columns-multi::d1':
+      '[ACCEPTED] see schema/alter-table-drop-columns-multi::sqlite (d1 is '
+          'sqlite-family).',
+
+  // ── Batch 6 mariadb siblings for the new column-integer families —
+  // [ACCEPTED] mirrors of established cosmetic patterns.
+  //   column-bigInteger::mysql/mariadb:    pure `ADD` vs `ADD COLUMN`
+  //   column-bigIncrements::mysql/mariadb: `ADD`/`ADD COLUMN` + implicit
+  //     NOT NULL on AUTO_INCREMENT primary key + `bigint unsigned
+  //     auto_increment primary key` (both sides now emit identical type
+  //     spelling after the _bigIncrementsType mariadb-family fix — the
+  //     remaining divergence is only the redundant-NOT-NULL keyword knex.js
+  //     states that dart omits, same as the create-table-basic::mysql
+  //     implicit-NOT-NULL ACCEPTED entry's grouped note (3)).
+  //   column-bigIncrements::sqlite/turso/d1: same implicit-NOT-NULL on
+  //     `integer primary key autoincrement` pattern as create-table-basic::
+  //     sqlite — sqlite-family forces NOT NULL on these columns regardless
+  //     of an explicit keyword.
+  'schema/column-bigInteger::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD '
+          'COLUMN` only (the `bigint` type spelling matches).',
+  'schema/column-bigInteger::mysql':
+      '[ACCEPTED] see schema/column-bigInteger::mariadb — `ADD` vs `ADD '
+          'COLUMN` only.',
+  'schema/column-bigIncrements::mariadb':
+      '[ACCEPTED] see schema/create-table-basic::mysql grouped note (3) — '
+          'implicit NOT NULL on AUTO_INCREMENT primary key + `ADD` vs `ADD '
+          'COLUMN`. The `bigint unsigned auto_increment primary key` type '
+          'spelling itself matches after the _bigIncrementsType mariadb-'
+          'family fix in table_builder.dart.',
+  'schema/column-bigIncrements::mysql':
+      '[ACCEPTED] see schema/column-bigIncrements::mariadb — implicit NOT '
+          'NULL + `ADD` vs `ADD COLUMN`.',
+  'schema/column-bigIncrements::sqlite':
+      '[ACCEPTED] see schema/create-table-basic::sqlite — implicit NOT NULL '
+          'on `integer primary key autoincrement` (sqlite-family).',
+  'schema/column-bigIncrements::turso':
+      '[ACCEPTED] see schema/column-bigIncrements::sqlite (turso is '
+          'sqlite-family).',
+  'schema/column-bigIncrements::d1':
+      '[ACCEPTED] see schema/column-bigIncrements::sqlite (d1 is '
+          'sqlite-family).',
 };
 
 const Set<String> _skipDialects = {'mssql'};

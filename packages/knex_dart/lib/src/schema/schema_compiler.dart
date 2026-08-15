@@ -152,8 +152,15 @@ class SchemaCompiler {
     final driver = client.driverName.toLowerCase();
 
     if (_isPostgresLike(driver)) {
+      // Redshift: `create table t (like src)` — no `including all` suffix.
+      // Redshift's `LIKE` form already copies column defs, distribution, and
+      // sort keys; the `INCLUDING ALL` clause is a Postgres-only extension
+      // (knex.js's redshift client omits it — verified against real knex.js
+      // 3.3.0). Cockroachdb supports it and knex.js's cockroachdb client
+      // emits it match postgres.
+      final likeSuffix = driver == 'redshift' ? '' : ' including all';
       if (callback == null) {
-        _pushQuery('create table $tableRef (like $sourceRef including all)');
+        _pushQuery('create table $tableRef (like $sourceRef$likeSuffix)');
         return;
       }
 
@@ -162,12 +169,11 @@ class SchemaCompiler {
       final extraColumns = tb.columns
           .map((c) => c.toSQL(dialect: client.driverName, wrap: _wrap))
           .toList();
-      final extraSql = extraColumns.isEmpty
-          ? ''
-          : ', ${extraColumns.join(', ')}';
+      final extraSql =
+          extraColumns.isEmpty ? '' : ', ${extraColumns.join(', ')}';
 
       _pushQuery(
-        'create table $tableRef (like $sourceRef including all$extraSql)',
+        'create table $tableRef (like $sourceRef$likeSuffix$extraSql)',
       );
       _pushDeferredConstraintsForTable(tableName, tableRef, tb);
       return;
@@ -202,10 +208,16 @@ class SchemaCompiler {
 
   void _createView(String viewName, dynamic definition) {
     final compiled = _compileSelectable(definition, operation: 'createView');
-    _pushQuery(
-      'create view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
-    );
+    // View DDL cannot accept parameters at parse time — Postgres/MySQL/SQLite
+    // all reject `create view ... where col = $1` (or `?`). knex.js inlines
+    // bound values directly into the view's SQL string at compile time
+    // (verified against real knex.js 3.3.0: `create view "v" as select *
+    // from "users" where "active" = true` — no bindings, the literal `true`
+    // is baked into the SQL). Without this, knex-dart emitted
+    // `... where "active" = $1` with a separate `[true]` bindings list,
+    // which Postgres/MySQL/SQLite all reject at execution time.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
+    _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
   }
 
   void _createViewOrReplace(String viewName, dynamic definition) {
@@ -214,17 +226,15 @@ class SchemaCompiler {
       operation: 'createViewOrReplace',
     );
     final driver = client.driverName.toLowerCase();
+    // Same view-DDL-can't-take-bindings reason as _createView — inline them.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
     if (_isSqliteLike(driver)) {
       _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
-      _pushQuery(
-        'create view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-        compiled.bindings,
-      );
+      _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
       return;
     }
     _pushQuery(
-      'create or replace view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
+      'create or replace view ${_prefixedTableName(viewName)} as $inlinedSql',
     );
   }
 
@@ -234,9 +244,12 @@ class SchemaCompiler {
       definition,
       operation: 'createMaterializedView',
     );
+    // Same view-DDL binding-inlining reason as _createView — see the
+    // comment there. Materialized views in Postgres are equally unable to
+    // accept parameters at parse time.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
     _pushQuery(
-      'create materialized view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
+      'create materialized view ${_prefixedTableName(viewName)} as $inlinedSql',
     );
   }
 
@@ -572,6 +585,25 @@ class SchemaCompiler {
         case 'dropColumn':
           _pushQuery('alter table $tableRef drop column ${_wrap(args[0])}');
           break;
+        case 'dropColumns':
+          // knex.js emits a single combined `alter table t drop column X,
+          // drop column Y` statement (or `drop X, drop Y` for MySQL-family)
+          // — verified against real knex.js 3.3.0 for pg/mysql/sqlite/
+          // redshift. SQLite reroutes through the PRAGMA-based table rebuild
+          // (see the existing `alter-table-drop-column::sqlite` ACCEPTED
+          // entry — same family-pattern as `alter-table-add-column-foreign`
+          // and `alter-table-set-nullable`); dart pushes a separate
+          // `dropColumns-multi::sqlite` ACCEPTED entry below ratchets that.
+          final cols = (args[0] as List).cast<String>();
+          if (_isMySqlLike(client.driverName)) {
+            final dropParts = cols.map((c) => 'drop ${_wrap(c)}').join(', ');
+            _pushQuery('alter table $tableRef $dropParts');
+          } else {
+            final dropParts =
+                cols.map((c) => 'drop column ${_wrap(c)}').join(', ');
+            _pushQuery('alter table $tableRef $dropParts');
+          }
+          break;
         case 'renameColumn':
           if (client.driverName == 'mssql') {
             // MSSQL uses sp_rename with bindings to avoid injection.
@@ -829,6 +861,120 @@ class SchemaCompiler {
   void _raw(String sql, List<dynamic> bindings) {
     _pushQuery(sql, bindings);
   }
+
+  /// Inline bindings back into a SQL string as escaped literals. Used only
+  /// for view-DDL compile paths (`_createView`/`_createViewOrReplace`/
+  /// `_createMaterializedView`) — Postgres/MySQL/SQLite view DDL cannot
+  /// accept parameters at parse time, so knex.js inlines the values at
+  /// compile time (verified against real knex.js 3.3.0:
+  /// `create view "v" as select * from "users" where "active" = true` —
+  /// no bindings, the literal `true` is baked into the SQL string). This
+  /// mirrors that by replacing `?` and `$N` placeholders (the dialect's
+  /// parameter shape) with the dialect-escaped value, in binding order.
+  ///
+  /// Escaping follows the same family rules as `column_builder.dart`'s
+  /// `_sqlString`:
+  /// - Postgres-family: doubles `'` and `\`, prefixing `E` only when the
+  ///   value actually contains a backslash.
+  /// - MySQL-family: full C-style escape sequences including backslash.
+  /// - SQLite-family and everything else: plain `'` doubling only.
+  /// Booleans become `'1'`/`'0'` (MySQL/SQLite convention) — TODO:
+  /// pg-native `true`/`false`. Numbers and `null` are emitted bare.
+  String _inlineBindings(String sql, List<dynamic> bindings) {
+    if (bindings.isEmpty) return sql;
+    final driver = client.driverName;
+    final isPg = _postgresLikeSet.contains(driver);
+    final isMysql = _mysqlLikeSet.contains(driver);
+    String escapeValue(dynamic v) {
+      if (v == null) return 'null';
+      if (v is bool) {
+        // knex.js inlines `true`/`false` (bare SQL booleans) for a boolean
+        // binding across ALL dialects' view DDL — verified against real
+        // knex.js 3.3.0 for pg, mysql2, sqlite3, cockroachdb, redshift
+        // (all emit `... where "active" = true`, never `'1'`/`'0'`).
+        // Without this, knex-dart emitted `'1'` for mysql/sqlite-family
+        // matching the boolean-column-storage convention — wrong here
+        // because the bound value is the literal `true` (boolean-typed),
+        // not a `1`/`0` integer masquerading as boolean.
+        return v ? 'true' : 'false';
+      }
+      if (v is num) return v.toString();
+      if (v is String) {
+        if (isPg) {
+          var hasBackslash = false;
+          final buf = StringBuffer("'");
+          for (final rune in v.runes) {
+            final ch = String.fromCharCode(rune);
+            if (ch == "'") {
+              buf.write("''");
+            } else if (ch == '\\') {
+              buf.write(r'\\');
+              hasBackslash = true;
+            } else {
+              buf.write(ch);
+            }
+          }
+          buf.write("'");
+          final escaped = buf.toString();
+          return hasBackslash ? 'E$escaped' : escaped;
+        }
+        if (isMysql) {
+          final buf = StringBuffer("'");
+          for (final rune in v.runes) {
+            final ch = String.fromCharCode(rune);
+            buf.write(_mysqlEscapesInline[ch] ?? ch);
+          }
+          buf.write("'");
+          return buf.toString();
+        }
+        // sqlite and everything else: plain `'` doubling
+        return "'${v.replaceAll("'", "''")}'";
+      }
+      // Fall back to .toString() for any other type — same as the
+      // `formatValue` default in `knex_query.dart`.
+      return v.toString();
+    }
+
+    // Replace placeholders in order. Postgres placeholders are `$N`
+    // (1-indexed); mysql/sqlite are `?`. Replace each occurrence with the
+    // next binding's escaped literal.
+    var result = sql;
+    var bi = 0;
+    // Postgres `\$N` — match the N-th placeholder, swap for bindings[N-1].
+    if (isPg) {
+      result = result.replaceAllMapped(
+        RegExp(r'\$(\d+)'),
+        (m) => bi < bindings.length ? escapeValue(bindings[bi++]) : m[0]!,
+      );
+      return result;
+    }
+    // mysql/sqlite `?` — replace each occurrence with the next binding.
+    result = result.replaceAllMapped(
+      RegExp(r'\?'),
+      (m) => bi < bindings.length ? escapeValue(bindings[bi++]) : m[0]!,
+    );
+    return result;
+  }
+
+  static const _postgresLikeSet = {
+    'pg',
+    'postgres',
+    'postgresql',
+    'cockroachdb',
+    'redshift',
+  };
+  static const _mysqlLikeSet = {'mysql', 'mysql2', 'mariadb'};
+  static const _mysqlEscapesInline = {
+    '\x00': r'\0',
+    '\b': r'\b',
+    '\t': r'\t',
+    '\n': r'\n',
+    '\r': r'\r',
+    '\x1a': r'\Z',
+    '"': r'\"',
+    "'": r"\'",
+    '\\': r'\\',
+  };
 
   ({String sql, List<dynamic> bindings}) _compileSelectable(
     dynamic value, {

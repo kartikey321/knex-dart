@@ -12,7 +12,7 @@
     "turso": "sqlite3 (family:sqlite)",
     "d1": "sqlite3 (family:sqlite)"
   },
-  "caseCount": 344,
+  "caseCount": 496,
   "cases": [
     {
       "id": "schema/create-table-basic",
@@ -3838,6 +3838,1505 @@
       "statements": [
         {
           "sql": "alter table `t` add column `qty` integer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"enabled\" boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"enabled\" boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"enabled\" boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `enabled` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `enabled` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `enabled` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `enabled` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-boolean",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `enabled` boolean default '0'",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"score\" real",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"score\" real",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"score\" real",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `score` float(5, 2)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `score` float(5, 2)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `score` float",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `score` float",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-float",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `score` float",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"avatar\" bytea",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"avatar\" bytea",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"avatar\" varchar(max)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `avatar` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `avatar` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `avatar` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `avatar` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-binary",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `avatar` blob",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"external_id\" uuid",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"external_id\" uuid",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"external_id\" char(36)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `external_id` char(36)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `external_id` char(36)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `external_id` char(36)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `external_id` char(36)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-uuid-bare",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `external_id` char(36)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"role\" text check (\"role\" in ('admin', 'user', 'guest'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"role\" text check (\"role\" in ('admin', 'user', 'guest'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"role\" varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `role` enum('admin', 'user', 'guest')",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `role` enum('admin', 'user', 'guest')",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `role` text check (`role` in ('admin', 'user', 'guest'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `role` text check (`role` in ('admin', 'user', 'guest'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enum",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `role` text check (`role` in ('admin', 'user', 'guest'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"status\" text check (\"status\" in ('active', 'idle'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"status\" text check (\"status\" in ('active', 'idle'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"status\" varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `status` enum('active', 'idle')",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `status` enum('active', 'idle')",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `status` text check (`status` in ('active', 'idle'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `status` text check (`status` in ('active', 'idle'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-enu",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `status` text check (`status` in ('active', 'idle'))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"big_count\" bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"big_count\" bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"big_count\" bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `big_count` bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `big_count` bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `big_count` bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `big_count` bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigInteger",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `big_count` bigint",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"audit_id\" bigserial primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"audit_id\" bigserial primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"audit_id\" bigint identity(1,1) primary key not null",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `audit_id` bigint unsigned not null auto_increment primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `audit_id` bigint unsigned not null auto_increment primary key",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `audit_id` integer not null primary key autoincrement",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `audit_id` integer not null primary key autoincrement",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/column-bigIncrements",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `audit_id` integer not null primary key autoincrement",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create view \"active_users\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create view \"active_users\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create view \"active_users\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-bare",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create or replace view \"active_users\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create or replace view \"active_users\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create or replace view \"active_users\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create or replace view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create or replace view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        },
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        },
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-view-or-replace",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        },
+        {
+          "sql": "create view `active_users` as select * from `users` where `active` = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop view \"active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop view \"active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "drop view \"active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "drop view `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "drop view `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "drop view if exists \"active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "drop view if exists \"active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "drop view if exists \"active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/drop-view-if-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter view \"active_users\" rename to \"all_active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter view \"active_users\" rename to \"all_active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter view \"active_users\" rename to \"all_active_users\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "rename table `active_users` to `all_active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "rename table `active_users` to `all_active_users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "sqlite",
+      "error": "rename view is not supported by this dialect (instead drop then create another view)."
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "rename view is not supported by this dialect (instead drop then create another view)."
+    },
+    {
+      "id": "schema/rename-view",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "rename view is not supported by this dialect (instead drop then create another view)."
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create materialized view \"active_users_mv\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create materialized view \"active_users_mv\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create materialized view \"active_users_mv\" as select * from \"users\" where \"active\" = true",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/create-materialized-view",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "refresh materialized view \"active_users_mv\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "refresh materialized view \"active_users_mv\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "refresh materialized view \"active_users_mv\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "refresh materialized view concurrently \"active_users_mv\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "refresh materialized view concurrently \"active_users_mv\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "refresh materialized view concurrently \"active_users_mv\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/refresh-materialized-view-concurrently",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create table if not exists \"users\" (\"id\" serial primary key, \"email\" varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create table if not exists \"users\" (\"id\" serial primary key, \"email\" varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create table if not exists \"users\" (\"id\" integer identity(1,1) primary key not null, \"email\" varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table if not exists `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table if not exists `users` (`id` int unsigned not null auto_increment primary key, `email` varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "create table if not exists `users` (`id` integer not null primary key autoincrement, `email` varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table if not exists `users` (`id` integer not null primary key autoincrement, `email` varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-if-not-exists",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table if not exists `users` (`id` integer not null primary key autoincrement, `email` varchar(255))",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create table \"users_copy\" (like \"users\" including all)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create table \"users_copy\" (like \"users\" including all)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create table \"users_copy\" (like \"users\")",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users_copy` like `users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "create table `users_copy` like `users`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `users_copy` as select * from `users` where 0=1",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `users_copy` as select * from `users` where 0=1",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/create-table-like",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create table `users_copy` as select * from `users` where 0=1",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" drop column \"nickname\", drop column \"avatar\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" drop column \"nickname\", drop column \"avatar\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" drop column \"nickname\", drop column \"avatar\"",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop `nickname`, drop `avatar`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "mariadb",
+      "family": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` drop `nickname`, drop `avatar`",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/alter-table-drop-columns-multi",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "PRAGMA table_info(`users`)",
           "bindings": []
         }
       ]

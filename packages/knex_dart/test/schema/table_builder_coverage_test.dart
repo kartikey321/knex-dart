@@ -23,10 +23,14 @@ void main() {
       expect(t.columns.first.type, contains('bigint'));
     });
 
-    test('boolean uses tinyint(1)', () {
+    test('boolean uses boolean (knex.js 3.x parity)', () {
+      // knex.js 3.x dropped the legacy `tinyint(1)` spelling for MySQL; all
+      // clients now emit `boolean` for `table.boolean(col)`. Verified
+      // against real knex.js 3.3.0 — see table_builder.dart's
+      // `_booleanType()` citation.
       final t = TableBuilder(mysql, 'create', 'tbl');
       t.boolean('active');
-      expect(t.columns.first.type, equals('tinyint(1)'));
+      expect(t.columns.first.type, equals('boolean'));
     });
 
     test('datetime uses datetime (not timestamptz)', () {
