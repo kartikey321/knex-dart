@@ -517,7 +517,12 @@ const cases = [
   })],
 
   // ── Mined from knex.js test/unit/schema-builder/postgres.js ──────────────
-  // (schema DDL batch 6). Cases limited to shapes expressible with
+  // (schema DDL batch 6; also covers test/unit/schema-builder/cockroachdb.js
+  // — that file's 5 tests all exercise dropUniqueIfExists/dropForeignIfExists/
+  // dropPrimaryIfExists and uuid('id', {primaryKey: true}), none of which
+  // knex-dart's TableBuilder/ColumnBuilder expose at all, so it contributed
+  // zero mirrorable cases; don't re-walk it in a future pass). Cases limited
+  // to shapes expressible with
   // knex-dart's current public API — many postgres.js tests exercise
   // options-object arguments (index predicates/storage engine types,
   // .checkPositive()/.checkIn()/etc, .inherits(), useNative enums,
