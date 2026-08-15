@@ -295,56 +295,34 @@ const Map<String, String> parityAllowlist = {
           'to _whereJsonPath() in query_compiler.dart, then remove this '
           'entry.',
 
-  // ── ACCEPTED: mariadb RETURNING — knex-dart is more correct than the
-  // harness's mysql2 reference. knex.js has no dedicated mariadb client, so
-  // the harness uses the wire-compatible `mysql2` client for mariadb too
-  // (see `family: 'mysql'` in run_js.mjs / run_js_schema.mjs). knex.js's
-  // mysql2 client silently drops `.returning()` with a console warning
-  // (".returning() is not supported by mysql and will not have any effect"),
-  // because MySQL itself does not support RETURNING. But MariaDB 10.5+
-  // *does* support RETURNING on INSERT/UPDATE/DELETE — and knex-dart's
-  // `knex_dart_capabilities` matrix correctly lists `SqlCapability.returning`
-  // for `KnexDialect.mariadb` (see capabilities.dart lines 48 and 82-83:
-  // `// returning on MariaDB requires 10.5+.`, `KnexDialect.mariadb: {
-  // SqlCapability.returning, ... }`). knex-dart therefore emits the
-  // RETURNING clause for mariadb and is right to do so; the harness's
-  // mysql2-shaped expected fixture is the artifact of using mysql2 as a
-  // cross-family proxy for mariadb. Same class as the existing
-  // `upsert/merge::redshift` ACCEPTED entries (knex-dart refuses where
-  // knex.js silently emits a no-op), just the inverse direction (knex-dart
-  // emits where knex.js silently drops).
+  // ── ACCEPTED: mariadb RETURNING on UPDATE/CTE — knex.js's real mariadb
+  // client version-gates `.returning()` on UPDATE for MariaDB <13.0 and
+  // silently drops the clause (verified: `.returning() is not supported for
+  // mariadb versions older than 13.0 and will not have any effect.`).
+  // MariaDB 10.5+ supports RETURNING on INSERT/DELETE; for UPDATE the client
+  // requires 13.0+. knex-dart's `knex_dart_capabilities` matrix lists
+  // `SqlCapability.returning` for `KnexDialect.mariadb` without an UPDATE-
+  // specific gate, so dart emits RETURNING on all three verbs. For
+  // INSERT/DELETE the dart output matches real knex.js mariadb verbatim
+  // (no divergence — the harness was repointed from `{knex: 'mysql2',
+  // family: 'mysql'}` to `{knex: 'mariadb'}` once a reviewer confirmed
+  // knex.js has a dedicated mariadb client that extends mysql's and
+  // overrides insert()/del() to support version-gated RETURNING). For
+  // UPDATE/CTE-update the divergence remains (knex.js drops, dart emits)
+  // — same class as `upsert/merge::redshift` (knex-dart emits where
+  // knex.js silently drops).
   //
-  // Verified against real knex.js 3.3.0 — `node -e` literal output for each
-  // shape (all show the warning followed by SQL with no RETURNING clause):
-  //   returning/insert:           `insert into \`users\` (\`email\`) values (?)` (bindings: `["a@b.com"]`)
-  //   dml/returning-update:        `update \`users\` set \`name\` = ? where \`id\` = ?` (bindings: `["Bob",1]`)
-  //   dml/returning-delete:        `delete from \`users\` where \`id\` = ?` (bindings: `[1]`)
-  //   dml/returning-multi-insert:  `insert into \`users\` (\`email\`) values (?), (?)` (bindings: `["a","b"]`)
-  //   insert/empty-object-returning: `insert into \`users\` () values ()` (bindings: `[]`)
-  //   cte/update-source:           `with \`updated_group\` as (update \`group\` set \`group_name\` = ? where \`group_id\` = ?) update \`user\` set \`name\` = ? where \`group_id\` = ?` (bindings: `["bar",1,"foo",1]`)
-  'returning/insert::mariadb':
-      '[ACCEPTED] MariaDB 10.5+ supports RETURNING; knex-dart correctly '
-          'emits it (capabilities.dart line 83 lists `SqlCapability.returning` '
-          'for `KnexDialect.mariadb`). The harness uses knex.js\'s `mysql2` '
-          'client as the wire-compatible reference for mariadb (no dedicated '
-          'mariadb client exists in knex.js), and `mysql2` silently drops '
-          '`.returning()` with a console warning (MySQL does not support '
-          'RETURNING). knex-dart is right; the mysql2-shaped expected here is '
-          'a proxy artifact. See the note above this block for the `node -e` '
-          'confirmation.',
-  'dml/returning-update::mariadb':
+  // Verified against real knex.js 3.3.0 mariadb client — `node -e` output:
+  //   dml/returning-update: `update \`users\` set \`name\` = ? where \`id\` = ?` (drops RETURNING; dart emits `... returning *`)
+  //   cte/update-source:    `with \`updated_group\` as (update \`group\` set \`group_name\` = ? where \`group_id\` = ?) update \`user\` set \`name\` = ? where \`group_id\` = ?` (drops RETURNING from CTE body; dart emits it)
+  //
+  // The INSERT/DELETE/multi-insert/empty-object entries previously here
+  // were removed once the harness pointed at the real mariadb client —
+  // the divergences vanished (ratchet forced it).
+
+'dml/returning-update::mariadb':
       '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
           'capability divergence (this time on UPDATE with `.returning(\'*\')`).',
-  'dml/returning-delete::mariadb':
-      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
-          'capability divergence (this time on DELETE with `.returning(\'id\')`).',
-  'dml/returning-multi-insert::mariadb':
-      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
-          'capability divergence (multi-row INSERT with `.returning([\'id\',\'email\'])`).',
-  'insert/empty-object-returning::mariadb':
-      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
-          'capability divergence (insert of a single empty-row `{}` with '
-          '`.returning(\'id\')`).',
   'cte/update-source::mariadb':
       '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
           'capability divergence, applied to the inner CTE source statement '

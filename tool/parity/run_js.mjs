@@ -38,7 +38,7 @@ const DIALECTS = {
   cockroachdb: { knex: 'cockroachdb' },
   redshift: { knex: 'redshift' },
   mysql: { knex: 'mysql2' },
-  mariadb: { knex: 'mysql2', family: 'mysql' },
+  mariadb: { knex: 'mariadb' },
   sqlite: { knex: 'sqlite3' },
   turso: { knex: 'sqlite3', family: 'sqlite' },
   d1: { knex: 'sqlite3', family: 'sqlite' },
