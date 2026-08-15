@@ -691,6 +691,98 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/view-create-materialized::redshift':
       '[OPEN BUG] see schema/view-create-basic::postgres.',
 
+  // ── ACCEPTED: schema-mining batch 6 (postgres.js) — new cases hitting the
+  // SAME already-documented divergence patterns above, just via API shapes
+  // (withSchema()-qualified index drops, fluent column-level .primary(),
+  // multiple deferred FK statements in one createTable) the earlier corpus
+  // didn't happen to exercise.
+
+  // "drop index, with schema": MySQL's already-documented ADD/DROP INDEX
+  // spelling choice, plus Redshift's already-documented index-deletion
+  // refusal — now exercised with withSchema() in play too.
+  'schema/alter-table-drop-index-with-schema::mysql':
+      '[ACCEPTED] see schema/alter-table-drop-index::mysql.',
+  'schema/alter-table-drop-index-with-schema::redshift':
+      '[ACCEPTED] see schema/alter-table-drop-index::redshift — knex.js '
+          'silently no-ops (empty statement list) for Redshift dropIndex, '
+          'including the withSchema() form; knex-dart throws instead.',
+
+  // "drop primary takes constraint name" / bare "adding primary key"
+  // (unnamed single column): same SQLite PRAGMA-table-rebuild precedent as
+  // the existing alter-table-drop-primary / alter-table-primary-single-column
+  // entries — just the named-constraint and bare-unnamed-column variants of
+  // those same two operations.
+  'schema/alter-table-drop-primary-named::sqlite':
+      '[ACCEPTED] see schema/alter-table-drop-primary::sqlite.',
+  'schema/alter-table-drop-primary-named::turso':
+      '[ACCEPTED] see schema/alter-table-drop-primary::sqlite (turso is sqlite-family).',
+  'schema/alter-table-drop-primary-named::d1':
+      '[ACCEPTED] see schema/alter-table-drop-primary::sqlite (d1 is sqlite-family).',
+  'schema/alter-table-primary-single-column-unnamed::sqlite':
+      '[ACCEPTED] see schema/alter-table-primary-single-column::sqlite.',
+  'schema/alter-table-primary-single-column-unnamed::turso':
+      '[ACCEPTED] see schema/alter-table-primary-single-column::sqlite (turso is sqlite-family).',
+  'schema/alter-table-primary-single-column-unnamed::d1':
+      '[ACCEPTED] see schema/alter-table-primary-single-column::sqlite (d1 is sqlite-family).',
+
+  // "adds foreign key with onUpdate and onDelete": two FK columns in one
+  // createTable, each with a single action — same FK-action-casing (1),
+  // int/integer synonym (2), implicit NOT NULL (3), and inline-FK whitespace
+  // (4) grouped notes as the existing single-action FK cases, just with two
+  // deferred FK statements instead of one.
+  'schema/create-table-foreign-mixed-actions::postgres':
+      '[ACCEPTED] FK action casing only — see grouped note above (1).',
+  'schema/create-table-foreign-mixed-actions::cockroachdb':
+      '[ACCEPTED] see schema/create-table-foreign-mixed-actions::postgres.',
+  'schema/create-table-foreign-mixed-actions::redshift':
+      '[ACCEPTED] see schema/create-table-foreign-mixed-actions::postgres.',
+  'schema/create-table-foreign-mixed-actions::mysql':
+      '[ACCEPTED] int/integer synonym + FK action casing — see grouped note above (1)(2).',
+  'schema/create-table-foreign-mixed-actions::sqlite':
+      '[ACCEPTED] implicit NOT NULL + FK action casing + inline-FK whitespace — see grouped note above (1)(3)(4).',
+  'schema/create-table-foreign-mixed-actions::turso':
+      '[ACCEPTED] see schema/create-table-foreign-mixed-actions::sqlite (turso is sqlite-family).',
+  'schema/create-table-foreign-mixed-actions::d1':
+      '[ACCEPTED] see schema/create-table-foreign-mixed-actions::sqlite (d1 is sqlite-family).',
+
+  // "alter with primary" > "liquid argument" / "liquid argument with name":
+  // fluent column.primary() on a newly ADDed column. Redshift forces NOT
+  // NULL on the new column because it will carry a primary key (same
+  // "Redshift disallows nullable PK columns" reasoning as
+  // create-table-column-primary::redshift, just manifesting on an ADD
+  // COLUMN statement instead of an inline CREATE TABLE column def); MySQL
+  // is the already-documented ADD/ADD COLUMN spelling choice; SQLite-family
+  // is the already-documented PRAGMA-table-rebuild refusal.
+  'schema/alter-table-add-column-primary-fluent::redshift':
+      '[ACCEPTED] Redshift forces NOT NULL on a column that will carry a '
+          'primary key — same reasoning as schema/create-table-column-primary::redshift, '
+          'here on an ADD COLUMN statement rather than an inline CREATE TABLE column def.',
+  'schema/alter-table-add-column-primary-fluent::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — ADD vs ADD COLUMN only.',
+  'schema/alter-table-add-column-primary-fluent::sqlite':
+      '[ACCEPTED] see schema/alter-table-add-column-foreign::sqlite — knex-dart refuses rather than routing through a PRAGMA-based table rebuild.',
+  'schema/alter-table-add-column-primary-fluent::turso':
+      '[ACCEPTED] see schema/alter-table-add-column-primary-fluent::sqlite (turso is sqlite-family).',
+  'schema/alter-table-add-column-primary-fluent::d1':
+      '[ACCEPTED] see schema/alter-table-add-column-primary-fluent::sqlite (d1 is sqlite-family).',
+  'schema/alter-table-add-column-primary-fluent-named::redshift':
+      '[ACCEPTED] see schema/alter-table-add-column-primary-fluent::redshift.',
+  'schema/alter-table-add-column-primary-fluent-named::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — ADD vs ADD COLUMN only.',
+  'schema/alter-table-add-column-primary-fluent-named::sqlite':
+      '[ACCEPTED] see schema/alter-table-add-column-primary-fluent::sqlite.',
+  'schema/alter-table-add-column-primary-fluent-named::turso':
+      '[ACCEPTED] see schema/alter-table-add-column-primary-fluent::sqlite (turso is sqlite-family).',
+  'schema/alter-table-add-column-primary-fluent-named::d1':
+      '[ACCEPTED] see schema/alter-table-add-column-primary-fluent::sqlite (d1 is sqlite-family).',
+
+  // "#1430" second part — fluent column.primary(name) inside createTable, on
+  // Redshift: same deferred-primary-key-with-forced-NOT-NULL reasoning as
+  // create-table-column-primary::redshift, just with an explicit constraint
+  // name instead of the auto-generated `<table>_pkey`.
+  'schema/create-table-primary-fluent-named::redshift':
+      '[ACCEPTED] see schema/create-table-column-primary::redshift.',
+
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
 };
 

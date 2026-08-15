@@ -348,4 +348,71 @@ void main() {
       expect(sql.single['sql'], 'create table "t" ("x" decimal(5, 2))');
     });
   });
+
+  group('fluent column.primary(constraintName:) inside createTable', () {
+    // Regression test: MySQL/SQLite used to unconditionally omit the
+    // `constraint "name"` prefix for a fluent ColumnBuilder.primary() call,
+    // even when the caller explicitly supplied a constraintName — silently
+    // dropping it. They should only omit it when NO name was given
+    // (verified against real knex.js 3.3.0: bare `.primary()` omits it,
+    // `.primary('name')` includes it identically to Postgres).
+    test('MySQL includes an explicit constraint name', () {
+      final mysql = MockClient(driverName: 'mysql');
+      final sql = mysql.schemaBuilder().createTable('users', (t) {
+        t.string('test').primary(constraintName: 'testconstraintname');
+      }).toSQL();
+      expect(sql.single['sql'],
+          'create table `users` (`test` varchar(255), constraint `testconstraintname` primary key (`test`))');
+    });
+
+    test('MySQL still omits the constraint name when none is given', () {
+      final mysql = MockClient(driverName: 'mysql');
+      final sql = mysql.schemaBuilder().createTable('users', (t) {
+        t.string('test').primary();
+      }).toSQL();
+      expect(sql.single['sql'],
+          'create table `users` (`test` varchar(255), primary key (`test`))');
+    });
+
+    test('SQLite includes an explicit constraint name', () {
+      final sqlite = MockClient(driverName: 'sqlite');
+      final sql = sqlite.schemaBuilder().createTable('users', (t) {
+        t.string('test').primary(constraintName: 'testconstraintname');
+      }).toSQL();
+      expect(sql.single['sql'],
+          'create table "users" ("test" varchar(255), constraint "testconstraintname" primary key ("test"))');
+    });
+
+    test('SQLite still omits the constraint name when none is given', () {
+      final sqlite = MockClient(driverName: 'sqlite');
+      final sql = sqlite.schemaBuilder().createTable('users', (t) {
+        t.string('test').primary();
+      }).toSQL();
+      expect(sql.single['sql'],
+          'create table "users" ("test" varchar(255), primary key ("test"))');
+    });
+  });
+
+  group('alterTable().dropIndex() with withSchema()', () {
+    // Regression test: Postgres-family dropIndex ignored withSchema()
+    // entirely, emitting a bare index name instead of schema-qualifying it
+    // (`"schema"."index_name"`, matching knex.js). SQLite-family
+    // deliberately keeps ignoring withSchema() here (verified against real
+    // knex.js 3.3.0), so only postgres-family should change.
+    test('Postgres qualifies the dropped index name with the schema', () {
+      final pg = MockClient(driverName: 'pg');
+      final sql = pg.schemaBuilder().withSchema('mySchema').alterTable('users', (t) {
+        t.dropIndex('foo');
+      }).toSQL();
+      expect(sql.single['sql'], 'drop index "mySchema"."users_foo_index"');
+    });
+
+    test('SQLite ignores withSchema() for dropIndex', () {
+      final sqlite = MockClient(driverName: 'sqlite');
+      final sql = sqlite.schemaBuilder().withSchema('mySchema').alterTable('users', (t) {
+        t.dropIndex('foo');
+      }).toSQL();
+      expect(sql.single['sql'], 'drop index "users_foo_index"');
+    });
+  });
 }

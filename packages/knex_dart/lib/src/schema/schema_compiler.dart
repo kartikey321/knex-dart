@@ -362,8 +362,15 @@ class SchemaCompiler {
     final primaryColumn = tb.columns.where((col) => col.isPrimary).firstOrNull;
     if (primaryColumn != null && !primaryColumn.type.contains('primary key')) {
       final colStr = _wrap(primaryColumn.name);
-      final omitsConstraintName = _isSqliteLike(client.driverName) ||
-          _isMySqlLike(client.driverName);
+      // MySQL/SQLite only omit the `constraint "name"` prefix when the
+      // caller didn't supply one (verified against real knex.js 3.3.0:
+      // `.primary()` bare omits it, but `.primary('name')` includes it
+      // identically to Postgres). Previously this omitted the name
+      // unconditionally on these dialects, silently dropping an explicitly
+      // requested constraint name.
+      final omitsConstraintName = (_isSqliteLike(client.driverName) ||
+              _isMySqlLike(client.driverName)) &&
+          primaryColumn.primaryConstraintName == null;
       final constraintName =
           primaryColumn.primaryConstraintName ?? '${tableName}_pkey';
       primaryInline = omitsConstraintName
@@ -759,6 +766,13 @@ class SchemaCompiler {
               client.driverName == 'mariadb') {
             // MySQL requires ON <table> to identify the index.
             _pushQuery('drop index ${_wrap(indexName)} on $tableRef');
+          } else if (_isPostgresLike(client.driverName)) {
+            // Postgres-family DROP INDEX qualifies the index name itself
+            // with the schema (not the table) — `"schema"."index_name"`,
+            // matching knex.js. SQLite-family ignores withSchema() here
+            // entirely (verified against real knex.js 3.3.0), so only
+            // postgres-family gets the prefix.
+            _pushQuery('drop index ${_prefixedTableName(indexName as String)}');
           } else {
             _pushQuery('drop index ${_wrap(indexName)}');
           }

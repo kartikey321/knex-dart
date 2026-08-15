@@ -515,6 +515,87 @@ const cases = [
   ['schema/column-specifictype-unique-notnull', (k) => k.schema.alterTable('users', (t) => {
     t.specificType('foo', 'CITEXT').unique().notNullable();
   })],
+
+  // ── Mined from knex.js test/unit/schema-builder/postgres.js ──────────────
+  // (schema DDL batch 6). Cases limited to shapes expressible with
+  // knex-dart's current public API — many postgres.js tests exercise
+  // options-object arguments (index predicates/storage engine types,
+  // .checkPositive()/.checkIn()/etc, .inherits(), useNative enums,
+  // deferrable(), IfExists constraint drops, uuid({primaryKey}),
+  // increments({primaryKey: false}), mediumint/tinyint/smallint,
+  // queryContext) that knex-dart's TableBuilder/ColumnBuilder simply have no
+  // method for — real capability gaps, but scoped feature additions, not
+  // parity fixes; left out of this harness (same reasoning as the
+  // composite-foreign()/column .comment() notes above).
+
+  // "refresh view concurrently"
+  ['schema/view-refresh-materialized-concurrently', (k) =>
+    k.schema.refreshMaterializedView('view_to_refresh', true)],
+
+  // "drop table with schema" / "drop table if exists with schema"
+  ['schema/drop-table-with-schema', (k) =>
+    k.schema.withSchema('myschema').dropTable('users')],
+  ['schema/drop-table-if-exists-with-schema', (k) =>
+    k.schema.withSchema('myschema').dropTableIfExists('users')],
+
+  // "drop index, with schema"
+  ['schema/alter-table-drop-index-with-schema', (k) =>
+    k.schema.withSchema('mySchema').alterTable('users', (t) => {
+      t.dropIndex('foo');
+    })],
+
+  // "drop primary takes constraint name"
+  ['schema/alter-table-drop-primary-named', (k) => k.schema.alterTable('users', (t) => {
+    t.dropPrimary('testconstraintname');
+  })],
+
+  // "adding primary key" — bare single-string column, no constraint name
+  // (distinct from the existing alter-table-primary-single-column case,
+  // which always passes an explicit name).
+  ['schema/alter-table-primary-single-column-unnamed', (k) => k.schema.alterTable('users', (t) => {
+    t.primary('foo');
+  })],
+
+  // "adds foreign key with onUpdate and onDelete" — two FK columns in one
+  // createTable, each with a SINGLE action (not both on the same column,
+  // which the existing create-table-foreign-both-actions case already
+  // covers) — exercises multiple deferred FK statements together, plus the
+  // 'table.column' dotted references() shorthand on the first column.
+  ['schema/create-table-foreign-mixed-actions', (k) => k.schema.createTable('person', (t) => {
+    t.integer('user_id').notNullable().references('users.id').onDelete('SET NULL');
+    t.integer('account_id').notNullable().references('id').inTable('accounts').onUpdate('cascade');
+  })],
+
+  // "set empty comment"
+  ['schema/alter-table-comment-empty', (k) => k.schema.alterTable('user', (t) => {
+    t.comment('');
+  })],
+
+  // "allows creating an extension" / IfNotExists / dropping / IfExists —
+  // not yet in this corpus at all.
+  ['schema/create-extension', (k) => k.schema.createExtension('test')],
+  ['schema/create-extension-if-not-exists', (k) => k.schema.createExtensionIfNotExists('test')],
+  ['schema/drop-extension', (k) => k.schema.dropExtension('test')],
+  ['schema/drop-extension-if-exists', (k) => k.schema.dropExtensionIfExists('test')],
+
+  // "alter with primary" > "liquid argument" / "liquid argument with name"
+  // — fluent column.primary() inside alterTable (add column + a SEPARATE
+  // deferred add-constraint statement), as opposed to createTable's inline/
+  // single-statement form already covered by create-table-column-primary.
+  ['schema/alter-table-add-column-primary-fluent', (k) => k.schema.alterTable('users', (t) => {
+    t.string('test').primary();
+  })],
+  ['schema/alter-table-add-column-primary-fluent-named', (k) => k.schema.alterTable('users', (t) => {
+    t.string('test').primary('testname');
+  })],
+
+  // "#1430" second part — fluent column.primary(name) inside createTable
+  // (single inline statement), as opposed to the composite
+  // TableBuilder.primary([...], name) form already covered by
+  // create-table-primary-named.
+  ['schema/create-table-primary-fluent-named', (k) => k.schema.createTable('users', (t) => {
+    t.string('test').primary('testconstraintname');
+  })],
 ];
 
 const out = [];
