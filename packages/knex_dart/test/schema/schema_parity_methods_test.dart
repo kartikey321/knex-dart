@@ -246,8 +246,8 @@ void main() {
           .alterTable('users', (t) => t.renameColumn('name', 'full_name'))
           .toSQL();
 
-      expect(sqls.first['sql'], 'exec sp_rename ?, ?, ?');
-      expect(sqls.first['bindings'], ['myschema.users.name', 'full_name', 'COLUMN']);
+      expect(sqls.first['sql'], "exec sp_rename ?, ?, 'COLUMN'");
+      expect(sqls.first['bindings'], ['"myschema"."users".name', 'full_name']);
     });
 
     test('renameColumn compiles for MSSQL without schema uses table.column', () {
@@ -257,8 +257,8 @@ void main() {
           .alterTable('users', (t) => t.renameColumn('name', 'full_name'))
           .toSQL();
 
-      expect(sqls.first['sql'], 'exec sp_rename ?, ?, ?');
-      expect(sqls.first['bindings'], ['users.name', 'full_name', 'COLUMN']);
+      expect(sqls.first['sql'], "exec sp_rename ?, ?, 'COLUMN'");
+      expect(sqls.first['bindings'], ['"users".name', 'full_name']);
     });
 
     test('drop-if-exists compiles with MSSQL object_id guards', () {

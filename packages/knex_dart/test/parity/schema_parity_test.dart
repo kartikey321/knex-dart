@@ -691,6 +691,252 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/view-create-materialized::redshift':
       '[OPEN BUG] see schema/view-create-basic::postgres.',
 
+  // ── ACCEPTED: schema-mining batch 7 — MSSQL wired into the parity harness
+  // for the first time (previously entirely skipped, see _skipDialects below).
+  // knex.js's mssql client is the only client that emits DDL keywords in
+  // UPPERCASE (CREATE TABLE, ALTER TABLE, ADD, CONSTRAINT, PRIMARY KEY, DROP,
+  // ...); knex-dart uses lowercase uniformly across every dialect, matching SQL's
+  // own case-insensitivity for keywords (same precedent as the MySQL ADD/ADD
+  // COLUMN spelling difference above) — not chased here, it would mean
+  // case-migrating every string literal in the compiler against the codebase's
+  // uniform convention for zero behavioral gain. Several of these also repeat
+  // the existing int/integer synonym grouped note (2).
+  'schema/alter-table-add-bigincrements::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-biginteger::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-binary::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-boolean::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-column::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-column-foreign::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-date::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-datetime::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-decimal::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-double::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-enum::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-increments::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-index::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-index-composite::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-index-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-json::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-jsonb::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-text::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-time::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-timestamp::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-unique::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-unique-composite::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-unique-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-add-uuid::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-column-unsigned::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-foreign::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-foreign-null-columns-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-index::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-index-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-index-null-columns-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-primary::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-unique::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-unique-composite::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-unique-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-drop-unique-null-columns-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-foreign::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-primary::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-primary-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-primary-single-column::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/alter-table-unique-single-column::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-bigincrements::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-biginteger::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-binary::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-boolean-default::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-date::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-datetime::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-decimal::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-double::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-enum::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-float::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-increments::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-integer::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-json-default-notnull::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-jsonb::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-specifictype-unique-notnull::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-string-default::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-string-length::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-text::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-time::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-timestamp::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/column-uuid::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-basic::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-column-primary::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-column-unsigned::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-comment::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-default-raw-timestamp::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-foreign-column::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-foreign-fluent-cascade::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-foreign-onupdate::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-primary-composite::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-primary-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-unique-column::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-unique-composite-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/create-table-unique-named::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-boolean-false::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-json-object::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-jsonb-object::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-null::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-raw-current-timestamp::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-string-embedded-quote::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/default-string-not-null::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+  'schema/drop-table::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart emits lowercase uniformly across every dialect — cosmetic only, SQL keywords are case-insensitive. Also int/integer synonym where applicable.',
+
+  // ── ACCEPTED: same ON DELETE/ON UPDATE clause-order divergence as grouped
+  // note (6) above (knex.js: ON UPDATE ... ON DELETE ...; knex-dart: on delete
+  // ... on update ...), on MSSQL's inline CREATE TABLE foreign key form.
+  'schema/create-table-foreign-both-actions::mssql':
+      '[ACCEPTED] MSSQL casing + ON DELETE/ON UPDATE clause order — see grouped note above (6) and the MSSQL casing note above this block.',
+
+  // ── ACCEPTED: knex.js's setNullable()/dropNullable() on MSSQL is a live-DB
+  // operation, not a static compile — the base TableCompiler's
+  // _setNullableState() (lib/schema/tablecompiler.js, which mssql doesn't
+  // override) queries columnInfo() against a real connected database to
+  // discover the column's current type before restating it in the ALTER COLUMN
+  // clause (MSSQL requires the full column definition, not just
+  // NULL/NOT NULL — verified by reading the knex.js source directly, not just
+  // comparing output). knex-dart's SQL generation is deliberately connectionless
+  // (KnexQuery.forDialect has no live DB to query) and has no way to know
+  // `email` is `nvarchar(255)` from `t.setNullable("email")` alone — an
+  // architectural boundary, not an oversight.
+  'schema/alter-table-set-nullable::mssql':
+      '[ACCEPTED] knex.js\'s mssql setNullable requires a live DB query (columnInfo) to restate the column\'s type; knex-dart is connectionless and cannot replicate this statically. See grouped note above this block.',
+  'schema/alter-table-drop-nullable::mssql':
+      '[ACCEPTED] see schema/alter-table-set-nullable::mssql.',
+
+  // ── OPEN BUG: same increments()-inside-composite-primary() suppression gap
+  // as the other dialects' create-table-primary-composite-with-increments
+  // entries — MSSQL additionally needs the same bare (no inline PK) IDENTITY
+  // column shape as Postgres here.
+  'schema/create-table-primary-composite-with-increments::mssql':
+      '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres.',
+
+  // ── OPEN BUG: same CREATE VIEW binding-inlining gap as the other dialects'
+  // view-create-* entries — fix exists, verified correct, on
+  // fix/mariadb-mysql-family-dispatch (commit 643f4d9), not reimplemented here.
+  'schema/view-create-basic::mssql':
+      '[OPEN BUG] see schema/view-create-basic::postgres.',
+  'schema/view-create-or-replace::mssql':
+      '[OPEN BUG] see schema/view-create-basic::postgres.',
+
+  // ── OPEN BUG: same multi-column ALTER TABLE ADD batching gap as the other
+  // dialects' alter-table-add-timestamps/column-timestamps-* entries — knex.js
+  // combines every added column into one comma-joined ALTER TABLE ADD
+  // statement; knex-dart emits one per column. createTableLike's extra-columns
+  // step hits the same gap on MSSQL specifically (its own ALTER TABLE ADD call,
+  // separate from the batching issue in the two SELECT INTO statements).
+  'schema/create-table-like-with-columns::mssql':
+      '[OPEN BUG] see schema/alter-table-add-timestamps::postgres — multi-column ALTER TABLE ADD batching, on createTableLike\'s extra-columns step.',
+  'schema/alter-table-add-timestamps::mssql':
+      '[OPEN BUG] see schema/alter-table-add-timestamps::postgres.',
+  'schema/column-timestamps-basic::mssql':
+      '[OPEN BUG] see schema/alter-table-add-timestamps::postgres.',
+  'schema/column-timestamps-defaults::mssql':
+      '[OPEN BUG] see schema/alter-table-add-timestamps::postgres.',
+
+  // ── OPEN BUG: MSSQL won't DROP COLUMN a column that has a bound DEFAULT
+  // constraint without dropping that constraint first — knex.js emits a
+  // dynamic-SQL dance (DECLARE @constraint = (SELECT ... FROM
+  // sys.default_constraints ...); EXEC('ALTER TABLE ... DROP CONSTRAINT ' +
+  // @constraint); ALTER TABLE ... DROP COLUMN ...) to look up and drop it at
+  // runtime. knex-dart emits a bare DROP COLUMN, which will fail against a real
+  // SQL Server database if the column has a default (as most of these mined
+  // cases do, since they were created via defaultTo() elsewhere in the corpus) —
+  // a genuine runtime-risk gap, not just cosmetic. Implementing knex.js's
+  // dynamic-SQL lookup is real scope (same complexity class as SQLite's
+  // PRAGMA-based table rebuild, which knex-dart also doesn't implement),
+  // deferred rather than attempted here.
+  'schema/alter-table-drop-column::mssql':
+      '[OPEN BUG] knex-dart emits a bare DROP COLUMN; knex.js emits a dynamic-SQL dance to find and drop any bound DEFAULT constraint first. See grouped note above this block — a real runtime-risk gap on SQL Server, not cosmetic.',
+  'schema/alter-table-drop-columns-multiple::mssql':
+      '[OPEN BUG] see schema/alter-table-drop-column::mssql.',
+  'schema/alter-table-drop-timestamps::mssql':
+      '[OPEN BUG] see schema/alter-table-drop-column::mssql.',
+
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
 };
 
