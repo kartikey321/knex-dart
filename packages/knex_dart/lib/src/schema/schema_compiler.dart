@@ -336,6 +336,7 @@ class SchemaCompiler {
           'type': 'unique',
           'column': col.name,
           'table': tableName,
+          'indexName': col.uniqueIndexName,
         });
       }
       if (col.referencesColumn != null && col.referencesTable != null) {
@@ -429,11 +430,25 @@ class SchemaCompiler {
       }
     }
 
-    // Main CREATE TABLE statement
+    // Main CREATE TABLE statement. `table.comment(...)` previously set
+    // TableBuilder.single['comment'] but nothing ever read it, silently
+    // dropping the comment on every dialect. MySQL folds it inline into the
+    // CREATE TABLE statement itself (` comment = '...'`); Postgres-family
+    // emits a separate `comment on table ...` statement right after (both
+    // verified against real knex.js 3.3.0); SQLite has no table-comment
+    // support and knex.js silently drops it there too.
     final tableRef = _prefixedTableName(tableName);
+    final comment = tb.single['comment'] as String?;
+    final isMySql = _isMySqlLike(client.driverName);
+    final commentSuffix =
+        comment != null && isMySql ? " comment = '${_escapeComment(comment)}'" : '';
     final sql =
-        '$prefix $tableRef (${columnDefs.join(', ')}$primaryInline$foreignInline)';
+        '$prefix $tableRef (${columnDefs.join(', ')}$primaryInline$foreignInline)$commentSuffix';
     _pushQuery(sql);
+
+    if (comment != null && _isPostgresLike(client.driverName)) {
+      _pushQuery("comment on table $tableRef is '${_escapeComment(comment)}'");
+    }
 
     _pushDeferredConstraintsForTable(
       tableName,
@@ -443,6 +458,8 @@ class SchemaCompiler {
       skipPrimary: true,
     );
   }
+
+  String _escapeComment(String value) => value.replaceAll("'", "''");
 
   /// Drop a table
   void _dropTable(String tableName) {
@@ -519,6 +536,46 @@ class SchemaCompiler {
       );
     }
 
+    // `table.comment(...)` inside alterTable — see _buildCreateTable's
+    // comment handling for the dialect matrix (Postgres: separate
+    // `comment on table`; MySQL: separate `alter table ... comment = ...`,
+    // not inline this time since there's no CREATE TABLE statement to fold
+    // into; SQLite: no-op).
+    final comment = tb.single['comment'] as String?;
+    if (comment != null) {
+      if (_isPostgresLike(client.driverName)) {
+        _pushQuery("comment on table $tableRef is '${_escapeComment(comment)}'");
+      } else if (_isMySqlLike(client.driverName)) {
+        _pushQuery("alter table $tableRef comment = '${_escapeComment(comment)}'");
+      }
+    }
+
+    // A fluent `.unique()` declared on a newly-added column is a deferred
+    // unique constraint in knex.js (same shape as the deferred foreign-key/
+    // primary-key handling below). Previously it was compiled as only ADD
+    // COLUMN, silently losing the constraint. Statement-ordering caveat:
+    // knex.js interleaves constraint statements in column-declaration order
+    // and batches every ADD COLUMN into a single comma-joined statement —
+    // both left as-is here (pre-existing, separately tracked gap; see the
+    // schema-parity harness's alter-table-add-* [OPEN BUG] entries).
+    for (final col in tb.columns) {
+      if (!col.isUnique) continue;
+      final constraintName = col.uniqueIndexName ?? '${tableName}_${col.name}_unique';
+      if (_isSqliteLike(client.driverName)) {
+        _pushQuery(
+          'create unique index ${_wrap(constraintName)} on $tableRef (${_wrap(col.name)})',
+        );
+      } else if (_isMySqlLike(client.driverName)) {
+        _pushQuery(
+          'alter table $tableRef add unique ${_wrap(constraintName)}(${_wrap(col.name)})',
+        );
+      } else {
+        _pushQuery(
+          'alter table $tableRef add constraint ${_wrap(constraintName)} unique (${_wrap(col.name)})',
+        );
+      }
+    }
+
     // A reference declared on a newly-added column is a deferred foreign-key
     // constraint in knex.js. Previously it was compiled as only ADD COLUMN,
     // silently losing the constraint.
@@ -571,6 +628,18 @@ class SchemaCompiler {
       switch (method) {
         case 'dropColumn':
           _pushQuery('alter table $tableRef drop column ${_wrap(args[0])}');
+          break;
+        case 'dropColumns':
+          // Combined into a single ALTER TABLE (knex.js parity — see
+          // TableBuilder.dropColumns doc comment).
+          if (_isMySqlLike(client.driverName)) {
+            final dropParts = args.map((col) => 'drop ${_wrap(col)}').join(', ');
+            _pushQuery('alter table $tableRef $dropParts');
+          } else {
+            final dropParts =
+                args.map((col) => 'drop column ${_wrap(col)}').join(', ');
+            _pushQuery('alter table $tableRef $dropParts');
+          }
           break;
         case 'renameColumn':
           if (client.driverName == 'mssql') {
@@ -717,7 +786,7 @@ class SchemaCompiler {
         case 'dropTimestamps':
           // JS PG: alter table "t" drop column "created_at", drop column "updated_at"
           // JS MySQL: alter table `t` drop `created_at`, drop `updated_at`
-          if (client.driverName == 'mysql' || client.driverName == 'mysql2') {
+          if (_isMySqlLike(client.driverName)) {
             final dropParts = args
                 .map((col) => 'drop ${_wrap(col)}')
                 .join(', ');
@@ -883,6 +952,7 @@ class SchemaCompiler {
             'type': 'unique',
             'column': col.name,
             'table': tableName,
+            'indexName': col.uniqueIndexName,
           });
         }
         if (col.referencesColumn != null && col.referencesTable != null) {
@@ -902,10 +972,18 @@ class SchemaCompiler {
     for (final constraint in deferredConstraints) {
       if (constraint['type'] == 'unique') {
         final col = constraint['column'];
-        final constraintName = '${tableName}_${col}_unique';
+        final constraintName =
+            (constraint['indexName'] as String?) ?? '${tableName}_${col}_unique';
         if (_isSqliteLike(client.driverName)) {
           _pushQuery(
             'create unique index ${_wrap(constraintName)} on $tableRef (${_wrap(col)})',
+          );
+        } else if (_isMySqlLike(client.driverName)) {
+          // MySQL's ADD UNIQUE has its own shape — no `constraint` keyword,
+          // no space before the column list — verified against real knex.js
+          // 3.3.0: `alter table t add unique t_email_unique(email)`.
+          _pushQuery(
+            'alter table $tableRef add unique ${_wrap(constraintName)}(${_wrap(col)})',
           );
         } else {
           _pushQuery(

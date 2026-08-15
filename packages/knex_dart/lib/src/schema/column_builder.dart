@@ -29,6 +29,7 @@ class ColumnBuilder {
   bool _isPrimary = false;
   String? _primaryConstraintName;
   bool _isUnique = false;
+  String? _uniqueIndexName;
   bool _isUnsigned = false;
   String? _referencesColumn;
   String? _referencesTable;
@@ -43,6 +44,7 @@ class ColumnBuilder {
   bool get isUnique => _isUnique;
   bool get isPrimary => _isPrimary;
   String? get primaryConstraintName => _primaryConstraintName;
+  String? get uniqueIndexName => _uniqueIndexName;
   String? get referencesColumn => _referencesColumn;
   String? get referencesTable => _referencesTable;
   String? get onDeleteAction => _onDelete;
@@ -71,9 +73,11 @@ class ColumnBuilder {
     return this;
   }
 
-  /// Mark column as UNIQUE.
+  /// Mark column as UNIQUE. [indexName] overrides the default
+  /// `<table>_<column>_unique` constraint/index name.
   ColumnBuilder unique({String? indexName}) {
     _isUnique = true;
+    _uniqueIndexName = indexName;
     return this;
   }
 
@@ -90,9 +94,19 @@ class ColumnBuilder {
     return this;
   }
 
-  /// Set a foreign key reference to column in another table.
+  /// Set a foreign key reference to column in another table. Accepts either
+  /// a bare column name (paired with a following `.inTable(...)` call) or
+  /// knex.js's `'table.column'` dotted shorthand, which sets both the
+  /// referenced table and column in one call. An explicit `.inTable(...)`
+  /// after the dotted form still overrides the table, matching knex.js.
   ColumnBuilder references(String column) {
-    _referencesColumn = column;
+    final dot = column.lastIndexOf('.');
+    if (dot == -1) {
+      _referencesColumn = column;
+    } else {
+      _referencesTable = column.substring(0, dot);
+      _referencesColumn = column.substring(dot + 1);
+    }
     return this;
   }
 
@@ -123,7 +137,8 @@ class ColumnBuilder {
     final wrapFn = wrap ?? (String v) => '"$v"';
     final parts = <String>['${wrapFn(name)} $type'];
 
-    if (_isUnsigned && (dialect == 'mysql' || dialect == 'mysql2')) {
+    if (_isUnsigned &&
+        (dialect == 'mysql' || dialect == 'mysql2' || dialect == 'mariadb')) {
       parts.add('unsigned');
     }
 

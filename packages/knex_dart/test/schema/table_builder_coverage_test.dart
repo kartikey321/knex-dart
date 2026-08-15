@@ -35,10 +35,10 @@ void main() {
       expect(t.columns.first.type, equals('datetime'));
     });
 
-    test('float uses float', () {
+    test('float uses float(8, 2) — knex.js applies default precision/scale', () {
       final t = TableBuilder(mysql, 'create', 'tbl');
       t.float('score');
-      expect(t.columns.first.type, equals('float'));
+      expect(t.columns.first.type, equals('float(8, 2)'));
     });
 
     test('uuid uses char(36)', () {

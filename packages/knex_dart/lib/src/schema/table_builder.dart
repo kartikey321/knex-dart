@@ -187,10 +187,47 @@ class TableBuilder {
         return 'float';
       case 'mysql':
       case 'mysql2':
-        return 'float';
+        // knex.js's base `floating()` column compiler (shared by MySQL,
+        // which does not override it) always applies default precision/
+        // scale (8, 2) even when the caller passes none — verified against
+        // real knex.js 3.3.0: `t.float('foo')` on mysql2 compiles to
+        // `float(8, 2)`, not bare `float`.
+        return 'float(8, 2)';
       default:
         return 'real';
     }
+  }
+
+  /// Double-precision column type, dialect-aware. Verified against real
+  /// knex.js 3.3.0: MySQL emits `double`, SQLite aliases it to `float`
+  /// (same type-affinity reasoning as `_decimalType` below), everything
+  /// else (Postgres-family) keeps `double precision`.
+  String _doublePrecisionType() {
+    switch (_dialect) {
+      case 'mysql':
+      case 'mysql2':
+        return 'double';
+      case 'sqlite':
+      case 'sqlite3':
+        return 'float';
+      default:
+        return 'double precision';
+    }
+  }
+
+  /// Decimal column type, dialect-aware.
+  ///
+  /// SQLite has no fixed-precision DECIMAL type; knex.js's SQLite column
+  /// compiler aliases `decimal`/`double`/`floating` all to the same `float`
+  /// type (verified against real knex.js 3.3.0: `t.decimal('foo', 5, 2)` on
+  /// sqlite3 compiles to `float`, silently dropping precision/scale). This
+  /// matters beyond spelling: SQLite derives column *type affinity* from the
+  /// type name — `float` contains "FLOA" -> REAL affinity, but
+  /// `decimal(5, 2)` matches no affinity keyword -> NUMERIC affinity, a
+  /// different storage/comparison behavior.
+  String _decimalType(int precision, int scale) {
+    if (_dialect == 'sqlite' || _dialect == 'sqlite3') return 'float';
+    return 'decimal($precision, $scale)';
   }
 
   String _enumType(String column, List<String> values) {
@@ -202,6 +239,12 @@ class TableBuilder {
       case 'mysql2':
         final valuesStr = values.map(quote).join(', ');
         return 'enum($valuesStr)';
+      case 'redshift':
+        // Redshift has no native ENUM type and no CHECK-constraint support
+        // for this either — knex.js's redshift compiler emits a bare
+        // varchar(255), dropping the value list entirely (verified against
+        // real knex.js 3.3.0).
+        return 'varchar(255)';
       default: // PG and SQLite use CHECK constraint
         final valuesStr = values.map(quote).join(', ');
         return 'text check ("$column" in ($valuesStr))';
@@ -304,14 +347,14 @@ class TableBuilder {
 
   /// Double column
   ColumnBuilder doublePrecision(String column) {
-    final cb = ColumnBuilder(column, 'double precision');
+    final cb = ColumnBuilder(column, _doublePrecisionType());
     _columns.add(cb);
     return cb;
   }
 
   /// Decimal column
   ColumnBuilder decimal(String column, [int precision = 8, int scale = 2]) {
-    final cb = ColumnBuilder(column, 'decimal($precision, $scale)');
+    final cb = ColumnBuilder(column, _decimalType(precision, scale));
     _columns.add(cb);
     return cb;
   }
@@ -396,11 +439,14 @@ class TableBuilder {
     });
   }
 
-  /// Drop multiple columns
+  /// Drop multiple columns. knex.js compiles this to a single ALTER TABLE
+  /// statement with one comma-separated `drop column` clause per column
+  /// (verified against real knex.js 3.3.0), not one ALTER TABLE per column.
   void dropColumns(List<String> columns) {
-    for (final col in columns) {
-      dropColumn(col);
-    }
+    _alterStatements.add({
+      'method': 'dropColumns',
+      'args': columns,
+    });
   }
 
   /// Rename a column
