@@ -132,6 +132,16 @@ class _DialectClient extends Client {
       case KnexDialect.mariadb:
       case KnexDialect.bigquery:
         return '`${identifier.replaceAll('`', '``')}`';
+      case KnexDialect.mssql:
+        // T-SQL bracket-quoting, doubling a literal `]` to escape it —
+        // standard SQL Server delimited-identifier syntax, and what the
+        // live `knex_dart_mssql` driver's wrapIdentifierImpl already does.
+        // knex.js's own mssql client instead silently *strips* any `[`/`]`
+        // from the identifier rather than escaping them, which is lossy
+        // (`a[b]` and `ab` would wrap to the same thing) — not matched here
+        // deliberately; kept consistent with the live driver instead of a
+        // knex.js quirk that discards information.
+        return '[${identifier.replaceAll(']', ']]')}]';
       default:
         return '"${identifier.replaceAll('"', '""')}"';
     }

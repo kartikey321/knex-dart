@@ -35,6 +35,13 @@ const DIALECTS = {
   sqlite: { knex: 'sqlite3', useNullAsDefault: true },
   turso: { knex: 'sqlite3', useNullAsDefault: true, family: 'sqlite' },
   d1: { knex: 'sqlite3', useNullAsDefault: true, family: 'sqlite' },
+  // Previously omitted entirely (and separately skipped on the Dart side —
+  // see schema_parity_test.dart's now-empty `_skipDialects`), despite mssql
+  // being a first-class dialect with a real knex-dart driver
+  // (drivers/knex_dart_mssql/). Mined from
+  // test/unit/schema-builder/mssql.js — see the ── Mined from ... mssql.js
+  // block below.
+  mssql: { knex: 'mssql' },
 };
 
 const clientCache = {};
