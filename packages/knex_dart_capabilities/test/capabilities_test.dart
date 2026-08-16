@@ -43,10 +43,11 @@ void main() {
       expect(dialectFromDriverName('postgresql'), KnexDialect.postgres);
       expect(dialectFromDriverName('mysql2'), KnexDialect.mysql);
       expect(dialectFromDriverName('sqlite3'), KnexDialect.sqlite);
+      expect(dialectFromDriverName('mssql'), KnexDialect.mssql);
     });
 
     test('returns null for unknown driver', () {
-      expect(dialectFromDriverName('mssql'), isNull);
+      expect(dialectFromDriverName('not-a-real-driver'), isNull);
       expect(dialectFromDriverName(null), isNull);
     });
   });
