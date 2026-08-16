@@ -58,6 +58,25 @@ class KnexQuery {
             'redshift, turso, d1, duckdb, snowflake, bigquery',
       );
     }
+    // CockroachDB has no dedicated KnexDialect value — it shares
+    // KnexDialect.postgres for capability lookups (identical capability
+    // set, verified) — but the schema/query compilers dispatch on the raw
+    // *driverName string*, not the enum, and already treat 'cockroachdb'
+    // as a distinct member of their `_isPostgresLike`-style checks
+    // throughout (e.g. redshift's `including all` carve-out in
+    // createTableLike explicitly excludes only 'redshift', keeping
+    // cockroachdb grouped with postgres — matching real knex.js). Routing
+    // through KnexQuery.forDialect(KnexDialect.postgres) here would
+    // collapse driverName to the generic 'pg', silently making any
+    // cockroachdb-specific compiler branch unreachable from this
+    // connectionless API. Preserve the caller's original name for these
+    // aliases instead of re-deriving a canonical string from the enum.
+    final normalized = clientName.toLowerCase();
+    if (normalized == 'cockroachdb' || normalized == 'crdb') {
+      return KnexQuery._(
+        _DialectClient._(dialect, driverStr: 'cockroachdb'),
+      );
+    }
     return KnexQuery.forDialect(dialect);
   }
 
@@ -82,11 +101,13 @@ class KnexQuery {
 /// Maps [KnexDialect] → identifier quoting + parameter placeholder style.
 class _DialectClient extends Client {
   final KnexDialect _dialect;
+  final String _driverName;
 
   _DialectClient._(
     KnexDialect dialect, {
     required String driverStr,
   })  : _dialect = dialect,
+        _driverName = driverStr,
         super(KnexConfig(client: driverStr, connection: {}));
 
   factory _DialectClient._forDialect(KnexDialect dialect) {
@@ -121,7 +142,7 @@ class _DialectClient extends Client {
   }
 
   @override
-  String get driverName => _driverStr(_dialect);
+  String get driverName => _driverName;
 
   // ── Identifier quoting ──────────────────────────────────────────────────
 
