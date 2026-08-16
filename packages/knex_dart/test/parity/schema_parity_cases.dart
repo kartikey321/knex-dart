@@ -467,4 +467,62 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/create-table-primary-fluent-named': (d) => _sb(d).createTable('users', (t) {
         t.string('test').primary(constraintName: 'testconstraintname');
       }).toSQL(),
+
+  // Batch 6 — column-type dialect-dispatch + views + createTableLike +
+  // createTableIfNotExists + dropColumns-multi. Mirrors run_js_schema.mjs
+  // 1:1 by id. Dart's column-type dispatch goes through column_builder.dart's
+  // `toSQL()`; views go through schema_compiler.dart's per-method dispatchers.
+
+  // ── Column types (dialect-dispatch territory) ────────────────────────
+  'schema/column-boolean': (d) => _sb(d).alterTable('users', (t) {
+        t.boolean('enabled').defaultTo(false);
+      }).toSQL(),
+  'schema/column-uuid-bare': (d) => _sb(d).alterTable('users', (t) {
+        t.uuid('external_id');
+      }).toSQL(),
+  'schema/column-enu': (d) => _sb(d).alterTable('users', (t) {
+        t.enu('status', ['active', 'idle']);
+      }).toSQL(),
+  'schema/column-bigInteger': (d) => _sb(d).alterTable('users', (t) {
+        t.bigInteger('big_count');
+      }).toSQL(),
+  'schema/column-bigIncrements': (d) => _sb(d).alterTable('users', (t) {
+        t.bigIncrements('audit_id');
+      }).toSQL(),
+
+  // ── Views cluster ────────────────────────────────────────────────────
+  'schema/create-view-bare': (d) => _sb(d).createView(
+        'active_users',
+        KnexQuery.forClient(d).queryBuilder().table('users').select(['*']).where('active', true),
+      ).toSQL(),
+  'schema/create-view-or-replace': (d) => _sb(d).createViewOrReplace(
+        'active_users',
+        KnexQuery.forClient(d).queryBuilder().table('users').select(['*']).where('active', true),
+      ).toSQL(),
+  'schema/drop-view': (d) => _sb(d).dropView('active_users').toSQL(),
+  'schema/drop-view-if-exists': (d) =>
+      _sb(d).dropViewIfExists('active_users').toSQL(),
+  'schema/rename-view': (d) =>
+      _sb(d).renameView('active_users', 'all_active_users').toSQL(),
+  'schema/create-materialized-view': (d) => _sb(d).createMaterializedView(
+        'active_users_mv',
+        KnexQuery.forClient(d).queryBuilder().table('users').select(['*']).where('active', true),
+      ).toSQL(),
+  'schema/refresh-materialized-view': (d) =>
+      _sb(d).refreshMaterializedView('active_users_mv').toSQL(),
+  'schema/refresh-materialized-view-concurrently': (d) =>
+      _sb(d).refreshMaterializedView('active_users_mv', true).toSQL(),
+
+  // ── createTableIfNotExists, createTableLike, dropColumns-multi ────────
+  'schema/create-table-if-not-exists': (d) =>
+      _sb(d).createTableIfNotExists('users', (t) {
+        t.increments('id');
+        t.string('email');
+      }).toSQL(),
+  'schema/create-table-like': (d) =>
+      _sb(d).createTableLike('users_copy', 'users').toSQL(),
+  'schema/alter-table-drop-columns-multi': (d) =>
+      _sb(d).alterTable('users', (t) {
+        t.dropColumns(['nickname', 'avatar']);
+      }).toSQL(),
 };

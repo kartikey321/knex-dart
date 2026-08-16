@@ -59,12 +59,19 @@ class JoinClause {
     // Determine actual operator and second column
     final actualOperator = second != null ? operator.toString() : '=';
     final actualSecond = second ?? operator;
-
     clauses.add({
       'type': 'onBasic',
       'column': first.toString(),
       'operator': actualOperator,
-      'value': actualSecond.toString(),
+      // Preserve Raw as Raw — knex.js's `on('a', raw('?',[v]))` and
+      // `on('a', '=', raw('?',[v]))` both treat the raw as a SQL fragment
+      // with bindings (the raw's `?` is a placeholder, not a string
+      // literal). Previously this called `actualSecond.toString()`, which
+      // collapsed Raw into just its sql string (losing bindings and
+      // causing the downstream `_onBasic` to wrap the `?` as an identifier
+      // — emitting `on "a" = "?"` instead of `on "a" = ?`). Verified
+      // against real knex.js 3.3.0 for the `join/raw-operand` parity case.
+      'value': actualSecond,
       'bool': _bool(),
     });
 

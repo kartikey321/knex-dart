@@ -32,6 +32,7 @@ const DIALECTS = {
   cockroachdb: { knex: 'cockroachdb' },
   redshift: { knex: 'redshift' },
   mysql: { knex: 'mysql2' },
+  mariadb: { knex: 'mariadb' },
   sqlite: { knex: 'sqlite3', useNullAsDefault: true },
   turso: { knex: 'sqlite3', useNullAsDefault: true, family: 'sqlite' },
   d1: { knex: 'sqlite3', useNullAsDefault: true, family: 'sqlite' },
@@ -607,6 +608,72 @@ const cases = [
   // create-table-primary-named.
   ['schema/create-table-primary-fluent-named', (k) => k.schema.createTable('users', (t) => {
     t.string('test').primary('testconstraintname');
+  })],
+
+  // ── Batch 6 — column type dialect-dispatch + views + createTableLike +
+  // createTableIfNotExists, mined from the schema-builder test suites. The
+  // audit (see explore subagent punchlist) flagged these as dialect-dispatch
+  // territory where knex-dart could silently miss a family (turso/d1
+  // pattern, mariadb pattern). Each case probes one column type across the
+  // full dialect matrix — surfaces real divergence if any family helper
+  // excluded a dialect.
+
+  ['schema/column-boolean', (k) => k.schema.alterTable('users', (t) => {
+    t.boolean('enabled').defaultTo(false);
+  })],
+  ['schema/column-uuid-bare', (k) => k.schema.alterTable('users', (t) => {
+    t.uuid('external_id');
+  })],
+  ['schema/column-enu', (k) => k.schema.alterTable('users', (t) => {
+    t.enu('status', ['active', 'idle']);
+  })],
+  ['schema/column-bigInteger', (k) => k.schema.alterTable('users', (t) => {
+    t.bigInteger('big_count');
+  })],
+  ['schema/column-bigIncrements', (k) => k.schema.alterTable('users', (t) => {
+    t.bigIncrements('audit_id');
+  })],
+
+  // ── views cluster (postgres/sqlite/mysql families diverge on
+  // CREATE-OR-REPLACE-vs-drop+create; refresh-materialized-view + rename-view
+  // have pg-only dispatch paths) ───────────────────────────────────────
+  // knex.js's view-creation methods require a callback receiving a
+  // ViewBuilder; the bare-QueryBuilder-direct form throws
+  // `this._fn.call is not a function` (verified with `node -e`).
+  ['schema/create-view-bare', (k) => k.schema.createView('active_users', function (view) {
+    view.as(k('users').select('*').where('active', true));
+  })],
+  ['schema/create-view-or-replace', (k) => k.schema.createViewOrReplace('active_users', function (view) {
+    view.as(k('users').select('*').where('active', true));
+  })],
+  ['schema/drop-view', (k) => k.schema.dropView('active_users')],
+  ['schema/drop-view-if-exists', (k) => k.schema.dropViewIfExists('active_users')],
+  ['schema/rename-view', (k) => k.schema.renameView('active_users', 'all_active_users')],
+  ['schema/create-materialized-view', (k) => k.schema.createMaterializedView('active_users_mv', function (view) {
+    view.as(k('users').select('*').where('active', true));
+  })],
+  ['schema/refresh-materialized-view', (k) => k.schema.refreshMaterializedView('active_users_mv')],
+  ['schema/refresh-materialized-view-concurrently', (k) => k.schema.refreshMaterializedView('active_users_mv', true)],
+
+  // ── createTableIfNotExists (separate dispatch branch from createTable;
+  // exercises the `if not exists` prefix in _buildCreateTable) ───────────
+  ['schema/create-table-if-not-exists', (k) => k.schema.createTableIfNotExists('users', (t) => {
+    t.increments('id');
+    t.string('email');
+  })],
+
+  // ── createTableLike (pg/mysql/sqlite 3-way dispatch: pg `like ... 
+  // including all` vs mysql `like` vs sqlite `as select * from ... where 
+  // 0=1`). exclude-extra-cols form for now — knex-dart may need to mirror
+  //  the per-extra-col alter-ADD dispatch. Verified the basic form here ──
+  ['schema/create-table-like', (k) => k.schema.createTableLike('users_copy', 'users')],
+
+  // ── dropColumns multi — postgres pg emits a single `alter table ... 
+  // drop column X, drop column Y` statement; mysql emits the same shape; 
+  // redshift emits `alter table ... drop column X, drop column Y`; knex-
+  // dart may emit N separate `drop column X` statements ──────────────────
+  ['schema/alter-table-drop-columns-multi', (k) => k.schema.alterTable('users', (t) => {
+    t.dropColumns(['nickname', 'avatar']);
   })],
 ];
 

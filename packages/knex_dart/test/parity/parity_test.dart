@@ -294,6 +294,131 @@ const Map<String, String> parityAllowlist = {
           '(and wrong) whereBasic() fallback. Fix: add a CockroachDB branch '
           'to _whereJsonPath() in query_compiler.dart, then remove this '
           'entry.',
+
+  // ── ACCEPTED: mariadb RETURNING on UPDATE/CTE — knex.js's real mariadb
+  // client version-gates `.returning()` on UPDATE for MariaDB <13.0 and
+  // silently drops the clause (verified: `.returning() is not supported for
+  // mariadb versions older than 13.0 and will not have any effect.`).
+  // MariaDB 10.5+ supports RETURNING on INSERT/DELETE; for UPDATE the client
+  // requires 13.0+. knex-dart's `knex_dart_capabilities` matrix lists
+  // `SqlCapability.returning` for `KnexDialect.mariadb` without an UPDATE-
+  // specific gate, so dart emits RETURNING on all three verbs. For
+  // INSERT/DELETE the dart output matches real knex.js mariadb verbatim
+  // (no divergence — the harness was repointed from `{knex: 'mysql2',
+  // family: 'mysql'}` to `{knex: 'mariadb'}` once a reviewer confirmed
+  // knex.js has a dedicated mariadb client that extends mysql's and
+  // overrides insert()/del() to support version-gated RETURNING). For
+  // UPDATE/CTE-update the divergence remains (knex.js drops, dart emits)
+  // — same class as `upsert/merge::redshift` (knex-dart emits where
+  // knex.js silently drops).
+  //
+  // Verified against real knex.js 3.3.0 mariadb client — `node -e` output:
+  //   dml/returning-update: `update \`users\` set \`name\` = ? where \`id\` = ?` (drops RETURNING; dart emits `... returning *`)
+  //   cte/update-source:    `with \`updated_group\` as (update \`group\` set \`group_name\` = ? where \`group_id\` = ?) update \`user\` set \`name\` = ? where \`group_id\` = ?` (drops RETURNING from CTE body; dart emits it)
+  //
+  // The INSERT/DELETE/multi-insert/empty-object entries previously here
+  // were removed once the harness pointed at the real mariadb client —
+  // the divergences vanished (ratchet forced it).
+
+'dml/returning-update::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence (this time on UPDATE with `.returning(\'*\')`).',
+  'cte/update-source::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+          'capability divergence, applied to the inner CTE source statement '
+          '(the `.with(...).(...).returning([\'group_id\'])` chained inside '
+          'the WITH body). knex.js\'s mysql2 silently drops the RETURNING '
+          'from the WITH body too. The harness compares the whole '
+          '`with ... update ...` outer statement, where the only difference '
+          'is the presence/absence of `returning `group_id`` in the CTE '
+          'body — pure capability-drop difference, not a structural '
+          'divergence.',
+
+  // ── OPEN BUG: uppercase `AS` siblings of the existing entries, surfaced
+  // for the new `mariadb` dialect in this harness pass. These route through
+  // the same `client.alias()` (formatter.dart → client.dart) and `Ref.as()`
+  // (ref.dart) code paths as the existing postgres/mysql/sqlite entries
+  // already triaged and scoped out — see the canonical explanation at
+  // `'select/old-style-alias::postgres'` and `'ref/select-alias::postgres'`
+  // above. Dart's `KnexDialect.mariadb` shares the mysql formatter
+  // (backtick-quoting), but the alias-emitting helper is dialect-agnostic
+  // (uppercase AS hardcoded in the alias() method itself, not in any
+  // dialect-specific branch) — so adding the mariadb dialect to the harness
+  // surfaces these sibling divergences for free. Both `[OPEN BUG]` root
+  // causes (client.alias() uppercase-AS, Ref.as() uppercase-AS) are
+  // explicitly out of scope for this mining pass per the prompt's
+  // "Do NOT touch client.alias() or Ref.as()" ground rule. Same fix path:
+  // once the AS-casing sweep lands in those two files, delete these entries
+  // (the ratchet will force it). Verified against real knex.js 3.3.0 —
+  // `node -e` literal output:
+  //   select/old-style-alias: `select \`foo\` as \`bar\` from \`users\`` (knex.js) vs `select \`foo\` AS \`bar\` from \`users\`` (knex-dart)
+  //   select/alias-trim-spaces: same — knex.js normalizes `' foo   as bar '` to ``\`foo\` as \`bar\``; knex-dart emits uppercase AS.
+  //   select/alias-case-insensitive: same — knex.js normalizes `' foo   aS bar '` to ``\`foo\` as \`bar\``; knex-dart emits uppercase AS.
+  //   select/alias-dotted: `select \`foo\` as \`bar.baz\` from \`users\`` (knex.js) vs `select \`foo\` AS \`bar.baz\` from \`users\`` (knex-dart).
+  //   having/from-alias: `select \`email\` as \`foo_email\` from \`users\` having \`foo_email\` > ?` (knex.js) vs `select \`email\` AS \`foo_email\` from \`users\` having \`foo_email\` > ?` (knex-dart).
+  //   ref/select-alias: `select \`one\`, \`sometable\`.\`two\` as \`Two\` from \`sometable\`` (knex.js) vs `select \`one\`, \`sometable\`.\`two\` AS \`Two\` from \`sometable\`` (knex-dart).
+  'select/old-style-alias::mariadb':
+      '[OPEN BUG] uppercase `AS` via client.alias() — sibling of '
+          'select/old-style-alias::postgres (canonical explanation above); '
+          'mariadb is mysql-family and shares the same alias() code path. '
+          'Out of scope per the prompt — fix by correcting client.alias() to '
+          'lowercase `as`, then delete this entry.',
+  'select/alias-trim-spaces::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause.',
+  'select/alias-case-insensitive::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause.',
+  'select/alias-dotted::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause.',
+  'having/from-alias::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+          'root cause (HAVING with a `col as alias` select).',
+  'ref/select-alias::mariadb':
+      '[OPEN BUG] uppercase `AS` via Ref.as() — sibling of '
+          'ref/select-alias::postgres (canonical explanation above); '
+          'mariadb surfaces the same Ref.as() defect. Out of scope per the '
+          'prompt — delete this entry once Ref.as() is corrected.',
+
+  // ── ACCEPTED: fullOuterJoin capability refusal — knex-dart refuses
+  // where knex.js's mysql2/sqlite3 clients emit invalid-at-runtime SQL.
+  // knex-dart's `knex_dart_capabilities` matrix deliberately excludes
+  // `SqlCapability.fullOuterJoin` for `KnexDialect.mysql`, `sqlite`, `turso`,
+  // `d1` (capabilities.dart line 80-91 — mariadb HAS it; the
+  // `join/full-outer::mariadb` parity test PASSES as a result). MySQL does
+  // not natively support FULL OUTER JOIN syntax (must be emulated via
+  // LEFT JOIN UNION RIGHT JOIN), and SQLite only gained it in 3.39 (2022);
+  // knex.js's mysql2 and sqlite3 clients still emit the syntax verbatim
+  // (would fail at parse time on those engines), while knex-dart throws
+  // `Bad state: FULL OUTER JOIN is not supported by <dialect>`.
+  //
+  // Same class as the existing `upsert/merge::redshift` and
+  // `alter-table-add-index::redshift` ACCEPTED entries (knex.js silently
+  // emits invalid SQL, knex-dart correctly refuses loudly). Verified
+  // against real knex.js 3.3.0:
+  //   mysql2:    `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
+  //   sqlite3:   `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
+  // (knex.js emits the syntax, but neither engine's parser accepts FULL
+  // OUTER JOIN text — these statements would fail at execution time.)
+  'join/full-outer::mysql':
+      '[ACCEPTED] knex-dart refuses FULL OUTER JOIN on mysql (capability '
+          'matrix excludes it — knex_dart_capabilities/lib/src/capabilities.dart '
+          'line 62-68), knex.js\'s mysql2 still emits the syntax (which MySQL '
+          'does not natively support — would fail at parse time). Same class '
+          'as upsert/merge::redshift ACCEPTED — see the note above this block.',
+  'join/full-outer::sqlite':
+      '[ACCEPTED] see join/full-outer::mysql — SQLite only gained FULL '
+          'OUTER JOIN syntax in 3.39 (2022); knex-dart refuses here, '
+          'knex.js\'s sqlite3 client still emits it (would fail on older '
+          'SQLite).',
+  'join/full-outer::turso':
+      '[ACCEPTED] see join/full-outer::sqlite — turso is sqlite-family '
+          '(libSQL is built on SQLite 3.45+, but the capability matrix '
+          'still excludes fullOuterJoin for turso/d1 matching sqlite, and '
+          'the test mirrors the sqlite refusal).',
+  'join/full-outer::d1':
+      '[ACCEPTED] see join/full-outer::sqlite — d1 is sqlite-family.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

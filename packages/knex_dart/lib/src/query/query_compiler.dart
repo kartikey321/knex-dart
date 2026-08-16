@@ -261,6 +261,22 @@ class QueryCompiler {
     // UNION clauses (before ORDER BY/LIMIT for correct SQL semantics)
     final unionSql = _union();
     if (unionSql.isNotEmpty) {
+      // knex.js's `union([...], wrap=true)` (and unionAll/intersect/except
+      // equivalents) wraps the BASE select too — not just each unioned leg.
+      // When the wrap flag is set on ANY union leg, knex.js parenthesizes
+      // each leg INCLUDING the base; knex-dart was parenthesizing only the
+      // additional legs, dropping the parens around the base. Verified
+      // against real knex.js 3.3.0 for the `union/wrapped-array` parity
+      // case — see the allowlist/failure history for this batch.
+      final unions = grouped['union'];
+      final wrapBase = unions is List &&
+          (unions as List).any((u) => (u['wrap'] as bool? ?? false));
+      if (wrapBase) {
+        final baseSql = parts.join(' ');
+        parts
+          ..clear()
+          ..add('($baseSql)');
+      }
       parts.add(unionSql);
     }
 
@@ -868,7 +884,13 @@ class QueryCompiler {
   String _onBasic(Map<String, dynamic> clause) {
     final first = formatter.wrap(clause['column']);
     final operator = clause['operator'];
-    final second = formatter.wrap(clause['value']);
+    final value = clause['value'];
+    // Raw value: knex.js treats `on('a', '=', raw('?',[v]))` as a raw SQL
+    // fragment on the right of the operator — `on "a" = ?` with `v` as
+    // binding — NOT as an identifier reference. Without this dispatch,
+    // `formatter.wrap` quoted the raw's `?` as a string literal,
+    // producing `on "a" = "?"` instead of `on "a" = ?`.
+    final second = value is Raw ? _inlineRaw(value) : formatter.wrap(value);
     return '$first $operator $second';
   }
 
@@ -1265,14 +1287,11 @@ class QueryCompiler {
     final lock = single['lock'] as String?;
     if (lock == null) return '';
 
-    final mysqlLike =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final postgresLike =
-        client.driverName == 'pg' ||
-        client.driverName == 'postgres' ||
-        client.driverName == 'postgresql' ||
-        client.driverName == 'cockroachdb' ||
-        client.driverName == 'mock';
+    // Use the family-aware helper so mariadb (and any future mysql-family
+    // driver name) is dispatched correctly here too — same fix as the JSON
+    // where family.
+    final mysqlLike = _isMySqlLikeDriver;
+    final postgresLike = _isPostgresLikeDriver;
 
     switch (lock) {
       case 'forUpdate':
@@ -1608,8 +1627,7 @@ class QueryCompiler {
     }
 
     // MySQL INSERT IGNORE is a prefix modifier — handle it at INSERT level
-    final isIgnorePrefixDialect =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final isIgnorePrefixDialect = _isMySqlLikeDriver;
     final isIgnore = onConflict?['strategy'] == 'ignore';
 
     parts.add(_insert(ignorePrefix: isIgnorePrefixDialect && isIgnore));
@@ -1627,9 +1645,7 @@ class QueryCompiler {
         final whereStmts = grouped['where'];
         final hasWhere = whereStmts != null && whereStmts.isNotEmpty;
         if (hasWhere) {
-          final isMySQL =
-              client.driverName == 'mysql' || client.driverName == 'mysql2';
-          if (isMySQL) {
+          if (_isMySqlLikeDriver) {
             throw StateError(
               '.onConflict().merge().where() is not supported for mysql',
             );
@@ -1673,11 +1689,10 @@ class QueryCompiler {
 
     final table = formatter.wrap(single['table']);
     final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
     // Mirrors knex.js's per-dialect `_emptyInsertValue`: MySQL requires an
     // explicit empty column/value list, everyone else accepts DEFAULT VALUES.
-    final emptyInsertValue = isMySQL ? '() values ()' : 'default values';
+    final emptyInsertValue =
+        _isMySqlLikeDriver ? '() values ()' : 'default values';
 
     // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
     // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
@@ -1791,11 +1806,8 @@ class QueryCompiler {
     final strategy = onConflict['strategy'] as String;
     final column = onConflict['columns']; // String | List<String> | null
 
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-
     if (strategy == 'ignore') {
-      if (isMySQL) {
+      if (_isMySqlLikeDriver) {
         // MySQL: INSERT IGNORE is a prefix — nothing to add here
         return '';
       }
@@ -1850,7 +1862,7 @@ class QueryCompiler {
         updateColumns = [];
       }
 
-      if (isMySQL) {
+      if (_isMySqlLikeDriver) {
         // MySQL: ON DUPLICATE KEY UPDATE col=VALUES(col), ...
         final setClauses = <String>[];
         if (rawUpdateValues != null) {
@@ -1956,9 +1968,7 @@ class QueryCompiler {
     // MySQL-only extension: `UPDATE ... SET ... WHERE ... ORDER BY ...
     // LIMIT ...`. Standard SQL doesn't allow ORDER BY/LIMIT on UPDATE, so
     // this is gated to MySQL to match knex.js's mysql-querycompiler.
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    if (isMySQL) {
+    if (_isMySqlLikeDriver) {
       final order = _order();
       if (order.isNotEmpty) {
         parts.add(order);
@@ -2014,9 +2024,7 @@ class QueryCompiler {
     // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
     // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
     // to match knex.js's mysql-querycompiler.
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final join = isMySQL ? _join() : '';
+    final join = _isMySqlLikeDriver ? _join() : '';
     final joinClause = join.isNotEmpty ? ' $join' : '';
 
     return 'update $table$joinClause set ${updates.join(', ')}';
@@ -2096,7 +2104,7 @@ class QueryCompiler {
     // MySQL-only extension: `DELETE ... WHERE ... LIMIT ...`. Standard SQL
     // has no LIMIT on DELETE, so this is gated to MySQL to match knex.js's
     // mysql-querycompiler.
-    if (client.driverName == 'mysql' || client.driverName == 'mysql2') {
+    if (_isMySqlLikeDriver) {
       final limit = _limit();
       if (limit.isNotEmpty) {
         parts.add(limit);
@@ -2190,8 +2198,29 @@ class QueryCompiler {
       final columns = value
           .map((col) => formatter.wrap(col.toString()))
           .join(', ');
-      final distinctPart = distinct.isNotEmpty ? 'distinct $columns' : columns;
-      final aggregated = '$method($distinctPart)';
+      // Postgres-family: with DISTINCT + multiple columns, knex.js's pg
+      // query-compiler treats the column list as a row constructor — emitting
+      // `count(distinct("foo", "bar"))` (extra parens around the column
+      // list) — unlike mysql/sqlite which emit the standard
+      // `count(distinct \`foo\`, \`bar\`)`. Verified against real knex.js 3.3.0
+      // for all three dialects. (Single-column distinct is identical across
+      // all dialects — `count(distinct "foo")` — already handled by the
+      // string-value path below.)
+      final isPgFamily = const {
+        'pg',
+        'postgres',
+        'postgresql',
+        'cockroachdb',
+        'redshift',
+      }.contains(client.driverName);
+      final String aggregated;
+      if (distinct.isNotEmpty && value.length > 1 && isPgFamily) {
+        aggregated = '$method(distinct($columns))';
+      } else if (distinct.isNotEmpty) {
+        aggregated = '$method(distinct $columns)';
+      } else {
+        aggregated = '$method($columns)';
+      }
       return [addAlias(aggregated, stmt['alias'] as String?)];
     }
 
@@ -2267,8 +2296,21 @@ class QueryCompiler {
   // knex.js's redshift-querycompiler doesn't inherit pg-querycompiler's
   // `del()` override, and none of Redshift's JSON-where shapes are exercised
   // by knex.js's own test suite either — verified against real knex.js).
+  //
+  // Includes `mariadb` (knex-dart supports `KnexDialect.mariadb`, which emits
+  // driver-name `'mariadb'`, uses the mysql formatter and `?` placeholders
+  // — see knex_query.dart `_driverStr`/`wrapIdentifierImpl`/`parameterPlaceholder`).
+  // Previously missing here, which silently routed JSON-where, INSERT IGNORE,
+  // onConflict merge/ignore, UPDATE join/order/limit and DELETE limit off the
+  // intended MySQL-shaped compile path for mariadb — leaving compiled SQL
+  // semantically wrong (e.g. `where \`c\` = ?` instead of
+  // `where json_contains(\`c\`, ?)`, or a JOIN clause dropped from an UPDATE
+  // entirely). Mirrors the `mariadb` inclusion in `schema_compiler`'s
+  // `_isMySqlLike`.
   bool get _isMySqlLikeDriver =>
-      client.driverName == 'mysql' || client.driverName == 'mysql2';
+      client.driverName == 'mysql' ||
+      client.driverName == 'mysql2' ||
+      client.driverName == 'mariadb';
   bool get _isSqliteLikeDriver => const {
     'sqlite',
     'sqlite3',

@@ -1034,4 +1034,189 @@ final Map<String, ParityCase> parityCases = {
       .whereJsonSubsetOf('address', {'test': 'value'})
       .orWhereJsonSubsetOf('address', {'test': 'value2'})
       .toSQL(),
+
+  // Batch 5 — mined from knex.js test/unit/query/builder.js regions not
+  // covered by batches 1-4. Mirrors run_js.mjs 1:1 by id.
+
+  // ── Set-ops wrap=true quartet ───────────────────────────────────────
+  'union/wrapped-array': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .where('id', 1)
+      .union([
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 2);
+        },
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 3);
+        },
+      ], wrap: true)
+      .toSQL(),
+  'unionAll/wrapped-array': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .where('id', 1)
+      .unionAll([
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 2);
+        },
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 3);
+        },
+      ], wrap: true)
+      .toSQL(),
+  'intersect/wrapped-array': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .where('id', 1)
+      .intersect([
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 2);
+        },
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 3);
+        },
+      ], wrap: true)
+      .toSQL(),
+  'except/wrapped-array': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .where('id', 1)
+      .except([
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 2);
+        },
+        (QueryBuilder qb) {
+          qb.table('users').select(['*']).where('id', 3);
+        },
+      ], wrap: true)
+      .toSQL(),
+
+  // ── whereColumn, whereNotBetween ────────────────────────────────────
+  'where/column': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .whereColumn('users.id', '=', 'users.otherId')
+      .toSQL(),
+  'where/not-between': (d) =>
+      _qb(d).table('users').select(['*']).whereNotBetween('id', [1, 2]).toSQL(),
+  'where/not-between-alt': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .where('id', 'not between ', [1, 2])
+      .toSQL(),
+
+  // ── countDistinct multi-column (pg wraps in extra parens) ───────────
+  'agg/count-distinct-multi-col': (d) =>
+      _qb(d).table('users').countDistinct(['foo', 'bar']).toSQL(),
+
+  // ── Raw group/order ─────────────────────────────────────────────────
+  'group/raw': (d) =>
+      _qb(d).table('users').select(['*']).groupByRaw('id, email').toSQL(),
+  'order/raw': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .orderByRaw('col NULLS LAST DESC')
+      .toSQL(),
+  'order/raw-with-binding': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .orderByRaw('col NULLS LAST ?', ['dEsc'])
+      .toSQL(),
+
+  // ── JOIN family: cross, full-outer, right, joins with raw ───────────
+  'join/cross-multi': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .crossJoin('contracts')
+      .crossJoin('photos')
+      .toSQL(),
+  // knex.js supports `crossJoin('t', 'a', 'b')` (CROSS JOIN ... ON); dart's
+  // crossJoin() is intentionally cross-product only (no ON). No API
+  // equivalent — `join/cross-on` deliberately not mined here. See the audit
+  // punchlist: noted as a real API gap, separate from parity-bug territory.
+  'join/full-outer': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .fullOuterJoin('contacts', 'users.id', 'contacts.id')
+      .toSQL(),
+  'join/right-and-right-outer': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      .rightJoin('contacts', 'users.id', 'contacts.id')
+      .rightOuterJoin('photos', 'users.id', 'photos.id')
+      .toSQL(),
+  'join/raw-operand': (d) => _qb(d)
+      .table('users')
+      .select(['*'])
+      // knex.js's `join('contacts', 'users.id', raw(1))` builds the join
+      // condition `on "users"."id" = 1` — knex.js's `raw(value)` (with a
+      // non-string single arg) emits the literal scalar inline, NOT a
+      // placeholder+binding. dart's Raw requires a SQL string, so the
+      // faithful mirror is `raw('1')` (no bindings) — emits the literal `1`
+      // directly. Likewise knex.js's `leftJoin('photos', 'photos.title',
+      // '=', raw('?', ['My Photo']))` uses a parameterized raw, mirrored
+      // directly as `raw('?', ['My Photo'])`.
+      .join('contacts', (j) => j.on('users.id', '=', _qb(d).client.raw('1')))
+      .leftJoin('photos', (j) => j.on('photos.title', '=', _qb(d).client.raw('?', ['My Photo'])))
+      .toSQL(),
+
+  // ── on-* family in JOIN clause ──────────────────────────────────────
+  'on/null': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.on('users.id', '=', 'contacts.id').onNull('contacts.address');
+  }).toSQL(),
+  'on/or-null': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .on('users.id', '=', 'contacts.id')
+            .onNull('contacts.address')
+            .orOnNull('contacts.phone');
+      }).toSQL(),
+  'on/not-null': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.on('users.id', '=', 'contacts.id').onNotNull('contacts.address');
+      }).toSQL(),
+  'on/or-not-null': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .on('users.id', '=', 'contacts.id')
+            .onNotNull('contacts.address')
+            .orOnNotNull('contacts.phone');
+      }).toSQL(),
+  'on/in': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.onIn('users.id', [1, 2, 3]);
+  }).toSQL(),
+  'on/or-in': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.onIn('users.id', [1, 2, 3]).orOnIn('users.id', [4, 5]);
+  }).toSQL(),
+  'on/not-in': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onNotIn('users.id', [1, 2, 3]);
+      }).toSQL(),
+  'on/between': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onBetween('users.id', [1, 5]);
+      }).toSQL(),
+  'on/not-between': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onNotBetween('users.id', [1, 5]);
+      }).toSQL(),
+  'on/exists': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onExists((inner) {
+          inner
+              .select(['*'])
+              .table('phones')
+              .where('phones.contact_id', '=', _qb(d).client.raw('"contacts"."id"'));
+        });
+      }).toSQL(),
+  'on/not-exists': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onNotExists((inner) {
+          inner
+              .select(['*'])
+              .table('phones')
+              .where('phones.contact_id', '=', _qb(d).client.raw('"contacts"."id"'));
+        });
+      }).toSQL(),
 };

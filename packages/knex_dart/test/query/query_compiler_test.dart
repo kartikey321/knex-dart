@@ -1928,9 +1928,14 @@ void main() {
       ).table('events').countDistinct(['user_id', 'event_type']);
       final sql = builder.toSQL();
 
+      // pg-family treats distinct multi-column as a row constructor — emits
+      // count(distinct("user_id", "event_type")) with extra parens around the
+      // column list (matches real knex.js 3.3.0's pg client). The non-pg
+      // shape (`count(distinct "user_id", "event_type")`) is covered by the
+      // parity harness's `agg/count-distinct-multi-col::mysql/sqlite` cases.
       expect(
         sql.sql,
-        'select count(distinct "user_id", "event_type") from "events"',
+        'select count(distinct("user_id", "event_type")) from "events"',
       );
       expect(sql.bindings, []);
     });

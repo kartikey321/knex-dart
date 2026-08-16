@@ -156,8 +156,11 @@ class ColumnBuilder {
     final wrapFn = wrap ?? (String v) => '"$v"';
     final parts = <String>['${wrapFn(name)} $type'];
 
-    if (_isUnsigned &&
-        (dialect == 'mysql' || dialect == 'mysql2' || dialect == 'mariadb')) {
+    // `unsigned` is MySQL-family grammar only (postgres/sqlite silently
+    // ignore it — verified against real knex.js). Use the family-aware
+    // `_mysqlLike` set so mariadb (which emits driver-name `'mariadb'`, not
+    // `'mysql2'`) is dispatched correctly.
+    if (_isUnsigned && _mysqlLike.contains(dialect)) {
       parts.add('unsigned');
     }
 
@@ -204,9 +207,7 @@ class ColumnBuilder {
       final value = _sqlString(jsonEncode(_defaultValue), dialect);
       // MySQL 8 requires a JSON literal default to be an expression. knex.js
       // therefore emits DEFAULT ('{}') rather than DEFAULT '{}'.
-      final isMySql =
-          dialect == 'mysql' || dialect == 'mysql2' || dialect == 'mariadb';
-      return isMySql ? '($value)' : value;
+      return _mysqlLike.contains(dialect) ? '($value)' : value;
     } else {
       return _sqlString(_defaultValue.toString(), dialect);
     }
