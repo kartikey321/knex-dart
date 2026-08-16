@@ -688,8 +688,19 @@ class QueryBuilder {
     if (val is List &&
         val.length == 2 &&
         (opNorm == 'between' || opNorm == 'not between')) {
-      return _not(opNorm == 'not between')
-          .whereBetween(column as String, val);
+      // Only SET the flag when the operator string itself says "not
+      // between" (e.g. `.where(col, 'not between', [1, 2])` called
+      // directly). Previously this unconditionally called
+      // `_not(opNorm == 'not between')`, which for a bare 'between'
+      // operator assigned `_not(false)` — clobbering a NOT flag a caller
+      // had already set via `.whereNot(col, 'between', [1, 2])`/
+      // `.orWhereNot(...)`, silently inverting the query to the opposite
+      // of what was requested (compiled `between` instead of `not
+      // between`, matching exactly the rows the caller meant to exclude).
+      if (opNorm == 'not between') {
+        _not(true);
+      }
+      return whereBetween(column as String, val);
     }
 
     _statements.add({

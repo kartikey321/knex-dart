@@ -1287,6 +1287,37 @@ class QueryCompiler {
     final lock = single['lock'] as String?;
     if (lock == null) return '';
 
+    // Redshift and SQLite have no row-locking support at all — knex.js
+    // silently drops the lock clause entirely for every one of the 4 modes
+    // on both (Redshift additionally logs a console warning; SQLite doesn't
+    // even do that) — verified directly against real knex.js 3.3.0, not
+    // assumed from the family grouping below. Previously these fell through
+    // to the generic postgres-shaped branches, emitting `for update`/`for
+    // share` — invalid on SQLite (no such clause) and semantically wrong
+    // for Redshift (which processed the request as if it were a no-op,
+    // where knex-dart's version implied real row-level locking that
+    // Redshift doesn't provide).
+    if (client.driverName == 'redshift' || _isSqliteLikeDriver) {
+      return '';
+    }
+
+    // MSSQL doesn't have a trailing `FOR UPDATE`/`FOR SHARE` clause at
+    // all — its lock hints (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attach
+    // directly to the table reference in the FROM clause instead, a
+    // different position in the SQL text this trailing-clause-shaped
+    // method can't produce. Emitting the generic postgres-style text here
+    // would be silently wrong T-SQL (MSSQL doesn't recognize a bare `for
+    // update` as a lock hint the way postgres does). Refuse loudly instead
+    // — a real fix needs the FROM-clause compiler to know about pending
+    // lock hints, not a one-line change here.
+    if (client.driverName == 'mssql') {
+      throw StateError(
+        '.$lock() on MSSQL requires a table-hint (WITH (UPDLOCK)/WITH '
+        '(HOLDLOCK)) attached to the FROM clause, not a trailing clause — '
+        'not currently supported by knex-dart',
+      );
+    }
+
     // Use the family-aware helper so mariadb (and any future mysql-family
     // driver name) is dispatched correctly here too — same fix as the JSON
     // where family.
@@ -1845,9 +1876,14 @@ class QueryCompiler {
         // second row onward, and it must still be merge-updated), sorted
         // alphabetically (`Object.keys(...).sort()`), matching the INSERT
         // column list itself.
+        // Same defensive conversion as _insert() — a row can arrive as
+        // Map<dynamic, dynamic> (e.g. from a dynamically-typed source);
+        // .cast<Map<String, dynamic>>() only lazily checks the outer List
+        // element type, so a mismatched row still throws later inside the
+        // merge-column loop instead of here.
         final rows = insertValue is List
-            ? insertValue.cast<Map<String, dynamic>>()
-            : [insertValue as Map<String, dynamic>];
+            ? insertValue.map((row) => Map<String, dynamic>.from(row as Map)).toList()
+            : [Map<String, dynamic>.from(insertValue as Map)];
         final columnSet = <String>{};
         for (final row in rows) {
           columnSet.addAll(row.keys);
@@ -1997,6 +2033,21 @@ class QueryCompiler {
       throw ArgumentError('Empty .update() call detected!');
     }
 
+    final table = formatter.wrap(single['table']);
+
+    // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
+    // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
+    // to match knex.js's mysql-querycompiler. Compiled BEFORE the SET list
+    // below — its ON-clause bindings (from a bound onVal()) must precede
+    // the SET bindings in `bindings` to match MySQL's positional `?`
+    // placeholders, which are resolved strictly in text order (the join
+    // clause appears before `set ...` in the returned SQL). Building SET
+    // first previously appended its bindings ahead of the join's, silently
+    // shifting every bound value to the wrong placeholder whenever the
+    // join's ON clause carried a bound value.
+    final join = _isMySqlLikeDriver ? _join() : '';
+    final joinClause = join.isNotEmpty ? ' $join' : '';
+
     final updates = <String>[];
 
     // Handle regular UPDATE values
@@ -2018,14 +2069,6 @@ class QueryCompiler {
         updates.add('$col = $col $operator $absAmount');
       }
     }
-
-    final table = formatter.wrap(single['table']);
-
-    // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
-    // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
-    // to match knex.js's mysql-querycompiler.
-    final join = _isMySqlLikeDriver ? _join() : '';
-    final joinClause = join.isNotEmpty ? ' $join' : '';
 
     return 'update $table$joinClause set ${updates.join(', ')}';
   }
@@ -2322,7 +2365,6 @@ class QueryCompiler {
     'postgres',
     'postgresql',
     'cockroachdb',
-    'mock',
   }.contains(client.driverName);
 
   String _whereJsonObject(Map<String, dynamic> statement) {

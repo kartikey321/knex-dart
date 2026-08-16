@@ -567,4 +567,100 @@ void main() {
       },
     );
   });
+
+  // ── CodeRabbit-flagged fixes (PR #17 review) ─────────────────────────────
+
+  group('.pluck() subquery in a parameter position is parenthesized', () {
+    test('matches .select()/.first() subquery wrapping', () {
+      final sub = pg.queryBuilder().table('t2').pluck('id');
+      final sql =
+          pg.queryBuilder().table('t1').where('t1_id', '=', sub).toSQL();
+      expect(sql.sql, 'select * from "t1" where "t1_id" = (select "id" from "t2")');
+    });
+  });
+
+  group('whereNot()/orWhereNot() with a "between" operator', () {
+    test('whereNot(col, "between", [a, b]) compiles to NOT BETWEEN', () {
+      final sql = pg
+          .queryBuilder()
+          .table('t')
+          .whereNot('id', 'between', [1, 2])
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "id" not between \$1 and \$2');
+    });
+
+    test('orWhereNot(col, "between", [a, b]) compiles to NOT BETWEEN', () {
+      final sql = pg
+          .queryBuilder()
+          .table('t')
+          .orWhereNot('id', 'between', [1, 2])
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "id" not between \$1 and \$2');
+    });
+
+    test('where(col, "between", [a, b]) (no whereNot) still compiles to BETWEEN', () {
+      final sql =
+          pg.queryBuilder().table('t').where('id', 'between', [1, 2]).toSQL();
+      expect(sql.sql, 'select * from "t" where "id" between \$1 and \$2');
+    });
+
+    test('where(col, "not between", [a, b]) (operator spelled out directly) still NOT BETWEEN', () {
+      final sql = pg
+          .queryBuilder()
+          .table('t')
+          .where('id', 'not between', [1, 2])
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "id" not between \$1 and \$2');
+    });
+  });
+
+  group('lock modes — dialects with no row-locking support', () {
+    test('Redshift: forUpdate()/forShare() are silent no-ops (no lock clause)', () {
+      final redshift = MockClient(driverName: 'redshift');
+      expect(
+        redshift.queryBuilder().table('t').forUpdate().toSQL().sql,
+        'select * from "t"',
+      );
+      expect(
+        redshift.queryBuilder().table('t').forShare().toSQL().sql,
+        'select * from "t"',
+      );
+    });
+
+    test('SQLite: forUpdate()/forShare() are silent no-ops (no lock clause)', () {
+      final sql = SqliteMockClient()
+          .queryBuilder()
+          .table('t')
+          .forUpdate()
+          .toSQL();
+      expect(sql.sql, 'select * from "t"');
+    });
+
+    test('MSSQL: forUpdate()/forShare() throw rather than emit wrong SQL', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        () => mssql.queryBuilder().table('t').forUpdate().toSQL(),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('MySQL UPDATE ... JOIN ... SET — binding order', () {
+    test('join ON-clause bindings precede SET bindings, matching SQL text order', () {
+      final sql = my.queryBuilder().table('users').join(
+        'accounts',
+        (j) => j
+            .on('users.id', '=', 'accounts.user_id')
+            .onVal('accounts.status', '=', 'active'),
+      ).update({'users.name': 'Bob'}).toSQL();
+
+      expect(
+        sql.sql,
+        'update `users` inner join `accounts` on `users`.`id` = '
+        '`accounts`.`user_id` and `accounts`.`status` = ? set `users`.`name` = ?',
+      );
+      // Previously ['Bob', 'active'] — wrong slot for both placeholders.
+      expect(sql.bindings, ['active', 'Bob']);
+    });
+  });
 }

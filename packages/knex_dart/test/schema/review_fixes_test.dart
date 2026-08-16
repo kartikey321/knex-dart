@@ -537,4 +537,61 @@ void main() {
       expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
     });
   });
+
+  // ── CodeRabbit-flagged fixes (PR #17 review) ─────────────────────────────
+
+  group('MSSQL: identifiers embedded in string literals are quote-escaped', () {
+    test('createTableIfNotExists\' object_id() guard escapes a table name with a quote', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = mssql.schemaBuilder().createTableIfNotExists(
+        "o'brien",
+        (t) => t.string('x'),
+      ).toSQL().first['sql'] as String;
+      expect(sql, contains("object_id('\"o''brien\"', 'U')"));
+    });
+
+    test('table.comment() escapes a schema name with a quote', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = mssql.schemaBuilder()
+          .withSchema("o'brien")
+          .createTable('t', (table) {
+            table.string('x');
+            table.comment('hi');
+          })
+          .toSQL()
+          .last['sql'] as String;
+      expect(sql, contains("N'o''brien'"));
+    });
+  });
+
+  group('MSSQL: multi-column DROP COLUMN uses a single keyword + column list', () {
+    test('dropColumns(["a", "b"]) — not one DROP COLUMN per column', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = mssql.schemaBuilder().alterTable('t', (table) {
+        table.dropColumns(['a', 'b']);
+      }).toSQL().last['sql'] as String;
+      expect(sql, 'alter table "t" drop column "a", "b"');
+    });
+
+    test('dropTimestamps() — same single-keyword multi-column form', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = mssql.schemaBuilder().alterTable('t', (table) {
+        table.dropTimestamps();
+      }).toSQL().last['sql'] as String;
+      expect(sql, 'alter table "t" drop column "created_at", "updated_at"');
+    });
+  });
+
+  group('alterView() inlines bindings (view DDL can\'t bind parameters)', () {
+    test('a bound WHERE value is inlined, not left as a separate binding', () {
+      final pgClient = MockClient();
+      final def = pgClient.queryBuilder()
+          .table('users')
+          .select(['*'])
+          .where('active', true);
+      final stmt = pgClient.schemaBuilder().alterView('v', def).toSQL().single;
+      expect(stmt['sql'], 'create or replace view "v" as select * from "users" where "active" = true');
+      expect(stmt['bindings'], isEmpty);
+    });
+  });
 }

@@ -530,8 +530,12 @@ class SchemaCompiler {
         // MSSQL has no `CREATE TABLE IF NOT EXISTS` — knex.js instead guards
         // with `IF OBJECT_ID(...) IS NULL CREATE TABLE ...` (verified
         // against real knex.js 3.3.0), same existence-check idiom as
-        // _dropTableIfExists's mssql branch.
-        ? "if object_id('$tableRef', 'U') is null CREATE TABLE $tableBody"
+        // _dropTableIfExists's mssql branch. tableRef is embedded inside a
+        // string literal here (object_id() takes its argument as a string,
+        // not an identifier), so a literal `'` in the table/schema name —
+        // untouched by bracket-quoting, a different escape mechanism —
+        // must be doubled or it terminates the literal early.
+        ? "if object_id('${tableRef.replaceAll("'", "''")}', 'U') is null CREATE TABLE $tableBody"
         : '$prefix $tableBody';
     _pushQuery(sql);
 
@@ -576,15 +580,19 @@ class SchemaCompiler {
   /// against real knex.js 3.3.0, including its `withSchema()` handling
   /// (defaults to 'dbo' when no schema was set).
   String _mssqlCommentStatement(String tableName, String comment) {
-    final schemaName = builder.schema ?? 'dbo';
+    // schemaName/tableName are embedded inside N'...' string literals (the
+    // stored-proc arguments), not as bracket-quoted identifiers — a literal
+    // `'` in either must be doubled or it terminates the literal early.
+    final schemaName = (builder.schema ?? 'dbo').replaceAll("'", "''");
+    final table = tableName.replaceAll("'", "''");
     final escapedComment = _escapeComment(comment);
     return "IF EXISTS(SELECT * FROM sys.fn_listextendedproperty(N'MS_Description', "
-        "N'Schema', N'$schemaName', N'Table', N'$tableName', NULL, NULL))\n"
+        "N'Schema', N'$schemaName', N'Table', N'$table', NULL, NULL))\n"
         "  EXEC sys.sp_updateextendedproperty N'MS_Description', N'$escapedComment', "
-        "N'Schema', N'$schemaName', N'Table', N'$tableName'\n"
+        "N'Schema', N'$schemaName', N'Table', N'$table'\n"
         "ELSE\n"
         "  EXEC sys.sp_addextendedproperty N'MS_Description', N'$escapedComment', "
-        "N'Schema', N'$schemaName', N'Table', N'$tableName'";
+        "N'Schema', N'$schemaName', N'Table', N'$table'";
   }
 
   /// MSSQL's default `.unique()` shape: a filtered `CREATE UNIQUE INDEX`
@@ -803,6 +811,19 @@ class SchemaCompiler {
           } else if (_isMySqlLike(client.driverName)) {
             final dropParts = args.map((col) => 'drop ${_wrap(col)}').join(', ');
             _pushQuery('alter table $tableRef $dropParts');
+          } else if (client.driverName == 'mssql') {
+            // MSSQL's multi-column form is a single DROP COLUMN keyword
+            // followed by a comma-separated column list — `DROP COLUMN
+            // [a], [b]`, not `DROP COLUMN [a], DROP COLUMN [b]` — verified
+            // against real knex.js 3.3.0. (Real knex.js also emits a
+            // dynamic-SQL dance per column beforehand to drop any bound
+            // DEFAULT constraint first, which MSSQL requires before a
+            // DROP COLUMN will succeed — not implemented here, see the
+            // alter-table-drop-column::mssql OPEN BUG entry; this fixes
+            // only the DROP COLUMN statement's own syntax, which was
+            // previously wrong on its own terms regardless of that gap.)
+            final cols = args.map((col) => _wrap(col)).join(', ');
+            _pushQuery('alter table $tableRef drop column $cols');
           } else {
             final dropParts =
                 args.map((col) => 'drop column ${_wrap(col)}').join(', ');
@@ -990,6 +1011,11 @@ class SchemaCompiler {
                 .map((col) => 'drop ${_wrap(col)}')
                 .join(', ');
             _pushQuery('alter table $tableRef $dropParts');
+          } else if (client.driverName == 'mssql') {
+            // Same MSSQL multi-column form as dropColumns above — a single
+            // DROP COLUMN keyword with a comma-separated column list.
+            final cols = args.map((col) => _wrap(col)).join(', ');
+            _pushQuery('alter table $tableRef drop column $cols');
           } else {
             final dropParts = args
                 .map((col) => 'drop column ${_wrap(col)}')
@@ -1094,17 +1120,20 @@ class SchemaCompiler {
   void _alterView(String viewName, dynamic definition) {
     final compiled = _compileSelectable(definition, operation: 'alterView');
     final driver = client.driverName.toLowerCase();
+    // Same view-DDL-can't-take-bindings reason as _createView — inline
+    // them. _alterView is knex-dart's own simplified "redefine the view"
+    // API (compiled as CREATE [OR REPLACE] VIEW, unlike knex.js's real
+    // alterView which is a column-rename-only ViewBuilder op with no SELECT
+    // definition) — it hits the exact same DDL-can't-bind restriction and
+    // was the one view-creation path not migrated when the others were.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
     if (_isSqliteLike(driver)) {
       _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
-      _pushQuery(
-        'create view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-        compiled.bindings,
-      );
+      _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
       return;
     }
     _pushQuery(
-      'create or replace view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
+      'create or replace view ${_prefixedTableName(viewName)} as $inlinedSql',
     );
   }
 

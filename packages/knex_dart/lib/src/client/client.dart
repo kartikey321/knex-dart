@@ -320,8 +320,9 @@ abstract class Client {
       final sql = subCompiler.toSQL();
       final offsetSql = offsetPlaceholders(sql.sql, bindingOffset);
       bindings.addAll(sql.bindings);
-      final isSelectLike =
-          subCompiler.method == 'select' || subCompiler.method == 'first';
+      final isSelectLike = subCompiler.method == 'select' ||
+          subCompiler.method == 'first' ||
+          subCompiler.method == 'pluck';
       return isSelectLike ? '($offsetSql)' : offsetSql;
     }
     bindings.add(value);

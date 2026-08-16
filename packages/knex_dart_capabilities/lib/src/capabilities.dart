@@ -6,7 +6,11 @@ enum KnexDialect { postgres, mysql, sqlite, mariadb,
 /// SQL features whose support varies by dialect in knex_dart.
 enum SqlCapability {
   // ── Already supported ────────────────────────────────────────────────────
-  /// `RETURNING` clause — PostgreSQL only.
+  /// `RETURNING` clause — PostgreSQL, plus SQLite-family (sqlite/turso/d1,
+  /// SQLite >=3.35) on INSERT/UPDATE. Not MySQL. SQLite's DELETE-specific
+  /// exception (no RETURNING there despite supporting it elsewhere) isn't
+  /// expressible as a single per-dialect flag — see the carve-out in
+  /// QueryCompiler._deleteQuery.
   returning,
 
   /// `FULL OUTER JOIN` — PostgreSQL only (MySQL/SQLite don't support it).
