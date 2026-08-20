@@ -70,14 +70,22 @@ const cases = [
   ['where/grouped', (k) => k('users').where('a', 1).where((q) => q.where('b', 2).orWhere('c', 3))],
   ['where/subquery-in', (k) => k('users').whereIn('id', k('orders').select('user_id').where('total', '>', 100))],
   ['where/in-multi-column-single-tuple', (k) => k('users').whereIn(['a', 'b'], [[1, 2]])],
+  ['where/in-callback', (k) => k('users').whereIn('id', function () {
+    this.select('user_id').from('orders').where('total', '>', 100);
+  })],
 
   ['select/columns', (k) => k('users').select('id', 'name')],
   ['select/orderby-multi', (k) => k('users').orderBy('a').orderBy('b', 'desc')],
   ['select/orderby-raw-direction', (k) => k('users').orderBy('name', k.raw('desc nulls last'))],
   ['select/limit-offset', (k) => k('users').limit(10).offset(5)],
+  ['select/alias-map-raw', (k) => k('users').select({ answer: k.raw('?', [42]) })],
+  ['select/alias-map-subquery', (k) => k('users').select({ order_id: k('orders').select('id').where('total', '>', 100) })],
 
   ['join/inner', (k) => k('a').join('b', 'a.id', 'b.a_id').select('*')],
   ['join/left', (k) => k('a').leftJoin('b', 'a.id', 'b.a_id').select('*')],
+  ['query/truncate', (k) => k('users').truncate()],
+  ['join/raw', (k) => k('users').joinRaw('join contacts on contacts.id = users.contact_id')],
+  ['join/raw-with-binding', (k) => k('users').joinRaw('join contacts on contacts.id = ?', [1])],
 
   ['insert/single', (k) => k('users').insert({ email: 'a@b.com', name: 'Alice' })],
   ['insert/multi-ragged', (k) => k('t').insert([{ a: 1, b: 2 }, { a: 3, c: 4 }])],
@@ -765,6 +773,26 @@ const cases = [
   })],
   ['on/in-raw', (k) => k('users').select('*').join('contacts', function (qb) {
     qb.onIn('contacts.user_id', k.raw('select ? as "user_id"', [1]));
+  })],
+  ['on/in-variants', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id')
+      .andOnIn('contacts.kind', [1]).orOnIn('contacts.kind', [2])
+      .andOnNotIn('contacts.state', [3]).orOnNotIn('contacts.state', [4]);
+  })],
+  ['on/null-and-variants', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id')
+      .andOnNull('contacts.deleted_at').andOnNotNull('contacts.email');
+  })],
+  ['on/exists-variants', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id')
+      .andOnExists(function () { this.select('*').from('phones').where('active', true); })
+      .orOnExists(function () { this.select('*').from('emails').where('verified', true); })
+      .andOnNotExists(function () { this.select('*').from('blocks').where('blocked', true); });
+  })],
+  ['on/json-path-equals-variants', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.onJsonPathEquals('users.meta', '$.id', 'contacts.meta', '$.user_id')
+      .andOnJsonPathEquals('users.meta', '$.tenant', 'contacts.meta', '$.tenant_id')
+      .orOnJsonPathEquals('users.meta', '$.org', 'contacts.meta', '$.org_id');
   })],
 
   // Batch 8 — coverage-guided QueryBuilder / JoinClause parity mining.

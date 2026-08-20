@@ -249,6 +249,18 @@ final Map<String, SchemaParityCase> schemaParityCases = {
         ).from('users').select(['name']).where('age', '>', '18'),
       )
       .toSQL(),
+  'schema/view-create-raw': (d) => _sb(d)
+      .createView(
+        'answer_view',
+        _sb(d).client.raw('select ? as answer', [42]),
+      )
+      .toSQL(),
+  'schema/view-create-or-replace-raw': (d) => _sb(d)
+      .createViewOrReplace(
+        'answer_view',
+        _sb(d).client.raw('select ? as answer', [42]),
+      )
+      .toSQL(),
   'schema/view-create-or-replace': (d) => _sb(d)
       .createViewOrReplace(
         'adults',
@@ -268,6 +280,12 @@ final Map<String, SchemaParityCase> schemaParityCases = {
         KnexQuery.forClient(
           d,
         ).from('users').select(['name']).where('age', '>', '18'),
+      )
+      .toSQL(),
+  'schema/view-create-materialized-raw': (d) => _sb(d)
+      .createMaterializedView(
+        'answer_view',
+        _sb(d).client.raw('select ? as answer', [42]),
       )
       .toSQL(),
   'schema/view-refresh-materialized': (d) =>

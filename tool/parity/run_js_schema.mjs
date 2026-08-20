@@ -314,6 +314,12 @@ const cases = [
   ['schema/view-create-basic', (k) => k.schema.createView('adults', (view) => {
     view.as(k('users').select('name').where('age', '>', '18'));
   })],
+  ['schema/view-create-raw', (k) => k.schema.createView('answer_view', (view) => {
+    view.as(k.raw('select ? as answer', [42]));
+  })],
+  ['schema/view-create-or-replace-raw', (k) => k.schema.createViewOrReplace('answer_view', (view) => {
+    view.as(k.raw('select ? as answer', [42]));
+  })],
   ['schema/view-create-or-replace', (k) => k.schema.createViewOrReplace('adults', (view) => {
     view.as(k('users').select('name').where('age', '>', '18'));
   })],
@@ -322,6 +328,9 @@ const cases = [
   ['schema/view-rename', (k) => k.schema.renameView('old_view', 'new_view')],
   ['schema/view-create-materialized', (k) => k.schema.createMaterializedView('mat_view', (view) => {
     view.as(k('users').select('name').where('age', '>', '18'));
+  })],
+  ['schema/view-create-materialized-raw', (k) => k.schema.createMaterializedView('answer_view', (view) => {
+    view.as(k.raw('select ? as answer', [42]));
   })],
   ['schema/view-refresh-materialized', (k) => k.schema.refreshMaterializedView('view_to_refresh')],
 

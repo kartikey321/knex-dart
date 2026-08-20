@@ -59,6 +59,9 @@ final Map<String, ParityCase> parityCases = {
         ],
       )
       .toSQL(),
+  'where/in-callback': (d) => _qb(d).table('users').whereIn('id', (q) {
+    q.select(['user_id']).table('orders').where('total', '>', 100);
+  }).toSQL(),
 
   // SELECT / ORDER / LIMIT
   'select/columns': (d) => _qb(d).table('users').select(['id', 'name']).toSQL(),
@@ -76,6 +79,14 @@ final Map<String, ParityCase> parityCases = {
       _qb(d).table('a').join('b', 'a.id', 'b.a_id').select(['*']).toSQL(),
   'join/left': (d) =>
       _qb(d).table('a').leftJoin('b', 'a.id', 'b.a_id').select(['*']).toSQL(),
+  'query/truncate': (d) => _qb(d).table('users').truncate().toSQL(),
+  'join/raw': (d) => _qb(d)
+      .table('users')
+      .joinRaw('join contacts on contacts.id = users.contact_id')
+      .toSQL(),
+  'join/raw-with-binding': (d) => _qb(
+    d,
+  ).table('users').joinRaw('join contacts on contacts.id = ?', [1]).toSQL(),
 
   // DML
   'insert/single': (d) => _qb(
@@ -579,6 +590,12 @@ final Map<String, ParityCase> parityCases = {
       _qb(d).table('users').select({'bar': 'foo'}).toSQL(),
   'select/alias-map-multi': (d) =>
       _qb(d).table('users').select({'bar': 'foo', 'baz': 'qux'}).toSQL(),
+  'select/alias-map-raw': (d) => _qb(d).table('users').select({
+    'answer': _qb(d).client.raw('?', [42]),
+  }).toSQL(),
+  'select/alias-map-subquery': (d) => _qb(d).table('users').select({
+    'order_id': _qb(d).table('orders').select(['id']).where('total', '>', 100),
+  }).toSQL(),
   'select/alias-array-mixed': (d) => _qb(d).table('users').select([
     'baz',
     {'bar': 'foo'},
@@ -1297,6 +1314,58 @@ final Map<String, ParityCase> parityCases = {
   'on/in-raw': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onIn('contacts.user_id', _qb(d).client.raw('select ? as "user_id"', [1]));
   }).toSQL(),
+  'on/in-variants': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .on('users.id', '=', 'contacts.user_id')
+            .andOnIn('contacts.kind', [1])
+            .orOnIn('contacts.kind', [2])
+            .andOnNotIn('contacts.state', [3])
+            .orOnNotIn('contacts.state', [4]);
+      }).toSQL(),
+  'on/null-and-variants': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .on('users.id', '=', 'contacts.user_id')
+            .andOnNull('contacts.deleted_at')
+            .andOnNotNull('contacts.email');
+      }).toSQL(),
+  'on/exists-variants': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .on('users.id', '=', 'contacts.user_id')
+            .andOnExists(
+              (q) => q.select(['*']).table('phones').where('active', true),
+            )
+            .orOnExists(
+              (q) => q.select(['*']).table('emails').where('verified', true),
+            )
+            .andOnNotExists(
+              (q) => q.select(['*']).table('blocks').where('blocked', true),
+            );
+      }).toSQL(),
+  'on/json-path-equals-variants': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .onJsonPathEquals(
+              'users.meta',
+              r'$.id',
+              'contacts.meta',
+              r'$.user_id',
+            )
+            .andOnJsonPathEquals(
+              'users.meta',
+              r'$.tenant',
+              'contacts.meta',
+              r'$.tenant_id',
+            )
+            .orOnJsonPathEquals(
+              'users.meta',
+              r'$.org',
+              'contacts.meta',
+              r'$.org_id',
+            );
+      }).toSQL(),
 
   // ── Batch 8: coverage-guided QueryBuilder / JoinClause mining ───────
   'agg/avg': (d) => _qb(d).table('t').avg('amount').toSQL(),

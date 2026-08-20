@@ -2273,9 +2273,20 @@ class QueryCompiler {
   /// Postgres appends `restart identity`.
   String _truncateQuery() {
     final table = tableName;
-    final driver = client.driverName;
+    final driver = client.driverName.toLowerCase();
     if (driver == 'pg' || driver == 'postgres' || driver == 'postgresql') {
       return 'truncate $table restart identity';
+    }
+    // SQLite has no TRUNCATE statement. Knex.js compiles its truncate()
+    // builder method to DELETE FROM instead (including the Turso/D1 family).
+    if (driver == 'sqlite' ||
+        driver == 'sqlite3' ||
+        driver == 'turso' ||
+        driver == 'd1') {
+      return 'delete from $table';
+    }
+    if (driver == 'mssql') {
+      return 'truncate table $table';
     }
     return 'truncate $table';
   }

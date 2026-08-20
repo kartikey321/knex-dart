@@ -938,6 +938,12 @@ const Map<String, String> schemaParityAllowlist = {
   // fix/mariadb-mysql-family-dispatch (commit 643f4d9), not reimplemented here.
   'schema/view-create-basic::mssql':
       '[OPEN BUG] see schema/view-create-basic::postgres.',
+  'schema/view-create-raw::mssql':
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords (`CREATE VIEW '
+          '... AS`), knex-dart emits lowercase uniformly across every '
+          'dialect — cosmetic only, SQL keywords are case-insensitive. Same '
+          'class as schema/table-alias::mssql / schema/'
+          'alter-table-add-column::mssql.',
 
   // ── OPEN BUG: same multi-column ALTER TABLE ADD batching gap as the other
   // dialects' alter-table-add-timestamps/column-timestamps-* entries — knex.js

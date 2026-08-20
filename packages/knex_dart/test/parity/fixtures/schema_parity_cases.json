@@ -13,7 +13,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 1314,
+  "caseCount": 1341,
   "cases": [
     {
       "id": "schema/create-table-basic",
@@ -4677,6 +4677,202 @@
       ]
     },
     {
+      "id": "schema/view-create-raw",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "mariadb",
+      "statements": [
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-raw",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE VIEW [answer_view] AS select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create or replace view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create or replace view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create or replace view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "create or replace view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "mariadb",
+      "statements": [
+        {
+          "sql": "create or replace view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `answer_view`",
+          "bindings": []
+        },
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `answer_view`",
+          "bindings": []
+        },
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "drop view if exists `answer_view`",
+          "bindings": []
+        },
+        {
+          "sql": "create view `answer_view` as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-or-replace-raw",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "CREATE OR ALTER VIEW [answer_view] AS select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
       "id": "schema/view-create-or-replace",
       "dialect": "postgres",
       "statements": [
@@ -5103,6 +5299,68 @@
     },
     {
       "id": "schema/view-create-materialized",
+      "dialect": "mssql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "create materialized view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "create materialized view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "create materialized view \"answer_view\" as select 42 as answer",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "mysql",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "mariadb",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": "materialized views are not supported by this dialect."
+    },
+    {
+      "id": "schema/view-create-materialized-raw",
       "dialect": "mssql",
       "error": "materialized views are not supported by this dialect."
     },
