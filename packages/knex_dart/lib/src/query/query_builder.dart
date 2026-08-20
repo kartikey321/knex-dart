@@ -722,7 +722,7 @@ class QueryBuilder {
   /// Supports orderBy(column, [direction])
   /// - direction defaults to 'asc'
   /// - direction can be 'asc' or 'desc'
-  QueryBuilder orderBy(String column, [String direction = 'asc']) {
+  QueryBuilder orderBy(String column, [dynamic direction = 'asc']) {
     _statements.add({
       'grouping': 'order',
       'type': 'orderByBasic',
@@ -784,7 +784,6 @@ class QueryBuilder {
     return ret;
   }
 
-
   /// Add an OR WHERE clause
   ///
   ///
@@ -841,7 +840,7 @@ class QueryBuilder {
   ///
   /// Accepts either a List of values or a QueryBuilder for subqueries
   ///
-  QueryBuilder whereIn(String column, dynamic values) {
+  QueryBuilder whereIn(dynamic column, dynamic values) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereIn',
@@ -855,7 +854,7 @@ class QueryBuilder {
 
   /// Add a WHERE NOT IN clause
   ///
-  QueryBuilder whereNotIn(String column, dynamic values) {
+  QueryBuilder whereNotIn(dynamic column, dynamic values) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereIn',
@@ -1598,9 +1597,7 @@ class QueryBuilder {
       });
     } else {
       // String/array overload: (alias, orderBy, [partitionBy])
-      final order = second == null
-          ? []
-          : (second is! List ? [second] : second);
+      final order = second == null ? [] : (second is! List ? [second] : second);
       final List partitions;
       if (third == null) {
         partitions = [];

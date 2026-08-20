@@ -78,55 +78,44 @@ void main() {
       expect(sql.bindings, []);
     });
 
-    test(
-      'Test 7: select([List]) with a { alias: column } map entry '
-      '(verified against real knex.js: select "id", "name" as "user_name" '
-      'from "t")',
-      () {
-        final builder = QueryBuilder(client).table('t').select([
-          'id',
-          {'user_name': 'name'},
-        ]);
-        final sql = builder.toSQL();
+    test('Test 7: select([List]) with a { alias: column } map entry '
+        '(verified against real knex.js: select "id", "name" as "user_name" '
+        'from "t")', () {
+      final builder = QueryBuilder(client).table('t').select([
+        'id',
+        {'user_name': 'name'},
+      ]);
+      final sql = builder.toSQL();
 
-        expect(sql.sql, 'select "id", "name" as "user_name" from "t"');
-        expect(sql.bindings, []);
-      },
-    );
+      expect(sql.sql, 'select "id", "name" as "user_name" from "t"');
+      expect(sql.bindings, []);
+    });
 
-    test(
-      'Test 8: select({alias: column}) — a bare Map, not wrapped in a List '
-      '(verified against real knex.js: select "name" as "user_name" from '
-      '"t")',
-      () {
-        final builder = QueryBuilder(client).table('t').select({
-          'user_name': 'name',
-        });
-        final sql = builder.toSQL();
+    test('Test 8: select({alias: column}) — a bare Map, not wrapped in a List '
+        '(verified against real knex.js: select "name" as "user_name" from '
+        '"t")', () {
+      final builder = QueryBuilder(
+        client,
+      ).table('t').select({'user_name': 'name'});
+      final sql = builder.toSQL();
 
-        expect(sql.sql, 'select "name" as "user_name" from "t"');
-        expect(sql.bindings, []);
-      },
-    );
+      expect(sql.sql, 'select "name" as "user_name" from "t"');
+      expect(sql.bindings, []);
+    });
 
-    test(
-      'Test 9: select({alias: subquery}) aliases a QueryBuilder subquery '
-      '(verified against real knex.js: select (select "x" from "t2" limit '
-      '1) as "total" from "t1")',
-      () {
-        final sub = QueryBuilder(client).table('t2').select(['x']).limit(1);
-        final builder = QueryBuilder(client).table('t1').select({
-          'total': sub,
-        });
-        final sql = builder.toSQL();
+    test('Test 9: select({alias: subquery}) aliases a QueryBuilder subquery '
+        '(verified against real knex.js: select (select "x" from "t2" limit '
+        '1) as "total" from "t1")', () {
+      final sub = QueryBuilder(client).table('t2').select(['x']).limit(1);
+      final builder = QueryBuilder(client).table('t1').select({'total': sub});
+      final sql = builder.toSQL();
 
-        expect(
-          sql.sql,
-          'select (select "x" from "t2" limit \$1) as "total" from "t1"',
-        );
-        expect(sql.bindings, [1]);
-      },
-    );
+      expect(
+        sql.sql,
+        'select (select "x" from "t2" limit \$1) as "total" from "t1"',
+      );
+      expect(sql.bindings, [1]);
+    });
   });
 
   group('QueryCompiler - Structure Tests', () {
@@ -1315,71 +1304,62 @@ void main() {
       },
     );
 
-    test(
-      'Ragged multi-row insert uses null bindings (not DEFAULT) when '
-      'useNullAsDefault is set, matching real knex.js',
-      () {
-        final pgClient = MockClient(
-          config: KnexConfig(
-            client: 'pg',
-            connection: {},
-            useNullAsDefault: true,
-          ),
-        );
-        final sql = QueryBuilder(pgClient).table('t').insert([
+    test('Ragged multi-row insert uses null bindings (not DEFAULT) when '
+        'useNullAsDefault is set, matching real knex.js', () {
+      final pgClient = MockClient(
+        config: KnexConfig(
+          client: 'pg',
+          connection: {},
+          useNullAsDefault: true,
+        ),
+      );
+      final sql = QueryBuilder(pgClient).table('t').insert([
+        {'Zebra': 1, 'apple': 2},
+        {'apple': 3, 'Zoo': 4},
+      ]).toSQL();
+
+      expect(
+        sql.sql,
+        'insert into "t" ("Zebra", "Zoo", "apple") values '
+        '(\$1, \$2, \$3), (\$4, \$5, \$6)',
+      );
+      expect(sql.bindings, [1, null, 2, null, 4, 3]);
+    });
+
+    test('Ragged multi-row insert on SQLite succeeds (via null bindings, not '
+        "knex.js's union-all-select shim) when useNullAsDefault is set", () {
+      final sqliteClient = MockClient(
+        driverName: 'sqlite3',
+        config: KnexConfig(
+          client: 'sqlite3',
+          connection: {},
+          useNullAsDefault: true,
+        ),
+      );
+      final sql = QueryBuilder(sqliteClient).table('t').insert([
+        {'Zebra': 1, 'apple': 2},
+        {'apple': 3, 'Zoo': 4},
+      ]).toSQL();
+
+      expect(
+        sql.sql,
+        'insert into "t" ("Zebra", "Zoo", "apple") values '
+        '(\$1, \$2, \$3), (\$4, \$5, \$6)',
+      );
+      expect(sql.bindings, [1, null, 2, null, 4, 3]);
+    });
+
+    test('Ragged multi-row insert on SQLite still throws without '
+        'useNullAsDefault (matches knex.js default-config behavior)', () {
+      final sqliteClient = SqliteMockClient();
+      expect(
+        () => QueryBuilder(sqliteClient).table('t').insert([
           {'Zebra': 1, 'apple': 2},
           {'apple': 3, 'Zoo': 4},
-        ]).toSQL();
-
-        expect(
-          sql.sql,
-          'insert into "t" ("Zebra", "Zoo", "apple") values '
-          '(\$1, \$2, \$3), (\$4, \$5, \$6)',
-        );
-        expect(sql.bindings, [1, null, 2, null, 4, 3]);
-      },
-    );
-
-    test(
-      'Ragged multi-row insert on SQLite succeeds (via null bindings, not '
-      "knex.js's union-all-select shim) when useNullAsDefault is set",
-      () {
-        final sqliteClient = MockClient(
-          driverName: 'sqlite3',
-          config: KnexConfig(
-            client: 'sqlite3',
-            connection: {},
-            useNullAsDefault: true,
-          ),
-        );
-        final sql = QueryBuilder(sqliteClient).table('t').insert([
-          {'Zebra': 1, 'apple': 2},
-          {'apple': 3, 'Zoo': 4},
-        ]).toSQL();
-
-        expect(
-          sql.sql,
-          'insert into "t" ("Zebra", "Zoo", "apple") values '
-          '(\$1, \$2, \$3), (\$4, \$5, \$6)',
-        );
-        expect(sql.bindings, [1, null, 2, null, 4, 3]);
-      },
-    );
-
-    test(
-      'Ragged multi-row insert on SQLite still throws without '
-      'useNullAsDefault (matches knex.js default-config behavior)',
-      () {
-        final sqliteClient = SqliteMockClient();
-        expect(
-          () => QueryBuilder(sqliteClient).table('t').insert([
-            {'Zebra': 1, 'apple': 2},
-            {'apple': 3, 'Zoo': 4},
-          ]).toSQL(),
-          throwsStateError,
-        );
-      },
-    );
+        ]).toSQL(),
+        throwsStateError,
+      );
+    });
   });
 
   group('QueryCompiler Step 11 - UPDATE', () {
@@ -1468,26 +1448,23 @@ void main() {
       expect(sql.bindings, ['Updated', 1]);
     });
 
-    test(
-      'A Raw value with its own ? bindings has its \$N placeholders '
-      'renumbered to continue from the surrounding query\'s running '
-      'binding count (via _inlineRaw / Client.offsetPlaceholders), instead '
-      'of colliding at \$1 — same fix applies to where(client.raw(...)), '
-      'joinRaw(), etc.',
-      () {
-        final builder = QueryBuilder(client)
-            .table('t')
-            .where('id', 1)
-            .update({'a': 'x', 'b': client.raw('? + ?', [2, 3])});
-        final sql = builder.toSQL();
+    test('A Raw value with its own ? bindings has its \$N placeholders '
+        'renumbered to continue from the surrounding query\'s running '
+        'binding count (via _inlineRaw / Client.offsetPlaceholders), instead '
+        'of colliding at \$1 — same fix applies to where(client.raw(...)), '
+        'joinRaw(), etc.', () {
+      final builder = QueryBuilder(client).table('t').where('id', 1).update({
+        'a': 'x',
+        'b': client.raw('? + ?', [2, 3]),
+      });
+      final sql = builder.toSQL();
 
-        expect(
-          sql.sql,
-          'update "t" set "a" = \$1, "b" = \$2 + \$3 where "id" = \$4',
-        );
-        expect(sql.bindings, ['x', 2, 3, 1]);
-      },
-    );
+      expect(
+        sql.sql,
+        'update "t" set "a" = \$1, "b" = \$2 + \$3 where "id" = \$4',
+      );
+      expect(sql.bindings, ['x', 2, 3, 1]);
+    });
 
     test('Increment operation', () {
       final builder = QueryBuilder(
@@ -1743,59 +1720,50 @@ void main() {
       expect(sql.bindings, []);
     });
 
-    test(
-      'A where(raw) placed after a bound where() has its placeholders '
-      'renumbered to continue the running count instead of colliding at '
-      r'$1',
-      () {
-        final builder = QueryBuilder(client)
-            .table('t')
-            .where('id', 1)
-            .where(client.raw('col = ? + ?', [2, 3]));
-        final sql = builder.toSQL();
+    test('A where(raw) placed after a bound where() has its placeholders '
+        'renumbered to continue the running count instead of colliding at '
+        r'$1', () {
+      final builder = QueryBuilder(
+        client,
+      ).table('t').where('id', 1).where(client.raw('col = ? + ?', [2, 3]));
+      final sql = builder.toSQL();
 
-        expect(sql.sql, 'select * from "t" where "id" = \$1 and col = \$2 + \$3');
-        expect(sql.bindings, [1, 2, 3]);
-      },
-    );
+      expect(sql.sql, 'select * from "t" where "id" = \$1 and col = \$2 + \$3');
+      expect(sql.bindings, [1, 2, 3]);
+    });
 
-    test(
-      'Placeholder offsetting does not corrupt a \$N-shaped substring '
-      'inside a single-quoted string literal in a Raw fragment '
-      '(verified against real knex.js)',
-      () {
-        final builder = QueryBuilder(client).table('t').where('a', 0).where(
-              client.raw(r"note = '$1 discount' and x = ?", [2]),
-            );
-        final sql = builder.toSQL();
+    test('Placeholder offsetting does not corrupt a \$N-shaped substring '
+        'inside a single-quoted string literal in a Raw fragment '
+        '(verified against real knex.js)', () {
+      final builder = QueryBuilder(client)
+          .table('t')
+          .where('a', 0)
+          .where(client.raw(r"note = '$1 discount' and x = ?", [2]));
+      final sql = builder.toSQL();
 
-        expect(
-          sql.sql,
-          r'select * from "t" where "a" = $1 and '
-          r"note = '$1 discount' and x = $2",
-        );
-        expect(sql.bindings, [0, 2]);
-      },
-    );
+      expect(
+        sql.sql,
+        r'select * from "t" where "a" = $1 and '
+        r"note = '$1 discount' and x = $2",
+      );
+      expect(sql.bindings, [0, 2]);
+    });
 
-    test(
-      'whereExists() subquery placeholders continue the parent\'s running '
-      'binding count instead of restarting at \$1',
-      () {
-        final builder = QueryBuilder(client)
-            .table('t')
-            .where('a', 1)
-            .whereExists((qb) => qb.table('t2').where('x', 2));
-        final sql = builder.toSQL();
+    test('whereExists() subquery placeholders continue the parent\'s running '
+        'binding count instead of restarting at \$1', () {
+      final builder = QueryBuilder(client)
+          .table('t')
+          .where('a', 1)
+          .whereExists((qb) => qb.table('t2').where('x', 2));
+      final sql = builder.toSQL();
 
-        expect(
-          sql.sql,
-          'select * from "t" where "a" = \$1 and exists '
-          '(select * from "t2" where "x" = \$2)',
-        );
-        expect(sql.bindings, [1, 2]);
-      },
-    );
+      expect(
+        sql.sql,
+        'select * from "t" where "a" = \$1 and exists '
+        '(select * from "t2" where "x" = \$2)',
+      );
+      expect(sql.bindings, [1, 2]);
+    });
   });
 
   // QueryCompiler Step 14 - Aggregate Functions
@@ -2004,6 +1972,52 @@ void main() {
 
       expect(sql.sql, 'select * from `users` lock in share mode');
       expect(sql.bindings, []);
+    });
+
+    test('skipLocked() on sqlite-like client throws (matches knex.js)', () {
+      // sqlite3's compiler doesn't override the base skipLocked()/noWait(),
+      // so real knex.js throws — verified against knex.js 3.3.0:
+      // `.forUpdate().skipLocked()` on sqlite3 throws ".skipLocked() is
+      // currently only supported on MySQL 8.0+ and PostgreSQL 9.5+".
+      final sqlite = SqliteMockClient();
+      expect(
+        () => QueryBuilder(
+          sqlite,
+        ).table('users').forUpdate().skipLocked().toSQL(),
+        throwsA(
+          predicate(
+            (e) =>
+                e is StateError &&
+                e.message.toString().contains('MySQL 8.0+ and PostgreSQL'),
+          ),
+        ),
+      );
+    });
+
+    test('noWait() on sqlite-like client throws (matches knex.js)', () {
+      final sqlite = SqliteMockClient();
+      expect(
+        () => QueryBuilder(sqlite).table('users').forUpdate().noWait().toSQL(),
+        throwsA(
+          predicate(
+            (e) =>
+                e is StateError &&
+                e.message.toString().contains('MariaDB 10.3.0+'),
+          ),
+        ),
+      );
+    });
+
+    test('skipLocked() on redshift passes through with no lock clause '
+        '(matches knex.js — redshift inherits postgres\'s skipLocked()/'
+        'noWait() unchanged while forUpdate() itself is dropped)', () {
+      final redshift = MockClient(driverName: 'redshift');
+      final builder = QueryBuilder(
+        redshift,
+      ).table('users').forUpdate().skipLocked();
+      final sql = builder.toSQL();
+
+      expect(sql.sql, 'select * from "users" skip locked');
     });
 
     test('skipLocked() requires prior lock mode', () {
@@ -2218,14 +2232,65 @@ void main() {
     });
   });
 
-  group('Dialect capability guards', () {
-    test('RETURNING is silently dropped on mysql dialect (matches knex.js)', () {
-      final my = MySQLMockClient();
-      final sql = QueryBuilder(
-        my,
-      ).table('users').insert({'name': 'John'}).returning(['id']).toSQL();
-      expect(sql.sql, 'insert into `users` (`name`) values (?)');
+  group('Formatter parity edge cases', () {
+    test('select alias map supports multiple entries', () {
+      final sql = QueryBuilder(client).table('users').select({
+        'name': 'full_name',
+        'email': 'email_address',
+      }).toSQL();
+
+      expect(
+        sql.sql,
+        'select "full_name" as "name", "email_address" as "email" from "users"',
+      );
+      expect(sql.bindings, isEmpty);
     });
+
+    test('orderBy accepts a raw direction', () {
+      final sql = QueryBuilder(
+        client,
+      ).table('users').orderBy('name', client.raw('desc nulls last')).toSQL();
+
+      expect(sql.sql, 'select * from "users" order by "name" desc nulls last');
+      expect(sql.bindings, isEmpty);
+    });
+
+    test('explicit null comparison remains a parameterized equality', () {
+      final sql = QueryBuilder(
+        client,
+      ).table('users').where('deleted_at', '=', null).toSQL();
+
+      expect(sql.sql, 'select * from "users" where "deleted_at" = \$1');
+      expect(sql.bindings, [null]);
+    });
+
+    test('whereIn supports a multi-column single tuple', () {
+      final sql = QueryBuilder(client)
+          .table('users')
+          .whereIn(
+            ['a', 'b'],
+            [
+              [1, 2],
+            ],
+          )
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where ("a", "b") in ((\$1, \$2))');
+      expect(sql.bindings, [1, 2]);
+    });
+  });
+
+  group('Dialect capability guards', () {
+    test(
+      'RETURNING is silently dropped on mysql dialect (matches knex.js)',
+      () {
+        final my = MySQLMockClient();
+        final sql = QueryBuilder(
+          my,
+        ).table('users').insert({'name': 'John'}).returning(['id']).toSQL();
+        expect(sql.sql, 'insert into `users` (`name`) values (?)');
+      },
+    );
 
     test('fullOuterJoin throws on sqlite dialect', () {
       final sqlite = SqliteMockClient();

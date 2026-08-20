@@ -269,7 +269,8 @@ class QueryCompiler {
       // against real knex.js 3.3.0 for the `union/wrapped-array` parity
       // case — see the allowlist/failure history for this batch.
       final unions = grouped['union'];
-      final wrapBase = unions is List &&
+      final wrapBase =
+          unions is List &&
           (unions as List).any((u) => (u['wrap'] as bool? ?? false));
       if (wrapBase) {
         final baseSql = parts.join(' ');
@@ -476,7 +477,6 @@ class QueryCompiler {
       }
     }
 
-
     // Build SELECT clause
     final columnList = cols.isEmpty ? '*' : cols.join(', ');
     final distinctClause = hasDistinct ? 'distinct ' : '';
@@ -560,11 +560,6 @@ class QueryCompiler {
   /// - "age" > $1
   /// - "users"."id" != $1
   String whereBasic(Map<String, dynamic> statement) {
-    // Check for null value and delegate into whereNull
-    if (statement['value'] == null) {
-      return whereNull(statement);
-    }
-
     return '${_not(statement, '') + formatter.wrap(statement['column'])} ${formatter.operator(statement['operator'])} ${_valueClause(statement)}';
   }
 
@@ -610,7 +605,11 @@ class QueryCompiler {
   /// - Subquery: "column" in (SELECT ...)
   /// - Raw: "column" in (`<raw sql>`) — e.g. `whereIn('id', raw('select (:test)', {...}))`
   String whereIn(Map<String, dynamic> statement) {
-    final column = formatter.wrap(statement['column']);
+    final columns = statement['column'];
+    final multiColumn = columns is List;
+    final column = multiColumn
+        ? '(${formatter.columnize(columns)})'
+        : formatter.wrap(columns);
     final values = statement['value'];
 
     String valueClause;
@@ -628,13 +627,26 @@ class QueryCompiler {
       values(subBuilder);
       valueClause = _compileSubquery(subBuilder);
     } else {
-      // Array of values
+      // Array of scalar values or row-value tuples. Knex uses `values` on
+      // SQLite for tuple lists, while its other query compilers use ordinary
+      // parenthesized rows.
       final valuesList = values as List;
-      final placeholders = <String>[];
-      for (final value in valuesList) {
-        placeholders.add(client.parameter(value, bindings));
+      if (valuesList.isNotEmpty && valuesList.every((value) => value is List)) {
+        final rows = valuesList
+            .cast<List>()
+            .map(
+              (row) =>
+                  '(${row.map((value) => client.parameter(value, bindings)).join(', ')})',
+            )
+            .join(', ');
+        valueClause = _isSqliteLikeDriver ? '( values $rows)' : '($rows)';
+      } else {
+        final placeholders = <String>[];
+        for (final value in valuesList) {
+          placeholders.add(client.parameter(value, bindings));
+        }
+        valueClause = '(${placeholders.join(', ')})';
       }
-      valueClause = '(${placeholders.join(', ')})';
     }
 
     return '$column ${_not(statement, 'in ')}$valueClause';
@@ -1231,8 +1243,9 @@ class QueryCompiler {
       // Get column and wrap it
       final column = formatter.wrap(stmt['value']);
 
-      // Get direction (default to 'asc' if not specified)
-      final direction = stmt['direction'] as String? ?? 'asc';
+      // Raw directions (for example, `raw('desc nulls last')`) are emitted
+      // verbatim by knex.js; ordinary values are validated by Formatter.
+      final direction = formatter.direction(stmt['direction'] ?? 'asc');
 
       // Format: "column" asc  or  "column" desc
       sql.add('$column $direction');
@@ -1354,6 +1367,33 @@ class QueryCompiler {
   String _waitMode() {
     final waitMode = single['waitMode'] as String?;
     if (waitMode == null) return '';
+
+    // SQLite (and the turso/d1 family sharing its wire format) has no lock
+    // clause at all, so a trailing `skip locked`/`nowait` fragment would be
+    // emitted with no lock text in front of it — invalid SQL. Real knex.js
+    // throws here too (its base QueryCompiler.skipLocked()/.noWait() aren't
+    // overridden by the sqlite3 compiler) — verified against knex.js 3.3.0:
+    // `.forUpdate().skipLocked()` on sqlite3 throws
+    // ".skipLocked() is currently only supported on MySQL 8.0+ and
+    // PostgreSQL 9.5+". Redshift is deliberately NOT included here even
+    // though it also drops the lock clause: it inherits postgres's
+    // skipLocked()/noWait() unchanged, so real knex.js emits the (already
+    // odd) `select * from "users" skip locked` with no lock clause — this
+    // mirrors that, not a bug to "fix" independently of upstream.
+    if (_isSqliteLikeDriver) {
+      switch (waitMode) {
+        case 'skipLocked':
+          throw StateError(
+            '.skipLocked() is currently only supported on MySQL 8.0+ and '
+            'PostgreSQL 9.5+',
+          );
+        case 'noWait':
+          throw StateError(
+            '.noWait() is currently only supported on MySQL 8.0+, MariaDB '
+            '10.3.0+ and PostgreSQL 9.5+',
+          );
+      }
+    }
 
     switch (waitMode) {
       case 'skipLocked':
@@ -1722,8 +1762,9 @@ class QueryCompiler {
     final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
     // Mirrors knex.js's per-dialect `_emptyInsertValue`: MySQL requires an
     // explicit empty column/value list, everyone else accepts DEFAULT VALUES.
-    final emptyInsertValue =
-        _isMySqlLikeDriver ? '() values ()' : 'default values';
+    final emptyInsertValue = _isMySqlLikeDriver
+        ? '() values ()'
+        : 'default values';
 
     // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
     // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
@@ -1882,7 +1923,9 @@ class QueryCompiler {
         // element type, so a mismatched row still throws later inside the
         // merge-column loop instead of here.
         final rows = insertValue is List
-            ? insertValue.map((row) => Map<String, dynamic>.from(row as Map)).toList()
+            ? insertValue
+                  .map((row) => Map<String, dynamic>.from(row as Map))
+                  .toList()
             : [Map<String, dynamic>.from(insertValue as Map)];
         final columnSet = <String>{};
         for (final row in rows) {
@@ -2354,12 +2397,8 @@ class QueryCompiler {
       client.driverName == 'mysql' ||
       client.driverName == 'mysql2' ||
       client.driverName == 'mariadb';
-  bool get _isSqliteLikeDriver => const {
-    'sqlite',
-    'sqlite3',
-    'turso',
-    'd1',
-  }.contains(client.driverName);
+  bool get _isSqliteLikeDriver =>
+      const {'sqlite', 'sqlite3', 'turso', 'd1'}.contains(client.driverName);
   bool get _isPostgresLikeDriver => const {
     'pg',
     'postgres',
@@ -2383,7 +2422,8 @@ class QueryCompiler {
     // with the JSONPath split into positional segments, a materially
     // different transform not implemented here; see the
     // `json/where-path::cockroachdb` parity allowlist entry).
-    final isPg = client.driverName == 'pg' ||
+    final isPg =
+        client.driverName == 'pg' ||
         client.driverName == 'postgres' ||
         client.driverName == 'postgresql';
     if (isPg) {

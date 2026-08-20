@@ -61,6 +61,7 @@ const cases = [
   ['where/and-chain', (k) => k('users').where('a', 1).where('b', 2)],
   ['where/or', (k) => k('users').where('a', 1).orWhere('b', 2)],
   ['where/null', (k) => k('users').where('deleted_at', null)],
+  ['where/explicit-null', (k) => k('users').where('deleted_at', '=', null)],
   ['where/not-null', (k) => k('users').whereNotNull('email')],
   ['where/in', (k) => k('users').whereIn('id', [1, 2, 3])],
   ['where/not-in', (k) => k('users').whereNotIn('id', [1, 2])],
@@ -68,9 +69,11 @@ const cases = [
   ['where/between', (k) => k('users').whereBetween('age', [18, 65])],
   ['where/grouped', (k) => k('users').where('a', 1).where((q) => q.where('b', 2).orWhere('c', 3))],
   ['where/subquery-in', (k) => k('users').whereIn('id', k('orders').select('user_id').where('total', '>', 100))],
+  ['where/in-multi-column-single-tuple', (k) => k('users').whereIn(['a', 'b'], [[1, 2]])],
 
   ['select/columns', (k) => k('users').select('id', 'name')],
   ['select/orderby-multi', (k) => k('users').orderBy('a').orderBy('b', 'desc')],
+  ['select/orderby-raw-direction', (k) => k('users').orderBy('name', k.raw('desc nulls last'))],
   ['select/limit-offset', (k) => k('users').limit(10).offset(5)],
 
   ['join/inner', (k) => k('a').join('b', 'a.id', 'b.a_id').select('*')],
@@ -329,6 +332,7 @@ const cases = [
   ['select/multi-calls', (k) => k('users').select('foo').select('bar').select(['baz', 'boom'])],
   ['select/distinct-then-select', (k) => k('users').distinct().select('foo', 'bar')],
   ['select/alias-map', (k) => k('users').select({ bar: 'foo' })],
+  ['select/alias-map-multi', (k) => k('users').select({ bar: 'foo', baz: 'qux' })],
   ['select/alias-array-mixed', (k) => k('users').select(['baz', { bar: 'foo' }])],
   ['select/old-style-alias', (k) => k('users').select('foo as bar')],
   ['select/alias-trim-spaces', (k) => k('users').select(' foo   as bar ')],
@@ -689,6 +693,50 @@ const cases = [
     k('users').select('*').join('contacts', function (qb) {
       qb.onNotExists(function () { this.select('*').from('phones').where('phones.contact_id', '=', k.raw('"contacts"."id"')); });
     })],
+  ['on/val', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.on('users.id', '=', 'contacts.id').onVal('contacts.status', '=', 'active');
+    })],
+  ['on/or-val', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.on('users.id', '=', 'contacts.id')
+        .onVal('contacts.status', '=', 'active')
+        .orOnVal('contacts.status', '=', 'pending');
+    })],
+  ['on/and-between', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.andOnBetween('contacts.score', [1, 5]);
+    })],
+  ['on/or-between', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onBetween('contacts.score', [1, 5]).orOnBetween('contacts.score', [10, 20]);
+    })],
+  ['on/and-not-between', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.andOnNotBetween('contacts.score', [1, 5]);
+    })],
+  ['on/or-not-between', (k) =>
+    k('users').select('*').join('contacts', function (qb) {
+      qb.onNotBetween('contacts.score', [1, 5]).orOnNotBetween('contacts.score', [10, 20]);
+    })],
+
+  // ── row-level lock modes ─────────────────────────────────────────────
+  ['lock/for-update', (k) =>
+    k('users').select('*').forUpdate()],
+  ['lock/for-update-tables', (k) =>
+    k('users').select('*').forUpdate('users')],
+  ['lock/for-share', (k) =>
+    k('users').select('*').forShare()],
+  ['lock/for-no-key-update', (k) =>
+    k('users').select('*').forNoKeyUpdate()],
+  ['lock/for-key-share', (k) =>
+    k('users').select('*').forKeyShare()],
+  ['lock/for-update-skip-locked', (k) =>
+    k('users').select('*').forUpdate().skipLocked()],
+  ['lock/for-update-no-wait', (k) =>
+    k('users').select('*').forUpdate().noWait()],
+  ['lock/for-share-skip-locked', (k) =>
+    k('users').select('*').forShare().skipLocked()],
 ];
 
 const out = [];

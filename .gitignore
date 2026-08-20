@@ -19,6 +19,7 @@ Thumbs.db
 
 # Test coverage
 coverage/
+coverage_parity/
 
 # dart_mutant reports (local mutation-testing runs)
 mutation-reports/
