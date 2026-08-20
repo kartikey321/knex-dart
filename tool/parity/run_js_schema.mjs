@@ -688,6 +688,11 @@ const cases = [
   ['schema/drop-schema-cascade', (k) => k.schema.dropSchema('billing', true)],
   ['schema/drop-schema-if-exists', (k) => k.schema.dropSchemaIfExists('billing')],
   ['schema/drop-schema-if-exists-cascade', (k) => k.schema.dropSchemaIfExists('billing', true)],
+
+  // Batch 9 — table() as an alterTable() alias (knex.js: identical function).
+  ['schema/table-alias', (k) => k.schema.table('users', (t) => {
+    t.string('x');
+  })],
 ];
 
 const out = [];

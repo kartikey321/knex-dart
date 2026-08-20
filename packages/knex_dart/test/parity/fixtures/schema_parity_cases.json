@@ -13,7 +13,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 1305,
+  "caseCount": 1314,
   "cases": [
     {
       "id": "schema/create-table-basic",
@@ -13364,6 +13364,98 @@
       "id": "schema/drop-schema-if-exists-cascade",
       "dialect": "mssql",
       "error": "dropSchemaIfExists is not supported for this dialect (only PostgreSQL supports it currently)."
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "postgres",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"x\" varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "cockroachdb",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"x\" varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "redshift",
+      "statements": [
+        {
+          "sql": "alter table \"users\" add column \"x\" varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "mysql",
+      "statements": [
+        {
+          "sql": "alter table `users` add `x` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "mariadb",
+      "statements": [
+        {
+          "sql": "alter table `users` add `x` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `x` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "turso",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `x` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "d1",
+      "family": "sqlite",
+      "statements": [
+        {
+          "sql": "alter table `users` add column `x` varchar(255)",
+          "bindings": []
+        }
+      ]
+    },
+    {
+      "id": "schema/table-alias",
+      "dialect": "mssql",
+      "statements": [
+        {
+          "sql": "ALTER TABLE [users] ADD [x] nvarchar(255)",
+          "bindings": []
+        }
+      ]
     }
   ]
 }

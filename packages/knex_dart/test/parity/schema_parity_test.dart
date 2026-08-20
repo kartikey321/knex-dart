@@ -1465,6 +1465,20 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/column-bigIncrements::d1':
       '[ACCEPTED] see schema/column-bigIncrements::sqlite (d1 is '
           'sqlite-family).',
+
+  // `table()` is a direct alterTable() alias in both knex.js and knex-dart —
+  // same divergences as schema/alter-table-add-column, since it compiles
+  // through the identical alterTable path.
+  'schema/table-alias::mysql':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD '
+          'COLUMN` only.',
+  'schema/table-alias::mariadb':
+      '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD '
+          'COLUMN` only (mariadb is MySQL-family).',
+  'schema/table-alias::mssql':
+      '[ACCEPTED] see schema/alter-table-add-column::mssql — knex.js emits '
+          'UPPERCASE DDL keywords, knex-dart emits lowercase uniformly — '
+          'cosmetic only.',
 };
 
 // Previously {'mssql'} — mssql was skipped entirely because it was never

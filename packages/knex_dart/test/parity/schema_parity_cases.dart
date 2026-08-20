@@ -614,4 +614,9 @@ final Map<String, SchemaParityCase> schemaParityCases = {
       _sb(d).dropSchemaIfExists('billing').toSQL(),
   'schema/drop-schema-if-exists-cascade': (d) =>
       _sb(d).dropSchemaIfExists('billing', true).toSQL(),
+
+  // ── Batch 9: table() as an alterTable() alias ─────────────────────────
+  'schema/table-alias': (d) => _sb(d).table('users', (t) {
+    t.string('x');
+  }).toSQL(),
 };
