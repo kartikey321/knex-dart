@@ -737,6 +737,35 @@ const cases = [
     k('users').select('*').forUpdate().noWait()],
   ['lock/for-share-skip-locked', (k) =>
     k('users').select('*').forShare().skipLocked()],
+
+  // Batch 7 — aggregate/raw/pluck and remaining shared JOIN ON forms.
+  ['agg/count-array', (k) => k('t').count(['id', 'name'])],
+  ['agg/count-map', (k) => k('t').count({ total: 'id', cnt: 'name' })],
+  ['agg/count-raw', (k) => k('t').count(k.raw('coalesce(?, 0)', [1]))],
+  ['pluck/basic', (k) => k('t').pluck('name')],
+  ['on/raw', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on(k.raw('"users"."id" = "contacts"."user_id" and "contacts"."active" = ?', [true]));
+  })],
+  ['on/wrapped', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id').on(function () {
+      this.on('contacts.active', '=', 'users.active').orOn('contacts.admin', '=', 'users.admin');
+    });
+  })],
+  ['on/using', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.using(['user_id', 'tenant_id']);
+  })],
+  ['on/json-path-equals', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.onJsonPathEquals('users.meta', '$.id', 'contacts.meta', '$.user_id');
+  })],
+  ['on/in-tuple', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.onIn(['contacts.tenant_id', 'contacts.user_id'], [[1, 2], [3, 4]]);
+  })],
+  ['on/in-subquery', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.onIn('contacts.user_id', k('admins').select('user_id').where('enabled', true));
+  })],
+  ['on/in-raw', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.onIn('contacts.user_id', k.raw('select ? as "user_id"', [1]));
+  })],
 ];
 
 const out = [];

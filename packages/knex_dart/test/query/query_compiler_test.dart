@@ -1,7 +1,5 @@
 import 'package:test/test.dart';
-import 'package:knex_dart/src/client/knex_config.dart';
-import 'package:knex_dart/src/query/query_builder.dart';
-import 'package:knex_dart/src/query/query_compiler.dart';
+import 'package:knex_dart/knex_dart.dart';
 import 'package:knex_dart/src/query/aggregate_options.dart';
 import '../mocks/mock_client.dart';
 import '../mocks/mysql_mock_client.dart';
@@ -2229,6 +2227,44 @@ void main() {
         'select * from `users` inner join `orders` on json_extract(`users`.`meta`, ?) = json_extract(`orders`.`meta`, ?)',
       );
       expect(sql.bindings, [r'$.id', r'$.user_id']);
+    });
+
+    test('Join onJsonPathEquals uses knex.js dialect-specific JSON functions', () {
+      final expectations = <String, String>{
+        'mariadb':
+            'select * from `users` inner join `orders` on json_unquote(json_extract(`users`.`meta`, ?)) = json_unquote(json_extract(`orders`.`meta`, ?))',
+        'cockroachdb':
+            'select * from "users" inner join "orders" on json_extract_path("users"."meta", \$1) = json_extract_path("orders"."meta", \$2)',
+        'redshift':
+            'select * from "users" inner join "orders" on json_extract_path_text("users"."meta", \$1) = json_extract_path_text("orders"."meta", \$2)',
+        'mssql':
+            'select * from [users] inner join [orders] on JSON_VALUE([users].[meta], ?) = JSON_VALUE([orders].[meta], ?)',
+        'turso':
+            'select * from "users" inner join "orders" on json_extract("users"."meta", ?) = json_extract("orders"."meta", ?)',
+      };
+
+      expectations.forEach((dialect, expectedSql) {
+        final query = KnexQuery.forClient(dialect).queryBuilder()
+          ..table('users')
+          ..select(['*'])
+          ..join('orders', (j) {
+            j.onJsonPathEquals(
+              'users.meta',
+              r'$.id',
+              'orders.meta',
+              r'$.user_id',
+            );
+          });
+        final compiled = query.toSQL();
+        expect(compiled.sql, expectedSql, reason: dialect);
+        expect(
+          compiled.bindings,
+          dialect == 'cockroachdb'
+              ? ['id', 'user_id']
+              : [r'$.id', r'$.user_id'],
+          reason: dialect,
+        );
+      });
     });
   });
 

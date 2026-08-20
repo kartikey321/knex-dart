@@ -675,6 +675,19 @@ const cases = [
   ['schema/alter-table-drop-columns-multi', (k) => k.schema.alterTable('users', (t) => {
     t.dropColumns(['nickname', 'avatar']);
   })],
+
+  // Batch 7 — schema raw and pg-only materialized-view drops.
+  ['schema/raw-with-binding', (k) => k.schema.raw('select ? as value', [1])],
+  ['schema/drop-materialized-view', (k) => k.schema.dropMaterializedView('active_users_mv')],
+  ['schema/drop-materialized-view-if-exists', (k) => k.schema.dropMaterializedViewIfExists('active_users_mv')],
+
+  // Batch 8 — pg-only schema (CREATE/DROP SCHEMA) family.
+  ['schema/create-schema', (k) => k.schema.createSchema('billing')],
+  ['schema/create-schema-if-not-exists', (k) => k.schema.createSchemaIfNotExists('billing')],
+  ['schema/drop-schema', (k) => k.schema.dropSchema('billing')],
+  ['schema/drop-schema-cascade', (k) => k.schema.dropSchema('billing', true)],
+  ['schema/drop-schema-if-exists', (k) => k.schema.dropSchemaIfExists('billing')],
+  ['schema/drop-schema-if-exists-cascade', (k) => k.schema.dropSchemaIfExists('billing', true)],
 ];
 
 const out = [];

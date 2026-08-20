@@ -1001,21 +1001,46 @@ class QueryCompiler {
   }
 
   String _onJsonPathEquals(Map<String, dynamic> clause) {
-    String fn;
     final driver = client.driverName;
-    if (driver == 'mysql' || driver == 'mysql2' || driver == 'sqlite3') {
-      fn = 'json_extract';
-    } else {
-      fn = 'jsonb_path_query_first';
-    }
-
     final firstCol = formatter.wrap(clause['columnFirst']);
     final secondCol = formatter.wrap(clause['columnSecond']);
-    final firstPath = client.parameter(clause['jsonPathFirst'], bindings);
-    final secondPath = client.parameter(clause['jsonPathSecond'], bindings);
+    final rawFirstPath = clause['jsonPathFirst'] as String;
+    final rawSecondPath = clause['jsonPathSecond'] as String;
 
-    return '$fn($firstCol, $firstPath) = $fn($secondCol, $secondPath)';
+    if (driver == 'cockroachdb') {
+      // Knex's Cockroach compiler uses json_extract_path(), whose arguments
+      // are individual path components rather than JSONPath strings.
+      final firstKey = client.parameter(_jsonPathKey(rawFirstPath), bindings);
+      final secondKey = client.parameter(_jsonPathKey(rawSecondPath), bindings);
+      return 'json_extract_path($firstCol, $firstKey) = '
+          'json_extract_path($secondCol, $secondKey)';
+    }
+
+    final firstPath = client.parameter(rawFirstPath, bindings);
+    final secondPath = client.parameter(rawSecondPath, bindings);
+
+    if (driver == 'mssql') {
+      return 'JSON_VALUE($firstCol, $firstPath) = '
+          'JSON_VALUE($secondCol, $secondPath)';
+    }
+    if (driver == 'mariadb') {
+      return 'json_unquote(json_extract($firstCol, $firstPath)) = '
+          'json_unquote(json_extract($secondCol, $secondPath))';
+    }
+    if (driver == 'redshift') {
+      return 'json_extract_path_text($firstCol, $firstPath) = '
+          'json_extract_path_text($secondCol, $secondPath)';
+    }
+    if (driver == 'mysql' || driver == 'mysql2' || _isSqliteLikeDriver) {
+      return 'json_extract($firstCol, $firstPath) = '
+          'json_extract($secondCol, $secondPath)';
+    }
+    return 'jsonb_path_query_first($firstCol, $firstPath) = '
+        'jsonb_path_query_first($secondCol, $secondPath)';
   }
+
+  String _jsonPathKey(String path) =>
+      path.startsWith(r'$.') ? path.substring(2) : path;
 
   /// Compile GROUP BY clause
   ///

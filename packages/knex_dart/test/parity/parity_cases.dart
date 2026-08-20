@@ -1244,4 +1244,57 @@ final Map<String, ParityCase> parityCases = {
       _qb(d).table('users').select(['*']).forUpdate().noWait().toSQL(),
   'lock/for-share-skip-locked': (d) =>
       _qb(d).table('users').select(['*']).forShare().skipLocked().toSQL(),
+
+  // ── Batch 7: aggregate/raw/pluck + remaining ON family ──────────────
+  'agg/count-array': (d) => _qb(d).table('t').count(['id', 'name']).toSQL(),
+  'agg/count-map': (d) =>
+      _qb(d).table('t').count({'total': 'id', 'cnt': 'name'}).toSQL(),
+  'agg/count-raw': (d) =>
+      _qb(d).table('t').count(_qb(d).client.raw('coalesce(?, 0)', [1])).toSQL(),
+  'pluck/basic': (d) => _qb(d).table('t').pluck('name').toSQL(),
+  'on/raw': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.onRaw(
+      _qb(d).client.raw(
+        '"users"."id" = "contacts"."user_id" and "contacts"."active" = ?',
+        [true],
+      ),
+    );
+  }).toSQL(),
+  'on/wrapped': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.on('users.id', '=', 'contacts.user_id').on((nested) {
+          nested
+              .on('contacts.active', '=', 'users.active')
+              .orOn('contacts.admin', '=', 'users.admin');
+        });
+      }).toSQL(),
+  'on/using': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.using(['user_id', 'tenant_id']);
+  }).toSQL(),
+  'on/json-path-equals': (d) => _qb(d).table('users').select(['*']).join(
+    'contacts',
+    (j) {
+      j.onJsonPathEquals('users.meta', r'$.id', 'contacts.meta', r'$.user_id');
+    },
+  ).toSQL(),
+  'on/in-tuple': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onIn(
+          ['contacts.tenant_id', 'contacts.user_id'],
+          [
+            [1, 2],
+            [3, 4],
+          ],
+        );
+      }).toSQL(),
+  'on/in-subquery': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.onIn(
+          'contacts.user_id',
+          _qb(d).table('admins').select(['user_id']).where('enabled', true),
+        );
+      }).toSQL(),
+  'on/in-raw': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.onIn('contacts.user_id', _qb(d).client.raw('select ? as "user_id"', [1]));
+  }).toSQL(),
 };

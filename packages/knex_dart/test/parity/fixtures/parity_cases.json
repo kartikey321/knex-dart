@@ -13,7 +13,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 1953,
+  "caseCount": 2052,
   "cases": [
     {
       "id": "where/eq-string",
@@ -15313,6 +15313,766 @@
       "dialect": "mssql",
       "sql": "select * from [users] with (HOLDLOCK)",
       "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "postgres",
+      "sql": "select count(\"id\", \"name\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "cockroachdb",
+      "sql": "select count(\"id\", \"name\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "redshift",
+      "sql": "select count(\"id\", \"name\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "mysql",
+      "sql": "select count(`id`, `name`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "mariadb",
+      "sql": "select count(`id`, `name`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "sqlite",
+      "sql": "select count(`id`, `name`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select count(`id`, `name`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select count(`id`, `name`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-array",
+      "dialect": "mssql",
+      "sql": "select count([id], [name]) from [t]",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "postgres",
+      "sql": "select count(\"id\") as \"total\", count(\"name\") as \"cnt\" from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "cockroachdb",
+      "sql": "select count(\"id\") as \"total\", count(\"name\") as \"cnt\" from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "redshift",
+      "sql": "select count(\"id\") as \"total\", count(\"name\") as \"cnt\" from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "mysql",
+      "sql": "select count(`id`) as `total`, count(`name`) as `cnt` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "mariadb",
+      "sql": "select count(`id`) as `total`, count(`name`) as `cnt` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "sqlite",
+      "sql": "select count(`id`) as `total`, count(`name`) as `cnt` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select count(`id`) as `total`, count(`name`) as `cnt` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select count(`id`) as `total`, count(`name`) as `cnt` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-map",
+      "dialect": "mssql",
+      "sql": "select count([id]) as [total], count([name]) as [cnt] from [t]",
+      "bindings": []
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "postgres",
+      "sql": "select count(coalesce($1, 0)) from \"t\"",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "cockroachdb",
+      "sql": "select count(coalesce($1, 0)) from \"t\"",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "redshift",
+      "sql": "select count(coalesce($1, 0)) from \"t\"",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "mysql",
+      "sql": "select count(coalesce(?, 0)) from `t`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "mariadb",
+      "sql": "select count(coalesce(?, 0)) from `t`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "sqlite",
+      "sql": "select count(coalesce(?, 0)) from `t`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select count(coalesce(?, 0)) from `t`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select count(coalesce(?, 0)) from `t`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "agg/count-raw",
+      "dialect": "mssql",
+      "sql": "select count(coalesce(@p0, 0)) from [t]",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "postgres",
+      "sql": "select \"name\" from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "cockroachdb",
+      "sql": "select \"name\" from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "redshift",
+      "sql": "select \"name\" from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "mysql",
+      "sql": "select `name` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "mariadb",
+      "sql": "select `name` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "sqlite",
+      "sql": "select `name` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select `name` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select `name` from `t`",
+      "bindings": []
+    },
+    {
+      "id": "pluck/basic",
+      "dialect": "mssql",
+      "sql": "select [name] from [t]",
+      "bindings": []
+    },
+    {
+      "id": "on/raw",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = $1",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = $1",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = $1",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = ?",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = ?",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = ?",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = ?",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = ?",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/raw",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] on \"users\".\"id\" = \"contacts\".\"user_id\" and \"contacts\".\"active\" = @p0",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"users\".\"id\" = \"contacts\".\"user_id\" and (\"contacts\".\"active\" = \"users\".\"active\" or \"contacts\".\"admin\" = \"users\".\"admin\")",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"users\".\"id\" = \"contacts\".\"user_id\" and (\"contacts\".\"active\" = \"users\".\"active\" or \"contacts\".\"admin\" = \"users\".\"admin\")",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"users\".\"id\" = \"contacts\".\"user_id\" and (\"contacts\".\"active\" = \"users\".\"active\" or \"contacts\".\"admin\" = \"users\".\"admin\")",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` on `users`.`id` = `contacts`.`user_id` and (`contacts`.`active` = `users`.`active` or `contacts`.`admin` = `users`.`admin`)",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` on `users`.`id` = `contacts`.`user_id` and (`contacts`.`active` = `users`.`active` or `contacts`.`admin` = `users`.`admin`)",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `users`.`id` = `contacts`.`user_id` and (`contacts`.`active` = `users`.`active` or `contacts`.`admin` = `users`.`admin`)",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `users`.`id` = `contacts`.`user_id` and (`contacts`.`active` = `users`.`active` or `contacts`.`admin` = `users`.`admin`)",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `users`.`id` = `contacts`.`user_id` and (`contacts`.`active` = `users`.`active` or `contacts`.`admin` = `users`.`admin`)",
+      "bindings": []
+    },
+    {
+      "id": "on/wrapped",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] on [users].[id] = [contacts].[user_id] and ([contacts].[active] = [users].[active] or [contacts].[admin] = [users].[admin])",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" using (\"user_id\", \"tenant_id\")",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" using (\"user_id\", \"tenant_id\")",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" using (\"user_id\", \"tenant_id\")",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` using (`user_id`, `tenant_id`)",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` using (`user_id`, `tenant_id`)",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` using (`user_id`, `tenant_id`)",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` using (`user_id`, `tenant_id`)",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` using (`user_id`, `tenant_id`)",
+      "bindings": []
+    },
+    {
+      "id": "on/using",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] using ([user_id], [tenant_id])",
+      "bindings": []
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" on jsonb_path_query_first(\"users\".\"meta\", $1) = jsonb_path_query_first(\"contacts\".\"meta\", $2)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" on json_extract_path(\"users\".\"meta\", $1) = json_extract_path(\"contacts\".\"meta\", $2)",
+      "bindings": [
+        "id",
+        "user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" on json_extract_path_text(\"users\".\"meta\", $1) = json_extract_path_text(\"contacts\".\"meta\", $2)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` on json_extract(`users`.`meta`, ?) = json_extract(`contacts`.`meta`, ?)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` on json_unquote(json_extract(`users`.`meta`, ?)) = json_unquote(json_extract(`contacts`.`meta`, ?))",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on json_extract(`users`.`meta`, ?) = json_extract(`contacts`.`meta`, ?)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on json_extract(`users`.`meta`, ?) = json_extract(`contacts`.`meta`, ?)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on json_extract(`users`.`meta`, ?) = json_extract(`contacts`.`meta`, ?)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/json-path-equals",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] on JSON_VALUE([users].[meta], @p0) = JSON_VALUE([contacts].[meta], @p1)",
+      "bindings": [
+        "$.id",
+        "$.user_id"
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" on (\"contacts\".\"tenant_id\", \"contacts\".\"user_id\") in (($1, $2),($3, $4))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" on (\"contacts\".\"tenant_id\", \"contacts\".\"user_id\") in (($1, $2),($3, $4))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" on (\"contacts\".\"tenant_id\", \"contacts\".\"user_id\") in (($1, $2),($3, $4))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` on (`contacts`.`tenant_id`, `contacts`.`user_id`) in ((?, ?),(?, ?))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` on (`contacts`.`tenant_id`, `contacts`.`user_id`) in ((?, ?),(?, ?))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on (`contacts`.`tenant_id`, `contacts`.`user_id`) in ((?, ?),(?, ?))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on (`contacts`.`tenant_id`, `contacts`.`user_id`) in ((?, ?),(?, ?))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on (`contacts`.`tenant_id`, `contacts`.`user_id`) in ((?, ?),(?, ?))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-tuple",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] on ([contacts].[tenant_id], [contacts].[user_id]) in ((@p0, @p1),(@p2, @p3))",
+      "bindings": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"contacts\".\"user_id\" in (select \"user_id\" from \"admins\" where \"enabled\" = $1)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"contacts\".\"user_id\" in (select \"user_id\" from \"admins\" where \"enabled\" = $1)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"contacts\".\"user_id\" in (select \"user_id\" from \"admins\" where \"enabled\" = $1)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select `user_id` from `admins` where `enabled` = ?)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select `user_id` from `admins` where `enabled` = ?)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select `user_id` from `admins` where `enabled` = ?)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select `user_id` from `admins` where `enabled` = ?)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select `user_id` from `admins` where `enabled` = ?)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-subquery",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] on [contacts].[user_id] in (select [user_id] from [admins] where [enabled] = @p0)",
+      "bindings": [
+        true
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "postgres",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"contacts\".\"user_id\" in (select $1 as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"contacts\".\"user_id\" in (select $1 as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "redshift",
+      "sql": "select * from \"users\" inner join \"contacts\" on \"contacts\".\"user_id\" in (select $1 as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "mysql",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select ? as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "mariadb",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select ? as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select ? as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select ? as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `users` inner join `contacts` on `contacts`.`user_id` in (select ? as \"user_id\")",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "on/in-raw",
+      "dialect": "mssql",
+      "sql": "select * from [users] inner join [contacts] on [contacts].[user_id] in (select @p0 as \"user_id\")",
+      "bindings": [
+        1
+      ]
     }
   ]
 }
