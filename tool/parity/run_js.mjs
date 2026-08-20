@@ -766,6 +766,31 @@ const cases = [
   ['on/in-raw', (k) => k('users').select('*').join('contacts', function (qb) {
     qb.onIn('contacts.user_id', k.raw('select ? as "user_id"', [1]));
   })],
+
+  // Batch 8 — coverage-guided QueryBuilder / JoinClause parity mining.
+  ['agg/avg', (k) => k('t').avg('amount')],
+  ['agg/distinct-sum-avg', (k) => k('t').sumDistinct('amount').avgDistinct('score')],
+  ['where/direct-null-and-or', (k) =>
+    k('t').where('a', 1).whereNull('deleted_at').orWhereNull('archived_at')],
+  ['where/direct-column-and-or', (k) =>
+    k('t').whereColumn('a', '=', 'b').orWhereColumn('c', '=', 'd')],
+  ['where/or-between', (k) =>
+    k('t').where('x', 1).orWhereBetween('age', [18, 65]).orWhereNotBetween('score', [0, 50])],
+  ['where/or-not', (k) => k('t').where('x', 1).orWhereNot('status', 'banned')],
+  ['where/or-not-in-null', (k) =>
+    k('t').where('x', 1).orWhereNotIn('id', [1, 2]).orWhereNotNull('email')],
+  ['from/alias', (k) => k.queryBuilder().from('users').select('id')],
+  ['update/two-arg-returning', (k) => k('t').where('id', 1).update({ name: 'Bob' }, ['id'])],
+  ['delete/two-arg-returning', (k) => k('t').where('id', 1).delete(['id'])],
+  ['select/bare-raw', (k) => k('t').select(k.raw('count(*) as total'))],
+  ['join/left-outer-and-outer', (k) =>
+    k('a').leftOuterJoin('b', 'a.id', 'b.a_id').outerJoin('c', 'a.id', 'c.a_id')],
+  ['on/map-columns', (k) => k('a').join('b', function (qb) {
+    qb.on({ 'a.id': 'b.id', 'a.x': 'b.x' });
+  })],
+  ['on-val/map', (k) => k('a').join('b', function (qb) {
+    qb.onVal({ 'a.status': 'active' });
+  })],
 ];
 
 const out = [];

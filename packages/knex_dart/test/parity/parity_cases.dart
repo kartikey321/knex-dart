@@ -1297,4 +1297,50 @@ final Map<String, ParityCase> parityCases = {
   'on/in-raw': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onIn('contacts.user_id', _qb(d).client.raw('select ? as "user_id"', [1]));
   }).toSQL(),
+
+  // ── Batch 8: coverage-guided QueryBuilder / JoinClause mining ───────
+  'agg/avg': (d) => _qb(d).table('t').avg('amount').toSQL(),
+  'agg/distinct-sum-avg': (d) =>
+      _qb(d).table('t').sumDistinct('amount').avgDistinct('score').toSQL(),
+  'where/direct-null-and-or': (d) => _qb(d)
+      .table('t')
+      .where('a', 1)
+      .whereNull('deleted_at')
+      .orWhereNull('archived_at')
+      .toSQL(),
+  'where/direct-column-and-or': (d) => _qb(
+    d,
+  ).table('t').whereColumn('a', '=', 'b').orWhereColumn('c', '=', 'd').toSQL(),
+  'where/or-between': (d) => _qb(d)
+      .table('t')
+      .where('x', 1)
+      .orWhereBetween('age', [18, 65])
+      .orWhereNotBetween('score', [0, 50])
+      .toSQL(),
+  'where/or-not': (d) =>
+      _qb(d).table('t').where('x', 1).orWhereNot('status', 'banned').toSQL(),
+  'where/or-not-in-null': (d) => _qb(d)
+      .table('t')
+      .where('x', 1)
+      .orWhereNotIn('id', [1, 2])
+      .orWhereNotNull('email')
+      .toSQL(),
+  'from/alias': (d) => _qb(d).from('users').select(['id']).toSQL(),
+  'update/two-arg-returning': (d) =>
+      _qb(d).table('t').where('id', 1).update({'name': 'Bob'}, ['id']).toSQL(),
+  'delete/two-arg-returning': (d) =>
+      _qb(d).table('t').where('id', 1).delete(['id']).toSQL(),
+  'select/bare-raw': (d) =>
+      _qb(d).table('t').select(_qb(d).client.raw('count(*) as total')).toSQL(),
+  'join/left-outer-and-outer': (d) => _qb(d)
+      .table('a')
+      .leftOuterJoin('b', 'a.id', 'b.a_id')
+      .outerJoin('c', 'a.id', 'c.a_id')
+      .toSQL(),
+  'on/map-columns': (d) => _qb(d).table('a').join('b', (j) {
+    j.on({'a.id': 'b.id', 'a.x': 'b.x'});
+  }).toSQL(),
+  'on-val/map': (d) => _qb(d).table('a').join('b', (j) {
+    j.onVal({'a.status': 'active'});
+  }).toSQL(),
 };

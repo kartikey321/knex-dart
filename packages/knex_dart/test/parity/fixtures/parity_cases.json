@@ -13,7 +13,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 2052,
+  "caseCount": 2178,
   "cases": [
     {
       "id": "where/eq-string",
@@ -16072,6 +16072,988 @@
       "sql": "select * from [users] inner join [contacts] on [contacts].[user_id] in (select @p0 as \"user_id\")",
       "bindings": [
         1
+      ]
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "postgres",
+      "sql": "select avg(\"amount\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "cockroachdb",
+      "sql": "select avg(\"amount\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "redshift",
+      "sql": "select avg(\"amount\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "mysql",
+      "sql": "select avg(`amount`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "mariadb",
+      "sql": "select avg(`amount`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "sqlite",
+      "sql": "select avg(`amount`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select avg(`amount`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select avg(`amount`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/avg",
+      "dialect": "mssql",
+      "sql": "select avg([amount]) from [t]",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "postgres",
+      "sql": "select sum(distinct \"amount\"), avg(distinct \"score\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "cockroachdb",
+      "sql": "select sum(distinct \"amount\"), avg(distinct \"score\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "redshift",
+      "sql": "select sum(distinct \"amount\"), avg(distinct \"score\") from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "mysql",
+      "sql": "select sum(distinct `amount`), avg(distinct `score`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "mariadb",
+      "sql": "select sum(distinct `amount`), avg(distinct `score`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "sqlite",
+      "sql": "select sum(distinct `amount`), avg(distinct `score`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select sum(distinct `amount`), avg(distinct `score`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select sum(distinct `amount`), avg(distinct `score`) from `t`",
+      "bindings": []
+    },
+    {
+      "id": "agg/distinct-sum-avg",
+      "dialect": "mssql",
+      "sql": "select sum(distinct [amount]), avg(distinct [score]) from [t]",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "postgres",
+      "sql": "select * from \"t\" where \"a\" = $1 and \"deleted_at\" is null or \"archived_at\" is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"t\" where \"a\" = $1 and \"deleted_at\" is null or \"archived_at\" is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "redshift",
+      "sql": "select * from \"t\" where \"a\" = $1 and \"deleted_at\" is null or \"archived_at\" is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "mysql",
+      "sql": "select * from `t` where `a` = ? and `deleted_at` is null or `archived_at` is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "mariadb",
+      "sql": "select * from `t` where `a` = ? and `deleted_at` is null or `archived_at` is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "sqlite",
+      "sql": "select * from `t` where `a` = ? and `deleted_at` is null or `archived_at` is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `t` where `a` = ? and `deleted_at` is null or `archived_at` is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `t` where `a` = ? and `deleted_at` is null or `archived_at` is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-null-and-or",
+      "dialect": "mssql",
+      "sql": "select * from [t] where [a] = @p0 and [deleted_at] is null or [archived_at] is null",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "postgres",
+      "sql": "select * from \"t\" where \"a\" = \"b\" or \"c\" = \"d\"",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"t\" where \"a\" = \"b\" or \"c\" = \"d\"",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "redshift",
+      "sql": "select * from \"t\" where \"a\" = \"b\" or \"c\" = \"d\"",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "mysql",
+      "sql": "select * from `t` where `a` = `b` or `c` = `d`",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "mariadb",
+      "sql": "select * from `t` where `a` = `b` or `c` = `d`",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "sqlite",
+      "sql": "select * from `t` where `a` = `b` or `c` = `d`",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `t` where `a` = `b` or `c` = `d`",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `t` where `a` = `b` or `c` = `d`",
+      "bindings": []
+    },
+    {
+      "id": "where/direct-column-and-or",
+      "dialect": "mssql",
+      "sql": "select * from [t] where [a] = [b] or [c] = [d]",
+      "bindings": []
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "postgres",
+      "sql": "select * from \"t\" where \"x\" = $1 or \"age\" between $2 and $3 or \"score\" not between $4 and $5",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"t\" where \"x\" = $1 or \"age\" between $2 and $3 or \"score\" not between $4 and $5",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "redshift",
+      "sql": "select * from \"t\" where \"x\" = $1 or \"age\" between $2 and $3 or \"score\" not between $4 and $5",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "mysql",
+      "sql": "select * from `t` where `x` = ? or `age` between ? and ? or `score` not between ? and ?",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "mariadb",
+      "sql": "select * from `t` where `x` = ? or `age` between ? and ? or `score` not between ? and ?",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "sqlite",
+      "sql": "select * from `t` where `x` = ? or `age` between ? and ? or `score` not between ? and ?",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `t` where `x` = ? or `age` between ? and ? or `score` not between ? and ?",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `t` where `x` = ? or `age` between ? and ? or `score` not between ? and ?",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-between",
+      "dialect": "mssql",
+      "sql": "select * from [t] where [x] = @p0 or [age] between @p1 and @p2 or [score] not between @p3 and @p4",
+      "bindings": [
+        1,
+        18,
+        65,
+        0,
+        50
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "postgres",
+      "sql": "select * from \"t\" where \"x\" = $1 or not \"status\" = $2",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"t\" where \"x\" = $1 or not \"status\" = $2",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "redshift",
+      "sql": "select * from \"t\" where \"x\" = $1 or not \"status\" = $2",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "mysql",
+      "sql": "select * from `t` where `x` = ? or not `status` = ?",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "mariadb",
+      "sql": "select * from `t` where `x` = ? or not `status` = ?",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "sqlite",
+      "sql": "select * from `t` where `x` = ? or not `status` = ?",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `t` where `x` = ? or not `status` = ?",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `t` where `x` = ? or not `status` = ?",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not",
+      "dialect": "mssql",
+      "sql": "select * from [t] where [x] = @p0 or not [status] = @p1",
+      "bindings": [
+        1,
+        "banned"
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "postgres",
+      "sql": "select * from \"t\" where \"x\" = $1 or \"id\" not in ($2, $3) or \"email\" is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"t\" where \"x\" = $1 or \"id\" not in ($2, $3) or \"email\" is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "redshift",
+      "sql": "select * from \"t\" where \"x\" = $1 or \"id\" not in ($2, $3) or \"email\" is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "mysql",
+      "sql": "select * from `t` where `x` = ? or `id` not in (?, ?) or `email` is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "mariadb",
+      "sql": "select * from `t` where `x` = ? or `id` not in (?, ?) or `email` is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "sqlite",
+      "sql": "select * from `t` where `x` = ? or `id` not in (?, ?) or `email` is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `t` where `x` = ? or `id` not in (?, ?) or `email` is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `t` where `x` = ? or `id` not in (?, ?) or `email` is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "where/or-not-in-null",
+      "dialect": "mssql",
+      "sql": "select * from [t] where [x] = @p0 or [id] not in (@p1, @p2) or [email] is not null",
+      "bindings": [
+        1,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "from/alias",
+      "dialect": "postgres",
+      "sql": "select \"id\" from \"users\"",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "cockroachdb",
+      "sql": "select \"id\" from \"users\"",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "redshift",
+      "sql": "select \"id\" from \"users\"",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "mysql",
+      "sql": "select `id` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "mariadb",
+      "sql": "select `id` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "sqlite",
+      "sql": "select `id` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select `id` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select `id` from `users`",
+      "bindings": []
+    },
+    {
+      "id": "from/alias",
+      "dialect": "mssql",
+      "sql": "select [id] from [users]",
+      "bindings": []
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "postgres",
+      "sql": "update \"t\" set \"name\" = $1 where \"id\" = $2 returning \"id\"",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "cockroachdb",
+      "sql": "update \"t\" set \"name\" = $1 where \"id\" = $2 returning \"id\"",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "redshift",
+      "sql": "update \"t\" set \"name\" = $1 where \"id\" = $2",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "mysql",
+      "sql": "update `t` set `name` = ? where `id` = ?",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "mariadb",
+      "sql": "update `t` set `name` = ? where `id` = ?",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "sqlite",
+      "sql": "update `t` set `name` = ? where `id` = ? returning `id`",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "update `t` set `name` = ? where `id` = ? returning `id`",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "update `t` set `name` = ? where `id` = ? returning `id`",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "update/two-arg-returning",
+      "dialect": "mssql",
+      "sql": "update [t] set [name] = @p0 output inserted.[id] where [id] = @p1",
+      "bindings": [
+        "Bob",
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "postgres",
+      "sql": "delete from \"t\" where \"id\" = $1 returning \"id\"",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "cockroachdb",
+      "sql": "delete from \"t\" where \"id\" = $1 returning \"id\"",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "redshift",
+      "sql": "delete from \"t\" where \"id\" = $1",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "mysql",
+      "sql": "delete from `t` where `id` = ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "mariadb",
+      "sql": "delete from `t` where `id` = ? returning `id`",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "sqlite",
+      "sql": "delete from `t` where `id` = ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "delete from `t` where `id` = ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "delete from `t` where `id` = ?",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "delete/two-arg-returning",
+      "dialect": "mssql",
+      "sql": "delete from [t] output deleted.[id] where [id] = @p0",
+      "bindings": [
+        1
+      ]
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "postgres",
+      "sql": "select count(*) as total from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "cockroachdb",
+      "sql": "select count(*) as total from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "redshift",
+      "sql": "select count(*) as total from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "mysql",
+      "sql": "select count(*) as total from `t`",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "mariadb",
+      "sql": "select count(*) as total from `t`",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "sqlite",
+      "sql": "select count(*) as total from `t`",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select count(*) as total from `t`",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select count(*) as total from `t`",
+      "bindings": []
+    },
+    {
+      "id": "select/bare-raw",
+      "dialect": "mssql",
+      "sql": "select count(*) as total from [t]",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "postgres",
+      "sql": "select * from \"a\" left outer join \"b\" on \"a\".\"id\" = \"b\".\"a_id\" outer join \"c\" on \"a\".\"id\" = \"c\".\"a_id\"",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"a\" left outer join \"b\" on \"a\".\"id\" = \"b\".\"a_id\" outer join \"c\" on \"a\".\"id\" = \"c\".\"a_id\"",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "redshift",
+      "sql": "select * from \"a\" left outer join \"b\" on \"a\".\"id\" = \"b\".\"a_id\" outer join \"c\" on \"a\".\"id\" = \"c\".\"a_id\"",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "mysql",
+      "sql": "select * from `a` left outer join `b` on `a`.`id` = `b`.`a_id` outer join `c` on `a`.`id` = `c`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "mariadb",
+      "sql": "select * from `a` left outer join `b` on `a`.`id` = `b`.`a_id` outer join `c` on `a`.`id` = `c`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "sqlite",
+      "sql": "select * from `a` left outer join `b` on `a`.`id` = `b`.`a_id` outer join `c` on `a`.`id` = `c`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `a` left outer join `b` on `a`.`id` = `b`.`a_id` outer join `c` on `a`.`id` = `c`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `a` left outer join `b` on `a`.`id` = `b`.`a_id` outer join `c` on `a`.`id` = `c`.`a_id`",
+      "bindings": []
+    },
+    {
+      "id": "join/left-outer-and-outer",
+      "dialect": "mssql",
+      "sql": "select * from [a] left outer join [b] on [a].[id] = [b].[a_id] outer join [c] on [a].[id] = [c].[a_id]",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "postgres",
+      "sql": "select * from \"a\" inner join \"b\" on \"a\".\"id\" = \"b\".\"id\" and \"a\".\"x\" = \"b\".\"x\"",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"a\" inner join \"b\" on \"a\".\"id\" = \"b\".\"id\" and \"a\".\"x\" = \"b\".\"x\"",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "redshift",
+      "sql": "select * from \"a\" inner join \"b\" on \"a\".\"id\" = \"b\".\"id\" and \"a\".\"x\" = \"b\".\"x\"",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "mysql",
+      "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`id` and `a`.`x` = `b`.`x`",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "mariadb",
+      "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`id` and `a`.`x` = `b`.`x`",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "sqlite",
+      "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`id` and `a`.`x` = `b`.`x`",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`id` and `a`.`x` = `b`.`x`",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `a` inner join `b` on `a`.`id` = `b`.`id` and `a`.`x` = `b`.`x`",
+      "bindings": []
+    },
+    {
+      "id": "on/map-columns",
+      "dialect": "mssql",
+      "sql": "select * from [a] inner join [b] on [a].[id] = [b].[id] and [a].[x] = [b].[x]",
+      "bindings": []
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "postgres",
+      "sql": "select * from \"a\" inner join \"b\" on \"a\".\"status\" = $1",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "cockroachdb",
+      "sql": "select * from \"a\" inner join \"b\" on \"a\".\"status\" = $1",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "redshift",
+      "sql": "select * from \"a\" inner join \"b\" on \"a\".\"status\" = $1",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "mysql",
+      "sql": "select * from `a` inner join `b` on `a`.`status` = ?",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "mariadb",
+      "sql": "select * from `a` inner join `b` on `a`.`status` = ?",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "sqlite",
+      "sql": "select * from `a` inner join `b` on `a`.`status` = ?",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "turso",
+      "family": "sqlite",
+      "sql": "select * from `a` inner join `b` on `a`.`status` = ?",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "d1",
+      "family": "sqlite",
+      "sql": "select * from `a` inner join `b` on `a`.`status` = ?",
+      "bindings": [
+        "active"
+      ]
+    },
+    {
+      "id": "on-val/map",
+      "dialect": "mssql",
+      "sql": "select * from [a] inner join [b] on [a].[status] = @p0",
+      "bindings": [
+        "active"
       ]
     }
   ]
