@@ -2,6 +2,8 @@
 @Tags(['postgres'])
 library;
 
+import 'dart:async';
+
 import 'package:universal_io/io.dart';
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:test/test.dart';
@@ -211,6 +213,57 @@ void main() {
       final rows = await db!.select(db!(_table).select(['*']));
       expect(rows, hasLength(3));
     });
+
+    // ── skipLocked() actually skips a row locked by a concurrent
+    // transaction — real row-level locking behavior a SQL-text comparison
+    // can never verify, only a live database can. ───────────────────────────
+
+    test(
+      'skipLocked() excludes a row a concurrent transaction is holding '
+      'FOR UPDATE',
+      () async {
+        if (skipReason != null) return markTestSkipped(skipReason!);
+
+        await db!.insert(
+          db!(_table).insert([
+            {'id': 50, 'name': 'Locked'},
+            {'id': 51, 'name': 'Free'},
+          ]),
+        );
+
+        final holderReady = Completer<void>();
+        final releaseHolder = Completer<void>();
+
+        final holder = db!.trx((tx) async {
+          // Lock row 50 and hold the transaction open until told to finish.
+          await tx.select(tx(_table).where('id', 50).select(['*']).forUpdate());
+          holderReady.complete();
+          await releaseHolder.future;
+        });
+
+        await holderReady.future;
+
+        // A second, concurrent transaction: FOR UPDATE SKIP LOCKED over
+        // both rows should come back with only the unlocked one.
+        final skipped = await db!.trx((tx) async {
+          return tx.select(
+            tx(_table)
+                .whereIn('id', [50, 51])
+                .select(['*'])
+                .forUpdate()
+                .skipLocked()
+                .orderBy('id'),
+          );
+        });
+
+        releaseHolder.complete();
+        await holder;
+
+        expect(skipped, hasLength(1));
+        expect(skipped.single['id'], 51);
+        expect(skipped.single['name'], 'Free');
+      },
+    );
 
     // ── 9. Double close is safe ───────────────────────────────────────────────
 

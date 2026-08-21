@@ -358,6 +358,105 @@ void main() {
       expect(results, isNotEmpty);
       expect(results.first['total'], greaterThan(1));
     });
+
+    test('distinctOn() returns one row per distinct value, not deduped '
+        'rows (proves it is a real DISTINCT ON, not client-side '
+        'dedup — every seeded order has a distinct status/user_id pair '
+        'except the ones sharing a status, so a plain row count check '
+        'would pass even if distinctOn() silently no-opped)', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .distinctOn(['status'])
+          .select(['status', 'user_id'])
+          .orderBy('status')
+          .orderBy('id');
+
+      final results = await pgClient.select(query);
+      final statuses = results.map((r) => r['status']).toList();
+
+      // Seed data has 3 distinct statuses (completed/pending/cancelled)
+      // across 7 orders — a real DISTINCT ON collapses to 3 rows; if it
+      // silently no-opped (compiled to a plain SELECT), this would return
+      // all 7.
+      expect(statuses.toSet().length, statuses.length);
+      expect(statuses, containsAll(['completed', 'pending', 'cancelled']));
+    });
+
+    test('joinRaw() actually joins — a raw ON condition changes which '
+        'rows come back, not just that the query executes', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['orders.id', 'users.name'])
+          .joinRaw('inner join users on users.id = orders.user_id')
+          .where('orders.status', 'completed')
+          .orderBy('orders.id');
+
+      final results = await pgClient.select(query);
+
+      expect(results, isNotEmpty);
+      // Every completed order in the seed belongs to a real user — if
+      // joinRaw() compiled to something that silently dropped the join
+      // condition (a cross join), this would return far more rows.
+      expect(results.length, lessThan(10));
+      for (final row in results) {
+        expect(row['name'], isNotNull);
+      }
+    });
+  });
+
+  group('truncate()', () {
+    // Uses a scratch table (not `users`/`orders`) so this can't collide
+    // with the shared seed data other tests depend on.
+    setUp(() async {
+      await pgClient.rawSql(
+        'create table if not exists truncate_scratch '
+        '(id serial primary key, val text)',
+        null,
+      );
+      await pgClient.rawSql(
+        "insert into truncate_scratch (val) values ('a'), ('b'), ('c')",
+        null,
+      );
+    });
+
+    tearDown(() async {
+      await pgClient.rawSql('drop table if exists truncate_scratch', null);
+    });
+
+    test('actually empties the table and resets the identity sequence '
+        '(restart identity — the postgres-specific behavior added this '
+        'session)', () async {
+      final before = await pgClient.select(
+        mockClient.queryBuilder().table('truncate_scratch').select(['*']),
+      );
+      expect(before.length, 3);
+
+      final truncateQuery = mockClient.queryBuilder().table(
+        'truncate_scratch',
+      );
+      await pgClient.rawSql(
+        truncateQuery.truncate().toSQL().sql,
+        null,
+      );
+
+      final after = await pgClient.select(
+        mockClient.queryBuilder().table('truncate_scratch').select(['*']),
+      );
+      expect(after, isEmpty);
+
+      // restart identity: a fresh insert should get id 1 again, not
+      // continue from wherever the sequence was before truncation.
+      await pgClient.rawSql(
+        "insert into truncate_scratch (val) values ('fresh')",
+        null,
+      );
+      final fresh = await pgClient.select(
+        mockClient.queryBuilder().table('truncate_scratch').select(['*']),
+      );
+      expect(fresh.single['id'], 1);
+    });
   });
 
   group('CTEs (WITH)', () {
