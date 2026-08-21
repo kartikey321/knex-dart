@@ -1870,8 +1870,7 @@ class QueryCompiler {
     // more simply: a missing cell just binds `null` in the existing native
     // VALUES syntax, which every SQLite version knex-dart targets accepts
     // directly — no shim needed.
-    const sqliteFamily = {'sqlite', 'sqlite3', 'turso', 'd1'};
-    final isSqliteFamily = sqliteFamily.contains(client.driverName);
+    final isSqliteFamily = _isSqliteLikeDriver;
     final useNullAsDefault = client.config.useNullAsDefault;
 
     // Build VALUES clauses
@@ -2288,15 +2287,16 @@ class QueryCompiler {
   String _truncateQuery() {
     final table = tableName;
     final driver = client.driverName.toLowerCase();
+    // Deliberately narrower than _isPostgresLikeDriver: cockroachdb and
+    // redshift both compile truncate() to plain `truncate $table` (verified
+    // against real knex.js 3.3.0), NOT the `restart identity` suffix — only
+    // literal Postgres gets that.
     if (driver == 'pg' || driver == 'postgres' || driver == 'postgresql') {
       return 'truncate $table restart identity';
     }
     // SQLite has no TRUNCATE statement. Knex.js compiles its truncate()
     // builder method to DELETE FROM instead (including the Turso/D1 family).
-    if (driver == 'sqlite' ||
-        driver == 'sqlite3' ||
-        driver == 'turso' ||
-        driver == 'd1') {
+    if (_isSqliteLikeDriver) {
       return 'delete from $table';
     }
     if (driver == 'mssql') {
@@ -2342,13 +2342,11 @@ class QueryCompiler {
       // for all three dialects. (Single-column distinct is identical across
       // all dialects — `count(distinct "foo")` — already handled by the
       // string-value path below.)
-      final isPgFamily = const {
-        'pg',
-        'postgres',
-        'postgresql',
-        'cockroachdb',
-        'redshift',
-      }.contains(client.driverName);
+      // Redshift is included alongside _isPostgresLikeDriver (which
+      // excludes it) because this specific row-constructor behavior is
+      // inherited from Redshift's postgres compiler base — same
+      // include-redshift-explicitly pattern as distinctOn()'s dialect gate.
+      final isPgFamily = _isPostgresLikeDriver || client.driverName == 'redshift';
       final String aggregated;
       if (distinct.isNotEmpty && value.length > 1 && isPgFamily) {
         aggregated = '$method(distinct($columns))';

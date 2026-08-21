@@ -14,6 +14,9 @@ import 'package:knex_dart/knex_dart.dart';
 SchemaBuilder _sb(String dialect) =>
     KnexQuery.forClient(dialect).schemaBuilder();
 
+Raw _raw(String dialect, String sql, [dynamic bindings]) =>
+    _sb(dialect).client.raw(sql, bindings);
+
 typedef SchemaParityCase = List<Map<String, dynamic>> Function(String dialect);
 
 final Map<String, SchemaParityCase> schemaParityCases = {
@@ -101,7 +104,7 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/default-raw-current-timestamp': (d) => _sb(d).alterTable('users', (
     t,
   ) {
-    t.timestamp('created_at').defaultTo(_sb(d).client.raw('CURRENT_TIMESTAMP'));
+    t.timestamp('created_at').defaultTo(_raw(d, 'CURRENT_TIMESTAMP'));
   }).toSQL(),
 
   'schema/default-boolean-false': (d) => _sb(d).alterTable('users', (t) {
@@ -259,12 +262,12 @@ final Map<String, SchemaParityCase> schemaParityCases = {
       )
       .toSQL(),
   'schema/view-create-raw': (d) => _sb(d)
-      .createView('answer_view', _sb(d).client.raw('select ? as answer', [42]))
+      .createView('answer_view', _raw(d, 'select ? as answer', [42]))
       .toSQL(),
   'schema/view-create-or-replace-raw': (d) => _sb(d)
       .createViewOrReplace(
         'answer_view',
-        _sb(d).client.raw('select ? as answer', [42]),
+        _raw(d, 'select ? as answer', [42]),
       )
       .toSQL(),
   'schema/view-create-or-replace': (d) => _sb(d)
@@ -291,7 +294,7 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/view-create-materialized-raw': (d) => _sb(d)
       .createMaterializedView(
         'answer_view',
-        _sb(d).client.raw('select ? as answer', [42]),
+        _raw(d, 'select ? as answer', [42]),
       )
       .toSQL(),
   'schema/view-refresh-materialized': (d) =>
@@ -391,7 +394,7 @@ final Map<String, SchemaParityCase> schemaParityCases = {
       _sb(d).createTable('default_raw_test', (t) {
         t
             .timestamp('created_at')
-            .defaultTo(_sb(d).client.raw('CURRENT_TIMESTAMP'));
+            .defaultTo(_raw(d, 'CURRENT_TIMESTAMP'));
       }).toSQL(),
 
   'schema/alter-table-drop-unique-composite': (d) =>
@@ -580,27 +583,15 @@ final Map<String, SchemaParityCase> schemaParityCases = {
         ).queryBuilder().table('users').select(['*']).where('active', true),
       )
       .toSQL(),
-  'schema/create-view-or-replace': (d) => _sb(d)
-      .createViewOrReplace(
-        'active_users',
-        KnexQuery.forClient(
-          d,
-        ).queryBuilder().table('users').select(['*']).where('active', true),
-      )
-      .toSQL(),
-  'schema/drop-view': (d) => _sb(d).dropView('active_users').toSQL(),
+  // create-view-or-replace, drop-view, rename-view, and create-materialized-view
+  // were removed here — CodeRabbit-flagged as exact duplicates (same builder
+  // methods, same shape, only the table name differed) of view-create-or-replace,
+  // view-drop, view-rename, and view-create-materialized above. Kept: this
+  // cluster's genuinely distinct cases (create-view-bare uses a differently-
+  // shaped query than view-create-basic; drop-view-if-exists and
+  // refresh-materialized-view aren't covered above at all).
   'schema/drop-view-if-exists': (d) =>
       _sb(d).dropViewIfExists('active_users').toSQL(),
-  'schema/rename-view': (d) =>
-      _sb(d).renameView('active_users', 'all_active_users').toSQL(),
-  'schema/create-materialized-view': (d) => _sb(d)
-      .createMaterializedView(
-        'active_users_mv',
-        KnexQuery.forClient(
-          d,
-        ).queryBuilder().table('users').select(['*']).where('active', true),
-      )
-      .toSQL(),
   'schema/refresh-materialized-view': (d) =>
       _sb(d).refreshMaterializedView('active_users_mv').toSQL(),
   'schema/refresh-materialized-view-concurrently': (d) =>

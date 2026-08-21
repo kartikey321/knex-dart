@@ -655,15 +655,11 @@ const cases = [
   ['schema/create-view-bare', (k) => k.schema.createView('active_users', function (view) {
     view.as(k('users').select('*').where('active', true));
   })],
-  ['schema/create-view-or-replace', (k) => k.schema.createViewOrReplace('active_users', function (view) {
-    view.as(k('users').select('*').where('active', true));
-  })],
-  ['schema/drop-view', (k) => k.schema.dropView('active_users')],
+  // create-view-or-replace, drop-view, rename-view, and create-materialized-view
+  // were removed here — CodeRabbit-flagged exact duplicates of
+  // view-create-or-replace, view-drop, view-rename, and view-create-materialized
+  // above (same builder methods and shape, only the table name differed).
   ['schema/drop-view-if-exists', (k) => k.schema.dropViewIfExists('active_users')],
-  ['schema/rename-view', (k) => k.schema.renameView('active_users', 'all_active_users')],
-  ['schema/create-materialized-view', (k) => k.schema.createMaterializedView('active_users_mv', function (view) {
-    view.as(k('users').select('*').where('active', true));
-  })],
   ['schema/refresh-materialized-view', (k) => k.schema.refreshMaterializedView('active_users_mv')],
   ['schema/refresh-materialized-view-concurrently', (k) => k.schema.refreshMaterializedView('active_users_mv', true)],
 

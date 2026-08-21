@@ -541,18 +541,23 @@ void main() {
   // ── CodeRabbit-flagged fixes (PR #17 review) ─────────────────────────────
 
   group('MSSQL: identifiers embedded in string literals are quote-escaped', () {
+    // Uses the real MSSQL client (via KnexQuery.forClient), not MockClient —
+    // MockClient.wrapIdentifierImpl falls through to generic double-quoting
+    // for every driver except MySQL, so it never exercises MSSQL's real
+    // bracket identifier quoting. Flagged by CodeRabbit: these tests passed
+    // while asserting mock quoting, not the MSSQL dialect they claim to test.
     test('createTableIfNotExists\' object_id() guard escapes a table name with a quote', () {
-      final mssql = MockClient(driverName: 'mssql');
-      final sql = mssql.schemaBuilder().createTableIfNotExists(
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql.createTableIfNotExists(
         "o'brien",
         (t) => t.string('x'),
       ).toSQL().first['sql'] as String;
-      expect(sql, contains("object_id('\"o''brien\"', 'U')"));
+      expect(sql, contains("object_id('[o''brien]', 'U')"));
     });
 
     test('table.comment() escapes a schema name with a quote', () {
-      final mssql = MockClient(driverName: 'mssql');
-      final sql = mssql.schemaBuilder()
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql
           .withSchema("o'brien")
           .createTable('t', (table) {
             table.string('x');
@@ -566,19 +571,19 @@ void main() {
 
   group('MSSQL: multi-column DROP COLUMN uses a single keyword + column list', () {
     test('dropColumns(["a", "b"]) — not one DROP COLUMN per column', () {
-      final mssql = MockClient(driverName: 'mssql');
-      final sql = mssql.schemaBuilder().alterTable('t', (table) {
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql.alterTable('t', (table) {
         table.dropColumns(['a', 'b']);
       }).toSQL().last['sql'] as String;
-      expect(sql, 'alter table "t" drop column "a", "b"');
+      expect(sql, 'alter table [t] drop column [a], [b]');
     });
 
     test('dropTimestamps() — same single-keyword multi-column form', () {
-      final mssql = MockClient(driverName: 'mssql');
-      final sql = mssql.schemaBuilder().alterTable('t', (table) {
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql.alterTable('t', (table) {
         table.dropTimestamps();
       }).toSQL().last['sql'] as String;
-      expect(sql, 'alter table "t" drop column "created_at", "updated_at"');
+      expect(sql, 'alter table [t] drop column [created_at], [updated_at]');
     });
   });
 

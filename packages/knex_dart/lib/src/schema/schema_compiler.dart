@@ -276,11 +276,20 @@ class SchemaCompiler {
     final driver = client.driverName.toLowerCase();
     if (driver == 'mssql') {
       final name = _prefixedTableName(viewName);
-      _pushQuery("if object_id('$name', 'V') is not null DROP VIEW $name");
+      _pushQuery(
+        "if object_id('${_objectIdLiteral(name)}', 'V') is not null DROP VIEW $name",
+      );
       return;
     }
     _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
   }
+
+  /// Escape a `$name` reference for embedding inside an MSSQL `object_id('...')`
+  /// string literal. `object_id()` takes its argument as a string, not an
+  /// identifier, so a literal `'` in the table/schema name — untouched by
+  /// bracket-quoting, a different escape mechanism — must be doubled or it
+  /// terminates the literal early.
+  String _objectIdLiteral(String ref) => ref.replaceAll("'", "''");
 
   void _dropMaterializedView(String viewName) {
     _ensurePostgresOnly('dropMaterializedView');
@@ -530,12 +539,8 @@ class SchemaCompiler {
         // MSSQL has no `CREATE TABLE IF NOT EXISTS` — knex.js instead guards
         // with `IF OBJECT_ID(...) IS NULL CREATE TABLE ...` (verified
         // against real knex.js 3.3.0), same existence-check idiom as
-        // _dropTableIfExists's mssql branch. tableRef is embedded inside a
-        // string literal here (object_id() takes its argument as a string,
-        // not an identifier), so a literal `'` in the table/schema name —
-        // untouched by bracket-quoting, a different escape mechanism —
-        // must be doubled or it terminates the literal early.
-        ? "if object_id('${tableRef.replaceAll("'", "''")}', 'U') is null CREATE TABLE $tableBody"
+        // _dropTableIfExists's mssql branch.
+        ? "if object_id('${_objectIdLiteral(tableRef)}', 'U') is null CREATE TABLE $tableBody"
         : '$prefix $tableBody';
     _pushQuery(sql);
 
@@ -626,7 +631,9 @@ class SchemaCompiler {
     final driver = client.driverName.toLowerCase();
     if (driver == 'mssql') {
       final name = _prefixedTableName(tableName);
-      _pushQuery("if object_id('$name', 'U') is not null DROP TABLE $name");
+      _pushQuery(
+        "if object_id('${_objectIdLiteral(name)}', 'U') is not null DROP TABLE $name",
+      );
       return;
     }
     _pushQuery('drop table if exists ${_prefixedTableName(tableName)}');
@@ -1130,6 +1137,13 @@ class SchemaCompiler {
     if (_isSqliteLike(driver)) {
       _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
       _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
+      return;
+    }
+    if (driver == 'mssql') {
+      // MSSQL has no `CREATE OR REPLACE VIEW` — see _createViewOrReplace.
+      _pushQuery(
+        'CREATE OR ALTER VIEW ${_prefixedTableName(viewName)} AS $inlinedSql',
+      );
       return;
     }
     _pushQuery(

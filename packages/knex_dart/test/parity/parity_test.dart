@@ -482,6 +482,14 @@ bool _bindingValueEqual(dynamic a, dynamic b) {
     }
     return true;
   }
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key)) return false;
+      if (!_bindingValueEqual(a[key], b[key])) return false;
+    }
+    return true;
+  }
   return a == b; // strict otherwise: "1" != 1, true != 1, etc.
 }
 

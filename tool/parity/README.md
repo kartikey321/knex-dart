@@ -206,7 +206,7 @@ version bump.
 key — and the branch itself was also wrong (it spliced the distinctOn columns
 into the regular SELECT list instead of producing a separate prefix clause).
 Added `QueryBuilder.distinctOn(List<String> columns)`, fixed the compiler to
-emit a standalone `distinct on (...) ` prefix, and gated it to the
+emit a standalone `distinct on (...)` prefix clause, and gated it to the
 postgres-family — including Redshift, which real knex.js supports via
 inheritance from its postgres compiler even though `_isPostgresLikeDriver`
 elsewhere in this file deliberately excludes Redshift (same split as the

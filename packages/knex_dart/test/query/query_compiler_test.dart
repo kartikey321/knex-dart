@@ -1326,8 +1326,7 @@ void main() {
 
     test('Ragged multi-row insert on SQLite succeeds (via null bindings, not '
         "knex.js's union-all-select shim) when useNullAsDefault is set", () {
-      final sqliteClient = MockClient(
-        driverName: 'sqlite3',
+      final sqliteClient = SqliteMockClient(
         config: KnexConfig(
           client: 'sqlite3',
           connection: {},
@@ -1341,8 +1340,7 @@ void main() {
 
       expect(
         sql.sql,
-        'insert into "t" ("Zebra", "Zoo", "apple") values '
-        '(\$1, \$2, \$3), (\$4, \$5, \$6)',
+        'insert into "t" ("Zebra", "Zoo", "apple") values (?, ?, ?), (?, ?, ?)',
       );
       expect(sql.bindings, [1, null, 2, null, 4, 3]);
     });
