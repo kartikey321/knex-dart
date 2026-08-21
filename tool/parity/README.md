@@ -177,3 +177,36 @@ Bump the knex.js checkout, rerun `node tool/parity/run_js.mjs` **and**
 `node tool/parity/run_js_schema.mjs`, and review both fixture diffs.
 `knexVersion` is recorded in each fixture header so a regeneration that shifts
 expected output is visible in review.
+
+## Out of scope for this harness (and where those are tested instead)
+
+A `0%` line in coverage scoped to `test/parity/` does not mean "untested" —
+it can also mean "this harness structurally cannot test it." Differential
+comparison needs a real knex.js call on the other side; if knex.js 3.3.0 has
+no equivalent method, there is nothing to diff against, and coverage will
+always read zero here no matter how well the feature is tested elsewhere.
+Every item below was confirmed absent from real knex.js 3.3.0 via
+`grep -rn "<name>" knex-js/lib/` before being excluded — don't re-add these
+to the parity corpus without re-verifying that hasn't changed on a knex.js
+version bump.
+
+| knex-dart feature | Why it can't be diffed against knex.js | Self-tested at |
+|---|---|---|
+| `whereFullText()` / `orWhereFullText()` | No `whereFullText` API in knex.js 3.3.0 (any spelling) | `test/query/where_fulltext_test.dart` |
+| `lead()` / `lag()` / `nthValue()` / window-function object & callback forms | knex.js has no analytic/window-function builder API at all | `test/query/analytic_comparison_test.dart` |
+| `joinLateral()` / `leftJoinLateral()` / `crossJoinLateral()` | No lateral-join builder API in knex.js 3.3.0 | `test/query/join_clause_test.dart` |
+| `intersectAll()` / `exceptAll()` | No such methods in knex.js 3.3.0 (`intersect`/`except` exist and *are* mined; the `-All` duplicate-preserving variants don't) | `test/query/intersect_except_test.dart` |
+| `Formatter.parameter()` / `.values()` / `.columnize(Map)` | Exported public API (`knex_dart.dart`), but no caller anywhere in `lib/src/` — the query/schema compilers use `client.parameter()` and their own `_aliasedColumn()`/tuple logic directly instead. Not a parity gap; genuinely unreachable from the builder pipeline | `test/formatter/formatter_phase2_test.dart` |
+| MSSQL `LIMIT`/`OFFSET` (`OFFSET ... FETCH NEXT`) | MSSQL isn't driven by this harness at all — see `_skipDialects` in `parity_test.dart` ("not a core SQL-gen dialect — lives in the knex_dart_mssql package") | `test/query/query_compiler_test.dart` |
+| `table.fulltext()` (schema DDL) | knex.js 3.3.0 has no `table.fulltext()` — its equivalent is `index([...], {indexType: 'fulltext'})`, a different call shape than knex-dart's dedicated method | `test/schema/schema_extras_test.dart` |
+
+**One genuine gap, not a testing gap:** `query_compiler.dart`'s `_columns()`
+checks for a `stmt['distinctOn']` key (~line 415) that compiles to Postgres's
+`select distinct on (...) ...` — but no `QueryBuilder` method ever sets that
+key. knex.js *does* have `distinctOn(...args)` (verified:
+`k('users').distinctOn(['a','b']).select('*').toSQL().sql` →
+`select distinct on ("a", "b") "a", * from "users"`), so this is a real,
+documented knex.js feature with dead compiler support in knex-dart and no way
+to reach it from the public API. Needs a decision (implement
+`QueryBuilder.distinctOn()`, or remove the orphaned compiler branch) rather
+than a test — there's no method to call yet.
