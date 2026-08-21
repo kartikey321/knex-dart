@@ -2344,5 +2344,47 @@ void main() {
         ),
       );
     });
+
+    test('distinctOn() compiles to a separate DISTINCT ON prefix', () {
+      final sql = QueryBuilder(
+        client,
+      ).table('t').distinctOn(['author_id', 'category']).select(['*']).toSQL();
+      expect(
+        sql.sql,
+        'select distinct on ("author_id", "category") * from "t"',
+      );
+      expect(sql.bindings, isEmpty);
+    });
+
+    test('distinctOn() is supported on redshift (inherits postgres)', () {
+      final redshift = MockClient(driverName: 'redshift');
+      final sql = QueryBuilder(
+        redshift,
+      ).table('t').distinctOn(['author_id']).select(['*']).toSQL();
+      expect(sql.sql, 'select distinct on ("author_id") * from "t"');
+    });
+
+    test('distinctOn() throws on MySQL', () {
+      final my = MySQLMockClient();
+      expect(
+        () => QueryBuilder(
+          my,
+        ).table('t').distinctOn(['author_id']).select(['*']).toSQL(),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('.distinctOn() is currently only supported on PostgreSQL'),
+          ),
+        ),
+      );
+    });
+
+    test('distinctOn() requires at least one column', () {
+      expect(
+        () => QueryBuilder(client).distinctOn([]),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
   });
 }

@@ -200,13 +200,16 @@ version bump.
 | MSSQL `LIMIT`/`OFFSET` (`OFFSET ... FETCH NEXT`) | MSSQL isn't driven by this harness at all — see `_skipDialects` in `parity_test.dart` ("not a core SQL-gen dialect — lives in the knex_dart_mssql package") | `test/query/query_compiler_test.dart` |
 | `table.fulltext()` (schema DDL) | knex.js 3.3.0 has no `table.fulltext()` — its equivalent is `index([...], {indexType: 'fulltext'})`, a different call shape than knex-dart's dedicated method | `test/schema/schema_extras_test.dart` |
 
-**One genuine gap, not a testing gap:** `query_compiler.dart`'s `_columns()`
-checks for a `stmt['distinctOn']` key (~line 415) that compiles to Postgres's
-`select distinct on (...) ...` — but no `QueryBuilder` method ever sets that
-key. knex.js *does* have `distinctOn(...args)` (verified:
-`k('users').distinctOn(['a','b']).select('*').toSQL().sql` →
-`select distinct on ("a", "b") "a", * from "users"`), so this is a real,
-documented knex.js feature with dead compiler support in knex-dart and no way
-to reach it from the public API. Needs a decision (implement
-`QueryBuilder.distinctOn()`, or remove the orphaned compiler branch) rather
-than a test — there's no method to call yet.
+**Formerly a genuine gap, now implemented:** `query_compiler.dart`'s
+`_columns()` had a `stmt['distinctOn']` branch that compiled to Postgres's
+`select distinct on (...) ...`, but no `QueryBuilder` method ever set that
+key — and the branch itself was also wrong (it spliced the distinctOn columns
+into the regular SELECT list instead of producing a separate prefix clause).
+Added `QueryBuilder.distinctOn(List<String> columns)`, fixed the compiler to
+emit a standalone `distinct on (...) ` prefix, and gated it to the
+postgres-family — including Redshift, which real knex.js supports via
+inheritance from its postgres compiler even though `_isPostgresLikeDriver`
+elsewhere in this file deliberately excludes Redshift (same split as the
+`skipLocked()`/`_waitMode()` sqlite-vs-redshift case). Mined as
+`select/distinct-on-single` / `select/distinct-on-multi`; unit-tested in
+`test/query/query_compiler_test.dart`.

@@ -13,7 +13,7 @@
     "d1": "sqlite3 (family:sqlite)",
     "mssql": "mssql"
   },
-  "caseCount": 2322,
+  "caseCount": 2340,
   "cases": [
     {
       "id": "where/eq-string",
@@ -18243,6 +18243,106 @@
       "bindings": [
         "active"
       ]
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "postgres",
+      "sql": "select distinct on (\"author_id\") * from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "cockroachdb",
+      "sql": "select distinct on (\"author_id\") * from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "redshift",
+      "sql": "select distinct on (\"author_id\") * from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "mysql",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "mariadb",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "sqlite",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-single",
+      "dialect": "mssql",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "postgres",
+      "sql": "select distinct on (\"author_id\", \"category\") * from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "cockroachdb",
+      "sql": "select distinct on (\"author_id\", \"category\") * from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "redshift",
+      "sql": "select distinct on (\"author_id\", \"category\") * from \"t\"",
+      "bindings": []
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "mysql",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "mariadb",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "sqlite",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "turso",
+      "family": "sqlite",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "d1",
+      "family": "sqlite",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
+    },
+    {
+      "id": "select/distinct-on-multi",
+      "dialect": "mssql",
+      "error": ".distinctOn() is currently only supported on PostgreSQL"
     }
   ]
 }

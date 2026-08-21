@@ -837,6 +837,10 @@ const cases = [
   ['on-val/map', (k) => k('a').join('b', function (qb) {
     qb.onVal({ 'a.status': 'active' });
   })],
+
+  // ── distinctOn() — Postgres-family only ──────────────────────────────
+  ['select/distinct-on-single', (k) => k('t').distinctOn(['author_id']).select('*')],
+  ['select/distinct-on-multi', (k) => k('t').distinctOn(['author_id', 'category']).select('*')],
 ];
 
 const out = [];

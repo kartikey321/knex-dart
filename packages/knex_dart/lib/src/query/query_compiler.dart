@@ -375,6 +375,7 @@ class QueryCompiler {
 
     // Check for DISTINCT flag and collect columns
     bool hasDistinct = false;
+    String distinctOnClause = '';
     final cols = <String>[];
 
     for (final stmt in columnStmts) {
@@ -411,14 +412,25 @@ class QueryCompiler {
         continue;
       }
 
-      // Handle distinctOn
+      // Handle distinctOn — a separate `distinct on (...)` prefix, NOT a
+      // regular selected column (matches knex.js: `.distinctOn(['a','b'])
+      // .select('*')` compiles to `select distinct on ("a", "b") *`, not
+      // `select "a", "b", *`).
       if (stmt['distinctOn'] != null) {
-        if (stmt['distinctOn'] is List) {
-          final distinctCols = stmt['distinctOn'] as List;
-          final formatted = formatter.columnize(distinctCols);
-          cols.add(formatted);
-          continue;
+        // Redshift is deliberately included here even though
+        // _isPostgresLikeDriver excludes it: real knex.js's redshift
+        // compiler extends its postgres compiler and doesn't override
+        // distinctOn(), so it inherits `distinct on (...)` support directly
+        // — verified against knex.js 3.3.0. Same inheritance pattern as the
+        // sqlite/redshift skipLocked() split in _waitMode() above.
+        if (!_isPostgresLikeDriver && client.driverName != 'redshift') {
+          throw StateError(
+            '.distinctOn() is currently only supported on PostgreSQL',
+          );
         }
+        final distinctCols = stmt['distinctOn'] as List;
+        distinctOnClause = 'distinct on (${formatter.columnize(distinctCols)}) ';
+        continue;
       }
 
       // Handle regular columns (but check for QueryBuilder first)
@@ -479,7 +491,9 @@ class QueryCompiler {
 
     // Build SELECT clause
     final columnList = cols.isEmpty ? '*' : cols.join(', ');
-    final distinctClause = hasDistinct ? 'distinct ' : '';
+    final distinctClause = distinctOnClause.isNotEmpty
+        ? distinctOnClause
+        : (hasDistinct ? 'distinct ' : '');
 
     if (tableName.isNotEmpty) {
       return 'select $distinctClause$columnList from $tableName';

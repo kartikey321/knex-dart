@@ -1454,4 +1454,11 @@ final Map<String, ParityCase> parityCases = {
   'on-val/map': (d) => _qb(d).table('a').join('b', (j) {
     j.onVal({'a.status': 'active'});
   }).toSQL(),
+
+  // ── distinctOn() — Postgres-family only ──────────────────────────────
+  'select/distinct-on-single': (d) =>
+      _qb(d).table('t').distinctOn(['author_id']).select(['*']).toSQL(),
+  'select/distinct-on-multi': (d) => _qb(
+    d,
+  ).table('t').distinctOn(['author_id', 'category']).select(['*']).toSQL(),
 };

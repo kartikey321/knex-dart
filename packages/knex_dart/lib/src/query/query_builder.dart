@@ -387,6 +387,25 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add a PostgreSQL `DISTINCT ON (...)` clause.
+  ///
+  ///
+  /// Postgres-only — compiling on any other dialect throws. [columns] must
+  /// be non-empty (matches knex.js's `distinctOn requires at least one
+  /// argument`).
+  ///
+  /// Example: distinctOn(['author_id']).orderBy('author_id').orderBy('created_at', 'desc')
+  QueryBuilder distinctOn(List<String> columns) {
+    if (columns.isEmpty) {
+      throw ArgumentError('distinctOn requires at least one argument');
+    }
+    _statements.add({
+      'grouping': 'columns',
+      'distinctOn': columns,
+    });
+    return this;
+  }
+
   /// Add an INNER JOIN clause
   ///
   ///
