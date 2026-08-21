@@ -354,7 +354,7 @@ const Map<String, String> parityAllowlist = {
       '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
       'capability divergence, applied to the inner CTE source statement '
       '(the `.with(...).(...).returning([\'group_id\'])` chained inside '
-      'the WITH body). knex.js\'s mysql2 silently drops the RETURNING '
+      'the WITH body). knex.js\'s mariadb client silently drops the RETURNING '
       'from the WITH body too. The harness compares the whole '
       '`with ... update ...` outer statement, where the only difference '
       'is the presence/absence of `returning `group_id`` in the CTE '
@@ -426,8 +426,8 @@ const Map<String, String> parityAllowlist = {
   // against real knex.js 3.3.0:
   //   mysql2:    `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
   //   sqlite3:   `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
-  // (knex.js emits the syntax, but neither engine's parser accepts FULL
-  // OUTER JOIN text — these statements would fail at execution time.)
+  // (knex.js emits the syntax verbatim. MySQL rejects it; SQLite supports it
+  // only on 3.39+.)
   'join/full-outer::mysql':
       '[ACCEPTED] knex-dart refuses FULL OUTER JOIN on mysql (capability '
       'matrix excludes it — knex_dart_capabilities/lib/src/capabilities.dart '
