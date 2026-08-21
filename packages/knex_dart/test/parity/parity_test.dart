@@ -64,6 +64,29 @@ const Map<String, String> parityAllowlist = {
   'upsert/merge::redshift':
       '[ACCEPTED] Redshift does not support ON CONFLICT. knex.js emits a plain '
       'INSERT (silently dropping the upsert!); knex-dart correctly refuses.',
+  'upsert/merge-columns::redshift':
+      '[ACCEPTED] knex.js 3.3.0 emits `insert into "users" ("email", '
+      '"name", "updated_at") values (\$1, \$2, \$3)` on Redshift, silently '
+      'dropping .onConflict("email").merge(["name", "updated_at"]); '
+      'knex-dart correctly refuses unsupported upserts.',
+  'on/bare-string::postgres':
+      '[ACCEPTED] knex.js 3.3.0 emits `select * from "users" inner join '
+      '"contacts" on ` for on("users.id = contacts.user_id"), silently '
+      'dropping the string; knex-dart deliberately accepts it as a raw ON '
+      'expression and emits valid SQL.',
+  'on/bare-string::cockroachdb': '[ACCEPTED] see on/bare-string::postgres.',
+  'on/bare-string::redshift': '[ACCEPTED] see on/bare-string::postgres.',
+  'on/bare-string::mysql':
+      '[ACCEPTED] knex.js 3.3.0 emits `select * from `users` inner join '
+      '`contacts` on ` for on("users.id = contacts.user_id"), silently '
+      'dropping the string; knex-dart deliberately accepts it as a raw ON '
+      'expression and emits valid SQL.',
+  'on/bare-string::mariadb': '[ACCEPTED] see on/bare-string::mysql.',
+  'on/bare-string::sqlite': '[ACCEPTED] see on/bare-string::mysql.',
+  'on/bare-string::turso':
+      '[ACCEPTED] see on/bare-string::sqlite (turso is sqlite-family).',
+  'on/bare-string::d1':
+      '[ACCEPTED] see on/bare-string::sqlite (d1 is sqlite-family).',
   'cte/insert-multi-source::sqlite':
       '[ACCEPTED] Cosmetic multi-row INSERT syntax choice on SQLite: knex.js\'s '
       "sqlite3 client always compiles multi-row inserts as "

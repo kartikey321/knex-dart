@@ -120,6 +120,12 @@ final Map<String, ParityCase> parityCases = {
       .onConflict('email')
       .merge()
       .toSQL(),
+  'upsert/merge-columns': (d) => _qb(d)
+      .table('users')
+      .insert({'email': 'a@b.com', 'name': 'Alice', 'updated_at': 'now'})
+      .onConflict('email')
+      .merge(['name', 'updated_at'])
+      .toSQL(),
   'returning/insert': (d) => _qb(
     d,
   ).table('users').insert({'email': 'a@b.com'}).returning(['id']).toSQL(),
@@ -1277,6 +1283,42 @@ final Map<String, ParityCase> parityCases = {
       ),
     );
   }).toSQL(),
+  'on/bare-string': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.on('users.id = contacts.user_id');
+      }).toSQL(),
+  'on/or-not-exists': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.on('users.id', '=', 'contacts.user_id').orOnNotExists((inner) {
+          inner
+              .select(['*'])
+              .table('phones')
+              .where(
+                'phones.contact_id',
+                '=',
+                _qb(d).client.raw('??', ['contacts.id']),
+              );
+        });
+      }).toSQL(),
+  'on/and-val-direct': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j
+            .on('users.id', '=', 'contacts.user_id')
+            .andOnVal('contacts.status', '=', 'active');
+      }).toSQL(),
+  'on/or-map': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
+    j.on('users.id', '=', 'contacts.user_id').orOn({
+      'contacts.active': 'users.active',
+      'contacts.admin': 'users.admin',
+    });
+  }).toSQL(),
+  'on/or-val-map': (d) =>
+      _qb(d).table('users').select(['*']).join('contacts', (j) {
+        j.on('users.id', '=', 'contacts.user_id').orOnVal({
+          'contacts.status': 'active',
+          'contacts.role': 'vip',
+        });
+      }).toSQL(),
   'on/wrapped': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.on('users.id', '=', 'contacts.user_id').on((nested) {

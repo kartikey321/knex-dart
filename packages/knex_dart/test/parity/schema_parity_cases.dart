@@ -203,6 +203,15 @@ final Map<String, SchemaParityCase> schemaParityCases = {
   'schema/alter-table-foreign': (d) => _sb(d).alterTable('orders', (t) {
     t.foreign('user_id').references('id').inTable('users');
   }).toSQL(),
+  'schema/alter-table-foreign-both-actions': (d) =>
+      _sb(d).alterTable('orders', (t) {
+        t
+            .foreign('user_id')
+            .references('id')
+            .inTable('users')
+            .onDelete('cascade')
+            .onUpdate('cascade');
+      }).toSQL(),
 
   'schema/alter-table-set-nullable': (d) => _sb(d).alterTable('users', (t) {
     t.setNullable('email');
@@ -250,10 +259,7 @@ final Map<String, SchemaParityCase> schemaParityCases = {
       )
       .toSQL(),
   'schema/view-create-raw': (d) => _sb(d)
-      .createView(
-        'answer_view',
-        _sb(d).client.raw('select ? as answer', [42]),
-      )
+      .createView('answer_view', _sb(d).client.raw('select ? as answer', [42]))
       .toSQL(),
   'schema/view-create-or-replace-raw': (d) => _sb(d)
       .createViewOrReplace(

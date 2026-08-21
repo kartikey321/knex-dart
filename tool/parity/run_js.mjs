@@ -98,6 +98,7 @@ const cases = [
   // Capability-varying (expected to be supported on some dialects, refused on
   // others — the harness records both-refuse as parity, one-refuse as a finding).
   ['upsert/merge', (k) => k('users').insert({ email: 'a@b.com', name: 'Alice' }).onConflict('email').merge()],
+  ['upsert/merge-columns', (k) => k('users').insert({ email: 'a@b.com', name: 'Alice', updated_at: 'now' }).onConflict('email').merge(['name', 'updated_at'])],
   ['returning/insert', (k) => k('users').insert({ email: 'a@b.com' }).returning(['id'])],
 
   // Batch 2 — aggregates, grouping, distinct, counters, set-ops
@@ -753,6 +754,23 @@ const cases = [
   ['pluck/basic', (k) => k('t').pluck('name')],
   ['on/raw', (k) => k('users').select('*').join('contacts', function (qb) {
     qb.on(k.raw('"users"."id" = "contacts"."user_id" and "contacts"."active" = ?', [true]));
+  })],
+  ['on/bare-string', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id = contacts.user_id');
+  })],
+  ['on/or-not-exists', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id').orOnNotExists(function () {
+      this.select('*').from('phones').where('phones.contact_id', '=', k.raw('??', ['contacts.id']));
+    });
+  })],
+  ['on/and-val-direct', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id').andOnVal('contacts.status', '=', 'active');
+  })],
+  ['on/or-map', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id').orOn({ 'contacts.active': 'users.active', 'contacts.admin': 'users.admin' });
+  })],
+  ['on/or-val-map', (k) => k('users').select('*').join('contacts', function (qb) {
+    qb.on('users.id', '=', 'contacts.user_id').orOnVal({ 'contacts.status': 'active', 'contacts.role': 'vip' });
   })],
   ['on/wrapped', (k) => k('users').select('*').join('contacts', function (qb) {
     qb.on('users.id', '=', 'contacts.user_id').on(function () {

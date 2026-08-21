@@ -225,6 +225,9 @@ const cases = [
   ['schema/alter-table-foreign', (k) => k.schema.alterTable('orders', (t) => {
     t.foreign('user_id').references('id').inTable('users');
   })],
+  ['schema/alter-table-foreign-both-actions', (k) => k.schema.alterTable('orders', (t) => {
+    t.foreign('user_id').references('id').inTable('users').onDelete('cascade').onUpdate('cascade');
+  })],
 
   ['schema/alter-table-set-nullable', (k) => k.schema.alterTable('users', (t) => {
     t.string('email').nullable().alter();

@@ -33,18 +33,52 @@ const Map<String, String> schemaParityAllowlist = {
   // first probe of a multi-query rebuild knex.js performs internally.
   'schema/alter-table-primary::sqlite':
       '[ACCEPTED] SQLite: knex.js reroutes through a PRAGMA-based table '
-          'rebuild; knex-dart refuses. See schema_compiler.dart primary() guard.',
+      'rebuild; knex-dart refuses. See schema_compiler.dart primary() guard.',
   'schema/alter-table-primary::turso':
       '[ACCEPTED] see schema/alter-table-primary::sqlite (turso is sqlite-family).',
   'schema/alter-table-primary::d1':
       '[ACCEPTED] see schema/alter-table-primary::sqlite (d1 is sqlite-family).',
   'schema/alter-table-foreign::sqlite':
       '[ACCEPTED] SQLite: knex.js reroutes through a PRAGMA-based table '
-          'rebuild for ALTER TABLE ADD CONSTRAINT FOREIGN KEY; knex-dart refuses.',
+      'rebuild for ALTER TABLE ADD CONSTRAINT FOREIGN KEY; knex-dart refuses.',
   'schema/alter-table-foreign::turso':
       '[ACCEPTED] see schema/alter-table-foreign::sqlite (turso is sqlite-family).',
   'schema/alter-table-foreign::d1':
       '[ACCEPTED] see schema/alter-table-foreign::sqlite (d1 is sqlite-family).',
+  'schema/alter-table-foreign-both-actions::postgres':
+      '[ACCEPTED] knex.js 3.3.0 emits `alter table "orders" add constraint '
+      '"orders_user_id_foreign" foreign key ("user_id") references "users" '
+      '("id") on update cascade on delete cascade`; knex-dart emits the '
+      'semantically equivalent ON DELETE then ON UPDATE order with uppercase '
+      'CASCADE.',
+  'schema/alter-table-foreign-both-actions::cockroachdb':
+      '[ACCEPTED] see schema/alter-table-foreign-both-actions::postgres.',
+  'schema/alter-table-foreign-both-actions::redshift':
+      '[ACCEPTED] see schema/alter-table-foreign-both-actions::postgres.',
+  'schema/alter-table-foreign-both-actions::mysql':
+      '[ACCEPTED] knex.js 3.3.0 emits `alter table `orders` add constraint '
+      '`orders_user_id_foreign` foreign key (`user_id`) references `users` '
+      '(`id`) on update cascade on delete cascade`; knex-dart emits the '
+      'semantically equivalent ON DELETE then ON UPDATE order with uppercase '
+      'CASCADE.',
+  'schema/alter-table-foreign-both-actions::mariadb':
+      '[ACCEPTED] see schema/alter-table-foreign-both-actions::mysql.',
+  'schema/alter-table-foreign-both-actions::sqlite':
+      '[ACCEPTED] knex.js 3.3.0 starts its dynamic SQLite table-rebuild path '
+      'with `PRAGMA table_info(`orders`)`; knex-dart deliberately refuses '
+      'ALTER TABLE ADD CONSTRAINT FOREIGN KEY (including actions).',
+  'schema/alter-table-foreign-both-actions::turso':
+      '[ACCEPTED] see schema/alter-table-foreign-both-actions::sqlite '
+      '(turso is sqlite-family).',
+  'schema/alter-table-foreign-both-actions::d1':
+      '[ACCEPTED] see schema/alter-table-foreign-both-actions::sqlite '
+      '(d1 is sqlite-family).',
+  'schema/alter-table-foreign-both-actions::mssql':
+      '[ACCEPTED] knex.js 3.3.0 emits `ALTER TABLE [orders] ADD CONSTRAINT '
+      '[orders_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users] '
+      '([id]) ON UPDATE cascade ON DELETE cascade`; knex-dart emits '
+      'case-insensitive keywords and the semantically equivalent ON DELETE '
+      'then ON UPDATE order.',
   'schema/alter-table-set-nullable::sqlite':
       '[ACCEPTED] SQLite: knex.js reroutes through a PRAGMA-based table rebuild.',
   'schema/alter-table-set-nullable::turso':
@@ -78,8 +112,8 @@ const Map<String, String> schemaParityAllowlist = {
   // below — not a capability gap.
   'schema/alter-table-drop-column::sqlite':
       '[ACCEPTED] knex.js routes through a PRAGMA-based rebuild for pre-3.35 '
-          'SQLite compat; knex-dart emits the native DROP COLUMN directly '
-          '(valid since SQLite 3.35, 2021).',
+      'SQLite compat; knex-dart emits the native DROP COLUMN directly '
+      '(valid since SQLite 3.35, 2021).',
   'schema/alter-table-drop-column::turso':
       '[ACCEPTED] see schema/alter-table-drop-column::sqlite (turso is sqlite-family).',
   'schema/alter-table-drop-column::d1':
@@ -95,16 +129,16 @@ const Map<String, String> schemaParityAllowlist = {
   // name says.
   'schema/alter-table-set-nullable::postgres':
       '[ACCEPTED] knex.js .alter() rewrites default+type+nullable (3 '
-          'statements); knex-dart setNullable() only toggles NOT NULL (1 '
-          'statement, still correct SQL for that narrower purpose).',
+      'statements); knex-dart setNullable() only toggles NOT NULL (1 '
+      'statement, still correct SQL for that narrower purpose).',
   'schema/alter-table-set-nullable::cockroachdb':
       '[ACCEPTED] see schema/alter-table-set-nullable::postgres.',
   'schema/alter-table-set-nullable::redshift':
       '[ACCEPTED] see schema/alter-table-set-nullable::postgres.',
   'schema/alter-table-set-nullable::mysql':
       '[ACCEPTED] knex.js .alter() on MySQL re-emits the full column '
-          'definition (MODIFY requires it); knex-dart setNullable() is a '
-          'narrower, single-purpose operation. See postgres entry above.',
+      'definition (MODIFY requires it); knex-dart setNullable() is a '
+      'narrower, single-purpose operation. See postgres entry above.',
   'schema/alter-table-drop-nullable::postgres':
       '[ACCEPTED] see schema/alter-table-set-nullable::postgres (dropNullable mirrors it).',
   'schema/alter-table-drop-nullable::cockroachdb':
@@ -128,15 +162,15 @@ const Map<String, String> schemaParityAllowlist = {
   // for index() called inside createTable) rather than left as a divergence.
   'schema/alter-table-add-index::redshift':
       '[ACCEPTED] Redshift has no CREATE INDEX; knex.js silently emits no '
-          'SQL (console warning only), knex-dart throws UnsupportedError. '
-          'Both refuse the operation — different failure mode, not a bug.',
+      'SQL (console warning only), knex-dart throws UnsupportedError. '
+      'Both refuse the operation — different failure mode, not a bug.',
   'schema/alter-table-add-index-named::redshift':
       '[ACCEPTED] see schema/alter-table-add-index::redshift.',
   'schema/alter-table-add-index-composite::redshift':
       '[ACCEPTED] see schema/alter-table-add-index::redshift.',
   'schema/alter-table-drop-index::redshift':
       '[ACCEPTED] Redshift has no DROP INDEX; knex.js silently emits no SQL '
-          '(console warning only), knex-dart throws UnsupportedError.',
+      '(console warning only), knex-dart throws UnsupportedError.',
   'schema/alter-table-drop-index-named::redshift':
       '[ACCEPTED] see schema/alter-table-drop-index::redshift.',
 
@@ -158,18 +192,18 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] MySQL: `ADD col_def` vs `ADD COLUMN col_def` — COLUMN is optional, both valid.',
   'schema/default-string-embedded-quote::mysql':
       '[ACCEPTED] MySQL: knex.js uses backslash quote escaping while knex-dart '
-          'uses standard doubled quotes; both produce the same string literal. '
-          'Also `ADD` vs `ADD COLUMN` — see schema/alter-table-add-column::mysql.',
+      'uses standard doubled quotes; both produce the same string literal. '
+      'Also `ADD` vs `ADD COLUMN` — see schema/alter-table-add-column::mysql.',
   'schema/default-null::mysql':
       '[ACCEPTED] MySQL: knex.js omits `DEFAULT NULL` (the implicit default); '
-          'knex-dart states it explicitly. Also `ADD` vs `ADD COLUMN`.',
+      'knex-dart states it explicitly. Also `ADD` vs `ADD COLUMN`.',
   'schema/default-string-not-null::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
   'schema/default-raw-current-timestamp::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
   'schema/default-boolean-false::mysql':
       '[ACCEPTED] MySQL BOOLEAN is a TINYINT(1) synonym; also `ADD` vs `ADD COLUMN` '
-          '(see schema/alter-table-add-column::mysql).',
+      '(see schema/alter-table-add-column::mysql).',
   'schema/default-json-object::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
   'schema/default-jsonb-object::mysql':
@@ -186,15 +220,15 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] MySQL INTEGER is an INT synonym — see grouped note above (2).',
   'schema/create-table-column-primary::redshift':
       '[ACCEPTED] knex.js defers this Redshift primary key and adds NOT NULL; '
-          'knex-dart emits the valid inline informational constraint. See '
-          'schema/create-table-primary-composite::redshift.',
+      'knex-dart emits the valid inline informational constraint. See '
+      'schema/create-table-primary-composite::redshift.',
   'schema/alter-table-add-column-foreign::mysql':
       '[ACCEPTED] MySQL INTEGER is an INT synonym and `ADD COLUMN` is equivalent '
-          'to `ADD`; the generated foreign-key constraint matches.',
+      'to `ADD`; the generated foreign-key constraint matches.',
   'schema/alter-table-add-column-foreign::sqlite':
       '[ACCEPTED] SQLite: knex.js starts its PRAGMA-based table rebuild; '
-          'knex-dart refuses ALTER TABLE ADD FOREIGN KEY rather than silently '
-          'dropping it.',
+      'knex-dart refuses ALTER TABLE ADD FOREIGN KEY rather than silently '
+      'dropping it.',
   'schema/alter-table-add-column-foreign::turso':
       '[ACCEPTED] see schema/alter-table-add-column-foreign::sqlite (sqlite-family).',
   'schema/alter-table-add-column-foreign::d1':
@@ -211,7 +245,7 @@ const Map<String, String> schemaParityAllowlist = {
   // Deliberate "target current versions" choice, not a capability gap.
   'schema/alter-table-rename-column::mysql':
       '[ACCEPTED] knex-dart emits RENAME COLUMN directly (MySQL 8+/MariaDB '
-          '10.5+); knex.js SHOW FULL FIELDS-introspects for pre-8.0 compat.',
+      '10.5+); knex.js SHOW FULL FIELDS-introspects for pre-8.0 compat.',
 
   // ── ACCEPTED: cosmetic-only differences repeated across many cases —
   // grouped here instead of one entry per case×dialect.
@@ -324,7 +358,7 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see schema/create-table-unique-named::sqlite (d1 is sqlite-family).',
   'schema/create-table-primary-named::mysql':
       '[ACCEPTED] see grouped note above (2) — int/integer synonym only '
-          '(the constraint name is already identical on both sides).',
+      '(the constraint name is already identical on both sides).',
 
   // ── ACCEPTED: Redshift treats PRIMARY KEY as informational only (not
   // storage-enforced) and additionally refuses nullable columns in a
@@ -338,9 +372,9 @@ const Map<String, String> schemaParityAllowlist = {
   // caller declared instead of silently discarding it.
   'schema/create-table-primary-composite::redshift':
       '[ACCEPTED] knex.js silently drops the PK clause (console warning '
-          'only) because Redshift disallows nullable PK columns client-side; '
-          'knex-dart emits it — Redshift constraints are informational-only '
-          'and the CREATE TABLE syntax accepts this.',
+      'only) because Redshift disallows nullable PK columns client-side; '
+      'knex-dart emits it — Redshift constraints are informational-only '
+      'and the CREATE TABLE syntax accepts this.',
   'schema/create-table-primary-named::redshift':
       '[ACCEPTED] see schema/create-table-primary-composite::redshift.',
 
@@ -351,7 +385,7 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see grouped note above (2) — int/integer synonym only.',
   'schema/create-table-primary-composite::sqlite':
       '[ACCEPTED] see grouped note above (5) — SQLite omits the constraint '
-          'name when none was given; knex-dart always names it.',
+      'name when none was given; knex-dart always names it.',
   'schema/create-table-primary-composite::turso':
       '[ACCEPTED] see schema/create-table-primary-composite::sqlite (turso is sqlite-family).',
   'schema/create-table-primary-composite::d1':
@@ -370,10 +404,10 @@ const Map<String, String> schemaParityAllowlist = {
   // targets.
   'schema/alter-table-drop-unique::cockroachdb':
       '[ACCEPTED] verified live against real CockroachDB v26.2.4: '
-          '`ALTER TABLE ... DROP CONSTRAINT name` genuinely drops the unique '
-          "constraint (confirmed via duplicate-insert after drop). knex.js's "
-          'DROP INDEX "t"@"name" CASCADE also works — both are correct, '
-          'different spelling.',
+      '`ALTER TABLE ... DROP CONSTRAINT name` genuinely drops the unique '
+      "constraint (confirmed via duplicate-insert after drop). knex.js's "
+      'DROP INDEX "t"@"name" CASCADE also works — both are correct, '
+      'different spelling.',
   'schema/alter-table-drop-unique-named::cockroachdb':
       '[ACCEPTED] see schema/alter-table-drop-unique::cockroachdb.',
 
@@ -388,7 +422,7 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] MySQL INTEGER is an INT synonym — see grouped note above (2).',
   'schema/alter-table-column-unsigned::mysql':
       '[ACCEPTED] MySQL: int/integer synonym + `ADD` vs `ADD COLUMN` — see '
-          'grouped note above (2) and schema/alter-table-add-column::mysql.',
+      'grouped note above (2) and schema/alter-table-add-column::mysql.',
 
   // ── ACCEPTED: schema-mining batch 5 (round-2 recovery) — new cases hitting
   // the SAME already-documented cosmetic MySQL divergences above (ADD vs ADD
@@ -458,8 +492,8 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see schema/alter-table-add-column::mysql and grouped notes above (2)(3) — ADD/ADD COLUMN, implicit NOT NULL, int/integer, or BOOLEAN/TINYINT(1) only.',
   'schema/column-boolean-default::mysql':
       '[ACCEPTED] see schema/column-boolean::mariadb — `ADD` vs `ADD COLUMN` '
-          'only (boolean type matches after the _booleanType fix, including '
-          'the `.defaultTo(false)` value).',
+      'only (boolean type matches after the _booleanType fix, including '
+      'the `.defaultTo(false)` value).',
   'schema/column-date::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql and grouped notes above (2)(3) — ADD/ADD COLUMN, implicit NOT NULL, int/integer, or BOOLEAN/TINYINT(1) only.',
   'schema/column-datetime::mysql':
@@ -560,13 +594,13 @@ const Map<String, String> schemaParityAllowlist = {
   // corpus happens to cover.
   'schema/alter-table-add-timestamps::postgres':
       '[OPEN BUG] knex.js batches multi-column ADD into one ALTER TABLE '
-          'statement; knex-dart emits one per column. See grouped OPEN BUG '
-          'note above this block.',
+      'statement; knex-dart emits one per column. See grouped OPEN BUG '
+      'note above this block.',
   'schema/alter-table-add-timestamps::cockroachdb':
       '[OPEN BUG] see schema/alter-table-add-timestamps::postgres.',
   'schema/alter-table-add-timestamps::mysql':
       '[OPEN BUG] see schema/alter-table-add-timestamps::postgres (plus the '
-          'already-accepted ADD/ADD COLUMN cosmetic spelling on top).',
+      'already-accepted ADD/ADD COLUMN cosmetic spelling on top).',
   'schema/column-timestamps-basic::postgres':
       '[OPEN BUG] see schema/alter-table-add-timestamps::postgres.',
   'schema/column-timestamps-basic::cockroachdb':
@@ -587,14 +621,14 @@ const Map<String, String> schemaParityAllowlist = {
   // rework — Redshift now correctly emits a bare `like source`.)
   'schema/create-table-like-with-columns::redshift':
       '[OPEN BUG] extra columns need separate ALTER TABLE ADD COLUMN '
-          'statements after, not inline in the CREATE TABLE.',
+      'statements after, not inline in the CREATE TABLE.',
   'schema/create-table-like-with-columns::mysql':
       '[OPEN BUG] knex-dart folds extra createTableLike columns into '
-          'separate single-column ALTER TABLE statements with `ADD COLUMN`; '
-          'knex.js batches them into one `ALTER TABLE ... ADD col1, ADD '
-          'col2` statement (same batching gap as '
-          'schema/alter-table-add-timestamps::postgres) using MySQL\'s bare '
-          '`ADD` spelling.',
+      'separate single-column ALTER TABLE statements with `ADD COLUMN`; '
+      'knex.js batches them into one `ALTER TABLE ... ADD col1, ADD '
+      'col2` statement (same batching gap as '
+      'schema/alter-table-add-timestamps::postgres) using MySQL\'s bare '
+      '`ADD` spelling.',
 
   // ── OPEN BUG: when an incrementing column (`t.increments()`) is also a
   // member of a composite `t.primary([...])`, knex.js suppresses the
@@ -612,26 +646,26 @@ const Map<String, String> schemaParityAllowlist = {
   // deferred.
   'schema/create-table-primary-composite-with-increments::postgres':
       '[OPEN BUG] increments() column should omit its own inline "primary '
-          'key" once it participates in a composite primary(); see grouped '
-          'note above this block.',
+      'key" once it participates in a composite primary(); see grouped '
+      'note above this block.',
   'schema/create-table-primary-composite-with-increments::cockroachdb':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres.',
   'schema/create-table-primary-composite-with-increments::redshift':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres.',
   'schema/create-table-primary-composite-with-increments::sqlite':
       '[OPEN BUG] SQLite additionally converts the composite PK (once an '
-          'autoincrement column is involved, since SQLite only allows '
-          '`INTEGER PRIMARY KEY AUTOINCREMENT` on a single column) into a '
-          'plain UNIQUE constraint instead — not implemented.',
+      'autoincrement column is involved, since SQLite only allows '
+      '`INTEGER PRIMARY KEY AUTOINCREMENT` on a single column) into a '
+      'plain UNIQUE constraint instead — not implemented.',
   'schema/create-table-primary-composite-with-increments::turso':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::sqlite (turso is sqlite-family).',
   'schema/create-table-primary-composite-with-increments::d1':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::sqlite (d1 is sqlite-family).',
   'schema/create-table-primary-composite-with-increments::mysql':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres, '
-          'plus MySQL needs a second `ALTER TABLE ... MODIFY COLUMN ... '
-          'AUTO_INCREMENT` statement since the increments() column can no '
-          'longer carry an inline `auto_increment primary key`.',
+      'plus MySQL needs a second `ALTER TABLE ... MODIFY COLUMN ... '
+      'AUTO_INCREMENT` statement since the increments() column can no '
+      'longer carry an inline `auto_increment primary key`.',
 
   // (CREATE VIEW/MATERIALIZED VIEW binding-inlining used to be an OPEN BUG
   // here — the `_inlineBindings()` fix merged in from
@@ -650,8 +684,8 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see schema/alter-table-drop-index::mysql.',
   'schema/alter-table-drop-index-with-schema::redshift':
       '[ACCEPTED] see schema/alter-table-drop-index::redshift — knex.js '
-          'silently no-ops (empty statement list) for Redshift dropIndex, '
-          'including the withSchema() form; knex-dart throws instead.',
+      'silently no-ops (empty statement list) for Redshift dropIndex, '
+      'including the withSchema() form; knex-dart throws instead.',
 
   // "drop primary takes constraint name" / bare "adding primary key"
   // (unnamed single column): same SQLite PRAGMA-table-rebuild precedent as
@@ -701,8 +735,8 @@ const Map<String, String> schemaParityAllowlist = {
   // is the already-documented PRAGMA-table-rebuild refusal.
   'schema/alter-table-add-column-primary-fluent::redshift':
       '[ACCEPTED] Redshift forces NOT NULL on a column that will carry a '
-          'primary key — same reasoning as schema/create-table-column-primary::redshift, '
-          'here on an ADD COLUMN statement rather than an inline CREATE TABLE column def.',
+      'primary key — same reasoning as schema/create-table-column-primary::redshift, '
+      'here on an ADD COLUMN statement rather than an inline CREATE TABLE column def.',
   'schema/alter-table-add-column-primary-fluent::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — ADD vs ADD COLUMN only.',
   'schema/alter-table-add-column-primary-fluent::sqlite':
@@ -940,10 +974,10 @@ const Map<String, String> schemaParityAllowlist = {
       '[OPEN BUG] see schema/view-create-basic::postgres.',
   'schema/view-create-raw::mssql':
       '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords (`CREATE VIEW '
-          '... AS`), knex-dart emits lowercase uniformly across every '
-          'dialect — cosmetic only, SQL keywords are case-insensitive. Same '
-          'class as schema/table-alias::mssql / schema/'
-          'alter-table-add-column::mssql.',
+      '... AS`), knex-dart emits lowercase uniformly across every '
+      'dialect — cosmetic only, SQL keywords are case-insensitive. Same '
+      'class as schema/table-alias::mssql / schema/'
+      'alter-table-add-column::mssql.',
 
   // ── OPEN BUG: same multi-column ALTER TABLE ADD batching gap as the other
   // dialects' alter-table-add-timestamps/column-timestamps-* entries — knex.js
@@ -995,7 +1029,7 @@ const Map<String, String> schemaParityAllowlist = {
       '[ACCEPTED] see the MSSQL casing note above (schema-mining batch 7).',
   'schema/create-table-foreign-mixed-actions::mssql':
       '[ACCEPTED] MSSQL casing + int/integer synonym — see the MSSQL casing '
-          'note above (schema-mining batch 7).',
+      'note above (schema-mining batch 7).',
   'schema/alter-table-add-column-primary-fluent::mssql':
       '[ACCEPTED] see the MSSQL casing note above (schema-mining batch 7).',
   'schema/alter-table-add-column-primary-fluent-named::mssql':
@@ -1194,128 +1228,128 @@ const Map<String, String> schemaParityAllowlist = {
   //     `alter table \`users\` add \`preferences\` json not null default ('{}')`
   'schema/create-table-basic::mariadb':
       '[ACCEPTED] see schema/create-table-basic::mysql — int/integer synonym '
-          '+ implicit NOT NULL on auto_increment + serial-vs-auto_increment '
-          '(dart\'s increments() emits `serial primary key` across the whole '
-          'postgres+mysql family; knex.js\'s mysql2 emits '
-          '`int unsigned not null auto_increment primary key`). Grouped note '
-          'above (2)(3).',
+      '+ implicit NOT NULL on auto_increment + serial-vs-auto_increment '
+      '(dart\'s increments() emits `serial primary key` across the whole '
+      'postgres+mysql family; knex.js\'s mysql2 emits '
+      '`int unsigned not null auto_increment primary key`). Grouped note '
+      'above (2)(3).',
   'schema/create-table-primary-composite::mariadb':
       '[ACCEPTED] see schema/create-table-primary-composite::mysql — '
-          'int/integer synonym only (the composite-PK naming-vs-unnamed '
-          'keyword-form divergence matches the mysql entry exactly and is '
-          'already established there).',
+      'int/integer synonym only (the composite-PK naming-vs-unnamed '
+      'keyword-form divergence matches the mysql entry exactly and is '
+      'already established there).',
   'schema/create-table-primary-named::mariadb':
       '[ACCEPTED] see schema/create-table-primary-named::mysql — '
-          'int/integer synonym only (constraint name already matches both '
-          'sides, only the int/integer spelling differs).',
+      'int/integer synonym only (constraint name already matches both '
+      'sides, only the int/integer spelling differs).',
   'schema/create-table-unique-column::mariadb':
       '[ACCEPTED] see schema/create-table-unique-column::mysql — int/integer '
-          '+ implicit NOT NULL + the unique-via-deferred-alter family (covered '
-          'by the alter-table-add-unique::mysql entry below).',
+      '+ implicit NOT NULL + the unique-via-deferred-alter family (covered '
+      'by the alter-table-add-unique::mysql entry below).',
   'schema/create-table-unique-named::mariadb':
       '[ACCEPTED] see schema/create-table-unique-named::mysql — int/integer '
-          '+ implicit NOT NULL (the deferred `alter table add unique` '
-          'follows alter-table-add-unique::mysql).',
+      '+ implicit NOT NULL (the deferred `alter table add unique` '
+      'follows alter-table-add-unique::mysql).',
   'schema/create-table-foreign-column::mariadb':
       '[ACCEPTED] see schema/create-table-foreign-column::mysql — int/integer '
-          '+ implicit NOT NULL; the foreign key is `alter table add constraint '
-          '... foreign key` on both sides.',
+      '+ implicit NOT NULL; the foreign key is `alter table add constraint '
+      '... foreign key` on both sides.',
   'schema/create-table-foreign-fluent-cascade::mariadb':
       '[ACCEPTED] see schema/create-table-foreign-fluent-cascade::mysql — '
-          'int/integer synonym + implicit NOT NULL + FK action casing + '
-          'clause order. Grouped note above (1)(2)(3)(6).',
+      'int/integer synonym + implicit NOT NULL + FK action casing + '
+      'clause order. Grouped note above (1)(2)(3)(6).',
   'schema/create-table-foreign-onupdate::mariadb':
       '[ACCEPTED] see schema/create-table-foreign-onupdate::mysql — int/integer '
-          '+ implicit NOT NULL + FK action casing. Grouped note above.',
+      '+ implicit NOT NULL + FK action casing. Grouped note above.',
   'schema/create-table-foreign-both-actions::mariadb':
       '[ACCEPTED] see schema/create-table-foreign-both-actions::mysql — '
-          'int/integer + implicit NOT NULL + FK action casing + ON DELETE/ON '
-          'UPDATE clause order. Grouped note above (1)(2)(3)(6).',
+      'int/integer + implicit NOT NULL + FK action casing + ON DELETE/ON '
+      'UPDATE clause order. Grouped note above (1)(2)(3)(6).',
   'schema/create-table-unique-composite-named::mariadb':
       '[ACCEPTED] see schema/create-table-unique-composite-named::mysql — '
-          'int/integer synonym only (the composite unique constraint follows '
-          'alter-table-add-unique::mysql exactly).',
+      'int/integer synonym only (the composite unique constraint follows '
+      'alter-table-add-unique::mysql exactly).',
   'schema/create-table-column-unsigned::mariadb':
       '[ACCEPTED] see schema/create-table-column-unsigned::mysql — int/integer '
-          'synonym (the `unsigned` keyword itself now matches after the '
-          'family-dispatch fix in column_builder.dart).',
+      'synonym (the `unsigned` keyword itself now matches after the '
+      'family-dispatch fix in column_builder.dart).',
   'schema/default-string-embedded-quote::mariadb':
       '[ACCEPTED] see schema/default-string-embedded-quote::mysql and '
-          'schema/alter-table-add-column::mysql — backslash-escape vs '
-          'doubled-quote + `ADD` vs `ADD COLUMN`.',
+      'schema/alter-table-add-column::mysql — backslash-escape vs '
+      'doubled-quote + `ADD` vs `ADD COLUMN`.',
   'schema/default-null::mariadb':
       '[ACCEPTED] see schema/default-null::mysql and '
-          'schema/alter-table-add-column::mysql — knex.js omits DEFAULT NULL '
-          '(implicit default) + `ADD` vs `ADD COLUMN`.',
+      'schema/alter-table-add-column::mysql — knex.js omits DEFAULT NULL '
+      '(implicit default) + `ADD` vs `ADD COLUMN`.',
   'schema/default-string-not-null::mariadb':
       '[ACCEPTED] see schema/default-string-not-null::mysql and '
-          'schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
+      'schema/alter-table-add-column::mysql — `ADD` vs `ADD COLUMN` only.',
   'schema/default-raw-current-timestamp::mariadb':
       '[ACCEPTED] see schema/default-raw-current-timestamp::mysql and '
-          'schema/alter-table-add-column::mysql — knex.js `timestamp` vs '
-          'knex-dart `timestamptz` + `ADD` vs `ADD COLUMN`.',
+      'schema/alter-table-add-column::mysql — knex.js `timestamp` vs '
+      'knex-dart `timestamptz` + `ADD` vs `ADD COLUMN`.',
   'schema/default-boolean-false::mariadb':
       '[ACCEPTED] see schema/default-boolean-false::mysql and '
-          'schema/alter-table-add-column::mysql — BOOLEAN spelling matches '
-          '(both emit `boolean`); only `ADD` vs `ADD COLUMN` differs here.',
+      'schema/alter-table-add-column::mysql — BOOLEAN spelling matches '
+      '(both emit `boolean`); only `ADD` vs `ADD COLUMN` differs here.',
   'schema/default-json-object::mariadb':
       '[ACCEPTED] see schema/default-json-object::mysql and '
-          'schema/alter-table-add-column::mysql — knex.js wraps JSON-default '
-          'as an expression `default (...)` + `ADD` vs `ADD COLUMN`. '
-          'Identical SQL on both sides for the JSON-default wrapping '
-          '(post fix).',
+      'schema/alter-table-add-column::mysql — knex.js wraps JSON-default '
+      'as an expression `default (...)` + `ADD` vs `ADD COLUMN`. '
+      'Identical SQL on both sides for the JSON-default wrapping '
+      '(post fix).',
   'schema/default-jsonb-object::mariadb':
       '[ACCEPTED] see schema/default-jsonb-object::mysql and '
-          'schema/default-json-object::mysql — knex.js maps jsonb → json '
-          '(MySQL/MariaDB have no jsonb type) + `ADD` vs `ADD COLUMN`.',
+      'schema/default-json-object::mysql — knex.js maps jsonb → json '
+      '(MySQL/MariaDB have no jsonb type) + `ADD` vs `ADD COLUMN`.',
   'schema/alter-table-add-column::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD col_def` '
-          'vs `ADD COLUMN col_def` (COLUMN keyword optional, both valid '
-          'mariaDB grammar).',
+      'vs `ADD COLUMN col_def` (COLUMN keyword optional, both valid '
+      'mariaDB grammar).',
   'schema/alter-table-drop-column::mariadb':
       '[ACCEPTED] see schema/alter-table-drop-column::mysql — `DROP col` '
-          'vs `DROP COLUMN col` (COLUMN keyword optional, both valid).',
+      'vs `DROP COLUMN col` (COLUMN keyword optional, both valid).',
   'schema/alter-table-rename-column::mariadb':
       '[ACCEPTED] see schema/alter-table-rename-column::mysql — knex-dart '
-          'emits RENAME COLUMN directly (MariaDB 10.5+ has native RENAME '
-          'COLUMN; same as MySQL 8+); knex.js SHOW FULL FIELDS-introspects '
-          'for pre-8.0 MySQL compat. Same modern-vs-legacy-compat '
-          'divergence as mysql.',
+      'emits RENAME COLUMN directly (MariaDB 10.5+ has native RENAME '
+      'COLUMN; same as MySQL 8+); knex.js SHOW FULL FIELDS-introspects '
+      'for pre-8.0 MySQL compat. Same modern-vs-legacy-compat '
+      'divergence as mysql.',
   'schema/alter-table-add-index::mariadb':
       '[ACCEPTED] see schema/alter-table-add-index::mysql — `ALTER TABLE '
-          'ADD INDEX` vs `CREATE INDEX ... ON` (equivalent ways to add an '
-          'index).',
+      'ADD INDEX` vs `CREATE INDEX ... ON` (equivalent ways to add an '
+      'index).',
   'schema/alter-table-add-index-named::mariadb':
       '[ACCEPTED] see schema/alter-table-add-index-named::mysql — same '
-          'ALTER-TABLE-ADD-INDEX vs CREATE-INDEX divergence.',
+      'ALTER-TABLE-ADD-INDEX vs CREATE-INDEX divergence.',
   'schema/alter-table-add-index-composite::mariadb':
       '[ACCEPTED] see schema/alter-table-add-index-composite::mysql — same '
-          'divergence for a composite index.',
+      'divergence for a composite index.',
   'schema/alter-table-drop-index::mariadb':
       '[ACCEPTED] see schema/alter-table-drop-index::mysql — `ALTER TABLE '
-          'DROP INDEX` vs `DROP INDEX ... ON` (equivalent ways to drop an '
-          'index).',
+      'DROP INDEX` vs `DROP INDEX ... ON` (equivalent ways to drop an '
+      'index).',
   'schema/alter-table-drop-index-named::mariadb':
       '[ACCEPTED] see schema/alter-table-drop-index-named::mysql — same '
-          'ALTER-TABLE-DROP-INDEX vs DROP-INDEX-ON divergence.',
+      'ALTER-TABLE-DROP-INDEX vs DROP-INDEX-ON divergence.',
   'schema/alter-table-add-column-foreign::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column-foreign::mysql — ^ '
-          'int/integer synonym + `ADD` vs `ADD COLUMN` (the FK constraints '
-          'themselves match: both emit `alter table ... add constraint ... '
-          'foreign key`).',
+      'int/integer synonym + `ADD` vs `ADD COLUMN` (the FK constraints '
+      'themselves match: both emit `alter table ... add constraint ... '
+      'foreign key`).',
   'schema/alter-table-set-nullable::mariadb':
       '[ACCEPTED] see schema/alter-table-set-nullable::mysql — knex.js '
-          '.alter() on MariaDB re-emits the full column definition (MODIFY '
-          'requires it); knex-dart setNullable() is a narrower, single-'
-          'purpose DROP NOT NULL op. See postgres entry above.',
+      '.alter() on MariaDB re-emits the full column definition (MODIFY '
+      'requires it); knex-dart setNullable() is a narrower, single-'
+      'purpose DROP NOT NULL op. See postgres entry above.',
   'schema/alter-table-drop-nullable::mariadb':
       '[ACCEPTED] see schema/alter-table-drop-nullable::mysql — same '
-          'MODIFY vs ALTER COLUMN narrow-op divergence (setNotNull instead '
-          'of MODIFY here).',
+      'MODIFY vs ALTER COLUMN narrow-op divergence (setNotNull instead '
+      'of MODIFY here).',
   'schema/alter-table-column-unsigned::mariadb':
       '[ACCEPTED] see schema/alter-table-column-unsigned::mysql — int/integer '
-          'synonym + `ADD` vs `ADD COLUMN` (unsigned itself matches after '
-          'the fix).',
+      'synonym + `ADD` vs `ADD COLUMN` (unsigned itself matches after '
+      'the fix).',
 
   // ── Batch 6 mariadb siblings for the new column-type cases. All are
   // [ACCEPTED] mirror entries of established mysql allowlist patterns:
@@ -1335,52 +1369,52 @@ const Map<String, String> schemaParityAllowlist = {
   // the established cosmetic pattern at schema/alter-table-add-column::mysql.
   'schema/column-binary::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
-          '`ADD COLUMN` only (the `blob` type spelling now matches after '
-          'the _binaryType mariadb-family fix in table_builder.dart).',
+      '`ADD COLUMN` only (the `blob` type spelling now matches after '
+      'the _binaryType mariadb-family fix in table_builder.dart).',
   'schema/column-binary::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
-          '`ADD COLUMN` only (binary itself matches).',
+      '`ADD COLUMN` only (binary itself matches).',
   'schema/column-boolean::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
-          '`ADD COLUMN` only (the `boolean` type spelling now matches after '
-          'the _booleanType fix; previously dart emitted legacy `tinyint(1)` '
-          'which knex.js 3.x dropped).',
+      '`ADD COLUMN` only (the `boolean` type spelling now matches after '
+      'the _booleanType fix; previously dart emitted legacy `tinyint(1)` '
+      'which knex.js 3.x dropped).',
   'schema/column-boolean::mysql':
       '[ACCEPTED] see schema/column-boolean::mariadb — `ADD` vs `ADD COLUMN` '
-          'only (boolean type matches after the _booleanType fix).',
+      'only (boolean type matches after the _booleanType fix).',
   'schema/column-enum::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
-          '`ADD COLUMN` only (the `enum(...)` spelling now matches after '
-          'the _enumType mariadb-family fix).',
+      '`ADD COLUMN` only (the `enum(...)` spelling now matches after '
+      'the _enumType mariadb-family fix).',
   'schema/column-enum::mysql':
       '[ACCEPTED] see schema/column-enum::mariadb — `ADD` vs `ADD COLUMN` '
-          'only (enum type matches after the _enumType fix).',
+      'only (enum type matches after the _enumType fix).',
   'schema/column-enu::mariadb':
       '[ACCEPTED] see schema/column-enum::mariadb — `enu` is the dart method '
-          'name; same dispatch path as `enum`, same `ADD` vs `ADD COLUMN` '
-          'cosmetic divergence only.',
+      'name; same dispatch path as `enum`, same `ADD` vs `ADD COLUMN` '
+      'cosmetic divergence only.',
   'schema/column-enu::mysql':
       '[ACCEPTED] see schema/column-enum::mariadb — `ADD` vs `ADD COLUMN` '
-          'only (enu type matches after the _enumType fix).',
+      'only (enu type matches after the _enumType fix).',
   'schema/column-float::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql (`ADD` vs `ADD '
-          'COLUMN`) plus dart emits `float` (no precision) where knex.js '
-          'mysql2 emits `float(8, 2)` (knex.js\'s default precision/scale '
-          'when none is given). dart\'s `float(column)` API doesn\'t expose '
-          'precision/scale args — a deliberate narrower API, same as the '
-          'narrow setNullable/dropNullable ops. MariaDB 10.0+ treats '
-          '`float` as a synonym for `float(p, s)` with default precision '
-          '(same column type).',
+      'COLUMN`) plus dart emits `float` (no precision) where knex.js '
+      'mysql2 emits `float(8, 2)` (knex.js\'s default precision/scale '
+      'when none is given). dart\'s `float(column)` API doesn\'t expose '
+      'precision/scale args — a deliberate narrower API, same as the '
+      'narrow setNullable/dropNullable ops. MariaDB 10.0+ treats '
+      '`float` as a synonym for `float(p, s)` with default precision '
+      '(same column type).',
   'schema/column-float::mysql':
       '[ACCEPTED] see schema/column-float::mariadb — `ADD` vs `ADD COLUMN` '
-          '+ `float` vs `float(8, 2)` default-precision cosmetic spelling.',
+      '+ `float` vs `float(8, 2)` default-precision cosmetic spelling.',
   'schema/column-uuid-bare::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs '
-          '`ADD COLUMN` only (the `char(36)` uuid spelling now matches after '
-          'the _uuidType mariadb-family fix).',
+      '`ADD COLUMN` only (the `char(36)` uuid spelling now matches after '
+      'the _uuidType mariadb-family fix).',
   'schema/column-uuid-bare::mysql':
       '[ACCEPTED] see schema/column-uuid-bare::mariadb — `ADD` vs `ADD '
-          'COLUMN` only (uuid spelling matches after the _uuidType fix).',
+      'COLUMN` only (uuid spelling matches after the _uuidType fix).',
 
   // ── Batch 6 create-table-if-not-exists siblings — same int/integer,
   // serial-vs-auto_increment, and implicit-NOT-NULL cosmetic divergences
@@ -1390,25 +1424,25 @@ const Map<String, String> schemaParityAllowlist = {
   //   sqlite3: `create table if not exists "users" ("id" integer not null primary key autoincrement, "email" varchar(255))`
   'schema/create-table-if-not-exists::mysql':
       '[ACCEPTED] see schema/create-table-basic::mysql — int/integer '
-          'synonym + serial-vs-auto_increment + implicit NOT NULL + '
-          '`if not exists` prefix (the prefix branch was already exercised '
-          'by create-table-basic; this case adds the if-not-exists-specific '
-          'coverage and the same cosmetic divergences repeat).',
+      'synonym + serial-vs-auto_increment + implicit NOT NULL + '
+      '`if not exists` prefix (the prefix branch was already exercised '
+      'by create-table-basic; this case adds the if-not-exists-specific '
+      'coverage and the same cosmetic divergences repeat).',
   'schema/create-table-if-not-exists::mariadb':
       '[ACCEPTED] see schema/create-table-if-not-exists::mysql — mariadb '
-          'mirrors the same cosmetic divergences (int/integer, serial-vs-'
-          'auto_increment, implicit NOT NULL) under the `if not exists` '
-          'prefix; `ADD` vs `ADD COLUMN` not relevant here (no alter-table '
-          'follow-up).',
+      'mirrors the same cosmetic divergences (int/integer, serial-vs-'
+      'auto_increment, implicit NOT NULL) under the `if not exists` '
+      'prefix; `ADD` vs `ADD COLUMN` not relevant here (no alter-table '
+      'follow-up).',
   'schema/create-table-if-not-exists::sqlite':
       '[ACCEPTED] see schema/create-table-basic::sqlite — implicit NOT NULL '
-          'on `integer primary key autoincrement` + `if not exists` prefix.',
+      'on `integer primary key autoincrement` + `if not exists` prefix.',
   'schema/create-table-if-not-exists::turso':
       '[ACCEPTED] see schema/create-table-if-not-exists::sqlite (turso is '
-          'sqlite-family).',
+      'sqlite-family).',
   'schema/create-table-if-not-exists::d1':
       '[ACCEPTED] see schema/create-table-if-not-exists::sqlite (d1 is '
-          'sqlite-family).',
+      'sqlite-family).',
 
   // ── Batch 6 alter-table-drop-columns-multi sqlite-family siblings —
   // same PRAGMA-reroute-vs-direct-emit ACCEPTED pattern as the existing
@@ -1422,16 +1456,16 @@ const Map<String, String> schemaParityAllowlist = {
   // drop — see the `'alter-table-drop-column::sqlite'` entry's explanation.
   'schema/alter-table-drop-columns-multi::sqlite':
       '[ACCEPTED] knex.js routes `dropColumns([X, Y])` through the PRAGMA-'
-          'based rebuild for pre-3.35 SQLite compat; knex-dart emits the '
-          'direct combined `alter table ... drop column X, drop column Y` '
-          '(valid since SQLite 3.35, 2021). See schema/alter-table-drop-'
-          'column::sqlite — same family-divergence pattern, multi-col form.',
+      'based rebuild for pre-3.35 SQLite compat; knex-dart emits the '
+      'direct combined `alter table ... drop column X, drop column Y` '
+      '(valid since SQLite 3.35, 2021). See schema/alter-table-drop-'
+      'column::sqlite — same family-divergence pattern, multi-col form.',
   'schema/alter-table-drop-columns-multi::turso':
       '[ACCEPTED] see schema/alter-table-drop-columns-multi::sqlite (turso '
-          'is sqlite-family).',
+      'is sqlite-family).',
   'schema/alter-table-drop-columns-multi::d1':
       '[ACCEPTED] see schema/alter-table-drop-columns-multi::sqlite (d1 is '
-          'sqlite-family).',
+      'sqlite-family).',
 
   // ── Batch 6 mariadb siblings for the new column-integer families —
   // [ACCEPTED] mirrors of established cosmetic patterns.
@@ -1449,42 +1483,42 @@ const Map<String, String> schemaParityAllowlist = {
   //     of an explicit keyword.
   'schema/column-bigInteger::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD '
-          'COLUMN` only (the `bigint` type spelling matches).',
+      'COLUMN` only (the `bigint` type spelling matches).',
   'schema/column-bigInteger::mysql':
       '[ACCEPTED] see schema/column-bigInteger::mariadb — `ADD` vs `ADD '
-          'COLUMN` only.',
+      'COLUMN` only.',
   'schema/column-bigIncrements::mariadb':
       '[ACCEPTED] see schema/create-table-basic::mysql grouped note (3) — '
-          'implicit NOT NULL on AUTO_INCREMENT primary key + `ADD` vs `ADD '
-          'COLUMN`. The `bigint unsigned auto_increment primary key` type '
-          'spelling itself matches after the _bigIncrementsType mariadb-'
-          'family fix in table_builder.dart.',
+      'implicit NOT NULL on AUTO_INCREMENT primary key + `ADD` vs `ADD '
+      'COLUMN`. The `bigint unsigned auto_increment primary key` type '
+      'spelling itself matches after the _bigIncrementsType mariadb-'
+      'family fix in table_builder.dart.',
   'schema/column-bigIncrements::mysql':
       '[ACCEPTED] see schema/column-bigIncrements::mariadb — implicit NOT '
-          'NULL + `ADD` vs `ADD COLUMN`.',
+      'NULL + `ADD` vs `ADD COLUMN`.',
   'schema/column-bigIncrements::sqlite':
       '[ACCEPTED] see schema/create-table-basic::sqlite — implicit NOT NULL '
-          'on `integer primary key autoincrement` (sqlite-family).',
+      'on `integer primary key autoincrement` (sqlite-family).',
   'schema/column-bigIncrements::turso':
       '[ACCEPTED] see schema/column-bigIncrements::sqlite (turso is '
-          'sqlite-family).',
+      'sqlite-family).',
   'schema/column-bigIncrements::d1':
       '[ACCEPTED] see schema/column-bigIncrements::sqlite (d1 is '
-          'sqlite-family).',
+      'sqlite-family).',
 
   // `table()` is a direct alterTable() alias in both knex.js and knex-dart —
   // same divergences as schema/alter-table-add-column, since it compiles
   // through the identical alterTable path.
   'schema/table-alias::mysql':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD '
-          'COLUMN` only.',
+      'COLUMN` only.',
   'schema/table-alias::mariadb':
       '[ACCEPTED] see schema/alter-table-add-column::mysql — `ADD` vs `ADD '
-          'COLUMN` only (mariadb is MySQL-family).',
+      'COLUMN` only (mariadb is MySQL-family).',
   'schema/table-alias::mssql':
       '[ACCEPTED] see schema/alter-table-add-column::mssql — knex.js emits '
-          'UPPERCASE DDL keywords, knex-dart emits lowercase uniformly — '
-          'cosmetic only.',
+      'UPPERCASE DDL keywords, knex-dart emits lowercase uniformly — '
+      'cosmetic only.',
 };
 
 // Previously {'mssql'} — mssql was skipped entirely because it was never
@@ -1543,19 +1577,24 @@ String? _divergence(
         '${(entry['statements'] as List).map((s) => (s as Map)['sql']).toList()}';
   }
 
-  final expectedStatements = (entry['statements'] as List).cast<Map<String, dynamic>>();
+  final expectedStatements = (entry['statements'] as List)
+      .cast<Map<String, dynamic>>();
   if (got!.length != expectedStatements.length) {
     return 'statement count: expected ${expectedStatements.length} '
         '(${expectedStatements.map((s) => s['sql']).toList()}), '
         'got ${got.length} (${got.map((s) => s['sql']).toList()})';
   }
   for (var i = 0; i < got.length; i++) {
-    final expectedSql = _normalizeSql(expectedStatements[i]['sql'] as String, dialect);
+    final expectedSql = _normalizeSql(
+      expectedStatements[i]['sql'] as String,
+      dialect,
+    );
     final gotSql = _normalizeSql(got[i]['sql'] as String, dialect);
     if (gotSql != expectedSql) {
       return 'statement $i SQL:\n  expected: $expectedSql\n  actual:   $gotSql';
     }
-    final expectedBindings = (expectedStatements[i]['bindings'] as List).cast<dynamic>();
+    final expectedBindings = (expectedStatements[i]['bindings'] as List)
+        .cast<dynamic>();
     final gotBindings = (got[i]['bindings'] as List).cast<dynamic>();
     if (!_bindingsEqual(gotBindings, expectedBindings)) {
       return 'statement $i bindings: expected $expectedBindings, got $gotBindings';
@@ -1595,7 +1634,8 @@ void main() {
       expect(
         dartOnly,
         isEmpty,
-        reason: 'Dart schema cases missing from the fixture — run '
+        reason:
+            'Dart schema cases missing from the fixture — run '
             '`node tool/parity/run_js_schema.mjs`: $dartOnly',
       );
     });
@@ -1612,7 +1652,10 @@ void main() {
 
       final builder = schemaParityCases[id];
       if (builder == null) {
-        test(key, () => fail('no knex-dart schema parity builder registered for "$id"'));
+        test(
+          key,
+          () => fail('no knex-dart schema parity builder registered for "$id"'),
+        );
         continue;
       }
 
@@ -1626,7 +1669,8 @@ void main() {
           expect(
             divergence,
             isNotNull,
-            reason: 'Allowlisted divergence is no longer present — re-triage and '
+            reason:
+                'Allowlisted divergence is no longer present — re-triage and '
                 'remove this allowlist entry:\n  $allowReason',
           );
         }
