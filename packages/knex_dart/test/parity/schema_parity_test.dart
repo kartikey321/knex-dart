@@ -651,7 +651,9 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/create-table-primary-composite-with-increments::cockroachdb':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres.',
   'schema/create-table-primary-composite-with-increments::redshift':
-      '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres.',
+      '[OPEN BUG] knex.js keeps the increments() column\'s inline primary key '
+      'and suppresses the composite constraint on Redshift; knex-dart emits '
+      'both primary keys.',
   'schema/create-table-primary-composite-with-increments::sqlite':
       '[OPEN BUG] SQLite additionally converts the composite PK (once an '
       'autoincrement column is involved, since SQLite only allows '
@@ -967,11 +969,19 @@ const Map<String, String> schemaParityAllowlist = {
   'schema/create-table-primary-composite-with-increments::mssql':
       '[OPEN BUG] see schema/create-table-primary-composite-with-increments::postgres.',
 
-  // ── OPEN BUG: same CREATE VIEW binding-inlining gap as the other dialects'
-  // view-create-* entries — fix exists, verified correct, on
-  // fix/mariadb-mysql-family-dispatch (commit 643f4d9), not reimplemented here.
+  // Reclassified from [OPEN BUG] (a stale "binding-inlining gap" citation —
+  // that gap was fixed on fix/mariadb-mysql-family-dispatch, commit 643f4d9,
+  // and no longer reproduces). The only remaining divergence is the
+  // established MSSQL uppercase-DDL-keyword cosmetic pattern. Verified
+  // against knex.js 3.3.0: `CREATE VIEW [adults] AS select [name] from
+  // [users] where [age] > '18'` vs knex-dart's `create view [adults] as
+  // select [name] from [users] where [age] > '18'` — identical except
+  // casing.
   'schema/view-create-basic::mssql':
-      '[OPEN BUG] see schema/view-create-basic::postgres.',
+      '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords, knex-dart '
+          'emits lowercase uniformly across every dialect — cosmetic only, '
+          'SQL keywords are case-insensitive. Same class as '
+          'schema/table-alias::mssql / schema/alter-table-add-column::mssql.',
   'schema/view-create-raw::mssql':
       '[ACCEPTED] MSSQL: knex.js emits UPPERCASE DDL keywords (`CREATE VIEW '
       '... AS`), knex-dart emits lowercase uniformly across every '
