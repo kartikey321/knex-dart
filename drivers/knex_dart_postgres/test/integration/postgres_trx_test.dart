@@ -236,31 +236,70 @@ void main() {
 
         final holder = db!.trx((tx) async {
           // Lock row 50 and hold the transaction open until told to finish.
-          await tx.select(tx(_table).where('id', 50).select(['*']).forUpdate());
-          holderReady.complete();
+          try {
+            await tx.select(
+              tx(_table).where('id', 50).select(['*']).forUpdate(),
+            );
+            holderReady.complete();
+          } catch (e, st) {
+            // Surface the failure through holderReady instead of leaving
+            // the main test body hanging on `await holderReady.future`
+            // forever with no indication why.
+            if (!holderReady.isCompleted) holderReady.completeError(e, st);
+            rethrow;
+          }
           await releaseHolder.future;
         });
 
-        await holderReady.future;
+        // Bounded: if the holder's own lock-acquisition throws, this
+        // rethrows that error promptly instead of hanging.
+        await holderReady.future.timeout(const Duration(seconds: 10));
 
         // A second, concurrent transaction: FOR UPDATE SKIP LOCKED over
-        // both rows should come back with only the unlocked one.
-        final skipped = await db!.trx((tx) async {
-          return tx.select(
-            tx(_table)
-                .whereIn('id', [50, 51])
-                .select(['*'])
-                .forUpdate()
-                .skipLocked()
-                .orderBy('id'),
-          );
-        });
+        // both rows should come back with only the unlocked one. Bounded
+        // with a timeout — this call is exactly what would block forever
+        // if skipLocked() ever regressed to a plain blocking FOR UPDATE,
+        // which is the regression this test exists to catch. Without the
+        // timeout, that regression would deadlock the whole suite (this
+        // call never returns, so releaseHolder.complete() below is never
+        // reached, so the holder's transaction — and its pooled
+        // connection — never releases either) instead of failing cleanly.
+        Object? skipError;
+        List<Map<String, dynamic>>? skipped;
+        try {
+          skipped = await db!
+              .trx((tx) async {
+                return tx.select(
+                  tx(_table)
+                      .whereIn('id', [50, 51])
+                      .select(['*'])
+                      .forUpdate()
+                      .skipLocked()
+                      .orderBy('id'),
+                );
+              })
+              .timeout(const Duration(seconds: 10));
+        } catch (e) {
+          skipError = e;
+        }
 
-        releaseHolder.complete();
+        // Always release the holder, whether the skip-locked call above
+        // succeeded, threw, or timed out — otherwise a genuine regression
+        // leaves the holder's transaction (and pooled connection) open
+        // forever, breaking every test that runs after this one too.
+        if (!releaseHolder.isCompleted) releaseHolder.complete();
         await holder;
 
+        if (skipError != null) {
+          fail(
+            'forUpdate().skipLocked() did not return promptly — likely '
+            'regressed to a plain blocking FOR UPDATE instead of actually '
+            'skipping the locked row: $skipError',
+          );
+        }
+
         expect(skipped, hasLength(1));
-        expect(skipped.single['id'], 51);
+        expect(skipped!.single['id'], 51);
         expect(skipped.single['name'], 'Free');
       },
     );

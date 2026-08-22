@@ -395,11 +395,11 @@ void main() {
 
       final results = await pgClient.select(query);
 
-      expect(results, isNotEmpty);
-      // Every completed order in the seed belongs to a real user — if
-      // joinRaw() compiled to something that silently dropped the join
-      // condition (a cross join), this would return far more rows.
-      expect(results.length, lessThan(10));
+      // The seed has exactly 5 'completed' orders — an exact count, not
+      // just "not too many," so a wrong ON condition that happened to
+      // return some other row count in between (not obviously a cross
+      // join, but still wrong) would still fail this.
+      expect(results.length, 5);
       for (final row in results) {
         expect(row['name'], isNotNull);
       }
@@ -408,11 +408,13 @@ void main() {
 
   group('truncate()', () {
     // Uses a scratch table (not `users`/`orders`) so this can't collide
-    // with the shared seed data other tests depend on.
+    // with the shared seed data other tests depend on. setUp drops it
+    // first (not just "if not exists") so a table left behind by a killed
+    // prior run (tearDown never ran) can't leak stale rows into `before`.
     setUp(() async {
+      await pgClient.rawSql('drop table if exists truncate_scratch', null);
       await pgClient.rawSql(
-        'create table if not exists truncate_scratch '
-        '(id serial primary key, val text)',
+        'create table truncate_scratch (id serial primary key, val text)',
         null,
       );
       await pgClient.rawSql(
@@ -433,12 +435,12 @@ void main() {
       );
       expect(before.length, 3);
 
-      final truncateQuery = mockClient.queryBuilder().table(
-        'truncate_scratch',
-      );
-      await pgClient.rawSql(
-        truncateQuery.truncate().toSQL().sql,
-        null,
+      // Goes through the same builder-to-driver execute() path production
+      // code would use, not a hand-extracted SQL string via rawSql() — a
+      // bug in how execute()/the interceptor pipeline handles a
+      // QueryMethod.truncate builder wouldn't be caught otherwise.
+      await pgClient.execute(
+        mockClient.queryBuilder().table('truncate_scratch').truncate(),
       );
 
       final after = await pgClient.select(
