@@ -4,7 +4,7 @@ library;
 import 'package:universal_io/io.dart';
 
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';
-import 'package:knex_dart/src/query/json_builder.dart';
+import 'package:knex_dart/src/query/query_builder.dart';
 import 'package:knex_dart/src/schema/schema_builder.dart';
 import 'package:test/test.dart';
 
@@ -30,6 +30,10 @@ void main() {
     'outer_after_sp@example.com',
     'outer_bubble_sp@example.com',
     'inner_bubble_sp@example.com',
+    'json_path_test@example.com',
+    'json_object_test@example.com',
+    'json_subset_test@example.com',
+    'on_conflict_ignore_test@example.com',
   ];
 
   Future<void> cleanupTestUsers() async {
@@ -296,6 +300,32 @@ void main() {
       expect(results.length, greaterThan(0));
       expect(results.any((r) => r['name'] == 'Alice Johnson'), true);
       expect(results.any((r) => r['name'] == 'Diana Prince'), true);
+    });
+
+    test('union() dedups the combined result, unionAll() preserves '
+        'duplicates — the same underlying rows on both sides of the same '
+        'set operator, only the keyword differs', () async {
+      // Completed orders' user_id column has 5 rows collapsing to 3
+      // distinct values (1, 1, 2, 4, 4) — deliberately duplicate-laden so
+      // a real UNION vs UNION ALL produces genuinely different row counts,
+      // not just "some rows came back."
+      QueryBuilder completedUserIds() => mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['user_id'])
+          .where('status', 'completed');
+
+      final unioned = await pgClient.select(
+        completedUserIds().union([completedUserIds()]),
+      );
+      expect(unioned.length, 3);
+
+      final unionedAll = await pgClient.select(
+        completedUserIds().unionAll([completedUserIds()]),
+      );
+      // Each side contributes 5 rows; UNION ALL keeps all 10 — if it ever
+      // silently deduped like plain UNION, this would come back as 3.
+      expect(unionedAll.length, 10);
     });
   });
 
@@ -657,6 +687,163 @@ void main() {
 
       await pgClient.rawSql('delete from users where email = \$1', [email]);
     });
+
+    test('whereJsonObject() requires exact equality, not containment — a '
+        'strict superset of the target value does NOT match, unlike '
+        'whereJsonSupersetOf()', () async {
+      const email = 'json_object_test@example.com';
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
+
+      await pgClient.insert(
+        mockClient.queryBuilder().table('users').insert({
+          'name': 'Object Tester',
+          'email': email,
+          'metadata': '{"language": "en", "theme": "dark"}',
+        }),
+      );
+
+      final exactMatch = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', email)
+            .whereJsonObject('metadata', {'language': 'en', 'theme': 'dark'}),
+      );
+      expect(exactMatch, isNotEmpty);
+
+      // Same key present, but the stored value has an extra key the target
+      // doesn't — real JSON equality (`=`) fails here even though the row
+      // would match a containment check like whereJsonSupersetOf().
+      final partialMatch = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', email)
+            .whereJsonObject('metadata', {'language': 'en'}),
+      );
+      expect(partialMatch, isEmpty);
+
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
+    });
+
+    test('whereJsonSubsetOf() matches when the stored value is contained '
+        'by the target, not the other way around', () async {
+      const email = 'json_subset_test@example.com';
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
+
+      await pgClient.insert(
+        mockClient.queryBuilder().table('users').insert({
+          'name': 'Subset Tester',
+          'email': email,
+          'metadata': '{"language": "en"}',
+        }),
+      );
+
+      // Stored {"language":"en"} IS contained by the larger target object.
+      final contained = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', email)
+            .whereJsonSubsetOf('metadata', {
+              'language': 'en',
+              'theme': 'dark',
+            }),
+      );
+      expect(contained, isNotEmpty);
+
+      // Stored {"language":"en"} is NOT contained by a target missing that
+      // key — proves this checks real subset containment (<@), not just
+      // "some overlap."
+      final notContained = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', email)
+            .whereJsonSubsetOf('metadata', {'theme': 'dark'}),
+      );
+      expect(notContained, isEmpty);
+
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
+    });
+  });
+
+  group('HAVING variants: havingIn / havingNotIn / havingBetween', () {
+    // havingIn/havingNotIn/havingBetween wrap their column argument as a
+    // plain quoted identifier (see query_compiler.dart's havingBasic/
+    // havingIn/havingBetween — formatter.wrap(statement['column'])), so
+    // they can only reference a real grouped column, not an aggregate
+    // expression like count(*) (Postgres itself doesn't allow SELECT-list
+    // aliases in HAVING either). havingRaw() already covers aggregate
+    // HAVING elsewhere in this file — these test the non-aggregate,
+    // real-column form specifically.
+    test('havingIn() keeps only the listed groups', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['status'])
+          .groupBy('status')
+          .havingIn('status', ['completed', 'pending'])
+          .orderBy('status');
+
+      // Filtering on the grouping key itself is row-level-equivalent to an
+      // identical WHERE clause (WHERE status IN (...) GROUP BY status
+      // returns the same rows) — the result-set assertion below can't
+      // detect the clause landing in the wrong place, only this can.
+      expect(
+        query.toSQL().sql,
+        contains('group by "status" having "status" in'),
+      );
+
+      final results = await pgClient.select(query);
+      final statuses = results.map((r) => r['status']).toSet();
+
+      // Seed has 3 status groups (completed/pending/cancelled) — havingIn
+      // must drop the cancelled group entirely, not just filter its rows.
+      expect(statuses, {'completed', 'pending'});
+    });
+
+    test('havingNotIn() keeps exactly the complementary groups', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['status'])
+          .groupBy('status')
+          .havingNotIn('status', ['completed', 'pending']);
+
+      expect(
+        query.toSQL().sql,
+        contains('group by "status" having "status" not in'),
+      );
+
+      final results = await pgClient.select(query);
+      final statuses = results.map((r) => r['status']).toSet();
+
+      expect(statuses, {'cancelled'});
+    });
+
+    test('havingBetween() filters groups by a real range on the grouped '
+        'column', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['user_id'])
+          .groupBy('user_id')
+          .havingBetween('user_id', [2, 4])
+          .orderBy('user_id');
+
+      expect(
+        query.toSQL().sql,
+        contains('group by "user_id" having "user_id" between'),
+      );
+
+      final results = await pgClient.select(query);
+      final userIds = results.map((r) => r['user_id']).toSet();
+
+      // Seed's order user_ids are {1, 2, 4, 5} — between 2 and 4 keeps
+      // exactly {2, 4}, excluding both 1 (below) and 5 (above).
+      expect(userIds, {2, 4});
+    });
   });
 
   group('truncate()', () {
@@ -733,6 +920,34 @@ void main() {
 
       expect(results.isNotEmpty, true);
     });
+
+    test('withRecursive() actually recurses to a real fixed point — proof '
+        'a SQL-text comparison structurally cannot give, since a recursive '
+        'CTE that terminated after 1 iteration (a broken termination '
+        'condition) still compiles to valid, identical-looking SQL',
+        () async {
+      final base = mockClient
+          .queryBuilder()
+          .select([mockClient.raw('1 as n')]);
+      final recursiveTerm = mockClient
+          .queryBuilder()
+          .select([mockClient.raw('n + 1 as n')])
+          .table('counter')
+          .where('n', '<', 5);
+      final cteBody = base.unionAll([recursiveTerm]);
+
+      final query = mockClient
+          .queryBuilder()
+          .withRecursive('counter', cteBody)
+          .select(['n'])
+          .table('counter')
+          .orderBy('n');
+
+      final results = await pgClient.select(query);
+      final values = results.map((r) => r['n']).toList();
+
+      expect(values, [1, 2, 3, 4, 5]);
+    });
   });
 
   // ─── Write Operation Tests ──────────────────────────────────────────────────
@@ -794,6 +1009,39 @@ void main() {
           .where('email', email)
           .delete();
       await pgClient.delete(deleteQuery);
+    });
+
+    test('onConflict().ignore() leaves the existing row untouched, unlike '
+        'merge() — proves it is a real DO NOTHING, not a silent update',
+        () async {
+      const email = 'on_conflict_ignore_test@example.com';
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
+
+      await pgClient.insert(
+        mockClient.queryBuilder().table('users').insert({
+          'name': 'Original Name',
+          'email': email,
+          'role': 'guest',
+        }),
+      );
+
+      await pgClient.insert(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .insert({'name': 'Should Not Appear', 'email': email})
+            .onConflict('email')
+            .ignore(),
+      );
+
+      final rows = await pgClient.select(
+        mockClient.queryBuilder().table('users').where('email', email),
+      );
+
+      expect(rows.length, 1);
+      expect(rows.single['name'], 'Original Name');
+
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
     });
 
     test('UPDATE a row and verify', () async {
