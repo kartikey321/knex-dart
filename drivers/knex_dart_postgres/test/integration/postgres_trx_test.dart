@@ -304,6 +304,85 @@ void main() {
       },
     );
 
+    // ── forShare() takes a genuinely shared lock — a second concurrent
+    // forShare() on the same row must NOT block. A row-count/name
+    // assertion inside a single transaction can't tell a real "for share"
+    // from an unlocked SELECT (deleting .forShare() from such a test still
+    // passes); only two real concurrent transactions can. If forShare()
+    // ever regressed to compiling as FOR UPDATE (an exclusive lock), the
+    // second transaction below would block on the first, and — with the
+    // bounded timeout — this test would fail cleanly instead of hanging. ──
+
+    test(
+      'forShare() does not block a second concurrent forShare() on the '
+      'same row (proves a real, non-exclusive share lock)',
+      () async {
+        if (skipReason != null) return markTestSkipped(skipReason!);
+
+        await db!.insert(
+          db!(_table).insert([
+            {'id': 60, 'name': 'Shared'},
+          ]),
+        );
+
+        final holderReady = Completer<void>();
+        final releaseHolder = Completer<void>();
+
+        final holder = db!.trx((tx) async {
+          try {
+            await tx.select(
+              tx(_table).where('id', 60).select(['*']).forShare(),
+            );
+            holderReady.complete();
+          } catch (e, st) {
+            if (!holderReady.isCompleted) holderReady.completeError(e, st);
+            rethrow;
+          }
+          await releaseHolder.future;
+        });
+
+        await holderReady.future.timeout(const Duration(seconds: 10));
+
+        // A second, concurrent transaction taking forShare() on the same
+        // row while the first still holds it — must return promptly, since
+        // share locks are mutually compatible. Bounded: this is exactly
+        // the call that would hang forever if forShare() ever compiled as
+        // an exclusive lock.
+        Object? shareError;
+        List<Map<String, dynamic>>? shared;
+        try {
+          shared = await db!
+              .trx((tx) async {
+                return tx.select(
+                  tx(_table).where('id', 60).select(['*']).forShare(),
+                );
+              })
+              .timeout(const Duration(seconds: 10));
+        } catch (e) {
+          shareError = e;
+        }
+
+        // Always release the holder — whether the second forShare() above
+        // succeeded, threw, or timed out — so a genuine regression doesn't
+        // leave the holder's pooled connection open for the rest of the
+        // suite.
+        if (!releaseHolder.isCompleted) releaseHolder.complete();
+        await holder;
+
+        if (shareError != null) {
+          fail(
+            'A second concurrent forShare() did not return promptly — '
+            'likely regressed to an exclusive lock (e.g. FOR UPDATE) '
+            'instead of a real shared lock: $shareError',
+          );
+        }
+
+        expect(shared, hasLength(1));
+        expect(shared!.single['id'], 60);
+        expect(shared.single['name'], 'Shared');
+      },
+    );
+
     // ── 9. Double close is safe ───────────────────────────────────────────────
 
     test('double close does not throw', () async {

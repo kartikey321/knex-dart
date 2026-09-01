@@ -315,6 +315,18 @@ void main() {
       final results = await pgClient.select(query);
       expect(results, isNotEmpty);
       expect(results.first['name'], contains('Johnathan'));
+
+      // Without this, the inserted row leaks into the shared `users` table
+      // for the rest of the suite run (setUpAll/tearDownAll cleanup only
+      // runs once, at the very start/end) — any other test doing a
+      // full-table scan on `users` mid-run would see it.
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'json_test1@example.com')
+            .delete(),
+      );
     });
 
     test('JSON Operators: superset and subset', () async {
@@ -342,6 +354,14 @@ void main() {
       final results = await pgClient.select(query);
 
       expect(results, isNotEmpty);
+
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', 'json_test2@example.com')
+            .delete(),
+      );
     });
 
     test('Advanced HAVING clauses: havingRaw', () async {
@@ -403,6 +423,239 @@ void main() {
       for (final row in results) {
         expect(row['name'], isNotNull);
       }
+    });
+  });
+
+  group('Window functions', () {
+    test('rank() computes real per-partition rank values, not just '
+        'valid SQL — partitioned by user_id, ordered by amount ascending, '
+        'so a wrong PARTITION BY/ORDER BY would put the wrong rank on a '
+        'specific known row rather than merely changing row count', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['id', 'user_id', 'amount'])
+          .rank('rnk', 'amount', 'user_id')
+          .orderBy('user_id')
+          .orderBy('amount');
+
+      final results = await pgClient.select(query);
+      final byId = {for (final r in results) r['id'] as int: r};
+
+      // user_id=1 has orders id=1 (999.99) and id=2 (29.99): ascending by
+      // amount puts id=2 first (rank 1), id=1 second (rank 2).
+      expect(byId[2]!['rnk'], 1);
+      expect(byId[1]!['rnk'], 2);
+      // user_id=5 has a single order (id=7): rank always starts at 1
+      // regardless of what other partitions contain.
+      expect(byId[7]!['rnk'], 1);
+    });
+
+    test('denseRank() computes correctly via the callback-built '
+        '(AnalyticClause) partition/order form — a separate compiler path '
+        'from the string/array form rank() uses above. The seed has no '
+        'tied amounts within a partition, so this cannot distinguish '
+        'dense_rank from rank by value; it exercises the callback path.',
+        () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['id', 'user_id', 'amount'])
+          .denseRank(
+            'drnk',
+            (a) => a.partitionBy('user_id').orderBy('amount'),
+          )
+          .orderBy('user_id')
+          .orderBy('amount');
+
+      final results = await pgClient.select(query);
+      final byId = {for (final r in results) r['id'] as int: r};
+
+      expect(byId[2]!['drnk'], 1);
+      expect(byId[1]!['drnk'], 2);
+    });
+  });
+
+  group('WHERE EXISTS / NOT EXISTS', () {
+    test('whereExists() only returns users with a real correlated match — '
+        'users with at least one completed order', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['name'])
+          .whereExists(
+            (qb) => qb
+                .table('orders')
+                .select(['*'])
+                .where('orders.user_id', '=', mockClient.raw('users.id'))
+                .where('orders.status', 'completed'),
+          )
+          .orderBy('name');
+
+      final results = await pgClient.select(query);
+      final names = results.map((r) => r['name']).toSet();
+
+      // Alice(1), Bob(2), Diana(4) each have >=1 completed order.
+      expect(names, {'Alice Johnson', 'Bob Smith', 'Diana Prince'});
+      // Charlie has no orders at all, Eve's only order is cancelled — a
+      // whereExists() that silently degraded to an unfiltered/always-true
+      // subquery would incorrectly include them.
+      expect(names.contains('Charlie Brown'), false);
+      expect(names.contains('Eve Davis'), false);
+    });
+
+    test('whereNotExists() returns exactly the complement', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['name'])
+          .whereNotExists(
+            (qb) => qb
+                .table('orders')
+                .select(['*'])
+                .where('orders.user_id', '=', mockClient.raw('users.id'))
+                .where('orders.status', 'completed'),
+          )
+          .orderBy('name');
+
+      final results = await pgClient.select(query);
+      final names = results.map((r) => r['name']).toSet();
+
+      expect(names, {'Charlie Brown', 'Eve Davis'});
+    });
+  });
+
+  group('Set operations: INTERSECT / EXCEPT', () {
+    test('intersect() returns only rows satisfying BOTH queries', () async {
+      final activeUsers = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['name'])
+          .where('active', true);
+      final regularUsers = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['name'])
+          .where('role', 'user');
+
+      final query = activeUsers.intersect([regularUsers]);
+      final results = await pgClient.select(query);
+      final names = results.map((r) => r['name']).toSet();
+
+      // Bob and Eve are active AND role=user; Charlie is role=user but
+      // inactive, so a real INTERSECT (not a silent UNION) excludes him.
+      expect(names, {'Bob Smith', 'Eve Davis'});
+    });
+
+    test('except() returns rows in the first query but not the second', () async {
+      final activeUsers = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['name'])
+          .where('active', true);
+      final admins = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['name'])
+          .where('role', 'admin');
+
+      final query = activeUsers.except([admins]);
+      final results = await pgClient.select(query);
+      final names = results.map((r) => r['name']).toSet();
+
+      // Active users are Alice/Bob/Diana/Eve; excluding admin (Alice)
+      // leaves exactly Bob/Diana/Eve.
+      expect(names, {'Bob Smith', 'Diana Prince', 'Eve Davis'});
+    });
+  });
+
+  group('Lock modes: forNoKeyUpdate / forKeyShare', () {
+    // forShare() gets a real two-transaction concurrency test in
+    // postgres_trx_test.dart (a row-count/name assertion here can't tell a
+    // real "for share" from a plain unlocked SELECT — see skipLocked()'s
+    // test for why). forNoKeyUpdate()/forKeyShare()'s distinguishing
+    // behavior (not blocking a concurrent forShare/forKeyShare, but still
+    // blocking a plain forUpdate) needs a foreign-key-referencing second
+    // table to demonstrate meaningfully, so for now these two only assert
+    // the compiled SQL text alongside execution — enough to catch either
+    // clause silently dropping or being swapped for the other.
+    test('forNoKeyUpdate() compiles the real lock clause and executes '
+        'inside a transaction', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['id', 'name'])
+          .where('id', 2)
+          .forNoKeyUpdate();
+      expect(query.toSQL().sql, contains('for no key update'));
+
+      await pgClient.trx((trx) async {
+        final results = await trx.select(query);
+        expect(results.single['name'], 'Bob Smith');
+      });
+    });
+
+    test('forKeyShare() compiles the real lock clause and executes inside '
+        'a transaction', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['id', 'name'])
+          .where('id', 4)
+          .forKeyShare();
+      expect(query.toSQL().sql, contains('for key share'));
+
+      await pgClient.trx((trx) async {
+        final results = await trx.select(query);
+        expect(results.single['name'], 'Diana Prince');
+      });
+    });
+  });
+
+  group('JSON path queries', () {
+    setUpAll(() async {
+      try {
+        await executeSchema((schema) {
+          schema.alterTable('users', (t) {
+            t.jsonb('metadata').defaultTo('{}');
+          });
+        });
+      } catch (_) {
+        // Column already added by an earlier test group in this run.
+      }
+    });
+
+    test('whereJsonPath() filters on a real nested path value, not just '
+        'presence of the top-level key', () async {
+      const email = 'json_path_test@example.com';
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
+
+      final insertQuery = mockClient.queryBuilder().table('users').insert({
+        'name': 'Path Tester',
+        'email': email,
+        'metadata': '{"prefs": {"theme": "dark"}}',
+      });
+      await pgClient.insert(insertQuery);
+
+      final matching = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', email)
+            .whereJsonPath('metadata', r'$.prefs.theme', '=', 'dark'),
+      );
+      expect(matching, isNotEmpty);
+
+      final nonMatching = await pgClient.select(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .where('email', email)
+            .whereJsonPath('metadata', r'$.prefs.theme', '=', 'light'),
+      );
+      expect(nonMatching, isEmpty);
+
+      await pgClient.rawSql('delete from users where email = \$1', [email]);
     });
   });
 
@@ -506,7 +759,7 @@ void main() {
       expect(rows.length, 1);
 
       await pgClient.delete(
-        mockClient.queryBuilder().table('users').where('id', id),
+        mockClient.queryBuilder().table('users').where('id', id).delete(),
       );
     });
 
@@ -569,7 +822,7 @@ void main() {
       expect(updated.first['name'], 'After Update');
 
       await pgClient.delete(
-        mockClient.queryBuilder().table('users').where('id', id),
+        mockClient.queryBuilder().table('users').where('id', id).delete(),
       );
     });
 
@@ -632,7 +885,7 @@ void main() {
       expect(rows.length, 1);
 
       await pgClient.delete(
-        mockClient.queryBuilder().table('users').where('id', id),
+        mockClient.queryBuilder().table('users').where('id', id).delete(),
       );
     });
 
@@ -676,7 +929,7 @@ void main() {
       expect(rows.isEmpty, true);
 
       await pgClient.delete(
-        mockClient.queryBuilder().table('users').where('id', preId),
+        mockClient.queryBuilder().table('users').where('id', preId).delete(),
       );
     });
   });
@@ -729,7 +982,7 @@ void main() {
         mockClient.queryBuilder().table('users').whereIn('email', [
           'outer_sp@example.com',
           'inner_sp@example.com',
-        ]),
+        ]).delete(),
       );
     });
 
@@ -779,7 +1032,7 @@ void main() {
       expect(innerRows.isEmpty, true); // inner rolled back
 
       await pgClient.delete(
-        mockClient.queryBuilder().table('users').where('id', outerId),
+        mockClient.queryBuilder().table('users').where('id', outerId).delete(),
       );
     });
 
