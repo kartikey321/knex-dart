@@ -26,9 +26,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_live_test/knex_dart_live_test.dart';
 import 'package:test/test.dart';
-
-import 'parity_cases.dart';
 
 /// Triage ledger of known divergences, keyed `id::dialect`. Every entry MUST
 /// carry a reason. Two classes:
@@ -504,13 +503,21 @@ bool _bindingsEqual(List<dynamic> got, List<dynamic> expected) {
 /// Returns null when knex-dart matches the fixture, else a description of the
 /// divergence. Rethrows unexpected (non-refusal) errors so a typo in a Dart
 /// case surfaces as a hard failure rather than a false "refusal".
-String? _divergence(Map<String, dynamic> entry, String dialect, ParityCase b) {
+String? _divergence(
+  Map<String, dynamic> entry,
+  String dialect,
+  QueryCorpusCase corpusCase,
+) {
   final jsRefused = entry.containsKey('error');
 
   SqlString? got;
   Object? refusal;
   try {
-    got = b(dialect);
+    // buildValidated() also enforces the corpus's declared expectedMethod
+    // (see query_cases.dart) on every parity run, not just live-execution
+    // runs — a case whose builder chain silently stops representing its
+    // claimed operation fails here immediately.
+    got = corpusCase.buildValidated(dialect).toSQL();
   } catch (e) {
     if (_isRefusal(e)) {
       refusal = e;
@@ -569,7 +576,7 @@ void main() {
     // Drift guard: a Dart case with no fixture means someone forgot to
     // regenerate — it would otherwise never run.
     test('every registered case has a fixture (regenerate if this fails)', () {
-      final dartOnly = parityCases.keys.toSet().difference(fixtureIds);
+      final dartOnly = queryCorpusCases.keys.toSet().difference(fixtureIds);
       expect(
         dartOnly,
         isEmpty,
@@ -589,8 +596,8 @@ void main() {
         continue;
       }
 
-      final builder = parityCases[id];
-      if (builder == null) {
+      final corpusCase = queryCorpusCases[id];
+      if (corpusCase == null) {
         test(
           key,
           () => fail('no knex-dart parity builder registered for "$id"'),
@@ -601,7 +608,7 @@ void main() {
       final allowReason = parityAllowlist[key];
 
       test(key, () {
-        final divergence = _divergence(entry, dialect, builder);
+        final divergence = _divergence(entry, dialect, corpusCase);
         if (allowReason == null) {
           expect(divergence, isNull, reason: divergence);
         } else {

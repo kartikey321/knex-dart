@@ -1,10 +1,15 @@
-/// Dialect-agnostic query corpus for the differential parity harness.
+/// Dialect-agnostic query corpus, shared by knex_dart's differential parity
+/// harness (`packages/knex_dart/test/parity/parity_test.dart`) and
+/// knex_dart_live_test's live-execution framework.
 ///
 /// Each entry mirrors — by the SAME id — a builder in `tool/parity/run_js.mjs`.
 /// The builder is dialect-agnostic: it receives a dialect name and constructs
-/// the query via [KnexQuery.forClient]. `parity_test.dart` runs each builder
-/// for every dialect the JS side emitted and asserts the compiled SQL/bindings
-/// match knex.js (modulo documented per-dialect normalization).
+/// the query via [KnexQuery.forClient], returning the [QueryBuilder] itself
+/// (not compiled SQL) — the parity harness calls `.buildValidated(dialect)`
+/// then `.toSQL()` on the result for text comparison; the live-execution
+/// runner calls `.buildValidated(dialect)` and executes the QueryBuilder
+/// directly through a driver's real methods, so both consumers exercise
+/// exactly the same builder-construction code.
 ///
 /// To add coverage, add a case here AND in run_js.mjs under the same id, then
 /// regenerate the fixtures.
@@ -15,41 +20,77 @@ import 'package:knex_dart/knex_dart.dart';
 /// Builds a fresh dialect-scoped query builder.
 QueryBuilder _qb(String dialect) => KnexQuery.forClient(dialect).queryBuilder();
 
-typedef ParityCase = SqlString Function(String dialect);
+/// A single corpus case: a dialect-agnostic query builder plus the
+/// operation ([expectedMethod]) it's meant to represent.
+///
+/// [expectedMethod] is declared independently of what the builder happens
+/// to produce — [buildValidated] checks the two match on every build, so a
+/// case whose builder chain silently stops representing its claimed
+/// operation (e.g. a `delete/*` case that no longer calls `.delete()`)
+/// fails loudly and immediately, rather than quietly compiling to — and a
+/// live-execution runner quietly running — something else. `null` means
+/// the case is expected to THROW when built (see the `errors/*` cases,
+/// which test `.first()` chained onto a non-select method) — there is no
+/// successful method to validate.
+class QueryCorpusCase {
+  final String id;
+  final QueryMethod? expectedMethod;
+  final QueryBuilder Function(String dialect) build;
 
-final Map<String, ParityCase> parityCases = {
+  const QueryCorpusCase(this.id, this.expectedMethod, this.build);
+
+  /// Builds a fresh [QueryBuilder] for [dialect] and validates its actual
+  /// compiled method against [expectedMethod] (skipped when null, i.e. the
+  /// case is expected to throw during [build] itself).
+  QueryBuilder buildValidated(String dialect) {
+    final query = build(dialect);
+    if (expectedMethod != null && query.method != expectedMethod) {
+      throw StateError(
+        '"$id" built ${query.method}, expected $expectedMethod — the '
+        "builder chain no longer represents this case's declared operation",
+      );
+    }
+    return query;
+  }
+}
+
+/// The raw dialect-agnostic builders, keyed by stable id — unchanged in
+/// content from the pre-reshape corpus (`packages/knex_dart/test/parity/`
+/// `parity_cases.dart`), only the terminal `.toSQL()` call removed so the
+/// builder itself, not its compiled SQL, is what gets shared.
+final Map<String, QueryBuilder Function(String dialect)> _builders = {
   // WHERE — basics
   'where/eq-string': (d) =>
-      _qb(d).table('users').where('status', 'active').toSQL(),
-  'where/eq-number': (d) => _qb(d).table('users').where('age', 25).toSQL(),
-  'where/op-gt': (d) => _qb(d).table('users').where('age', '>', 18).toSQL(),
-  'where/op-lte': (d) => _qb(d).table('users').where('age', '<=', 65).toSQL(),
+      _qb(d).table('users').where('status', 'active'),
+  'where/eq-number': (d) => _qb(d).table('users').where('age', 25),
+  'where/op-gt': (d) => _qb(d).table('users').where('age', '>', 18),
+  'where/op-lte': (d) => _qb(d).table('users').where('age', '<=', 65),
   'where/and-chain': (d) =>
-      _qb(d).table('users').where('a', 1).where('b', 2).toSQL(),
+      _qb(d).table('users').where('a', 1).where('b', 2),
   'where/or': (d) =>
-      _qb(d).table('users').where('a', 1).orWhere('b', 2).toSQL(),
-  'where/null': (d) => _qb(d).table('users').where('deleted_at', null).toSQL(),
+      _qb(d).table('users').where('a', 1).orWhere('b', 2),
+  'where/null': (d) => _qb(d).table('users').where('deleted_at', null),
   'where/explicit-null': (d) =>
-      _qb(d).table('users').where('deleted_at', '=', null).toSQL(),
-  'where/not-null': (d) => _qb(d).table('users').whereNotNull('email').toSQL(),
-  'where/in': (d) => _qb(d).table('users').whereIn('id', [1, 2, 3]).toSQL(),
-  'where/not-in': (d) => _qb(d).table('users').whereNotIn('id', [1, 2]).toSQL(),
+      _qb(d).table('users').where('deleted_at', '=', null),
+  'where/not-null': (d) => _qb(d).table('users').whereNotNull('email'),
+  'where/in': (d) => _qb(d).table('users').whereIn('id', [1, 2, 3]),
+  'where/not-in': (d) => _qb(d).table('users').whereNotIn('id', [1, 2]),
   'where/or-in': (d) =>
-      _qb(d).table('users').where('a', 1).orWhereIn('role', ['x', 'y']).toSQL(),
+      _qb(d).table('users').where('a', 1).orWhereIn('role', ['x', 'y']),
   'where/between': (d) =>
-      _qb(d).table('users').whereBetween('age', [18, 65]).toSQL(),
+      _qb(d).table('users').whereBetween('age', [18, 65]),
   'where/grouped': (d) => _qb(d)
       .table('users')
       .where('a', 1)
       .where((q) => q.where('b', 2).orWhere('c', 3))
-      .toSQL(),
+      ,
   'where/subquery-in': (d) => _qb(d)
       .table('users')
       .whereIn(
         'id',
         _qb(d).table('orders').select(['user_id']).where('total', '>', 100),
       )
-      .toSQL(),
+      ,
   'where/in-multi-column-single-tuple': (d) => _qb(d)
       .table('users')
       .whereIn(
@@ -58,52 +99,52 @@ final Map<String, ParityCase> parityCases = {
           [1, 2],
         ],
       )
-      .toSQL(),
+      ,
   'where/in-callback': (d) => _qb(d).table('users').whereIn('id', (q) {
     q.select(['user_id']).table('orders').where('total', '>', 100);
-  }).toSQL(),
+  }),
 
   // SELECT / ORDER / LIMIT
-  'select/columns': (d) => _qb(d).table('users').select(['id', 'name']).toSQL(),
+  'select/columns': (d) => _qb(d).table('users').select(['id', 'name']),
   'select/orderby-multi': (d) =>
-      _qb(d).table('users').orderBy('a').orderBy('b', 'desc').toSQL(),
+      _qb(d).table('users').orderBy('a').orderBy('b', 'desc'),
   'select/orderby-raw-direction': (d) => _qb(d)
       .table('users')
       .orderBy('name', _qb(d).client.raw('desc nulls last'))
-      .toSQL(),
+      ,
   'select/limit-offset': (d) =>
-      _qb(d).table('users').limit(10).offset(5).toSQL(),
+      _qb(d).table('users').limit(10).offset(5),
 
   // JOINs
   'join/inner': (d) =>
-      _qb(d).table('a').join('b', 'a.id', 'b.a_id').select(['*']).toSQL(),
+      _qb(d).table('a').join('b', 'a.id', 'b.a_id').select(['*']),
   'join/left': (d) =>
-      _qb(d).table('a').leftJoin('b', 'a.id', 'b.a_id').select(['*']).toSQL(),
-  'query/truncate': (d) => _qb(d).table('users').truncate().toSQL(),
+      _qb(d).table('a').leftJoin('b', 'a.id', 'b.a_id').select(['*']),
+  'query/truncate': (d) => _qb(d).table('users').truncate(),
   'join/raw': (d) => _qb(d)
       .table('users')
       .joinRaw('join contacts on contacts.id = users.contact_id')
-      .toSQL(),
+      ,
   'join/raw-with-binding': (d) => _qb(
     d,
-  ).table('users').joinRaw('join contacts on contacts.id = ?', [1]).toSQL(),
+  ).table('users').joinRaw('join contacts on contacts.id = ?', [1]),
 
   // DML
   'insert/single': (d) => _qb(
     d,
-  ).table('users').insert({'email': 'a@b.com', 'name': 'Alice'}).toSQL(),
+  ).table('users').insert({'email': 'a@b.com', 'name': 'Alice'}),
   'insert/multi-ragged': (d) => _qb(d).table('t').insert([
     {'a': 1, 'b': 2},
     {'a': 3, 'c': 4},
-  ]).toSQL(),
+  ]),
   'update/set': (d) =>
-      _qb(d).table('users').where('id', 2).update({'name': 'Bob'}).toSQL(),
-  'delete/where': (d) => _qb(d).table('users').where('id', 2).delete().toSQL(),
+      _qb(d).table('users').where('id', 2).update({'name': 'Bob'}),
+  'delete/where': (d) => _qb(d).table('users').where('id', 2).delete(),
 
   // UNION / CTE
   'union/two': (d) => _qb(d).table('a').select(['id']).where('x', 1).union([
     _qb(d).table('b').select(['id']).where('y', 2),
-  ]).toSQL(),
+  ]),
   'cte/select': (d) => _qb(d)
       .table('t')
       .withQuery(
@@ -111,7 +152,7 @@ final Map<String, ParityCase> parityCases = {
         _qb(d).table('src').select(['id']).where('flag', true),
       )
       .select(['*'])
-      .toSQL(),
+      ,
 
   // Capability-varying
   'upsert/merge': (d) => _qb(d)
@@ -119,40 +160,40 @@ final Map<String, ParityCase> parityCases = {
       .insert({'email': 'a@b.com', 'name': 'Alice'})
       .onConflict('email')
       .merge()
-      .toSQL(),
+      ,
   'upsert/merge-columns': (d) => _qb(d)
       .table('users')
       .insert({'email': 'a@b.com', 'name': 'Alice', 'updated_at': 'now'})
       .onConflict('email')
       .merge(['name', 'updated_at'])
-      .toSQL(),
+      ,
   'returning/insert': (d) => _qb(
     d,
-  ).table('users').insert({'email': 'a@b.com'}).returning(['id']).toSQL(),
+  ).table('users').insert({'email': 'a@b.com'}).returning(['id']),
 
   // Batch 2 — aggregates, grouping, distinct, counters, set-ops
   'where/not': (d) =>
-      _qb(d).table('users').whereNot('status', 'banned').toSQL(),
-  'select/distinct': (d) => _qb(d).table('users').distinct(['name']).toSQL(),
+      _qb(d).table('users').whereNot('status', 'banned'),
+  'select/distinct': (d) => _qb(d).table('users').distinct(['name']),
   'select/desc': (d) =>
-      _qb(d).table('users').orderBy('created_at', 'desc').toSQL(),
-  'agg/count-col': (d) => _qb(d).table('t').count('id').toSQL(),
-  'agg/sum': (d) => _qb(d).table('t').sum('amount').toSQL(),
-  'agg/min-max': (d) => _qb(d).table('t').min('lo').max('hi').toSQL(),
+      _qb(d).table('users').orderBy('created_at', 'desc'),
+  'agg/count-col': (d) => _qb(d).table('t').count('id'),
+  'agg/sum': (d) => _qb(d).table('t').sum('amount'),
+  'agg/min-max': (d) => _qb(d).table('t').min('lo').max('hi'),
   'having/basic': (d) =>
-      _qb(d).table('t').groupBy('cat').having('cnt', '>', 1).toSQL(),
+      _qb(d).table('t').groupBy('cat').having('cnt', '>', 1),
   'update/increment': (d) =>
-      _qb(d).table('t').where('id', 1).increment('views', 5).toSQL(),
-  'delete/all': (d) => _qb(d).table('users').delete().toSQL(),
+      _qb(d).table('t').where('id', 1).increment('views', 5),
+  'delete/all': (d) => _qb(d).table('users').delete(),
   'delete/limit-mysql': (d) =>
-      _qb(d).table('users').where('id', '>', 1).delete().limit(1).toSQL(),
+      _qb(d).table('users').where('id', '>', 1).delete().limit(1),
   'union/all': (d) => _qb(d).table('a').select(['id']).unionAll([
     _qb(d).table('b').select(['id']),
-  ]).toSQL(),
+  ]),
 
   // Known-divergence probe
   'jsonb/qmark-op': (d) =>
-      _qb(d).table('t').where('tags', '?', 'urgent').toSQL(),
+      _qb(d).table('t').where('tags', '?', 'urgent'),
 
   // Batch 3 — nested subqueries, EXISTS, UNION/INTERSECT, CTEs, window
   // functions, DML with RETURNING/onConflict. Mirrors run_js.mjs 1:1 by id;
@@ -162,7 +203,7 @@ final Map<String, ParityCase> parityCases = {
   'subquery/from-aliased': (d) => _qb(d)
       .table(_qb(d).table('foo').select(['*']).as('bar'))
       .join('baz', 'foo.id', 'bar.foo_id')
-      .toSQL(),
+      ,
   'subquery/where-scalar': (d) => _qb(d)
       .table('users')
       .where(
@@ -170,14 +211,14 @@ final Map<String, ParityCase> parityCases = {
         '=',
         _qb(d).table('users').select(['id']).where('email', 'bar'),
       )
-      .toSQL(),
+      ,
   'subquery/where-scalar-callback': (d) =>
       _qb(d).table('users').where('id', '=', (QueryBuilder qb) {
         qb
             .select([_qb(d).client.raw('max(id)')])
             .table('users')
             .where('email', '=', 'bar');
-      }).toSQL(),
+      }),
   'subquery/select-scalar': (d) => _qb(d)
       .table('employee as e')
       .select(['e.lastname', 'e.salary'])
@@ -189,7 +230,7 @@ final Map<String, ParityCase> parityCases = {
             .as('avg_sal_dept'),
       ])
       .where('dept_no', '=', 'e.dept_no')
-      .toSQL(),
+      ,
   'subquery/select-first-as': (d) => _qb(d)
       .table('employee as e')
       .select([
@@ -203,7 +244,7 @@ final Map<String, ParityCase> parityCases = {
             .as('top_dept_salary'),
       ])
       .where('dept_no', '=', 'e.dept_no')
-      .toSQL(),
+      ,
   'subquery/from-basic-alias': (d) => _qb(d)
       .table(
         _qb(d)
@@ -218,7 +259,7 @@ final Map<String, ParityCase> parityCases = {
         'g.f',
       ])
       .where('g.secret', 123)
-      .toSQL(),
+      ,
   'subquery/from-nested-2level': (d) => _qb(d)
       .table(
         _qb(d)
@@ -229,7 +270,7 @@ final Map<String, ParityCase> parityCases = {
             .as('outer_alias'),
       )
       .select(['*'])
-      .toSQL(),
+      ,
   'subquery/where-in-2level': (d) => _qb(d)
       .table('users')
       .whereIn(
@@ -242,7 +283,7 @@ final Map<String, ParityCase> parityCases = {
               _qb(d).table('products').select(['id']).where('active', true),
             ),
       )
-      .toSQL(),
+      ,
 
   // ── CTEs ──────────────────────────────────────────────────────────────
   'cte/nested': (d) {
@@ -255,14 +296,14 @@ final Map<String, ParityCase> parityCases = {
         .withQuery('withClause', withClause)
         .select(['*'])
         .table('withClause')
-        .toSQL();
+        ;
   },
   'cte/chained-siblings': (d) => _qb(d)
       .withQuery('firstWithClause', _qb(d).select(['foo']).table('users'))
       .withQuery('secondWithClause', _qb(d).select(['bar']).table('users'))
       .select(['*'])
       .table('secondWithClause')
-      .toSQL(),
+      ,
   'cte/raw': (d) => _qb(d)
       .withQuery(
         'withRawClause',
@@ -270,7 +311,7 @@ final Map<String, ParityCase> parityCases = {
       )
       .select(['*'])
       .table('withRawClause')
-      .toSQL(),
+      ,
   'cte/recursive-nested-chained': (d) {
     final firstSub = _qb(d).select(['foo']).table('users').as('foz');
     final firstWith = _qb(d)
@@ -287,7 +328,7 @@ final Map<String, ParityCase> parityCases = {
         .withRecursive('secondWithClause', secondWith)
         .select(['*'])
         .table('secondWithClause')
-        .toSQL();
+        ;
   },
   'cte/insert-multi-source': (d) => _qb(d)
       .withQuery(
@@ -299,7 +340,7 @@ final Map<String, ParityCase> parityCases = {
         {'email': 'thisMail', 'name': 'sam'},
         {'email': 'thatMail', 'name': 'jack'},
       ])
-      .toSQL(),
+      ,
   'cte/update-source': (d) => _qb(d)
       .withQuery(
         'updated_group',
@@ -312,11 +353,11 @@ final Map<String, ParityCase> parityCases = {
       .table('user')
       .update({'name': 'foo'})
       .where('group_id', 1)
-      .toSQL(),
+      ,
   'cte/delete-source': (d) => _qb(d)
       .withQuery('delete1', _qb(d).table('accounts').delete().where('id', 1))
       .table('accounts')
-      .toSQL(),
+      ,
 
   // ── EXISTS / NOT EXISTS ──────────────────────────────────────────────────
   'exists/where': (d) => _qb(d).table('orders').select(['*']).whereExists((qb) {
@@ -324,14 +365,14 @@ final Map<String, ParityCase> parityCases = {
         .select(['*'])
         .table('products')
         .where('products.id', '=', _qb(d).client.raw('"orders"."id"'));
-  }).toSQL(),
+  }),
   'exists/where-not': (d) =>
       _qb(d).table('orders').select(['*']).whereNotExists((qb) {
         qb
             .select(['*'])
             .table('products')
             .where('products.id', '=', _qb(d).client.raw('"orders"."id"'));
-      }).toSQL(),
+      }),
   'exists/or-where': (d) => _qb(d)
       .table('orders')
       .select(['*'])
@@ -342,7 +383,7 @@ final Map<String, ParityCase> parityCases = {
             .table('products')
             .where('products.id', '=', _qb(d).client.raw('"orders"."id"'));
       })
-      .toSQL(),
+      ,
   'exists/or-where-not': (d) => _qb(d)
       .table('orders')
       .select(['*'])
@@ -353,7 +394,7 @@ final Map<String, ParityCase> parityCases = {
             .table('products')
             .where('products.id', '=', _qb(d).client.raw('"orders"."id"'));
       })
-      .toSQL(),
+      ,
   'exists/wrapped-or': (d) => _qb(d)
       .table('orders')
       .select(['*'])
@@ -381,7 +422,7 @@ final Map<String, ParityCase> parityCases = {
                   );
             });
       })
-      .toSQL(),
+      ,
   'exists/with-select-subquery': (d) => _qb(d)
       .table('orders')
       .select([
@@ -402,14 +443,14 @@ final Map<String, ParityCase> parityCases = {
             .table('products')
             .where('products.id', '=', _qb(d).client.raw('"orders"."id"'));
       })
-      .toSQL(),
+      ,
 
   // ── UNION / INTERSECT / EXCEPT ───────────────────────────────────────────
   'union/three-way': (d) =>
       _qb(d).table('a').select(['id']).where('x', 1).union([
         _qb(d).table('b').select(['id']).where('y', 2),
         _qb(d).table('c').select(['id']).where('z', 3),
-      ]).toSQL(),
+      ]),
   'union/array-callbacks': (d) =>
       _qb(d).table('users').select(['*']).where('id', 1).union([
         (QueryBuilder qb) {
@@ -418,7 +459,7 @@ final Map<String, ParityCase> parityCases = {
         (QueryBuilder qb) {
           qb.table('users').select(['*']).where('id', 3);
         },
-      ]).toSQL(),
+      ]),
   'union/order-limit-outer': (d) => _qb(d)
       .table('a')
       .select(['id', 'name'])
@@ -428,18 +469,18 @@ final Map<String, ParityCase> parityCases = {
       ])
       .orderBy('name')
       .limit(10)
-      .toSQL(),
+      ,
   'intersect/basic': (d) =>
       _qb(d).table('a').select(['*']).where('id', '=', 1).intersect([
         _qb(d).table('b').select(['*']).where('id', '=', 2),
-      ]).toSQL(),
+      ]),
   'intersect/three-way': (d) => _qb(d).table('a').select(['id']).intersect([
     _qb(d).table('b').select(['id']),
     _qb(d).table('c').select(['id']),
-  ]).toSQL(),
+  ]),
   'except/basic': (d) => _qb(d).table('a').select(['id']).except([
     _qb(d).table('b').select(['id']),
-  ]).toSQL(),
+  ]),
   'union/all-order-limit': (d) => _qb(d)
       .table('a')
       .select(['id'])
@@ -450,24 +491,24 @@ final Map<String, ParityCase> parityCases = {
       .orderBy('id', 'desc')
       .limit(5)
       .offset(2)
-      .toSQL(),
+      ,
 
   // ── Window / analytic functions ──────────────────────────────────────────
   'window/rank-string-partition': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rank('alias_name', 'email', 'firstName')
-      .toSQL(),
+      ,
   'window/rank-array-both': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rank('alias_name', ['email', 'address'], ['firstName', 'lastName'])
-      .toSQL(),
+      ,
   'window/dense-rank-callback': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .denseRank('test_alias', (a) => a.orderBy('email').partitionBy('address'))
-      .toSQL(),
+      ,
   'window/dense-rank-callback-chains': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
@@ -479,23 +520,23 @@ final Map<String, ParityCase> parityCases = {
             .partitionBy('phone')
             .orderBy('name'),
       )
-      .toSQL(),
+      ,
   'window/row-number-array': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rowNumber('alias_name', ['email', 'address'], ['firstName', 'lastName'])
-      .toSQL(),
+      ,
   'window/rank-raw': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rank(null, _qb(d).client.raw('partition by address order by email'))
-      .toSQL(),
+      ,
   'window/chained-multiple': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .denseRank('first_alias', 'email')
       .denseRank('second_alias', 'address')
-      .toSQL(),
+      ,
   'window/dense-rank-raw-alias': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
@@ -503,14 +544,14 @@ final Map<String, ParityCase> parityCases = {
         'test_alias',
         _qb(d).client.raw('partition by address order by email'),
       )
-      .toSQL(),
+      ,
   'window/rank-then-orderby': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rank('rnk', 'salary')
       .where('dept', '=', 'eng')
       .orderBy('rnk')
-      .toSQL(),
+      ,
 
   // ── DML with RETURNING / onConflict ──────────────────────────────────────
   'dml/onconflict-ignore': (d) => _qb(d)
@@ -521,7 +562,7 @@ final Map<String, ParityCase> parityCases = {
       ])
       .onConflict('email')
       .ignore()
-      .toSQL(),
+      ,
   'dml/onconflict-composite-ignore': (d) => _qb(d)
       .table('users')
       .insert([
@@ -529,7 +570,7 @@ final Map<String, ParityCase> parityCases = {
       ])
       .onConflict(['org', 'email'])
       .ignore()
-      .toSQL(),
+      ,
   'dml/onconflict-merge-explicit': (d) => _qb(d)
       .table('users')
       .insert([
@@ -538,7 +579,7 @@ final Map<String, ParityCase> parityCases = {
       ])
       .onConflict('email')
       .merge({'name': 'overidden'})
-      .toSQL(),
+      ,
   'dml/onconflict-merge-implicit-multi': (d) => _qb(d)
       .table('users')
       .insert([
@@ -547,7 +588,7 @@ final Map<String, ParityCase> parityCases = {
       ])
       .onConflict('email')
       .merge()
-      .toSQL(),
+      ,
   'dml/onconflict-raw-target': (d) => _qb(d)
       .table('users')
       .insert([
@@ -556,14 +597,14 @@ final Map<String, ParityCase> parityCases = {
       ])
       .onConflict(_qb(d).client.raw('(value) WHERE deleted_at IS NULL'))
       .ignore()
-      .toSQL(),
+      ,
   'dml/onconflict-merge-where': (d) => _qb(d)
       .table('users')
       .insert({'email': 'foo', 'name': 'taylor'})
       .onConflict('email')
       .merge()
       .where('email', 'foo2')
-      .toSQL(),
+      ,
   'dml/returning-multi-insert': (d) => _qb(d)
       .table('users')
       .insert([
@@ -571,85 +612,85 @@ final Map<String, ParityCase> parityCases = {
         {'email': 'b'},
       ])
       .returning(['id', 'email'])
-      .toSQL(),
+      ,
   'dml/returning-update': (d) => _qb(d)
       .table('users')
       .where('id', 1)
       .update({'name': 'Bob'})
       .returning(['*'])
-      .toSQL(),
+      ,
   'dml/returning-delete': (d) =>
-      _qb(d).table('users').where('id', 1).delete().returning(['id']).toSQL(),
+      _qb(d).table('users').where('id', 1).delete().returning(['id']),
 
   // Batch 4 — mined from knex.js test/unit/query/builder.js lines 385-1917.
   // Mirrors run_js.mjs 1:1 by id.
-  'select/star': (d) => _qb(d).table('users').select(['*']).toSQL(),
+  'select/star': (d) => _qb(d).table('users').select(['*']),
   'select/multi-calls': (d) => _qb(d)
       .table('users')
       .select(['foo'])
       .select(['bar'])
       .select(['baz', 'boom'])
-      .toSQL(),
+      ,
   'select/distinct-then-select': (d) =>
-      _qb(d).table('users').distinct().select(['foo', 'bar']).toSQL(),
+      _qb(d).table('users').distinct().select(['foo', 'bar']),
   'select/alias-map': (d) =>
-      _qb(d).table('users').select({'bar': 'foo'}).toSQL(),
+      _qb(d).table('users').select({'bar': 'foo'}),
   'select/alias-map-multi': (d) =>
-      _qb(d).table('users').select({'bar': 'foo', 'baz': 'qux'}).toSQL(),
+      _qb(d).table('users').select({'bar': 'foo', 'baz': 'qux'}),
   'select/alias-map-raw': (d) => _qb(d).table('users').select({
     'answer': _qb(d).client.raw('?', [42]),
-  }).toSQL(),
+  }),
   'select/alias-map-subquery': (d) => _qb(d).table('users').select({
     'order_id': _qb(d).table('orders').select(['id']).where('total', '>', 100),
-  }).toSQL(),
+  }),
   'select/alias-array-mixed': (d) => _qb(d).table('users').select([
     'baz',
     {'bar': 'foo'},
-  ]).toSQL(),
+  ]),
   'select/old-style-alias': (d) =>
-      _qb(d).table('users').select(['foo as bar']).toSQL(),
+      _qb(d).table('users').select(['foo as bar']),
   'select/alias-trim-spaces': (d) =>
-      _qb(d).table('users').select([' foo   as bar ']).toSQL(),
+      _qb(d).table('users').select([' foo   as bar ']),
   'select/alias-case-insensitive': (d) =>
-      _qb(d).table('users').select([' foo   aS bar ']).toSQL(),
+      _qb(d).table('users').select([' foo   aS bar ']),
   'select/alias-dotted': (d) =>
-      _qb(d).table('users').select(['foo as bar.baz']).toSQL(),
+      _qb(d).table('users').select(['foo as bar.baz']),
   'table/dotted-schema': (d) =>
-      _qb(d).table('public.users').select(['*']).toSQL(),
+      _qb(d).table('public.users').select(['*']),
 
   'clear/select-basic': (d) =>
-      _qb(d).table('users').select(['id', 'email']).clearSelect().toSQL(),
+      _qb(d).table('users').select(['id', 'email']).clearSelect(),
   'clear/select-then-reselect': (d) => _qb(
     d,
-  ).table('users').select(['id']).clearSelect().select(['email']).toSQL(),
+  ).table('users').select(['id']).clearSelect().select(['email']),
   'clear/where-basic': (d) => _qb(
     d,
-  ).table('users').select(['id']).where('id', '=', 1).clearWhere().toSQL(),
+  ).table('users').select(['id']).where('id', '=', 1).clearWhere(),
   'clear/where-then-rewhere': (d) => _qb(d)
       .table('users')
       .select(['id'])
       .where('id', '=', 1)
       .clearWhere()
       .where('id', '=', 2)
-      .toSQL(),
+      ,
   'clear/group-basic': (d) =>
-      _qb(d).table('users').groupBy('name').clearGroup().toSQL(),
+      _qb(d).table('users').groupBy('name').clearGroup(),
   'clear/group-then-regroup': (d) =>
-      _qb(d).table('users').groupBy('name').clearGroup().groupBy('id').toSQL(),
+      _qb(d).table('users').groupBy('name').clearGroup().groupBy('id'),
   'clear/order-basic': (d) =>
-      _qb(d).table('users').orderBy('name', 'desc').clearOrder().toSQL(),
+      _qb(d).table('users').orderBy('name', 'desc').clearOrder(),
   'clear/order-then-reorder': (d) => _qb(d)
       .table('users')
       .orderBy('name', 'desc')
       .clearOrder()
       .orderBy('id', 'asc')
-      .toSQL(),
+      ,
   'clear/having-then-rehaving': (d) => _qb(d)
       .table('users')
       .having('id', '>', 100)
       .clearHaving()
       .having('id', '>', 10)
-      .toSQL(),
+      ,
   'clear/counters': (d) => _qb(d)
       .table('users')
       .where('id', '=', 1)
@@ -658,7 +699,7 @@ final Map<String, ParityCase> parityCases = {
       .clearCounters()
       .decrement('value', 50)
       .clearCounters()
-      .toSQL(),
+      ,
 
   // Batch 2 (HAVING) — mined from knex.js test/unit/query/builder.js lines
   // 3547-5949.
@@ -668,52 +709,52 @@ final Map<String, ParityCase> parityCases = {
       .table('users')
       .select(['*'])
       .havingWrapped((q) => q.having('email', '>', 1))
-      .toSQL(),
+      ,
   'having/nested-or': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .havingWrapped(
         (q) => q.having('email', '>', 10).orHaving('email', '=', 7),
       )
-      .toSQL(),
+      ,
   'having/grouped': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .groupBy(['email'])
       .having('email', '>', 1)
-      .toSQL(),
+      ,
   'having/from-alias': (d) => _qb(d)
       .table('users')
       .select(['email as foo_email'])
       .having('foo_email', '>', 1)
-      .toSQL(),
+      ,
   // JS: having(raw(...)) — Dart's having() requires a String column, so this
   // is adapted to havingRaw(), which compiles to identical SQL.
   'having/raw': (d) => _qb(
     d,
-  ).table('users').select(['*']).havingRaw('user_foo < user_bar').toSQL(),
+  ).table('users').select(['*']).havingRaw('user_foo < user_bar'),
   'having/raw-or': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .having('baz', '=', 1)
       .orHavingRaw('user_foo < user_bar')
-      .toSQL(),
+      ,
   'having/null': (d) =>
-      _qb(d).table('users').select(['*']).havingNull('baz').toSQL(),
+      _qb(d).table('users').select(['*']).havingNull('baz'),
   'having/or-null': (d) => _qb(
     d,
-  ).table('users').select(['*']).havingNull('baz').orHavingNull('foo').toSQL(),
+  ).table('users').select(['*']).havingNull('baz').orHavingNull('foo'),
   'having/not-null': (d) =>
-      _qb(d).table('users').select(['*']).havingNotNull('baz').toSQL(),
+      _qb(d).table('users').select(['*']).havingNotNull('baz'),
   'having/or-not-null': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .havingNotNull('baz')
       .orHavingNotNull('foo')
-      .toSQL(),
+      ,
   'having/exists': (d) => _qb(d).table('users').select(['*']).havingExists((q) {
     q.select(['baz']).table('users');
-  }).toSQL(),
+  }),
   'having/or-exists': (d) => _qb(d)
       .table('users')
       .select(['*'])
@@ -723,11 +764,11 @@ final Map<String, ParityCase> parityCases = {
       .orHavingExists((q) {
         q.select(['foo']).table('users');
       })
-      .toSQL(),
+      ,
   'having/not-exists': (d) =>
       _qb(d).table('users').select(['*']).havingNotExists((q) {
         q.select(['baz']).table('users');
-      }).toSQL(),
+      }),
   'having/or-not-exists': (d) => _qb(d)
       .table('users')
       .select(['*'])
@@ -737,41 +778,41 @@ final Map<String, ParityCase> parityCases = {
       .orHavingNotExists((q) {
         q.select(['foo']).table('users');
       })
-      .toSQL(),
+      ,
   'having/between': (d) =>
-      _qb(d).table('users').select(['*']).havingBetween('baz', [5, 10]).toSQL(),
+      _qb(d).table('users').select(['*']).havingBetween('baz', [5, 10]),
   'having/or-between': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .havingBetween('baz', [5, 10])
       .orHavingBetween('baz', [20, 30])
-      .toSQL(),
+      ,
   'having/not-between': (d) => _qb(
     d,
-  ).table('users').select(['*']).havingNotBetween('baz', [5, 10]).toSQL(),
+  ).table('users').select(['*']).havingNotBetween('baz', [5, 10]),
   'having/or-not-between': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .havingNotBetween('baz', [5, 10])
       .orHavingNotBetween('baz', [20, 30])
-      .toSQL(),
+      ,
   'having/in': (d) =>
-      _qb(d).table('users').select(['*']).havingIn('baz', [5, 10, 37]).toSQL(),
+      _qb(d).table('users').select(['*']).havingIn('baz', [5, 10, 37]),
   'having/or-in': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .havingIn('baz', [5, 10, 37])
       .orHavingIn('foo', ['Batman', 'Joker'])
-      .toSQL(),
+      ,
   'having/not-in': (d) => _qb(
     d,
-  ).table('users').select(['*']).havingNotIn('baz', [5, 10, 37]).toSQL(),
+  ).table('users').select(['*']).havingNotIn('baz', [5, 10, 37]),
   'having/or-not-in': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .havingNotIn('baz', [5, 10, 37])
       .orHavingNotIn('foo', ['Batman', 'Joker'])
-      .toSQL(),
+      ,
 
   // ── Batch 3 (lines 5950-8353) — insert edge cases, update/counter
   // overwrite semantics, locks, joins in DML, misc operators/raw, and
@@ -782,34 +823,34 @@ final Map<String, ParityCase> parityCases = {
     {'a': 1},
     {'b': 2},
     {'a': 2, 'c': 3},
-  ]).toSQL(),
-  'insert/empty-array-noop': (d) => _qb(d).table('users').insert([]).toSQL(),
+  ]),
+  'insert/empty-array-noop': (d) => _qb(d).table('users').insert([]),
   'insert/empty-object-returning': (d) =>
-      _qb(d).table('users').insert([{}], ['id']).toSQL(),
+      _qb(d).table('users').insert([{}], ['id']),
   'insert/raw-value': (d) => _qb(d).table('users').insert({
     'email': _qb(d).client.raw('CURRENT TIMESTAMP'),
-  }).toSQL(),
+  }),
 
   // update() basic variations
   'update/two-cols': (d) => _qb(d)
       .update({'email': 'foo', 'name': 'bar'})
       .table('users')
       .where('id', '=', 1)
-      .toSQL(),
+      ,
   'update/null-value': (d) => _qb(d)
       .update({'email': null, 'name': 'bar'})
       .table('users')
       .where('id', 1)
-      .toSQL(),
+      ,
   'update/from-where-then-update': (d) => _qb(d)
       .table('users')
       .where('id', '=', 1)
       .update({'email': 'foo', 'name': 'bar'})
-      .toSQL(),
+      ,
   'update/raw-value': (d) => _qb(d).table('users').where('id', '=', 1).update({
     'email': _qb(d).client.raw('foo'),
     'name': 'bar',
-  }).toSQL(),
+  }),
 
   // update() + orderBy/limit/join — probing whether they're honored
   'update/orderby-limit': (d) => _qb(d)
@@ -818,19 +859,19 @@ final Map<String, ParityCase> parityCases = {
       .orderBy('foo', 'desc')
       .limit(5)
       .update({'email': 'foo', 'name': 'bar'})
-      .toSQL(),
+      ,
   'update/join-mysql': (d) => _qb(d)
       .table('users')
       .join('orders', 'users.id', 'orders.user_id')
       .where('users.id', '=', 1)
       .update({'email': 'foo', 'name': 'bar'})
-      .toSQL(),
+      ,
   'update/limit-mysql': (d) => _qb(d)
       .table('users')
       .where('users.id', '=', 1)
       .update({'email': 'foo', 'name': 'bar'})
       .limit(1)
-      .toSQL(),
+      ,
   'update/join-mysql-qualified-col': (d) => _qb(d)
       .table('tblPerson')
       .update({'tblPerson.City': 'Boonesville'})
@@ -840,7 +881,7 @@ final Map<String, ParityCase> parityCases = {
       )
       .where('tblPersonData.DataId', 1)
       .where('tblPerson.PersonId', 5)
-      .toSQL(),
+      ,
 
   // Batch 4 — mined from knex.js test/unit/query/builder.js lines 8354-end.
   // Mirrors run_js.mjs 1:1 by id.
@@ -850,12 +891,12 @@ final Map<String, ParityCase> parityCases = {
       .table('accounts')
       .select(['*'])
       .rank(null, (a) => a.orderBy('email'))
-      .toSQL(),
+      ,
   'window/rank-callback-alias-partition': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rank('test_alias', (a) => a.orderBy('email').partitionBy('address'))
-      .toSQL(),
+      ,
   'window/rank-callback-arrays': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
@@ -863,13 +904,13 @@ final Map<String, ParityCase> parityCases = {
         'test_alias',
         (a) => a.orderBy(['email', 'name']).partitionBy(['address', 'phone']),
       )
-      .toSQL(),
+      ,
   'window/rank-chained-multiple': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
       .rank('first_alias', 'email')
       .rank('second_alias', 'address')
-      .toSQL(),
+      ,
   'window/rank-raw-alias': (d) => _qb(d)
       .table('accounts')
       .select(['*'])
@@ -877,15 +918,15 @@ final Map<String, ParityCase> parityCases = {
         'test_alias',
         _qb(d).client.raw('partition by address order by email'),
       )
-      .toSQL(),
+      ,
   'window/row-number-no-partition': (d) =>
-      _qb(d).table('accounts').select(['*']).rowNumber(null, 'email').toSQL(),
+      _qb(d).table('accounts').select(['*']).rowNumber(null, 'email'),
 
   // ── Insert / subqueries ───────────────────────────────────────────────
   'insert/value-subselect': (d) => _qb(d).table('entries').insert({
     'secret': 123,
     'sequence': _qb(d).table('entries').count('*').where('secret', 123),
-  }).toSQL(),
+  }),
   'subquery/from-no-alias': (d) {
     final subquery = _qb(d).select([
       _qb(d).client.raw('?', ['inner raw select']),
@@ -896,28 +937,28 @@ final Map<String, ParityCase> parityCases = {
           _qb(d).client.raw('?', ['outer raw select']),
         ])
         .table(subquery)
-        .toSQL();
+        ;
   },
 
   // ── select() / where() extras ────────────────────────────────────────
   'select/fromraw': (d) => _qb(
     d,
-  ).select(['*']).fromRaw('(select * from users where age > 18)').toSQL(),
+  ).select(['*']).fromRaw('(select * from users where age > 18)'),
   'select/modify-callback': (d) => _qb(d)
       .select(['foo_id'])
       .table('foos')
       .modify((QueryBuilder qb, String table, String fk) {
         qb.leftJoin('bars', '$table.$fk', 'bars.id').select(['bars.*']);
       }, ['foos', 'bar_id'])
-      .toSQL(),
+      ,
   'where/empty-callback': (d) =>
-      _qb(d).select(['foo']).table('tbl').where((q) {}).toSQL(),
+      _qb(d).select(['foo']).table('tbl').where((q) {}),
   'where/not-raw': (d) => _qb(
     d,
-  ).table('testtable').whereNot(_qb(d).client.raw('is_active')).toSQL(),
+  ).table('testtable').whereNot(_qb(d).client.raw('is_active')),
   'where/or-raw': (d) => _qb(
     d,
-  ).table('users').where('a', 1).orWhere(_qb(d).client.raw('b = 2')).toSQL(),
+  ).table('users').where('a', 1).orWhere(_qb(d).client.raw('b = 2')),
   'where/named-binding-array': (d) => _qb(d)
       .select(['*'])
       .table('users')
@@ -927,7 +968,7 @@ final Map<String, ParityCase> parityCases = {
           'test': [1, 2, 3],
         }),
       )
-      .toSQL(),
+      ,
   'where/named-binding-identifier': (d) => _qb(d)
       .select(['*'])
       .table('users')
@@ -938,12 +979,12 @@ final Map<String, ParityCase> parityCases = {
           'otherGuy': 'Jay',
         }),
       )
-      .toSQL(),
+      ,
   'jsonb/pipe-op': (d) =>
-      _qb(d).table('users').select(['*']).where('id', '?|', 1).toSQL(),
+      _qb(d).table('users').select(['*']).where('id', '?|', 1),
   'jsonb/amp-op': (d) =>
-      _qb(d).table('users').select(['*']).where('id', '?&', 1).toSQL(),
-  'select/numeric-literal': (d) => _qb(d).select([0]).toSQL(),
+      _qb(d).table('users').select(['*']).where('id', '?&', 1),
+  'select/numeric-literal': (d) => _qb(d).select([0]),
 
   // ── CTE + simple UPDATE/DELETE ───────────────────────────────────────
   'cte/update-simple': (d) => _qb(d)
@@ -951,13 +992,13 @@ final Map<String, ParityCase> parityCases = {
       .update({'foo': 'updatedFoo'})
       .where('email', '=', 'foo')
       .table('users')
-      .toSQL(),
+      ,
   'cte/delete-simple': (d) => _qb(d)
       .withQuery('withClause', _qb(d).select(['email']).table('users'))
       .delete()
       .where('foo', '=', 'updatedFoo')
       .table('users')
-      .toSQL(),
+      ,
 
   // ── knex.ref() ────────────────────────────────────────────────────────
   'ref/where-column': (d) => _qb(d)
@@ -967,19 +1008,19 @@ final Map<String, ParityCase> parityCases = {
         _qb(d).client.ref('someothertable.someothercolumn'),
       )
       .select(['*'])
-      .toSQL(),
+      ,
   'ref/select-alias': (d) => _qb(d).table('sometable').select([
     'one',
     _qb(d).client.ref('sometable.two').as('Two'),
-  ]).toSQL(),
+  ]),
 
   // ── .first() chained onto a non-select method — must throw ────────────
   'errors/first-on-update': (d) =>
-      _qb(d).table('sometable').update({'column': 'value'}).first().toSQL(),
+      _qb(d).table('sometable').update({'column': 'value'}).first(),
   'errors/first-on-insert': (d) =>
-      _qb(d).table('sometable').insert({'column': 'value'}).first().toSQL(),
+      _qb(d).table('sometable').insert({'column': 'value'}).first(),
   'errors/first-on-delete': (d) =>
-      _qb(d).table('sometable').delete().first().toSQL(),
+      _qb(d).table('sometable').delete().first(),
 
   // ── DELETE + JOIN ─────────────────────────────────────────────────────
   'delete/join-single': (d) => _qb(d)
@@ -987,17 +1028,17 @@ final Map<String, ParityCase> parityCases = {
       .delete()
       .join('photos', 'photos.id', 'users.id')
       .where('user.email', 'mock@example.com')
-      .toSQL(),
+      ,
   'delete/join-multi': (d) => _qb(d)
       .table('users')
       .delete()
       .join('photos', 'photos.id', 'users.id')
       .join('docs', 'docs.id', 'users.id')
       .where('user.email', 'mock@example.com')
-      .toSQL(),
+      ,
   'delete/join-no-where': (d) => _qb(
     d,
-  ).table('users').delete().join('photos', 'photos.id', 'users.id').toSQL(),
+  ).table('users').delete().join('photos', 'photos.id', 'users.id'),
   'delete/join-oncallback-where': (d) => _qb(d)
       .table('users')
       .where('activated', false)
@@ -1008,7 +1049,7 @@ final Map<String, ParityCase> parityCases = {
             .andOn('accounts.user_id', 'users.id'),
       )
       .delete()
-      .toSQL(),
+      ,
 
   // ── JSON where family (adapted: knex-dart has no "Not" variant of these,
   // so both sides use the plain/OR forms only) ────────────────────────────
@@ -1017,31 +1058,31 @@ final Map<String, ParityCase> parityCases = {
       .select(['*'])
       .whereJsonObject('address', {'street': 'street1', 'number': 5})
       .orWhereJsonObject('address', {'street': 'street2', 'number': 7})
-      .toSQL(),
+      ,
   'json/where-path': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .whereJsonPath('address', r'$.street.number', '>', 5)
       .orWhereJsonPath('address', r'$.street.number', '<', 8)
-      .toSQL(),
+      ,
   'json/where-superset-object': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .whereJsonSupersetOf('address', {'test': 'value'})
       .orWhereJsonSupersetOf('address', {'test': 'value2'})
-      .toSQL(),
+      ,
   'json/where-superset-string': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .whereJsonSupersetOf('address', 'test')
       .orWhereJsonSupersetOf('address', 'test2')
-      .toSQL(),
+      ,
   'json/where-subset': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .whereJsonSubsetOf('address', {'test': 'value'})
       .orWhereJsonSubsetOf('address', {'test': 'value2'})
-      .toSQL(),
+      ,
 
   // Batch 5 — mined from knex.js test/unit/query/builder.js regions not
   // covered by batches 1-4. Mirrors run_js.mjs 1:1 by id.
@@ -1055,7 +1096,7 @@ final Map<String, ParityCase> parityCases = {
         (QueryBuilder qb) {
           qb.table('users').select(['*']).where('id', 3);
         },
-      ], wrap: true).toSQL(),
+      ], wrap: true),
   'unionAll/wrapped-array': (d) =>
       _qb(d).table('users').select(['*']).where('id', 1).unionAll([
         (QueryBuilder qb) {
@@ -1064,7 +1105,7 @@ final Map<String, ParityCase> parityCases = {
         (QueryBuilder qb) {
           qb.table('users').select(['*']).where('id', 3);
         },
-      ], wrap: true).toSQL(),
+      ], wrap: true),
   'intersect/wrapped-array': (d) =>
       _qb(d).table('users').select(['*']).where('id', 1).intersect([
         (QueryBuilder qb) {
@@ -1073,7 +1114,7 @@ final Map<String, ParityCase> parityCases = {
         (QueryBuilder qb) {
           qb.table('users').select(['*']).where('id', 3);
         },
-      ], wrap: true).toSQL(),
+      ], wrap: true),
   'except/wrapped-array': (d) =>
       _qb(d).table('users').select(['*']).where('id', 1).except([
         (QueryBuilder qb) {
@@ -1082,35 +1123,35 @@ final Map<String, ParityCase> parityCases = {
         (QueryBuilder qb) {
           qb.table('users').select(['*']).where('id', 3);
         },
-      ], wrap: true).toSQL(),
+      ], wrap: true),
 
   // ── whereColumn, whereNotBetween ────────────────────────────────────
   'where/column': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .whereColumn('users.id', '=', 'users.otherId')
-      .toSQL(),
+      ,
   'where/not-between': (d) =>
-      _qb(d).table('users').select(['*']).whereNotBetween('id', [1, 2]).toSQL(),
+      _qb(d).table('users').select(['*']).whereNotBetween('id', [1, 2]),
   'where/not-between-alt': (d) => _qb(
     d,
-  ).table('users').select(['*']).where('id', 'not between ', [1, 2]).toSQL(),
+  ).table('users').select(['*']).where('id', 'not between ', [1, 2]),
 
   // ── countDistinct multi-column (pg wraps in extra parens) ───────────
   'agg/count-distinct-multi-col': (d) =>
-      _qb(d).table('users').countDistinct(['foo', 'bar']).toSQL(),
+      _qb(d).table('users').countDistinct(['foo', 'bar']),
 
   // ── Raw group/order ─────────────────────────────────────────────────
   'group/raw': (d) =>
-      _qb(d).table('users').select(['*']).groupByRaw('id, email').toSQL(),
+      _qb(d).table('users').select(['*']).groupByRaw('id, email'),
   'order/raw': (d) => _qb(
     d,
-  ).table('users').select(['*']).orderByRaw('col NULLS LAST DESC').toSQL(),
+  ).table('users').select(['*']).orderByRaw('col NULLS LAST DESC'),
   'order/raw-with-binding': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .orderByRaw('col NULLS LAST ?', ['dEsc'])
-      .toSQL(),
+      ,
 
   // ── JOIN family: cross, full-outer, right, joins with raw ───────────
   'join/cross-multi': (d) => _qb(d)
@@ -1118,7 +1159,7 @@ final Map<String, ParityCase> parityCases = {
       .select(['*'])
       .crossJoin('contracts')
       .crossJoin('photos')
-      .toSQL(),
+      ,
   // knex.js supports `crossJoin('t', 'a', 'b')` (CROSS JOIN ... ON); dart's
   // crossJoin() is intentionally cross-product only (no ON). No API
   // equivalent — `join/cross-on` deliberately not mined here. See the audit
@@ -1127,13 +1168,13 @@ final Map<String, ParityCase> parityCases = {
       .table('users')
       .select(['*'])
       .fullOuterJoin('contacts', 'users.id', 'contacts.id')
-      .toSQL(),
+      ,
   'join/right-and-right-outer': (d) => _qb(d)
       .table('users')
       .select(['*'])
       .rightJoin('contacts', 'users.id', 'contacts.id')
       .rightOuterJoin('photos', 'users.id', 'photos.id')
-      .toSQL(),
+      ,
   'join/raw-operand': (d) => _qb(d)
       .table('users')
       .select(['*'])
@@ -1150,47 +1191,47 @@ final Map<String, ParityCase> parityCases = {
         'photos',
         (j) => j.on('photos.title', '=', _qb(d).client.raw('?', ['My Photo'])),
       )
-      .toSQL(),
+      ,
 
   // ── on-* family in JOIN clause ──────────────────────────────────────
   'on/null': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.on('users.id', '=', 'contacts.id').onNull('contacts.address');
-  }).toSQL(),
+  }),
   'on/or-null': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
             .on('users.id', '=', 'contacts.id')
             .onNull('contacts.address')
             .orOnNull('contacts.phone');
-      }).toSQL(),
+      }),
   'on/not-null': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.on('users.id', '=', 'contacts.id').onNotNull('contacts.address');
-      }).toSQL(),
+      }),
   'on/or-not-null': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
             .on('users.id', '=', 'contacts.id')
             .onNotNull('contacts.address')
             .orOnNotNull('contacts.phone');
-      }).toSQL(),
+      }),
   'on/in': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onIn('users.id', [1, 2, 3]);
-  }).toSQL(),
+  }),
   'on/or-in': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onIn('users.id', [1, 2, 3]).orOnIn('users.id', [4, 5]);
-  }).toSQL(),
+  }),
   'on/not-in': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onNotIn('users.id', [1, 2, 3]);
-  }).toSQL(),
+  }),
   'on/between': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onBetween('users.id', [1, 5]);
-      }).toSQL(),
+      }),
   'on/not-between': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onNotBetween('users.id', [1, 5]);
-      }).toSQL(),
+      }),
   'on/exists': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onExists((inner) {
       inner
@@ -1202,7 +1243,7 @@ final Map<String, ParityCase> parityCases = {
             _qb(d).client.raw('"contacts"."id"'),
           );
     });
-  }).toSQL(),
+  }),
   'on/not-exists': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onNotExists((inner) {
@@ -1215,66 +1256,66 @@ final Map<String, ParityCase> parityCases = {
                 _qb(d).client.raw('"contacts"."id"'),
               );
         });
-      }).toSQL(),
+      }),
   'on/val': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j
         .on('users.id', '=', 'contacts.id')
         .onVal('contacts.status', '=', 'active');
-  }).toSQL(),
+  }),
   'on/or-val': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j
         .on('users.id', '=', 'contacts.id')
         .onVal('contacts.status', '=', 'active')
         .orOnVal('contacts.status', '=', 'pending');
-  }).toSQL(),
+  }),
   'on/and-between': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.andOnBetween('contacts.score', [1, 5]);
-      }).toSQL(),
+      }),
   'on/or-between': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onBetween('contacts.score', [1, 5]).orOnBetween('contacts.score', [
           10,
           20,
         ]);
-      }).toSQL(),
+      }),
   'on/and-not-between': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.andOnNotBetween('contacts.score', [1, 5]);
-      }).toSQL(),
+      }),
   'on/or-not-between': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onNotBetween('contacts.score', [1, 5]).orOnNotBetween(
           'contacts.score',
           [10, 20],
         );
-      }).toSQL(),
+      }),
 
   // ── row-level lock modes ──────────────────────────────────────────────
   'lock/for-update': (d) =>
-      _qb(d).table('users').select(['*']).forUpdate().toSQL(),
+      _qb(d).table('users').select(['*']).forUpdate(),
   'lock/for-update-tables': (d) =>
-      _qb(d).table('users').select(['*']).forUpdate(['users']).toSQL(),
+      _qb(d).table('users').select(['*']).forUpdate(['users']),
   'lock/for-share': (d) =>
-      _qb(d).table('users').select(['*']).forShare().toSQL(),
+      _qb(d).table('users').select(['*']).forShare(),
   'lock/for-no-key-update': (d) =>
-      _qb(d).table('users').select(['*']).forNoKeyUpdate().toSQL(),
+      _qb(d).table('users').select(['*']).forNoKeyUpdate(),
   'lock/for-key-share': (d) =>
-      _qb(d).table('users').select(['*']).forKeyShare().toSQL(),
+      _qb(d).table('users').select(['*']).forKeyShare(),
   'lock/for-update-skip-locked': (d) =>
-      _qb(d).table('users').select(['*']).forUpdate().skipLocked().toSQL(),
+      _qb(d).table('users').select(['*']).forUpdate().skipLocked(),
   'lock/for-update-no-wait': (d) =>
-      _qb(d).table('users').select(['*']).forUpdate().noWait().toSQL(),
+      _qb(d).table('users').select(['*']).forUpdate().noWait(),
   'lock/for-share-skip-locked': (d) =>
-      _qb(d).table('users').select(['*']).forShare().skipLocked().toSQL(),
+      _qb(d).table('users').select(['*']).forShare().skipLocked(),
 
   // ── Batch 7: aggregate/raw/pluck + remaining ON family ──────────────
-  'agg/count-array': (d) => _qb(d).table('t').count(['id', 'name']).toSQL(),
+  'agg/count-array': (d) => _qb(d).table('t').count(['id', 'name']),
   'agg/count-map': (d) =>
-      _qb(d).table('t').count({'total': 'id', 'cnt': 'name'}).toSQL(),
+      _qb(d).table('t').count({'total': 'id', 'cnt': 'name'}),
   'agg/count-raw': (d) =>
-      _qb(d).table('t').count(_qb(d).client.raw('coalesce(?, 0)', [1])).toSQL(),
-  'pluck/basic': (d) => _qb(d).table('t').pluck('name').toSQL(),
+      _qb(d).table('t').count(_qb(d).client.raw('coalesce(?, 0)', [1])),
+  'pluck/basic': (d) => _qb(d).table('t').pluck('name'),
   'on/raw': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onRaw(
       _qb(d).client.raw(
@@ -1282,11 +1323,11 @@ final Map<String, ParityCase> parityCases = {
         [true],
       ),
     );
-  }).toSQL(),
+  }),
   'on/bare-string': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.on('users.id = contacts.user_id');
-      }).toSQL(),
+      }),
   'on/or-not-exists': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.on('users.id', '=', 'contacts.user_id').orOnNotExists((inner) {
@@ -1299,26 +1340,26 @@ final Map<String, ParityCase> parityCases = {
                 _qb(d).client.raw('??', ['contacts.id']),
               );
         });
-      }).toSQL(),
+      }),
   'on/and-val-direct': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
             .on('users.id', '=', 'contacts.user_id')
             .andOnVal('contacts.status', '=', 'active');
-      }).toSQL(),
+      }),
   'on/or-map': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.on('users.id', '=', 'contacts.user_id').orOn({
       'contacts.active': 'users.active',
       'contacts.admin': 'users.admin',
     });
-  }).toSQL(),
+  }),
   'on/or-val-map': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.on('users.id', '=', 'contacts.user_id').orOnVal({
           'contacts.status': 'active',
           'contacts.role': 'vip',
         });
-      }).toSQL(),
+      }),
   'on/wrapped': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.on('users.id', '=', 'contacts.user_id').on((nested) {
@@ -1326,16 +1367,16 @@ final Map<String, ParityCase> parityCases = {
               .on('contacts.active', '=', 'users.active')
               .orOn('contacts.admin', '=', 'users.admin');
         });
-      }).toSQL(),
+      }),
   'on/using': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.using(['user_id', 'tenant_id']);
-  }).toSQL(),
+  }),
   'on/json-path-equals': (d) => _qb(d).table('users').select(['*']).join(
     'contacts',
     (j) {
       j.onJsonPathEquals('users.meta', r'$.id', 'contacts.meta', r'$.user_id');
     },
-  ).toSQL(),
+  ),
   'on/in-tuple': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onIn(
@@ -1345,17 +1386,17 @@ final Map<String, ParityCase> parityCases = {
             [3, 4],
           ],
         );
-      }).toSQL(),
+      }),
   'on/in-subquery': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j.onIn(
           'contacts.user_id',
           _qb(d).table('admins').select(['user_id']).where('enabled', true),
         );
-      }).toSQL(),
+      }),
   'on/in-raw': (d) => _qb(d).table('users').select(['*']).join('contacts', (j) {
     j.onIn('contacts.user_id', _qb(d).client.raw('select ? as "user_id"', [1]));
-  }).toSQL(),
+  }),
   'on/in-variants': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
@@ -1364,14 +1405,14 @@ final Map<String, ParityCase> parityCases = {
             .orOnIn('contacts.kind', [2])
             .andOnNotIn('contacts.state', [3])
             .orOnNotIn('contacts.state', [4]);
-      }).toSQL(),
+      }),
   'on/null-and-variants': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
             .on('users.id', '=', 'contacts.user_id')
             .andOnNull('contacts.deleted_at')
             .andOnNotNull('contacts.email');
-      }).toSQL(),
+      }),
   'on/exists-variants': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
@@ -1385,7 +1426,7 @@ final Map<String, ParityCase> parityCases = {
             .andOnNotExists(
               (q) => q.select(['*']).table('blocks').where('blocked', true),
             );
-      }).toSQL(),
+      }),
   'on/json-path-equals-variants': (d) =>
       _qb(d).table('users').select(['*']).join('contacts', (j) {
         j
@@ -1407,58 +1448,142 @@ final Map<String, ParityCase> parityCases = {
               'contacts.meta',
               r'$.org_id',
             );
-      }).toSQL(),
+      }),
 
   // ── Batch 8: coverage-guided QueryBuilder / JoinClause mining ───────
-  'agg/avg': (d) => _qb(d).table('t').avg('amount').toSQL(),
+  'agg/avg': (d) => _qb(d).table('t').avg('amount'),
   'agg/distinct-sum-avg': (d) =>
-      _qb(d).table('t').sumDistinct('amount').avgDistinct('score').toSQL(),
+      _qb(d).table('t').sumDistinct('amount').avgDistinct('score'),
   'where/direct-null-and-or': (d) => _qb(d)
       .table('t')
       .where('a', 1)
       .whereNull('deleted_at')
       .orWhereNull('archived_at')
-      .toSQL(),
+      ,
   'where/direct-column-and-or': (d) => _qb(
     d,
-  ).table('t').whereColumn('a', '=', 'b').orWhereColumn('c', '=', 'd').toSQL(),
+  ).table('t').whereColumn('a', '=', 'b').orWhereColumn('c', '=', 'd'),
   'where/or-between': (d) => _qb(d)
       .table('t')
       .where('x', 1)
       .orWhereBetween('age', [18, 65])
       .orWhereNotBetween('score', [0, 50])
-      .toSQL(),
+      ,
   'where/or-not': (d) =>
-      _qb(d).table('t').where('x', 1).orWhereNot('status', 'banned').toSQL(),
+      _qb(d).table('t').where('x', 1).orWhereNot('status', 'banned'),
   'where/or-not-in-null': (d) => _qb(d)
       .table('t')
       .where('x', 1)
       .orWhereNotIn('id', [1, 2])
       .orWhereNotNull('email')
-      .toSQL(),
-  'from/alias': (d) => _qb(d).from('users').select(['id']).toSQL(),
+      ,
+  'from/alias': (d) => _qb(d).from('users').select(['id']),
   'update/two-arg-returning': (d) =>
-      _qb(d).table('t').where('id', 1).update({'name': 'Bob'}, ['id']).toSQL(),
+      _qb(d).table('t').where('id', 1).update({'name': 'Bob'}, ['id']),
   'delete/two-arg-returning': (d) =>
-      _qb(d).table('t').where('id', 1).delete(['id']).toSQL(),
+      _qb(d).table('t').where('id', 1).delete(['id']),
   'select/bare-raw': (d) =>
-      _qb(d).table('t').select(_qb(d).client.raw('count(*) as total')).toSQL(),
+      _qb(d).table('t').select(_qb(d).client.raw('count(*) as total')),
   'join/left-outer-and-outer': (d) => _qb(d)
       .table('a')
       .leftOuterJoin('b', 'a.id', 'b.a_id')
       .outerJoin('c', 'a.id', 'c.a_id')
-      .toSQL(),
+      ,
   'on/map-columns': (d) => _qb(d).table('a').join('b', (j) {
     j.on({'a.id': 'b.id', 'a.x': 'b.x'});
-  }).toSQL(),
+  }),
   'on-val/map': (d) => _qb(d).table('a').join('b', (j) {
     j.onVal({'a.status': 'active'});
-  }).toSQL(),
+  }),
 
   // ── distinctOn() — Postgres-family only ──────────────────────────────
   'select/distinct-on-single': (d) =>
-      _qb(d).table('t').distinctOn(['author_id']).select(['*']).toSQL(),
+      _qb(d).table('t').distinctOn(['author_id']).select(['*']),
   'select/distinct-on-multi': (d) => _qb(
     d,
-  ).table('t').distinctOn(['author_id', 'category']).select(['*']).toSQL(),
+  ).table('t').distinctOn(['author_id', 'category']).select(['*']),
+};
+
+/// Explicit, independently-declared expected method per case id — derived
+/// empirically (built every case against the 'postgres' dialect and read
+/// back its real `.method`), then reviewed case-by-case for anything a
+/// naive category-prefix guess would have gotten wrong before being frozen
+/// here. Two real examples that guessing would have missed:
+///  - `clear/counters` looks like a read-only `clear*()` case by category,
+///    but its body calls `.update(...)` before the counters it clears —
+///    the correct expectation is `update`, not `select`.
+///  - `cte/delete-source` looks like a delete case by name, but the DELETE
+///    happens inside a *referenced* CTE — the outer query object itself is
+///    a bare `select`. Guessing `delete` from the id would have made every
+///    future correct build of this case fail validation.
+/// Any id not listed here defaults to [QueryMethod.select]. `null` marks
+/// the three `errors/*` cases, which are expected to throw a [StateError]
+/// during [QueryCorpusCase.build] itself (`.first()` chained onto a
+/// non-select method) — there is no successful method to validate.
+const Map<String, QueryMethod?> _expectedMethodOverrides = {
+  'query/truncate': QueryMethod.truncate,
+  'insert/single': QueryMethod.insert,
+  'insert/multi-ragged': QueryMethod.insert,
+  'update/set': QueryMethod.update,
+  'delete/where': QueryMethod.delete,
+  'upsert/merge': QueryMethod.insert,
+  'upsert/merge-columns': QueryMethod.insert,
+  'returning/insert': QueryMethod.insert,
+  'update/increment': QueryMethod.update,
+  'delete/all': QueryMethod.delete,
+  'delete/limit-mysql': QueryMethod.delete,
+  'cte/insert-multi-source': QueryMethod.insert,
+  'cte/update-source': QueryMethod.update,
+  'dml/onconflict-ignore': QueryMethod.insert,
+  'dml/onconflict-composite-ignore': QueryMethod.insert,
+  'dml/onconflict-merge-explicit': QueryMethod.insert,
+  'dml/onconflict-merge-implicit-multi': QueryMethod.insert,
+  'dml/onconflict-raw-target': QueryMethod.insert,
+  'dml/onconflict-merge-where': QueryMethod.insert,
+  'dml/returning-multi-insert': QueryMethod.insert,
+  'dml/returning-update': QueryMethod.update,
+  'dml/returning-delete': QueryMethod.delete,
+  'clear/counters': QueryMethod.update,
+  'insert/ragged-defaults-3col': QueryMethod.insert,
+  'insert/empty-array-noop': QueryMethod.insert,
+  'insert/empty-object-returning': QueryMethod.insert,
+  'insert/raw-value': QueryMethod.insert,
+  'update/two-cols': QueryMethod.update,
+  'update/null-value': QueryMethod.update,
+  'update/from-where-then-update': QueryMethod.update,
+  'update/raw-value': QueryMethod.update,
+  'update/orderby-limit': QueryMethod.update,
+  'update/join-mysql': QueryMethod.update,
+  'update/limit-mysql': QueryMethod.update,
+  'update/join-mysql-qualified-col': QueryMethod.update,
+  'insert/value-subselect': QueryMethod.insert,
+  'cte/update-simple': QueryMethod.update,
+  'cte/delete-simple': QueryMethod.delete,
+  'errors/first-on-update': null,
+  'errors/first-on-insert': null,
+  'errors/first-on-delete': null,
+  'delete/join-single': QueryMethod.delete,
+  'delete/join-multi': QueryMethod.delete,
+  'delete/join-no-where': QueryMethod.delete,
+  'delete/join-oncallback-where': QueryMethod.delete,
+  'pluck/basic': QueryMethod.pluck,
+  'update/two-arg-returning': QueryMethod.update,
+  'delete/two-arg-returning': QueryMethod.delete,
+};
+
+QueryMethod? _expectedMethodFor(String id) => _expectedMethodOverrides
+    .containsKey(id)
+    ? _expectedMethodOverrides[id]
+    : QueryMethod.select;
+
+/// The full query corpus: every case id paired with its builder and its
+/// declared expected method, keyed by id (matching the pre-reshape
+/// `parityCases` map shape for easy id-based lookup by both consumers).
+final Map<String, QueryCorpusCase> queryCorpusCases = {
+  for (final entry in _builders.entries)
+    entry.key: QueryCorpusCase(
+      entry.key,
+      _expectedMethodFor(entry.key),
+      entry.value,
+    ),
 };

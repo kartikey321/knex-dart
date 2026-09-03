@@ -15,9 +15,9 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_live_test/knex_dart_live_test.dart';
 import 'package:test/test.dart';
-
-import 'schema_parity_cases.dart';
 
 /// Triage ledger of known divergences, keyed `id::dialect`. Every entry MUST
 /// carry a reason. See parity_test.dart for the [ACCEPTED]/[OPEN BUG] legend.
@@ -1556,14 +1556,14 @@ bool _bindingsEqual(List<dynamic> got, List<dynamic> expected) {
 String? _divergence(
   Map<String, dynamic> entry,
   String dialect,
-  SchemaParityCase b,
+  SchemaBuilder Function(String dialect) build,
 ) {
   final jsRefused = entry.containsKey('error');
 
   List<Map<String, dynamic>>? got;
   Object? refusal;
   try {
-    got = b(dialect);
+    got = build(dialect).toSQL();
   } catch (e) {
     if (_isRefusal(e)) {
       refusal = e;
@@ -1636,7 +1636,7 @@ void main() {
 
   group('schema parity vs knex.js $knexVersion', () {
     test('every registered case has a fixture (regenerate if this fails)', () {
-      final dartOnly = schemaParityCases.keys.toSet().difference(fixtureIds);
+      final dartOnly = schemaCorpusCases.keys.toSet().difference(fixtureIds);
       expect(
         dartOnly,
         isEmpty,
@@ -1656,7 +1656,7 @@ void main() {
         continue;
       }
 
-      final builder = schemaParityCases[id];
+      final builder = schemaCorpusCases[id];
       if (builder == null) {
         test(
           key,
