@@ -34,6 +34,8 @@ void main() {
     'json_object_test@example.com',
     'json_subset_test@example.com',
     'on_conflict_ignore_test@example.com',
+    'or_json_object_a@example.com',
+    'or_json_object_b@example.com',
   ];
 
   Future<void> cleanupTestUsers() async {
@@ -43,6 +45,24 @@ void main() {
         .whereIn('email', testEmails)
         .delete();
     await pgClient.delete(deleteQuery);
+
+    // Scratch rows some tests insert into `orders`/`products` (not
+    // `users`, so testEmails/whereIn above can't reach them). These run
+    // in both setUpAll (recovers a killed prior run) and tearDownAll — a
+    // test that throws before its own trailing inline delete would
+    // otherwise leak a row that survives into the NEXT run and breaks
+    // every hardcoded seed-count assertion (COUNT=5, 5 completed orders,
+    // crossJoin's product count, etc).
+    await pgClient.rawSql(
+      "delete from orders where status in "
+      "('fulljoin_scratch', 'having_null_scratch')",
+      null,
+    );
+    await pgClient.rawSql(
+      "delete from products where name in "
+      "('Orphan Product', 'Increment Scratch')",
+      null,
+    );
   }
 
   Future<void> executeSchema(
@@ -161,6 +181,33 @@ void main() {
         expect(row['active'], false);
       }
     });
+
+    test('whereIn() with a multi-column tuple list matches row-value pairs, '
+        'not each column independently — proves the "(col1, col2) in ((a,b), '
+        '(c,d))" row-value form, since matching each column separately '
+        'would pull in extra rows this cannot', () async {
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['id'])
+          .whereIn(
+            ['user_id', 'status'],
+            [
+              [1, 'completed'],
+              [2, 'pending'],
+            ],
+          );
+
+      final results = await pgClient.select(query);
+      final ids = results.map((r) => r['id']).toSet();
+
+      // Seed: id1/id2 are (user_id=1, completed); id3 is (user_id=2,
+      // pending); id4 is (user_id=2, completed) — matches user_id=2 alone
+      // but NOT the (2, pending) tuple, so it must be excluded. A broken
+      // implementation that degraded to matching user_id and status as
+      // independent IN lists would incorrectly include id4.
+      expect(ids, {1, 2, 3});
+    });
   });
 
   group('JOINs', () {
@@ -188,6 +235,109 @@ void main() {
       final results = await pgClient.select(query);
 
       expect(results.isNotEmpty, true);
+    });
+
+    test('crossJoin() produces a real cartesian product, not a filtered '
+        'join — row count is the exact product of both table sizes', () async {
+      // Table sizes are derived rather than hardcoded: package:test runs
+      // suite files concurrently against the same database, and
+      // postgres_trx_test.dart inserts/deletes rows in `users` mid-run —
+      // a fixed "5 users" assumption here would be flaky in a way the
+      // pre-existing COUNT test (which merely checks its own table) is
+      // not, since this test depends on two tables at once.
+      final userCount =
+          (await pgClient.select(
+            mockClient.queryBuilder().table('users').count('* as c'),
+          )).single['c'];
+      final productCount =
+          (await pgClient.select(
+            mockClient.queryBuilder().table('products').count('* as c'),
+          )).single['c'];
+
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .select(['users.id', 'products.id'])
+          .crossJoin('products');
+
+      final results = await pgClient.select(query);
+
+      // A cross join that silently degraded to any ON-conditioned join
+      // would return a different (almost certainly smaller) count than
+      // the exact product of both table sizes.
+      expect(results.length, (userCount as int) * (productCount as int));
+    });
+
+    test('fullOuterJoin() includes unmatched rows from BOTH sides in one '
+        'result set — the one behavior a left or right join cannot '
+        'reproduce', () async {
+      // orders.product_id has no FK constraint (unlike orders.user_id),
+      // so we can insert an order referencing a product_id that doesn't
+      // exist, giving an unmatched LEFT-side row. A scratch product with
+      // no orders gives the unmatched RIGHT-side row. A left join would
+      // drop the orphan product; a right join would drop the orphan
+      // order; only a real full outer join keeps both.
+      final orphanOrder = await pgClient.insert(
+        mockClient
+            .queryBuilder()
+            .table('orders')
+            .insert({
+              'user_id': 1,
+              'product_id': -1,
+              'amount': 5.00,
+              'status': 'fulljoin_scratch',
+            })
+            .returning(['id']),
+      );
+      final orphanOrderId = orphanOrder.first['id'];
+
+      final orphanProduct = await pgClient.insert(
+        mockClient
+            .queryBuilder()
+            .table('products')
+            .insert({
+              'name': 'Orphan Product',
+              'category': 'Test',
+              'price': 1.00,
+            })
+            .returning(['id']),
+      );
+      final orphanProductId = orphanProduct.first['id'];
+
+      final query = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['orders.id as order_id', 'products.id as product_id'])
+          .fullOuterJoin('products', 'orders.product_id', 'products.id')
+          .where('orders.status', 'fulljoin_scratch')
+          .orWhere('products.name', 'Orphan Product');
+
+      final results = await pgClient.select(query);
+
+      final unmatchedOrderRow = results.firstWhere(
+        (r) => r['order_id'] == orphanOrderId,
+      );
+      expect(unmatchedOrderRow['product_id'], isNull);
+
+      final unmatchedProductRow = results.firstWhere(
+        (r) => r['product_id'] == orphanProductId,
+      );
+      expect(unmatchedProductRow['order_id'], isNull);
+
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('orders')
+            .where('status', 'fulljoin_scratch')
+            .delete(),
+      );
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('products')
+            .where('id', orphanProductId)
+            .delete(),
+      );
     });
   });
 
@@ -232,6 +382,51 @@ void main() {
       for (final row in results) {
         expect(row['order_count'], greaterThan(1));
       }
+    });
+  });
+
+  group('increment() / decrement()', () {
+    test('increment() and decrement() apply a real relative delta '
+        'server-side, not an absolute overwrite — proven by chaining both '
+        'and checking the final arithmetic result', () async {
+      final inserted = await pgClient.insert(
+        mockClient
+            .queryBuilder()
+            .table('products')
+            .insert({
+              'name': 'Increment Scratch',
+              'category': 'Test',
+              'price': 100.00,
+            })
+            .returning(['id']),
+      );
+      final id = inserted.first['id'];
+
+      await pgClient.update(
+        mockClient
+            .queryBuilder()
+            .table('products')
+            .where('id', id)
+            .increment('price', 10),
+      );
+      await pgClient.update(
+        mockClient
+            .queryBuilder()
+            .table('products')
+            .where('id', id)
+            .decrement('price', 25),
+      );
+
+      final rows = await pgClient.select(
+        mockClient.queryBuilder().table('products').where('id', id),
+      );
+      // 100 + 10 - 25 = 85. If either call silently set an absolute value
+      // instead of a relative delta, this wouldn't land exactly here.
+      expect(num.parse(rows.single['price'].toString()), 85);
+
+      await pgClient.delete(
+        mockClient.queryBuilder().table('products').where('id', id).delete(),
+      );
     });
   });
 
@@ -766,6 +961,51 @@ void main() {
 
       await pgClient.rawSql('delete from users where email = \$1', [email]);
     });
+
+    test('orWhereJsonObject() actually widens the result set via OR — a '
+        'row that fails the first WHERE but matches the JSON-object '
+        'equality must still be included, not silently ANDed away',
+        () async {
+      const emailA = 'or_json_object_a@example.com';
+      const emailB = 'or_json_object_b@example.com';
+
+      await pgClient.insert(
+        mockClient.queryBuilder().table('users').insert({
+          'name': 'Or Json A',
+          'email': emailA,
+          'metadata': '{"lang": "en"}',
+        }),
+      );
+      await pgClient.insert(
+        mockClient.queryBuilder().table('users').insert({
+          'name': 'Or Json B',
+          'email': emailB,
+          'metadata': '{"lang": "fr"}',
+        }),
+      );
+
+      final query = mockClient
+          .queryBuilder()
+          .table('users')
+          .where('email', emailA)
+          .orWhereJsonObject('metadata', {'lang': 'fr'});
+
+      final results = await pgClient.select(query);
+      final emails = results.map((r) => r['email']).toSet();
+
+      // Row B fails `where('email', emailA)` outright — it only survives
+      // because orWhereJsonObject() ORs in a second, independently true
+      // condition. If that OR silently compiled as AND, B would vanish.
+      expect(emails, {emailA, emailB});
+
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('users')
+            .whereIn('email', [emailA, emailB])
+            .delete(),
+      );
+    });
   });
 
   group('HAVING variants: havingIn / havingNotIn / havingBetween', () {
@@ -843,6 +1083,111 @@ void main() {
       // Seed's order user_ids are {1, 2, 4, 5} — between 2 and 4 keeps
       // exactly {2, 4}, excluding both 1 (below) and 5 (above).
       expect(userIds, {2, 4});
+    });
+
+    test('havingExists() / havingNotExists() filter groups by a real '
+        'correlated subquery — only Alice is an admin, so only her group '
+        'survives havingExists, and everyone else survives '
+        'havingNotExists', () async {
+      QueryBuilder adminExistsSubquery(QueryBuilder qb) => qb
+          .table('users')
+          .select(['*'])
+          .where('users.id', '=', mockClient.raw('orders.user_id'))
+          .where('users.role', 'admin');
+
+      QueryBuilder byAdminUser(bool not) {
+        final builder = mockClient
+            .queryBuilder()
+            .table('orders')
+            .select(['user_id'])
+            .groupBy('user_id');
+        return not
+            ? builder.havingNotExists(adminExistsSubquery)
+            : builder.havingExists(adminExistsSubquery);
+      }
+
+      final adminQuery = byAdminUser(false);
+      // The correlation is on the grouping key itself, so filtering it
+      // into WHERE instead of HAVING would produce the identical result
+      // set — only the compiled clause position can catch that.
+      expect(adminQuery.toSQL().sql, contains('group by "user_id" having exists'));
+      final adminGroups = await pgClient.select(adminQuery);
+      expect(
+        adminGroups.map((r) => r['user_id']).toSet(),
+        {1}, // Alice (user_id 1) is the only admin with orders.
+      );
+
+      final nonAdminQuery = byAdminUser(true);
+      expect(
+        nonAdminQuery.toSQL().sql,
+        contains('group by "user_id" having not exists'),
+      );
+      final nonAdminGroups = await pgClient.select(nonAdminQuery);
+      expect(
+        nonAdminGroups.map((r) => r['user_id']).toSet(),
+        {2, 4, 5},
+      );
+    });
+
+    test('havingNull() / havingNotNull() filter groups by a real null '
+        'vs non-null grouped-column value, not just clause presence',
+        () async {
+      const marker = 'having_null_scratch';
+      await pgClient.insert(
+        mockClient.queryBuilder().table('orders').insert({
+          'user_id': 1,
+          'product_id': null,
+          'amount': 1.00,
+          'status': marker,
+        }),
+      );
+      await pgClient.insert(
+        mockClient.queryBuilder().table('orders').insert({
+          'user_id': 1,
+          'product_id': 1,
+          'amount': 1.00,
+          'status': marker,
+        }),
+      );
+
+      final nullQuery = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['product_id'])
+          .where('status', marker)
+          .groupBy('product_id')
+          .havingNull('product_id');
+      // Scoped by `where('status', marker)`, the identical clause in
+      // WHERE instead of HAVING would return the same single null row —
+      // only the compiled clause position proves this is really HAVING.
+      expect(
+        nullQuery.toSQL().sql,
+        contains('group by "product_id" having "product_id" is null'),
+      );
+      final nullGroups = await pgClient.select(nullQuery);
+      expect(nullGroups.single['product_id'], isNull);
+
+      final notNullQuery = mockClient
+          .queryBuilder()
+          .table('orders')
+          .select(['product_id'])
+          .where('status', marker)
+          .groupBy('product_id')
+          .havingNotNull('product_id');
+      expect(
+        notNullQuery.toSQL().sql,
+        contains('group by "product_id" having "product_id" is not null'),
+      );
+      final notNullGroups = await pgClient.select(notNullQuery);
+      expect(notNullGroups.single['product_id'], 1);
+
+      await pgClient.delete(
+        mockClient
+            .queryBuilder()
+            .table('orders')
+            .where('status', marker)
+            .delete(),
+      );
     });
   });
 
