@@ -5,16 +5,49 @@
 /// live-execution framework, even though the shape currently matches.
 library;
 
-const canonicalSeedV1Ddl = <String>[
+/// canonical_seed_v2 supersedes canonical_seed_v1 (retired — see git history
+/// at commit 6f7e419/9a66b49 for its exact prior content). v1's users/orders
+/// shape turned out too narrow for a large cluster of where/having/select/
+/// json/onconflict cases discovered in the next dry-run pass; since a
+/// fixture profile's DDL is a versioned artifact that must never be
+/// silently mutated once cases are linked against it, this is a new version
+/// rather than an in-place edit. It is a strict additive superset of v1
+/// (same tables/columns/rows, `name`/`email` loosened from NOT NULL, plus
+/// new nullable columns and two extra unique indexes — a NULL `email` can't
+/// violate its own UNIQUE constraint since Postgres never treats two NULLs
+/// as equal) — re-verified empirically that every case previously linked to
+/// v1 also executes clean under v2 before v1 was retired and all links
+/// moved over.
+const canonicalSeedV2Ddl = <String>[
   '''
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  email VARCHAR(100) UNIQUE NOT NULL,
+  name VARCHAR(100),
+  email VARCHAR(100) UNIQUE,
   active BOOLEAN DEFAULT true,
   role VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  a INTEGER,
+  b INTEGER,
+  c INTEGER,
+  bar VARCHAR(100),
+  qux VARCHAR(100),
+  boom VARCHAR(100),
+  org VARCHAR(100),
+  foo VARCHAR(100),
+  baz VARCHAR(100),
+  foo_email VARCHAR(100),
+  user_foo VARCHAR(100),
+  user_bar VARCHAR(100),
+  address JSONB,
+  age INTEGER,
+  status VARCHAR(50),
+  deleted_at TIMESTAMP,
+  activated BOOLEAN,
+  "otherId" INTEGER,
+  value VARCHAR(100),
+  account_id INTEGER
 )''',
   '''
 CREATE TABLE orders (
@@ -23,7 +56,8 @@ CREATE TABLE orders (
   product_id INTEGER,
   amount DECIMAL(10, 2) NOT NULL,
   status VARCHAR(50) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  total INTEGER
 )''',
   '''
 CREATE TABLE products (
@@ -36,16 +70,21 @@ CREATE TABLE products (
   'CREATE INDEX idx_users_active ON users(active)',
   'CREATE INDEX idx_orders_user_id ON orders(user_id)',
   'CREATE INDEX idx_orders_status ON orders(status)',
+  // dml/onconflict-composite-ignore targets a composite (org, email) conflict.
+  'CREATE UNIQUE INDEX idx_users_org_email ON users(org, email)',
+  // dml/onconflict-raw-target targets a raw "(value) WHERE deleted_at IS NULL".
+  'CREATE UNIQUE INDEX idx_users_value_active ON users(value) '
+      'WHERE deleted_at IS NULL',
 ];
 
-const canonicalSeedV1Seed = <String>[
+const canonicalSeedV2Seed = <String>[
   '''
-INSERT INTO users (name, email, active, role) VALUES
-  ('Alice Johnson', 'alice@example.com', true, 'admin'),
-  ('Bob Smith', 'bob@example.com', true, 'user'),
-  ('Charlie Brown', 'charlie@example.com', false, 'user'),
-  ('Diana Prince', 'diana@example.com', true, 'moderator'),
-  ('Eve Davis', 'eve@example.com', true, 'user')''',
+INSERT INTO users (name, email, active, role, age, status) VALUES
+  ('Alice Johnson', 'alice@example.com', true, 'admin', 30, 'active'),
+  ('Bob Smith', 'bob@example.com', true, 'user', 45, 'active'),
+  ('Charlie Brown', 'charlie@example.com', false, 'user', 22, 'inactive'),
+  ('Diana Prince', 'diana@example.com', true, 'moderator', 38, 'active'),
+  ('Eve Davis', 'eve@example.com', true, 'user', 51, 'active')''',
   '''
 INSERT INTO products (name, category, price) VALUES
   ('Laptop', 'Electronics', 999.99),
@@ -53,18 +92,22 @@ INSERT INTO products (name, category, price) VALUES
   ('Desk Chair', 'Furniture', 199.99),
   ('Monitor', 'Electronics', 299.99),
   ('Keyboard', 'Electronics', 79.99)''',
+  // Exactly one row has total > 100: select/alias-map-subquery uses an
+  // uncorrelated scalar subquery ("select id from orders where total > 100")
+  // as a select-map value, which Postgres rejects if it can return more
+  // than one row — found empirically when 3 matching rows broke it.
   '''
-INSERT INTO orders (user_id, product_id, amount, status) VALUES
-  (1, 1, 999.99, 'completed'),
-  (1, 2, 29.99, 'completed'),
-  (2, 3, 199.99, 'pending'),
-  (2, 4, 299.99, 'completed'),
-  (4, 1, 999.99, 'completed'),
-  (4, 5, 79.99, 'completed'),
-  (5, 2, 29.99, 'cancelled')''',
+INSERT INTO orders (user_id, product_id, amount, status, total) VALUES
+  (1, 1, 999.99, 'completed', 150),
+  (1, 2, 29.99, 'completed', 50),
+  (2, 3, 199.99, 'pending', 50),
+  (2, 4, 299.99, 'completed', 50),
+  (4, 1, 999.99, 'completed', 50),
+  (4, 5, 79.99, 'completed', 50),
+  (5, 2, 29.99, 'cancelled', 50)''',
 ];
 
-const ddlEmptyV1Ddl = canonicalSeedV1Ddl;
+const ddlEmptyV1Ddl = canonicalSeedV2Ddl;
 const ddlEmptyV1Seed = <String>[];
 
 /// Generic join/set-op tables — the corpus's `a`/`b`/`c` cases (union,
@@ -181,12 +224,53 @@ INSERT INTO inner_t (x) VALUES
   (2)''',
 ];
 
+/// Window-function batch's `accounts` table — every column referenced by
+/// any `.table('accounts')` case (found by reading all 16 case bodies, not
+/// guessed), plus `user_id` for delete/join-oncallback-where's join against
+/// canonical_seed_v2's `users.account_id` (this case needs both profiles
+/// applied together). `firstName`/`lastName` are quoted in the DDL to match
+/// the camelCase identifiers knex-dart emits verbatim (Postgres folds
+/// unquoted identifiers to lowercase, which would otherwise silently
+/// resolve to a different, nonexistent column).
+const accountsWindowV1Ddl = <String>[
+  '''
+CREATE TABLE accounts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER,
+  email VARCHAR(100),
+  "firstName" VARCHAR(100),
+  "lastName" VARCHAR(100),
+  address VARCHAR(200),
+  phone VARCHAR(50),
+  salary DECIMAL(10, 2),
+  dept VARCHAR(50),
+  name VARCHAR(100)
+)''',
+];
+
+const accountsWindowV1Seed = <String>[
+  '''
+INSERT INTO accounts (
+  email, "firstName", "lastName", address, phone, salary, dept, name
+) VALUES
+  ('alice@example.com', 'Alice', 'Anderson', '123 Main St', '555-0001',
+   90000.00, 'eng', 'Alice Anderson'),
+  ('bob@example.com', 'Bob', 'Brown', '456 Oak Ave', '555-0002',
+   85000.00, 'eng', 'Bob Brown'),
+  ('carol@example.com', 'Carol', 'Clark', '789 Pine Rd', '555-0003',
+   95000.00, 'sales', 'Carol Clark')''',
+];
+
 const Map<String, ({List<String> ddl, List<String> seed})> postgresFixtureProfiles = {
-  'canonical_seed_v1': (ddl: canonicalSeedV1Ddl, seed: canonicalSeedV1Seed),
+  'canonical_seed_v2': (ddl: canonicalSeedV2Ddl, seed: canonicalSeedV2Seed),
   'ddl_empty_v1': (ddl: ddlEmptyV1Ddl, seed: ddlEmptyV1Seed),
   'synthetic_join_v1': (ddl: syntheticJoinV1Ddl, seed: syntheticJoinV1Seed),
   'synthetic_aggregate_v1': (
     ddl: syntheticAggregateV1Ddl,
     seed: syntheticAggregateV1Seed,
+  ),
+  'accounts_window_v1': (
+    ddl: accountsWindowV1Ddl,
+    seed: accountsWindowV1Seed,
   ),
 };

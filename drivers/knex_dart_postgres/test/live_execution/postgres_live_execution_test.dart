@@ -1,10 +1,10 @@
 /// End-to-end proof that the live-execution mechanism actually works for
-/// postgres: every case linked in `fixtureLinksByDialect` (across all three
-/// profiles applied together — canonical_seed_v1, synthetic_join_v1,
-/// synthetic_aggregate_v1) executes without error through the real
-/// [PostgresLiveAdapter], and every profile's row counts are unchanged
-/// afterward — proving the rollback-only isolation actually held across
-/// all of them, not just that each one didn't throw.
+/// postgres: every case linked in `fixtureLinksByDialect` (across all five
+/// profiles applied together — canonical_seed_v2, synthetic_join_v1,
+/// synthetic_aggregate_v1, accounts_window_v1) executes without error
+/// through the real [PostgresLiveAdapter], and every profile's row counts
+/// are unchanged afterward — proving the rollback-only isolation actually
+/// held across all of them, not just that each one didn't throw.
 @Tags(['postgres'])
 library;
 
@@ -20,9 +20,10 @@ import 'postgres_live_adapter.dart';
 /// it — used both to apply every profile at setup and to verify isolation
 /// held afterward.
 const _expectedCounts = {
-  'canonical_seed_v1': {'users': 5, 'products': 5, 'orders': 7},
+  'canonical_seed_v2': {'users': 5, 'products': 5, 'orders': 7},
   'synthetic_join_v1': {'a': 2, 'b': 2, 'c': 2},
   'synthetic_aggregate_v1': {'t': 3, 'src': 2, 'inner_t': 2},
+  'accounts_window_v1': {'accounts': 3},
 };
 
 void main() {

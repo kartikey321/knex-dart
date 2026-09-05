@@ -11,8 +11,8 @@ void main() {
       );
     });
 
-    test('every id linked to canonical_seed_v1 for postgres is not also '
-        'in the unsupported-engine allowlist', () {
+    test('every fixture-linked id for postgres is not also in the '
+        'unsupported-engine allowlist', () {
       final links = fixtureLinksByDialect['postgres']!;
       final allowlist = unsupportedEngineAllowlist['postgres']!;
       expect(links.keys.toSet().intersection(allowlist.keys.toSet()), isEmpty);

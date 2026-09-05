@@ -16,6 +16,22 @@
 /// `tool/parity/README.md`'s existing `parityAllowlist` ratchet.
 library;
 
+/// Shared reason for the `having/*` cluster below: each case calls
+/// `.having(...)`/`.havingRaw(...)`/`.havingExists(...)` with no
+/// `.select()` narrower than the implicit `select *` and no matching
+/// `.groupBy()`. Postgres's strict GROUP BY rules then reject every
+/// non-aggregated selected column (42803) — confirmed identical root cause
+/// across all 23 cases by reading each body; none call `.groupBy()`. Some
+/// engines with relaxed GROUP BY semantics may accept this; not a
+/// knex-dart defect either way — the cases are valid SQL text but were
+/// never meant to execute as written against a strict-GROUP-BY engine.
+const _havingNoGroupByReason =
+    'No .select() narrower than the implicit select *, and no matching '
+    '.groupBy() — Postgres rejects the ungrouped, non-aggregated selected '
+    'columns (42803). Same root cause as having/basic, confirmed by '
+    'reading the case body: no .groupBy() call present. Not a knex-dart '
+    'defect.';
+
 /// dialect -> case id -> reviewed reason it cannot run on this dialect.
 const Map<String, Map<String, String>> unsupportedEngineAllowlist = {
   'postgres': {
@@ -65,5 +81,68 @@ const Map<String, Map<String, String>> unsupportedEngineAllowlist = {
         'aggregated) and rejects this (42803); some engines with relaxed '
         'GROUP BY semantics may accept it. Not a knex-dart defect — the '
         'case is valid SQL text but was never meant to execute as written.',
+    'clear/having-then-rehaving': _havingNoGroupByReason,
+    'having/between': _havingNoGroupByReason,
+    'having/exists': _havingNoGroupByReason,
+    'having/from-alias': _havingNoGroupByReason,
+    'having/grouped': _havingNoGroupByReason,
+    'having/in': _havingNoGroupByReason,
+    'having/nested': _havingNoGroupByReason,
+    'having/nested-or': _havingNoGroupByReason,
+    'having/not-between': _havingNoGroupByReason,
+    'having/not-exists': _havingNoGroupByReason,
+    'having/not-in': _havingNoGroupByReason,
+    'having/not-null': _havingNoGroupByReason,
+    'having/null': _havingNoGroupByReason,
+    'having/or-between': _havingNoGroupByReason,
+    'having/or-exists': _havingNoGroupByReason,
+    'having/or-in': _havingNoGroupByReason,
+    'having/or-not-between': _havingNoGroupByReason,
+    'having/or-not-exists': _havingNoGroupByReason,
+    'having/or-not-in': _havingNoGroupByReason,
+    'having/or-not-null': _havingNoGroupByReason,
+    'having/or-null': _havingNoGroupByReason,
+    'having/raw': _havingNoGroupByReason,
+    'having/raw-or': _havingNoGroupByReason,
+    'dml/onconflict-merge-where':
+        'Compiles to "... on conflict (email) do update set ... where '
+        'email = \$3" — an unqualified column in the ON CONFLICT DO '
+        'UPDATE ... WHERE clause is inherently ambiguous on real Postgres '
+        '(both the target table and the implicit "excluded" pseudo-table '
+        'have an "email" column). Confirmed independently via psql against '
+        'a minimal two-column table with the identical ON CONFLICT shape: '
+        '42702 column reference "email" is ambiguous. Not fixable by any '
+        'fixture — this is standard Postgres semantics for any table with '
+        'this shape. Not a knex-dart defect.',
+    'where/named-binding-array':
+        'Binds a Dart List ([1, 2, 3]) as a single positional parameter '
+        'inside "select (\$1)", then wraps that in "id in (...)" — Postgres '
+        'infers the parameter as an array type, so the comparison becomes '
+        '"integer = <array type>", which has no operator. Confirmed the '
+        'same structural failure independently via psql with a literal '
+        'array ("select 1 where 1 in (select (ARRAY[1,2,3]))" -> "operator '
+        'does not exist: integer = integer[]"). A named-binding array probe, '
+        'not meant to produce runnable SQL. Not a knex-dart defect.',
+    'jsonb/amp-op':
+        'The case is a deliberate divergence probe: .where(\'id\', \'?&\', 1) '
+        'applies the jsonb-only "exists all keys" operator to the integer '
+        '"id" column. No real engine has a "?&"/"?|" operator for integers '
+        '— this can never be valid SQL against any correctly-typed table, '
+        'regardless of fixture. Confirmed via psql (42883). Not a '
+        'knex-dart defect.',
+    'jsonb/pipe-op':
+        'Same root cause as jsonb/amp-op ("?|" applied to the integer "id" '
+        'column) — confirmed via psql (42883). Not a knex-dart defect.',
+    'json/where-superset-string':
+        'whereJsonSupersetOf(\'address\', \'test\') binds the bare string '
+        '"test" against a jsonb column with @> — Postgres infers the '
+        'parameter as jsonb and requires valid JSON text (i.e. \'"test"\', '
+        'quoted), so the bare string fails to parse (22P02). The same '
+        'requirement holds for MySQL\'s JSON_CONTAINS, which also demands '
+        'valid JSON input — this is inherent to passing a non-JSON-encoded '
+        'scalar to a JSON-containment operator, not specific to Postgres. '
+        'Flagged for a closer look at whether whereJsonSupersetOf should '
+        'auto-encode non-Map/List scalars before binding; treated as '
+        'unsupported for now rather than guessed at.',
   },
 };

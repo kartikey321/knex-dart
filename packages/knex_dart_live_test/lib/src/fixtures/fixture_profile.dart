@@ -22,13 +22,16 @@ class FixtureProfileRef {
   String toString() => id;
 }
 
-/// The baseline profile: users(5) / products(5) / orders(7), the same
-/// shape the hand-written postgres integration suite already seeds — reused
-/// here as the first, most broadly-linkable profile rather than inventing a
-/// new baseline shape.
-const canonicalSeedV1 = FixtureProfileRef(
-  'canonical_seed_v1',
-  'users(5) / products(5) / orders(7) baseline seed',
+/// The baseline profile: users(5) / products(5) / orders(7). Originally
+/// `canonical_seed_v1` (retired — its narrower users/orders shape couldn't
+/// cover a large cluster of where/having/select/json/onconflict cases found
+/// in the next dry-run pass). v2 is a strict additive superset of v1's
+/// shape and data — nothing behind an already-verified v1 link changed
+/// meaning, it only gained more columns/indexes nothing referenced before.
+const canonicalSeedV2 = FixtureProfileRef(
+  'canonical_seed_v2',
+  'users(5) / products(5) / orders(7) baseline seed, widened for '
+  'where/having/select/json/onconflict cases',
 );
 
 /// A minimal empty-schema profile: tables exist (so column/type references
@@ -54,11 +57,19 @@ const syntheticAggregateV1 = FixtureProfileRef(
   't/src/inner_t tables for agg/having/where/on/window/jsonb cases',
 );
 
+/// Window-function batch's `accounts` table for corpus cases exercising
+/// rank/denseRank/rowNumber partition/order-by columns.
+const accountsWindowV1 = FixtureProfileRef(
+  'accounts_window_v1',
+  'accounts table for window function (rank/denseRank/rowNumber) cases',
+);
+
 /// All known profile ids, for validation (e.g. a fixture link referencing
 /// an id not in this list is itself a bug in the link table).
 const knownFixtureProfiles = <FixtureProfileRef>[
-  canonicalSeedV1,
+  canonicalSeedV2,
   ddlEmptyV1,
   syntheticJoinV1,
   syntheticAggregateV1,
+  accountsWindowV1,
 ];
