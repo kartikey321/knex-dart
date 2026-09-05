@@ -39,6 +39,26 @@ const ddlEmptyV1 = FixtureProfileRef(
   'users/products/orders tables created, zero rows',
 );
 
+/// Generic join/set-op tables (`a`/`b`/`c`) for corpus cases that reference
+/// bare, dialect-test-only table names rather than the canonical shape.
+const syntheticJoinV1 = FixtureProfileRef(
+  'synthetic_join_v1',
+  'a/b/c tables for union/intersect/except/join-predicate cases',
+);
+
+/// Generic aggregate/where/having/window kitchen-sink table (`t`, plus the
+/// single-purpose `src` and `inner_t`) for corpus cases that reference bare,
+/// dialect-test-only table names rather than the canonical shape.
+const syntheticAggregateV1 = FixtureProfileRef(
+  'synthetic_aggregate_v1',
+  't/src/inner_t tables for agg/having/where/on/window/jsonb cases',
+);
+
 /// All known profile ids, for validation (e.g. a fixture link referencing
 /// an id not in this list is itself a bug in the link table).
-const knownFixtureProfiles = <FixtureProfileRef>[canonicalSeedV1, ddlEmptyV1];
+const knownFixtureProfiles = <FixtureProfileRef>[
+  canonicalSeedV1,
+  ddlEmptyV1,
+  syntheticJoinV1,
+  syntheticAggregateV1,
+];

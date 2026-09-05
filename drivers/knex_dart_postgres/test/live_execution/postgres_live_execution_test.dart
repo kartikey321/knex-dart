@@ -1,9 +1,10 @@
 /// End-to-end proof that the live-execution mechanism actually works for
-/// postgres: every case linked to `canonical_seed_v1` in
-/// `fixtureLinksByDialect` executes without error through the real
-/// [PostgresLiveAdapter], and the ephemeral schema's row counts are
-/// unchanged afterward — proving the rollback-only isolation actually
-/// held across all of them, not just that each one didn't throw.
+/// postgres: every case linked in `fixtureLinksByDialect` (across all three
+/// profiles applied together — canonical_seed_v1, synthetic_join_v1,
+/// synthetic_aggregate_v1) executes without error through the real
+/// [PostgresLiveAdapter], and every profile's row counts are unchanged
+/// afterward — proving the rollback-only isolation actually held across
+/// all of them, not just that each one didn't throw.
 @Tags(['postgres'])
 library;
 
@@ -14,6 +15,15 @@ import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:test/test.dart';
 
 import 'postgres_live_adapter.dart';
+
+/// Expected row count per table, keyed by the fixture profile that seeds
+/// it — used both to apply every profile at setup and to verify isolation
+/// held afterward.
+const _expectedCounts = {
+  'canonical_seed_v1': {'users': 5, 'products': 5, 'orders': 7},
+  'synthetic_join_v1': {'a': 2, 'b': 2, 'c': 2},
+  'synthetic_aggregate_v1': {'t': 3, 'src': 2, 'inner_t': 2},
+};
 
 void main() {
   late PostgresClient client;
@@ -35,7 +45,9 @@ void main() {
     );
     adapter = PostgresLiveAdapter(client);
     await adapter.setUpRun();
-    await adapter.applyFixtureProfile('canonical_seed_v1');
+    for (final profileId in _expectedCounts.keys) {
+      await adapter.applyFixtureProfile(profileId);
+    }
   });
 
   tearDownAll(() async {
@@ -43,45 +55,45 @@ void main() {
     await client.close();
   });
 
-  test(
-    'every case linked to canonical_seed_v1 executes without error',
-    () async {
-      final links = fixtureLinksByDialect['postgres']!;
-      final failures = <String>[];
+  test('every fixture-linked case executes without error', () async {
+    final links = fixtureLinksByDialect['postgres']!;
+    final failures = <String>[];
 
-      for (final entry in links.entries) {
-        if (entry.value != 'canonical_seed_v1') continue;
-        final corpusCase = queryCorpusCases[entry.key]!;
-        final result = await adapter.runCase(
-          caseId: entry.key,
-          fixtureProfileId: entry.value,
-          body: (session) async {
-            await session.execute(corpusCase.buildValidated('postgres'));
-          },
-        );
-        if (result.status != MechanicalStatus.executedWithoutError) {
-          failures.add('${entry.key}: ${result.detail}');
+    for (final entry in links.entries) {
+      final corpusCase = queryCorpusCases[entry.key]!;
+      final result = await adapter.runCase(
+        caseId: entry.key,
+        fixtureProfileId: entry.value,
+        body: (session) async {
+          await session.execute(corpusCase.buildValidated('postgres'));
+        },
+      );
+      if (result.status != MechanicalStatus.executedWithoutError) {
+        failures.add('${entry.key} (${entry.value}): ${result.detail}');
+      }
+    }
+
+    expect(failures, isEmpty, reason: failures.join('\n'));
+  });
+
+  test(
+    'isolation held: every fixture profile\'s row counts are unchanged '
+    'after running every linked case (proves every case rolled back '
+    'cleanly, including inserts/updates/deletes)',
+    () async {
+      for (final profileEntry in _expectedCounts.entries) {
+        for (final tableEntry in profileEntry.value.entries) {
+          final counts = await client.rawSql(
+            'select count(*) as n from '
+            '"${adapter.schemaName}"."${tableEntry.key}"',
+          );
+          expect(
+            counts.single['n'],
+            tableEntry.value,
+            reason: '${profileEntry.key}.${tableEntry.key}',
+          );
         }
       }
-
-      expect(failures, isEmpty, reason: failures.join('\n'));
-    },
-  );
-
-  test(
-    'isolation held: canonical_seed_v1 row counts are unchanged after '
-    'running every linked case (proves every case rolled back cleanly, '
-    'including inserts/updates/deletes)',
-    () async {
-      final counts = await client.rawSql(
-        'select '
-        "(select count(*) from \"${adapter.schemaName}\".users) as users, "
-        "(select count(*) from \"${adapter.schemaName}\".products) as products, "
-        "(select count(*) from \"${adapter.schemaName}\".orders) as orders",
-      );
-      expect(counts.single['users'], 5);
-      expect(counts.single['products'], 5);
-      expect(counts.single['orders'], 7);
     },
   );
 }

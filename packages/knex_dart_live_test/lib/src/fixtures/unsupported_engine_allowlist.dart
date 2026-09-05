@@ -51,5 +51,19 @@ const Map<String, Map<String, String>> unsupportedEngineAllowlist = {
         'bound value in a position no valid grammar accepts a parameter — '
         'raw-passthrough text-parity case, not meant to be valid runnable '
         'SQL. Confirmed via psql (42601).',
+    'agg/count-array':
+        'knex.js\'s own aggregateArray() (querycompiler.js) compiles '
+        '.count([...]) to a literal multi-argument call, e.g. '
+        'count("id", "name") — knex-dart mirrors this exactly. Postgres '
+        'genuinely has no multi-argument count() overload (confirmed via '
+        'psql: 42883 function count(integer, integer) does not exist). Not '
+        'a knex-dart defect.',
+    'having/basic':
+        'The case has no explicit .select(), so the compiled SQL is '
+        '"select * from t group by cat having cnt > 1" — Postgres enforces '
+        'strict GROUP BY (every selected column must be grouped or '
+        'aggregated) and rejects this (42803); some engines with relaxed '
+        'GROUP BY semantics may accept it. Not a knex-dart defect — the '
+        'case is valid SQL text but was never meant to execute as written.',
   },
 };
