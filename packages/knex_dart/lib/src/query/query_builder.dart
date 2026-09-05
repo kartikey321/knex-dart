@@ -466,10 +466,13 @@ class QueryBuilder {
 
   /// Adds an `OUTER JOIN` clause.
   ///
-  /// Emits the bare `outer join` keyword. Not every database accepts an
-  /// unqualified `OUTER JOIN` (PostgreSQL does; some engines require
-  /// `LEFT`/`RIGHT`/`FULL`) — prefer [leftOuterJoin], [rightOuterJoin], or
-  /// [fullOuterJoin] unless you specifically need this form.
+  /// Emits the bare `outer join` keyword, mirroring knex.js's own
+  /// `outerJoin()` (which emits the identical unqualified text). No
+  /// mainstream engine actually accepts a bare `OUTER JOIN` — Postgres,
+  /// MySQL, and SQL Server all require `LEFT`/`RIGHT`/`FULL` before
+  /// `OUTER` — so this exists only for SQL-text parity with knex.js;
+  /// prefer [leftOuterJoin], [rightOuterJoin], or [fullOuterJoin] for SQL
+  /// you intend to actually run.
   ///
   /// ```dart
   /// qb.table('a').outerJoin('b', 'a.id', 'b.a_id');
