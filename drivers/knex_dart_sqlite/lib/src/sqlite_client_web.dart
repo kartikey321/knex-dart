@@ -15,6 +15,17 @@ class SQLiteClient extends Client {
   final SQLiteWebStorageMode _storageMode;
   bool _isClosed = false;
 
+  /// The virtual file system created for this client during
+  /// [_initializeImpl], kept so it can be released in [destroyPool].
+  ///
+  /// [SimpleOpfsFileSystem] holds open `FileSystemSyncAccessHandle`s and
+  /// [IndexedDbFileSystem] holds an open `IDBDatabase` connection; both must
+  /// be explicitly closed or they outlive this client (browsers do not
+  /// promptly release either just because the Dart object is unreferenced),
+  /// which then blocks any later attempt to delete/replace the underlying
+  /// storage (OPFS `removeEntry` / `indexedDB.deleteDatabase`).
+  VirtualFileSystem? _fileSystem;
+
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
 
@@ -26,7 +37,8 @@ class SQLiteClient extends Client {
 
   Future<void>? _initialization;
   final List<List<SqliteUpdate>> _txUpdateStack = [];
-  late final StreamController<SqliteUpdate> _updateController;
+  final StreamController<SqliteUpdate> _updateController =
+      StreamController<SqliteUpdate>.broadcast(sync: true);
   StreamSubscription<SqliteUpdate>? _updatesSub;
 
   SQLiteClient._(
@@ -128,19 +140,50 @@ class SQLiteClient extends Client {
   Future<void> _initializeImpl() async {
     final sqlite = await _loadSqlite3();
     final fileSystem = await _createFileSystem();
+    // Store the reference immediately so it can be released even if a step
+    // below (registration, open) throws, or if the client is closed before
+    // initialization finishes.
+    _fileSystem = fileSystem;
     sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
 
     final opened = sqlite.open(_filename);
     if (_isClosed) {
       opened.close();
+      await _closeFileSystem();
       return;
     }
     _db = opened;
     _setupUpdateHook(opened);
   }
 
+  /// Releases the resources held by [_fileSystem], if any.
+  ///
+  /// [SimpleOpfsFileSystem] and [IndexedDbFileSystem] each hold a real,
+  /// exclusive browser-level resource (OPFS sync access handles / an
+  /// `IDBDatabase` connection) that is not released just because this Dart
+  /// object becomes unreferenced — it must be closed explicitly, or it
+  /// blocks later attempts to delete/replace the same storage.
+  /// [InMemoryFileSystem] holds nothing external and needs no cleanup.
+  ///
+  /// This must never throw: it always runs from a `finally` block, and an
+  /// exception here must not mask the original error or skip the rest of
+  /// that cleanup.
+  Future<void> _closeFileSystem() async {
+    final fs = _fileSystem;
+    _fileSystem = null;
+    if (fs == null) return;
+    try {
+      if (fs is SimpleOpfsFileSystem) {
+        fs.close();
+      } else if (fs is IndexedDbFileSystem) {
+        await fs.close();
+      }
+    } catch (_) {
+      // Best-effort cleanup; swallow so callers' finally blocks still run.
+    }
+  }
+
   void _setupUpdateHook(CommonDatabase db) {
-    _updateController = StreamController<SqliteUpdate>.broadcast(sync: true);
     _updatesSub = db.updates.listen((update) {
       if (_updateController.isClosed) return;
       if (_txUpdateStack.isNotEmpty) {
@@ -227,9 +270,13 @@ class SQLiteClient extends Client {
       await initialize();
     } finally {
       await _updatesSub?.cancel();
+      // Close the sqlite3 database (and thus each open file's `xClose()`)
+      // before releasing the VFS-level resources below — OPFS/IndexedDB
+      // handles must stay valid until sqlite3 is done flushing them.
       _db?.close();
       _db = null;
       _isClosed = true;
+      await _closeFileSystem();
       if (!_updateController.isClosed) {
         await _updateController.close();
       }
