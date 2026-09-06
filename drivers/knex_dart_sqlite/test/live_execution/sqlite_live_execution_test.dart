@@ -1,25 +1,27 @@
 /// End-to-end proof that the live-execution mechanism actually works for
-/// postgres: every case linked in `fixtureLinksByDialect` (across all six
-/// profiles applied together — canonical_seed_v2, synthetic_join_v1,
+/// sqlite: every case linked in `fixtureLinksByDialect['sqlite']` (across
+/// all five profiles applied together — canonical_seed_v2, synthetic_join_v1,
 /// synthetic_aggregate_v1, accounts_window_v1, join_targets_v1) executes
-/// without error through the real [PostgresLiveAdapter], and every
-/// profile's row counts are unchanged afterward — proving the
-/// rollback-only isolation actually held across all of them, not just
-/// that each one didn't throw.
-@Tags(['postgres'])
+/// without error through the real [SqliteLiveAdapter], and every profile's
+/// row counts are unchanged afterward — proving the rollback-only isolation
+/// actually held across all of them, not just that each one didn't throw.
+///
+/// No Docker/live service needed — SQLite's isolation mode is a disposable
+/// file database created fresh for this run, so this test needs no tags and
+/// no environment variables (mirroring the existing untagged sqlite
+/// integration tests in `drivers/knex_dart_sqlite/test/integration/`).
 library;
 
-import 'package:universal_io/io.dart';
-
 import 'package:knex_dart_live_test/knex_dart_live_test.dart';
-import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:test/test.dart';
 
-import 'postgres_live_adapter.dart';
+import 'sqlite_live_adapter.dart';
 
 /// Expected row count per table, keyed by the fixture profile that seeds
 /// it — used both to apply every profile at setup and to verify isolation
-/// held afterward.
+/// held afterward. Profiles with zero seeded rows (join_targets_v1 seeds
+/// only `employee`) are omitted from the per-table expectation map below
+/// except where they do seed something.
 const _expectedCounts = {
   'canonical_seed_v2': {'users': 5, 'products': 5, 'orders': 7},
   'synthetic_join_v1': {'a': 2, 'b': 2, 'c': 2},
@@ -29,24 +31,10 @@ const _expectedCounts = {
 };
 
 void main() {
-  late PostgresClient client;
-  late PostgresLiveAdapter adapter;
+  late SqliteLiveAdapter adapter;
 
   setUpAll(() async {
-    final host = Platform.environment['PG_HOST'] ?? 'localhost';
-    final port = int.parse(Platform.environment['PG_PORT'] ?? '5432');
-    final database = Platform.environment['PG_DATABASE'] ?? 'knex_test';
-    final username = Platform.environment['PG_USER'] ?? 'test';
-    final password = Platform.environment['PG_PASSWORD'] ?? 'test';
-
-    client = await PostgresClient.connect(
-      host: host,
-      port: port,
-      database: database,
-      username: username,
-      password: password,
-    );
-    adapter = PostgresLiveAdapter(client);
+    adapter = SqliteLiveAdapter();
     await adapter.setUpRun();
     for (final profileId in _expectedCounts.keys) {
       await adapter.applyFixtureProfile(profileId);
@@ -55,11 +43,10 @@ void main() {
 
   tearDownAll(() async {
     await adapter.tearDownRun(runSucceeded: true);
-    await client.close();
   });
 
   test('every fixture-linked case executes without error', () async {
-    final links = fixtureLinksByDialect['postgres']!;
+    final links = fixtureLinksByDialect['sqlite']!;
     final failures = <String>[];
 
     for (final entry in links.entries) {
@@ -68,7 +55,7 @@ void main() {
         caseId: entry.key,
         fixtureProfileId: entry.value,
         body: (session) async {
-          await session.execute(corpusCase.buildValidated('postgres'));
+          await session.execute(corpusCase.buildValidated('sqlite'));
         },
       );
       if (result.status != MechanicalStatus.executedWithoutError) {
@@ -86,12 +73,14 @@ void main() {
     () async {
       for (final profileEntry in _expectedCounts.entries) {
         for (final tableEntry in profileEntry.value.entries) {
-          final counts = await client.rawSql(
-            'select count(*) as n from '
-            '"${adapter.schemaName}"."${tableEntry.key}"',
-          );
+          final counts =
+              await adapter.client.rawQuery(
+                    'select count(*) as n from "${tableEntry.key}"',
+                    const [],
+                  )
+                  as List<Map<String, dynamic>>;
           expect(
-            counts.single['n'],
+            counts.first['n'],
             tableEntry.value,
             reason: '${profileEntry.key}.${tableEntry.key}',
           );

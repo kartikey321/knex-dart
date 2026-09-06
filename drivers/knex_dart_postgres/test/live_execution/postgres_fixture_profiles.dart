@@ -47,7 +47,12 @@ CREATE TABLE users (
   activated BOOLEAN,
   "otherId" INTEGER,
   value VARCHAR(100),
-  account_id INTEGER
+  account_id INTEGER,
+  contact_id INTEGER,
+  meta JSONB,
+  admin BOOLEAN,
+  user_id INTEGER,
+  tenant_id INTEGER
 )''',
   '''
 CREATE TABLE orders (
@@ -261,6 +266,98 @@ INSERT INTO accounts (
    95000.00, 'sales', 'Carol Clark')''',
 ];
 
+/// Join-target tables for the `on/*` (JoinClause) family and a grab-bag of
+/// one-off tables each referenced by exactly one or two cases (delete+join,
+/// correlated-EXISTS subqueries, employee self-join, MySQL-qualified-column
+/// update, reserved-word table names). Every column here was found by
+/// reading each case body directly, not guessed. Reserved-word identifiers
+/// (`"group"`, `"user"`, `"table"`, `"column"`) and camelCase ones
+/// (`"PersonId"`, `"City"`, `"DataId"`) are quoted to match exactly what
+/// knex-dart emits — Postgres folds unquoted identifiers to lowercase,
+/// which would otherwise silently resolve to the wrong (nonexistent or
+/// differently-cased) name.
+const joinTargetsV1Ddl = <String>[
+  '''
+CREATE TABLE contacts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER,
+  tenant_id INTEGER,
+  kind INTEGER,
+  state INTEGER,
+  score INTEGER,
+  status VARCHAR(50),
+  role VARCHAR(50),
+  active BOOLEAN,
+  admin BOOLEAN,
+  address VARCHAR(200),
+  phone VARCHAR(50),
+  email VARCHAR(100),
+  deleted_at TIMESTAMP,
+  meta JSONB
+)''',
+  'CREATE TABLE phones (id SERIAL PRIMARY KEY, contact_id INTEGER, active BOOLEAN)',
+  'CREATE TABLE photos (id SERIAL PRIMARY KEY, title VARCHAR(100))',
+  'CREATE TABLE docs (id SERIAL PRIMARY KEY)',
+  'CREATE TABLE emails (id SERIAL PRIMARY KEY, verified BOOLEAN)',
+  'CREATE TABLE blocks (id SERIAL PRIMARY KEY, blocked BOOLEAN)',
+  'CREATE TABLE contracts (id SERIAL PRIMARY KEY)',
+  'CREATE TABLE admins (id SERIAL PRIMARY KEY, user_id INTEGER, enabled BOOLEAN)',
+  '''
+CREATE TABLE "group" (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER,
+  group_name VARCHAR(100)
+)''',
+  'CREATE TABLE "user" (id SERIAL PRIMARY KEY, name VARCHAR(100), group_id INTEGER)',
+  'CREATE TABLE order_meta (id SERIAL PRIMARY KEY, order_id INTEGER, value VARCHAR(100))',
+  'CREATE TABLE refunds (id SERIAL PRIMARY KEY, order_id INTEGER)',
+  'CREATE TABLE entries (id SERIAL PRIMARY KEY, secret INTEGER, sequence INTEGER)',
+  'CREATE TABLE "table" (id SERIAL PRIMARY KEY, a INTEGER, b INTEGER, c INTEGER)',
+  '''
+CREATE TABLE sometable (
+  id SERIAL PRIMARY KEY,
+  "column" VARCHAR(100),
+  one VARCHAR(100),
+  two VARCHAR(100)
+)''',
+  'CREATE TABLE someothertable (id SERIAL PRIMARY KEY, someothercolumn VARCHAR(100))',
+  'CREATE TABLE foo (id SERIAL PRIMARY KEY)',
+  'CREATE TABLE baz (id SERIAL PRIMARY KEY, foo_id INTEGER)',
+  'CREATE TABLE bars (id SERIAL PRIMARY KEY)',
+  'CREATE TABLE foos (id SERIAL PRIMARY KEY, foo_id INTEGER, bar_id INTEGER)',
+  '''
+CREATE TABLE "tblPerson" (
+  id SERIAL PRIMARY KEY,
+  "PersonId" INTEGER,
+  "City" VARCHAR(100)
+)''',
+  '''
+CREATE TABLE "tblPersonData" (
+  id SERIAL PRIMARY KEY,
+  "PersonId" INTEGER,
+  "DataId" INTEGER
+)''',
+  'CREATE TABLE tbl (foo VARCHAR(100))',
+  'CREATE TABLE testtable (is_active BOOLEAN)',
+  '''
+CREATE TABLE employee (
+  id SERIAL PRIMARY KEY,
+  lastname VARCHAR(100),
+  salary DECIMAL(10, 2),
+  dept_no INTEGER
+)''',
+];
+
+const joinTargetsV1Seed = <String>[
+  '''
+INSERT INTO employee (lastname, salary, dept_no) VALUES
+  ('Smith', 60000.00, 1),
+  ('Jones', 65000.00, 1),
+  ('Lee', 70000.00, 2)''',
+];
+
+/// dialect-agnostic identity for join_targets_v1 lives in
+/// `fixture_profile.dart`; DDL/seed content is postgres-specific here.
 const Map<String, ({List<String> ddl, List<String> seed})> postgresFixtureProfiles = {
   'canonical_seed_v2': (ddl: canonicalSeedV2Ddl, seed: canonicalSeedV2Seed),
   'ddl_empty_v1': (ddl: ddlEmptyV1Ddl, seed: ddlEmptyV1Seed),
@@ -273,4 +370,5 @@ const Map<String, ({List<String> ddl, List<String> seed})> postgresFixtureProfil
     ddl: accountsWindowV1Ddl,
     seed: accountsWindowV1Seed,
   ),
+  'join_targets_v1': (ddl: joinTargetsV1Ddl, seed: joinTargetsV1Seed),
 };

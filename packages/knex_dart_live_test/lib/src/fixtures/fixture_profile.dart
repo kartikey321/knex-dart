@@ -64,6 +64,16 @@ const accountsWindowV1 = FixtureProfileRef(
   'accounts table for window function (rank/denseRank/rowNumber) cases',
 );
 
+/// Join-target and one-off tables (`contacts`, `phones`, `photos`, `docs`,
+/// `contracts`, `admins`, reserved-word tables like `"group"`/`"user"`/
+/// `"table"`, `employee`, etc.) for the `on/*` JoinClause family and a
+/// grab-bag of cases each needing exactly one or two small tables.
+const joinTargetsV1 = FixtureProfileRef(
+  'join_targets_v1',
+  'contacts/phones/photos/docs/contracts/admins/employee and other '
+  'one-off join-target tables for the on/* family and similar cases',
+);
+
 /// All known profile ids, for validation (e.g. a fixture link referencing
 /// an id not in this list is itself a bug in the link table).
 const knownFixtureProfiles = <FixtureProfileRef>[
@@ -72,4 +82,5 @@ const knownFixtureProfiles = <FixtureProfileRef>[
   syntheticJoinV1,
   syntheticAggregateV1,
   accountsWindowV1,
+  joinTargetsV1,
 ];
