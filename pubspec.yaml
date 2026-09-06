@@ -21,6 +21,7 @@ workspace:
   - drivers/knex_dart_mssql
   - packages/knex_dart_capabilities
   - packages/knex_dart_lint
+  - packages/knex_dart_live_test
   - integrations/knex_dart_otel
   - benchmarks
 

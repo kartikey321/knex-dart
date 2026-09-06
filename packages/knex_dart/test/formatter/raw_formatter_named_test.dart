@@ -139,5 +139,29 @@ void main() {
       expect(result.sql, 'SELECT * FROM :table:');
       expect(result.bindings, []);
     });
+
+    test(
+      'Test 11: :key: identifier binding splits dotted identifiers into '
+      'separately-wrapped segments (regression)',
+      () {
+        // Same root cause and fix as the `??` regression in
+        // raw_formatter_test.dart: `:key:` also went straight through
+        // `client.wrapIdentifier()` without splitting on `.`, so
+        // 'users.name' compiled as one quoted token instead of two.
+        // Verified against real knex.js (`:name: = :thisGuy or :name: =
+        // :otherGuy`, #1228).
+        final result = RawFormatter.replaceNamedBindings(
+          ':name: = :thisGuy or :name: = :otherGuy',
+          {'name': 'users.name', 'thisGuy': 'Bob', 'otherGuy': 'Jay'},
+          client,
+        );
+
+        expect(
+          result.sql,
+          '"users"."name" = \$1 or "users"."name" = \$2',
+        );
+        expect(result.bindings, ['Bob', 'Jay']);
+      },
+    );
   });
 }

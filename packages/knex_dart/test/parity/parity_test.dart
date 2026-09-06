@@ -26,9 +26,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:knex_dart/knex_dart.dart';
+import 'package:knex_dart_live_test/knex_dart_live_test.dart';
 import 'package:test/test.dart';
-
-import 'parity_cases.dart';
 
 /// Triage ledger of known divergences, keyed `id::dialect`. Every entry MUST
 /// carry a reason. Two classes:
@@ -37,25 +36,415 @@ import 'parity_cases.dart';
 ///   [OPEN BUG] — a real knex-dart defect the harness caught; fix then DELETE
 ///               the entry (the ratchet will fail the test until you do).
 const Map<String, String> parityAllowlist = {
+  // ── ACCEPTED: knex-dart is more permissive than knex.js ─────────────────────
+  // knex.js 3.2.0+ added a `_preValidate()` safety net that throws at compile
+  // time when a clause has no effect for the verb it's attached to (e.g.
+  // `.limit()` on `.delete()` for a dialect that doesn't support it — only
+  // MySQL does). knex-dart doesn't have an equivalent cross-cutting
+  // validator; it silently ignores the no-op clause and compiles valid SQL
+  // instead. This is a deliberate design choice (fail loudly vs. stay
+  // permissive), not a bug — porting the full invalidClauses mechanism would
+  // be a separate, larger feature addition if ever wanted.
+  'delete/limit-mysql::postgres':
+      '[ACCEPTED] knex.js throws (`limit` has no effect on `delete` outside '
+      "MySQL); knex-dart silently ignores the no-op .limit() and compiles "
+      'valid SQL. See the note above this block.',
+  'delete/limit-mysql::cockroachdb':
+      '[ACCEPTED] see delete/limit-mysql::postgres.',
+  'delete/limit-mysql::redshift':
+      '[ACCEPTED] see delete/limit-mysql::postgres.',
+  'delete/limit-mysql::sqlite': '[ACCEPTED] see delete/limit-mysql::postgres.',
+  'delete/limit-mysql::turso':
+      '[ACCEPTED] see delete/limit-mysql::postgres (turso is sqlite-family).',
+  'delete/limit-mysql::d1':
+      '[ACCEPTED] see delete/limit-mysql::postgres (d1 is sqlite-family).',
+
   // ── ACCEPTED: knex-dart refuses where knex.js silently drops ───────────────
-  'returning/insert::mysql':
-      '[ACCEPTED] MySQL has no RETURNING. knex.js silently omits the clause '
-          '(warning only); knex-dart throws rather than drop it silently.',
-  'returning/insert::redshift':
-      '[ACCEPTED] Redshift has no RETURNING. knex-dart throws; knex.js omits.',
   'upsert/merge::redshift':
       '[ACCEPTED] Redshift does not support ON CONFLICT. knex.js emits a plain '
-          'INSERT (silently dropping the upsert!); knex-dart correctly refuses.',
+      'INSERT (silently dropping the upsert!); knex-dart correctly refuses.',
+  'upsert/merge-columns::redshift':
+      '[ACCEPTED] knex.js 3.3.0 emits `insert into "users" ("email", '
+      '"name", "updated_at") values (\$1, \$2, \$3)` on Redshift, silently '
+      'dropping .onConflict("email").merge(["name", "updated_at"]); '
+      'knex-dart correctly refuses unsupported upserts.',
+  'on/bare-string::postgres':
+      '[ACCEPTED] knex.js 3.3.0 emits `select * from "users" inner join '
+      '"contacts" on ` for on("users.id = contacts.user_id"), silently '
+      'dropping the string; knex-dart deliberately accepts it as a raw ON '
+      'expression and emits valid SQL.',
+  'on/bare-string::cockroachdb': '[ACCEPTED] see on/bare-string::postgres.',
+  'on/bare-string::redshift': '[ACCEPTED] see on/bare-string::postgres.',
+  'on/bare-string::mysql':
+      '[ACCEPTED] knex.js 3.3.0 emits `select * from `users` inner join '
+      '`contacts` on ` for on("users.id = contacts.user_id"), silently '
+      'dropping the string; knex-dart deliberately accepts it as a raw ON '
+      'expression and emits valid SQL.',
+  'on/bare-string::mariadb': '[ACCEPTED] see on/bare-string::mysql.',
+  'on/bare-string::sqlite': '[ACCEPTED] see on/bare-string::mysql.',
+  'on/bare-string::turso':
+      '[ACCEPTED] see on/bare-string::sqlite (turso is sqlite-family).',
+  'on/bare-string::d1':
+      '[ACCEPTED] see on/bare-string::sqlite (d1 is sqlite-family).',
+  'cte/insert-multi-source::sqlite':
+      '[ACCEPTED] Cosmetic multi-row INSERT syntax choice on SQLite: knex.js\'s '
+      "sqlite3 client always compiles multi-row inserts as "
+      '`select ? as col union all select ? as col ...` (a compatibility '
+      'shim for SQLite versions predating multi-row VALUES support, '
+      '<3.7.11/2012). knex-dart emits standard `values (?, ?), (?, ?)`, '
+      'which every SQLite version knex-dart targets supports natively. '
+      'Both are semantically identical INSERTs; same class as the '
+      'documented MySQL `ADD COLUMN` vs `ADD` cosmetic-equivalence entries.',
+  'cte/insert-multi-source::turso':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite (turso is sqlite-family, '
+      'and libSQL/turso has supported multi-row VALUES since inception).',
+  'cte/insert-multi-source::d1':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite (d1 is sqlite-family, '
+      'and Cloudflare D1 (SQLite 3.4x+) supports multi-row VALUES).',
+  'dml/onconflict-ignore::redshift':
+      '[ACCEPTED] see upsert/merge::redshift — Redshift has no ON CONFLICT; '
+      'knex.js silently emits a plain INSERT, knex-dart correctly refuses.',
+  'dml/onconflict-composite-ignore::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (composite conflict target, same '
+      'Redshift ON CONFLICT gap).',
+  'dml/onconflict-merge-explicit::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (.merge() with explicit update '
+      'values, same Redshift ON CONFLICT gap).',
+  'dml/onconflict-merge-implicit-multi::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (.merge() with implicit '
+      'excluded-column updates, same Redshift ON CONFLICT gap).',
+  'dml/onconflict-raw-target::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (raw partial-index conflict '
+      'target, same Redshift ON CONFLICT gap).',
+  'dml/onconflict-merge-where::redshift':
+      '[ACCEPTED] see upsert/merge::redshift (.merge().where() guard, same '
+      'Redshift ON CONFLICT gap).',
+  'dml/onconflict-ignore::sqlite':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite — multi-row INSERT '
+      '...ON CONFLICT is the same union-all-select vs standard-VALUES '
+      'cosmetic syntax choice.',
+  'dml/onconflict-ignore::turso':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (turso is sqlite-family).',
+  'dml/onconflict-ignore::d1':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (d1 is sqlite-family).',
+  'dml/onconflict-merge-explicit::sqlite':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (same union-all-select vs '
+      'VALUES divergence, this time with .merge() with explicit values).',
+  'dml/onconflict-merge-explicit::turso':
+      '[ACCEPTED] see dml/onconflict-merge-explicit::sqlite (turso is '
+      'sqlite-family).',
+  'dml/onconflict-merge-explicit::d1':
+      '[ACCEPTED] see dml/onconflict-merge-explicit::sqlite (d1 is '
+      'sqlite-family).',
+  'dml/onconflict-merge-implicit-multi::sqlite':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (same union-all-select vs '
+      'VALUES divergence, this time with implicit-excluded-column merge).',
+  'dml/onconflict-merge-implicit-multi::turso':
+      '[ACCEPTED] see dml/onconflict-merge-implicit-multi::sqlite (turso is '
+      'sqlite-family).',
+  'dml/onconflict-merge-implicit-multi::d1':
+      '[ACCEPTED] see dml/onconflict-merge-implicit-multi::sqlite (d1 is '
+      'sqlite-family).',
+  'dml/onconflict-raw-target::sqlite':
+      '[ACCEPTED] see dml/onconflict-ignore::sqlite (same union-all-select vs '
+      'VALUES divergence, this time with a raw partial-index target).',
+  'dml/onconflict-raw-target::turso':
+      '[ACCEPTED] see dml/onconflict-raw-target::sqlite (turso is '
+      'sqlite-family).',
+  'dml/onconflict-raw-target::d1':
+      '[ACCEPTED] see dml/onconflict-raw-target::sqlite (d1 is sqlite-family).',
 
   // ── OPEN BUG: real knex-dart defects to fix (then delete these) ────────────
-  'returning/insert::sqlite':
-      '[OPEN BUG] SQLite >=3.35 supports RETURNING and knex.js emits it, but '
-          "knex-dart's capability matrix omits `returning` for sqlite, so it "
-          'wrongly throws. Fix: add returning to the sqlite/turso/d1 caps.',
-  'returning/insert::turso':
-      '[OPEN BUG] see returning/insert::sqlite (turso is sqlite-family).',
-  'returning/insert::d1':
-      '[OPEN BUG] see returning/insert::sqlite (d1 is sqlite-family).',
+  // Note: DELETE...RETURNING on sqlite/turso/d1 was never a capability-matrix
+  // gap — knex.js's own sqlite3 dialect doesn't emit RETURNING for DELETE
+  // either (verified against real knex.js), so knex-dart dropping it there
+  // (in _deleteQuery, unconditionally for sqlite-family) is a correct match.
+  //
+  // The general sqlite/turso/d1 RETURNING gap (INSERT/UPDATE) was fixed by
+  // adding `SqlCapability.returning` to their capability sets. What's left
+  // below is the SEPARATE, already-[ACCEPTED] multi-row-insert-syntax choice
+  // (knex.js's sqlite3 compiles multi-row inserts as a legacy `select ...
+  // union all select ...` shim; knex-dart uses standard `values (...), '
+  // '(...)`) — same divergence class as cte/insert-multi-source::sqlite.
+  'dml/returning-multi-insert::sqlite':
+      '[ACCEPTED] see cte/insert-multi-source::sqlite — multi-row INSERT '
+      '...RETURNING is the same union-all-select vs standard-VALUES '
+      'cosmetic syntax choice (the RETURNING gap itself is fixed).',
+  'dml/returning-multi-insert::turso':
+      '[ACCEPTED] see dml/returning-multi-insert::sqlite (turso is '
+      'sqlite-family).',
+  'dml/returning-multi-insert::d1':
+      '[ACCEPTED] see dml/returning-multi-insert::sqlite (d1 is '
+      'sqlite-family).',
+
+  // ── OPEN BUG (out of scope for this pass): uppercase `AS` ──────────────────
+  // `select('foo as bar')`-style inline string aliasing routes through
+  // formatter.dart's alias-detection → client.alias(wrapped, wrapped), which
+  // emits uppercase `AS`. knex.js emits lowercase `as`. This is the same
+  // known, separately-scoped client.alias() defect this mining pass was told
+  // not to touch (packages/knex_dart/lib/src/client/client.dart) — confirmed
+  // here to also affect the inline "col as alias" string-parsing path in
+  // formatter.dart, not just explicit .as() calls. Fix: once client.alias()
+  // is corrected to lowercase `as`, delete these entries (the ratchet will
+  // force it).
+  'select/old-style-alias::postgres':
+      '[OPEN BUG] uppercase `AS` — see client.alias() note above this block.',
+  'select/old-style-alias::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::postgres':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::postgres':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::postgres':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::cockroachdb':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::redshift':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::mysql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::sqlite':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::turso':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+
+  // having/from-alias hits the same client.alias() uppercase-AS defect noted
+  // above, via a "col as alias" select() string used as the HAVING column.
+  'having/from-alias::postgres':
+      '[OPEN BUG] knex-dart\'s Client.alias() emits uppercase "AS"; knex.js '
+      'always emits lowercase "as". Known issue, scoped to '
+      'client.alias() (out of bounds for this change) — see '
+      'having/from-alias::postgres for the canonical explanation.',
+  'having/from-alias::cockroachdb':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue (cockroachdb shares the postgres formatter).',
+  'having/from-alias::redshift':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue (redshift shares the postgres formatter).',
+  'having/from-alias::mysql':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue.',
+  'having/from-alias::sqlite':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue.',
+  'having/from-alias::turso':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue (turso is sqlite-family).',
+  'having/from-alias::d1':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue (d1 is sqlite-family).',
+
+  // ── OPEN BUG (out of scope for this pass): uppercase `AS`, but via
+  // Ref.as() (src/ref.dart), NOT client.alias() (src/client/client.dart) —
+  // a distinct code path with the identical defect. Filed separately per
+  // dialect so the ratchet forces re-triage of *this* call site once the
+  // AS-casing sweep lands, independent of the client.alias() entries above.
+  'ref/select-alias::postgres':
+      '[OPEN BUG] Ref.as() (packages/knex_dart/lib/src/ref.dart) hardcodes '
+      'uppercase " AS " when building the aliased SQL string; knex.js '
+      'always emits lowercase "as". Same defect class as '
+      'client.alias()\'s uppercase-AS issue above, but a different code '
+      'path/file — client.alias() is explicitly out of scope for this '
+      'mining pass and Ref.as() was not touched either. Fix: once the '
+      'AS-casing sweep covers Ref.as() too, delete these entries.',
+  'ref/select-alias::cockroachdb':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::redshift':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::mysql':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::sqlite':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
+  'ref/select-alias::turso':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause, '
+      'turso is sqlite-family).',
+  'ref/select-alias::d1':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause, '
+      'd1 is sqlite-family).',
+
+  // ── OPEN BUG: whereJsonPath() has no CockroachDB implementation ────────────
+  'json/where-path::cockroachdb':
+      '[OPEN BUG] CockroachDB compiles whereJsonPath via '
+      '`json_extract_path("col", seg1, seg2, ...)::cast op val` — the '
+      'JSONPath string (e.g. \'\$.street.number\') split into '
+      'positional segments (\'street\', \'number\'), NOT '
+      'jsonb_path_query_first(col, path) like Postgres. Verified '
+      'against real knex.js: `select * from "users" where '
+      'json_extract_path("address", \$1, \$2)::int > \$3 or '
+      'json_extract_path("address", \$4, \$5)::int < \$6` with '
+      'bindings [\'street\',\'number\',5,\'street\',\'number\',8]. '
+      'Implementing this needs a JSONPath-segment parser distinct from '
+      'the Postgres path — judged out of scope for this pass; '
+      'knex-dart now throws StateError instead of the previous silent '
+      '(and wrong) whereBasic() fallback. Fix: add a CockroachDB branch '
+      'to _whereJsonPath() in query_compiler.dart, then remove this '
+      'entry.',
+
+  // ── ACCEPTED: mariadb RETURNING on UPDATE/CTE — knex.js's real mariadb
+  // client version-gates `.returning()` on UPDATE for MariaDB <13.0 and
+  // silently drops the clause (verified: `.returning() is not supported for
+  // mariadb versions older than 13.0 and will not have any effect.`).
+  // MariaDB 10.5+ supports RETURNING on INSERT/DELETE; for UPDATE the client
+  // requires 13.0+. knex-dart's `knex_dart_capabilities` matrix lists
+  // `SqlCapability.returning` for `KnexDialect.mariadb` without an UPDATE-
+  // specific gate, so dart emits RETURNING on all three verbs. For
+  // INSERT/DELETE the dart output matches real knex.js mariadb verbatim
+  // (no divergence — the harness was repointed from `{knex: 'mysql2',
+  // family: 'mysql'}` to `{knex: 'mariadb'}` once a reviewer confirmed
+  // knex.js has a dedicated mariadb client that extends mysql's and
+  // overrides insert()/del() to support version-gated RETURNING). For
+  // UPDATE/CTE-update the divergence remains (knex.js drops, dart emits)
+  // — same class as `upsert/merge::redshift` (knex-dart emits where
+  // knex.js silently drops).
+  //
+  // Verified against real knex.js 3.3.0 mariadb client — `node -e` output:
+  //   dml/returning-update: `update \`users\` set \`name\` = ? where \`id\` = ?` (drops RETURNING; dart emits `... returning *`)
+  //   cte/update-source:    `with \`updated_group\` as (update \`group\` set \`group_name\` = ? where \`group_id\` = ?) update \`user\` set \`name\` = ? where \`group_id\` = ?` (drops RETURNING from CTE body; dart emits it)
+  //
+  // The INSERT/DELETE/multi-insert/empty-object entries previously here
+  // were removed once the harness pointed at the real mariadb client —
+  // the divergences vanished (ratchet forced it).
+  'dml/returning-update::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+      'capability divergence (this time on UPDATE with `.returning(\'*\')`).',
+  'update/two-arg-returning::mariadb':
+      '[ACCEPTED] knex.js 3.3.0 mariadb emits `update `t` set `name` = ? '
+      'where `id` = ?` (and warns that RETURNING is unsupported before '
+      'MariaDB 13.0); knex-dart emits `... returning `id`` because its '
+      'MariaDB capability represents servers that support RETURNING. Same '
+      'documented version-capability divergence as dml/returning-update.',
+  'cte/update-source::mariadb':
+      '[ACCEPTED] see returning/insert::mariadb — same MariaDB RETURNING '
+      'capability divergence, applied to the inner CTE source statement '
+      '(the `.with(...).(...).returning([\'group_id\'])` chained inside '
+      'the WITH body). knex.js\'s mariadb client silently drops the RETURNING '
+      'from the WITH body too. The harness compares the whole '
+      '`with ... update ...` outer statement, where the only difference '
+      'is the presence/absence of `returning `group_id`` in the CTE '
+      'body — pure capability-drop difference, not a structural '
+      'divergence.',
+
+  // ── OPEN BUG: uppercase `AS` siblings of the existing entries, surfaced
+  // for the new `mariadb` dialect in this harness pass. These route through
+  // the same `client.alias()` (formatter.dart → client.dart) and `Ref.as()`
+  // (ref.dart) code paths as the existing postgres/mysql/sqlite entries
+  // already triaged and scoped out — see the canonical explanation at
+  // `'select/old-style-alias::postgres'` and `'ref/select-alias::postgres'`
+  // above. Dart's `KnexDialect.mariadb` shares the mysql formatter
+  // (backtick-quoting), but the alias-emitting helper is dialect-agnostic
+  // (uppercase AS hardcoded in the alias() method itself, not in any
+  // dialect-specific branch) — so adding the mariadb dialect to the harness
+  // surfaces these sibling divergences for free. Both `[OPEN BUG]` root
+  // causes (client.alias() uppercase-AS, Ref.as() uppercase-AS) are
+  // explicitly out of scope for this mining pass per the prompt's
+  // "Do NOT touch client.alias() or Ref.as()" ground rule. Same fix path:
+  // once the AS-casing sweep lands in those two files, delete these entries
+  // (the ratchet will force it). Verified against real knex.js 3.3.0 —
+  // `node -e` literal output:
+  //   select/old-style-alias: `select \`foo\` as \`bar\` from \`users\`` (knex.js) vs `select \`foo\` AS \`bar\` from \`users\`` (knex-dart)
+  //   select/alias-trim-spaces: same — knex.js normalizes `' foo   as bar '` to ``\`foo\` as \`bar\``; knex-dart emits uppercase AS.
+  //   select/alias-case-insensitive: same — knex.js normalizes `' foo   aS bar '` to ``\`foo\` as \`bar\``; knex-dart emits uppercase AS.
+  //   select/alias-dotted: `select \`foo\` as \`bar.baz\` from \`users\`` (knex.js) vs `select \`foo\` AS \`bar.baz\` from \`users\`` (knex-dart).
+  //   having/from-alias: `select \`email\` as \`foo_email\` from \`users\` having \`foo_email\` > ?` (knex.js) vs `select \`email\` AS \`foo_email\` from \`users\` having \`foo_email\` > ?` (knex-dart).
+  //   ref/select-alias: `select \`one\`, \`sometable\`.\`two\` as \`Two\` from \`sometable\`` (knex.js) vs `select \`one\`, \`sometable\`.\`two\` AS \`Two\` from \`sometable\`` (knex-dart).
+  'select/old-style-alias::mariadb':
+      '[OPEN BUG] uppercase `AS` via client.alias() — sibling of '
+      'select/old-style-alias::postgres (canonical explanation above); '
+      'mariadb is mysql-family and shares the same alias() code path. '
+      'Out of scope per the prompt — fix by correcting client.alias() to '
+      'lowercase `as`, then delete this entry.',
+  'select/alias-trim-spaces::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+      'root cause.',
+  'select/alias-case-insensitive::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+      'root cause.',
+  'select/alias-dotted::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+      'root cause.',
+  'having/from-alias::mariadb':
+      '[OPEN BUG] see select/old-style-alias::mariadb — same client.alias() '
+      'root cause (HAVING with a `col as alias` select).',
+  'ref/select-alias::mariadb':
+      '[OPEN BUG] uppercase `AS` via Ref.as() — sibling of '
+      'ref/select-alias::postgres (canonical explanation above); '
+      'mariadb surfaces the same Ref.as() defect. Out of scope per the '
+      'prompt — delete this entry once Ref.as() is corrected.',
+
+  // ── ACCEPTED: fullOuterJoin capability refusal — knex-dart refuses
+  // where knex.js's mysql2/sqlite3 clients emit invalid-at-runtime SQL.
+  // knex-dart's `knex_dart_capabilities` matrix deliberately excludes
+  // `SqlCapability.fullOuterJoin` for `KnexDialect.mysql`, `sqlite`, `turso`,
+  // `d1` (capabilities.dart line 80-91 — mariadb HAS it; the
+  // `join/full-outer::mariadb` parity test PASSES as a result). MySQL does
+  // not natively support FULL OUTER JOIN syntax (must be emulated via
+  // LEFT JOIN UNION RIGHT JOIN), and SQLite only gained it in 3.39 (2022);
+  // knex.js's mysql2 and sqlite3 clients still emit the syntax verbatim
+  // (would fail at parse time on those engines), while knex-dart throws
+  // `Bad state: FULL OUTER JOIN is not supported by <dialect>`.
+  //
+  // Same class as the existing `upsert/merge::redshift` and
+  // `alter-table-add-index::redshift` ACCEPTED entries (knex.js silently
+  // emits invalid SQL, knex-dart correctly refuses loudly). Verified
+  // against real knex.js 3.3.0:
+  //   mysql2:    `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
+  //   sqlite3:   `select * from \`users\` full outer join \`contacts\` on \`users\`.\`id\` = \`contacts\`.\`id\``
+  // (knex.js emits the syntax verbatim. MySQL rejects it; SQLite supports it
+  // only on 3.39+.)
+  'join/full-outer::mysql':
+      '[ACCEPTED] knex-dart refuses FULL OUTER JOIN on mysql (capability '
+      'matrix excludes it — knex_dart_capabilities/lib/src/capabilities.dart '
+      'line 62-68), knex.js\'s mysql2 still emits the syntax (which MySQL '
+      'does not natively support — would fail at parse time). Same class '
+      'as upsert/merge::redshift ACCEPTED — see the note above this block.',
+  'join/full-outer::sqlite':
+      '[ACCEPTED] see join/full-outer::mysql — SQLite only gained FULL '
+      'OUTER JOIN syntax in 3.39 (2022); knex-dart refuses here, '
+      'knex.js\'s sqlite3 client still emits it (would fail on older '
+      'SQLite).',
+  'join/full-outer::turso':
+      '[ACCEPTED] see join/full-outer::sqlite — turso is sqlite-family '
+      '(libSQL is built on SQLite 3.45+, but the capability matrix '
+      'still excludes fullOuterJoin for turso/d1 matching sqlite, and '
+      'the test mirrors the sqlite refusal).',
+  'join/full-outer::d1':
+      '[ACCEPTED] see join/full-outer::sqlite — d1 is sqlite-family.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].
@@ -76,15 +465,37 @@ String _normalizeSql(String sql, String dialect) =>
 bool _isRefusal(Object e) =>
     e is StateError || e is ArgumentError || e is UnsupportedError;
 
+/// Compares two binding *values* (not the whole bindings list — see
+/// [_bindingsEqual]). A single binding can itself be a `List` (e.g.
+/// `whereIn('id', raw('select (:test)', {test: [1,2,3]}))` binds the whole
+/// array `[1,2,3]` as ONE parameter) — those need element-wise recursion,
+/// not `List.==`, which is reference equality in Dart and would fail two
+/// structurally-identical-but-distinct list instances (exactly what
+/// `jsonDecode`'d fixture values vs. freshly-built Dart bindings always are).
+bool _bindingValueEqual(dynamic a, dynamic b) {
+  if (a is num && b is num) return a == b; // int/double width not distinguished
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_bindingValueEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key)) return false;
+      if (!_bindingValueEqual(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  return a == b; // strict otherwise: "1" != 1, true != 1, etc.
+}
+
 bool _bindingsEqual(List<dynamic> got, List<dynamic> expected) {
   if (got.length != expected.length) return false;
   for (var i = 0; i < got.length; i++) {
-    final a = got[i], b = expected[i];
-    if (a is num && b is num) {
-      if (a != b) return false; // by value (int/double width not distinguished)
-    } else if (a != b) {
-      return false; // strict: "1" != 1, true != 1, etc.
-    }
+    if (!_bindingValueEqual(got[i], expected[i])) return false;
   }
   return true;
 }
@@ -92,13 +503,21 @@ bool _bindingsEqual(List<dynamic> got, List<dynamic> expected) {
 /// Returns null when knex-dart matches the fixture, else a description of the
 /// divergence. Rethrows unexpected (non-refusal) errors so a typo in a Dart
 /// case surfaces as a hard failure rather than a false "refusal".
-String? _divergence(Map<String, dynamic> entry, String dialect, ParityCase b) {
+String? _divergence(
+  Map<String, dynamic> entry,
+  String dialect,
+  QueryCorpusCase corpusCase,
+) {
   final jsRefused = entry.containsKey('error');
 
   SqlString? got;
   Object? refusal;
   try {
-    got = b(dialect);
+    // buildValidated() also enforces the corpus's declared expectedMethod
+    // (see query_cases.dart) on every parity run, not just live-execution
+    // runs — a case whose builder chain silently stops representing its
+    // claimed operation fails here immediately.
+    got = corpusCase.buildValidated(dialect).toSQL();
   } catch (e) {
     if (_isRefusal(e)) {
       refusal = e;
@@ -157,11 +576,12 @@ void main() {
     // Drift guard: a Dart case with no fixture means someone forgot to
     // regenerate — it would otherwise never run.
     test('every registered case has a fixture (regenerate if this fails)', () {
-      final dartOnly = parityCases.keys.toSet().difference(fixtureIds);
+      final dartOnly = queryCorpusCases.keys.toSet().difference(fixtureIds);
       expect(
         dartOnly,
         isEmpty,
-        reason: 'Dart cases missing from the fixture — run '
+        reason:
+            'Dart cases missing from the fixture — run '
             '`node tool/parity/run_js.mjs`: $dartOnly',
       );
     });
@@ -176,16 +596,19 @@ void main() {
         continue;
       }
 
-      final builder = parityCases[id];
-      if (builder == null) {
-        test(key, () => fail('no knex-dart parity builder registered for "$id"'));
+      final corpusCase = queryCorpusCases[id];
+      if (corpusCase == null) {
+        test(
+          key,
+          () => fail('no knex-dart parity builder registered for "$id"'),
+        );
         continue;
       }
 
       final allowReason = parityAllowlist[key];
 
       test(key, () {
-        final divergence = _divergence(entry, dialect, builder);
+        final divergence = _divergence(entry, dialect, corpusCase);
         if (allowReason == null) {
           expect(divergence, isNull, reason: divergence);
         } else {
@@ -194,7 +617,8 @@ void main() {
           expect(
             divergence,
             isNotNull,
-            reason: 'Allowlisted divergence is no longer present — re-triage and '
+            reason:
+                'Allowlisted divergence is no longer present — re-triage and '
                 'remove this allowlist entry:\n  $allowReason',
           );
         }

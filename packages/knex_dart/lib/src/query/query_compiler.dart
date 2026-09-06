@@ -113,12 +113,24 @@ class QueryCompiler {
   /// substitution just produced — e.g. with offset 9 a two-binding subquery
   /// rewrote `$2`→`$11`, then `$1`→`$10` also hit the `$1` inside `$11`,
   /// yielding `$101`. Dialects using `?` placeholders are unaffected (no match).
-  String _offsetPlaceholders(String sql, int offset) {
-    if (offset <= 0) return sql;
-    return sql.replaceAllMapped(
-      RegExp(r'\$(\d+)'),
-      (m) => '\$${int.parse(m[1]!) + offset}',
-    );
+  String _offsetPlaceholders(String sql, int offset) =>
+      client.offsetPlaceholders(sql, offset);
+
+  /// Compile a [Raw] fragment for inline embedding into the query under
+  /// construction: offsets any `$N` placeholders in its SQL against the
+  /// bindings already accumulated, then appends its own bindings.
+  ///
+  /// This is the single path every Raw-embedding call site in this compiler
+  /// must go through — inlining `raw.toSQL().sql` directly and appending
+  /// `raw.toSQL().bindings` without offsetting silently corrupts `$N`
+  /// numbering (collisions/gaps) the moment the Raw carries its own `?`
+  /// bindings and isn't first in the query.
+  String _inlineRaw(Raw raw) {
+    final bindingOffset = bindings.length;
+    final sql = raw.toSQL();
+    final offsetSql = _offsetPlaceholders(sql.sql, bindingOffset);
+    bindings.addAll(sql.bindings);
+    return offsetSql;
   }
 
   /// Compile a subquery (QueryBuilder) to SQL with parameter renumbering
@@ -137,12 +149,32 @@ class QueryCompiler {
       sql = '($sql)';
     }
 
-    // Add alias AFTER parentheses
+    // Add alias AFTER parentheses. Use the dialect-aware identifier wrapper
+    // (backticks for MySQL/SQLite, brackets for MSSQL, double quotes for
+    // Postgres) rather than a hardcoded double quote — a bare `"alias"` is
+    // invalid MySQL/MSSQL identifier syntax outside ANSI_QUOTES mode.
     if (subquery.alias != null) {
-      sql = '$sql as "${subquery.alias}"';
+      sql = '$sql as ${formatter.wrapAsIdentifier(subquery.alias!)}';
     }
 
     return sql;
+  }
+
+  /// Compile a `{ alias: column }` select entry to `<column> as "<alias>"`.
+  ///
+  /// [value] may be a plain column name (String), a [Raw] fragment, or a
+  /// [QueryBuilder] subquery — matching knex.js's object-notation column
+  /// aliasing (`select({alias: column})`).
+  String _aliasedColumn(String alias, dynamic value) {
+    final wrappedAlias = client.wrapIdentifier(alias);
+    if (value is QueryBuilder) {
+      final sql = _compileSubquery(value);
+      return '$sql as $wrappedAlias';
+    }
+    if (value is Raw) {
+      return '${_inlineRaw(value)} as $wrappedAlias';
+    }
+    return '${formatter.wrap(value.toString())} as $wrappedAlias';
   }
 
   /// Compile a LATERAL join subquery to `(sql)` — no alias appended.
@@ -159,9 +191,7 @@ class QueryCompiler {
       return '($subSql)';
     }
     if (query is Raw) {
-      final rawSql = query.toSQL();
-      bindings.addAll(rawSql.bindings);
-      return '(${rawSql.sql})';
+      return '(${_inlineRaw(query)})';
     }
     return '($query)';
   }
@@ -231,6 +261,23 @@ class QueryCompiler {
     // UNION clauses (before ORDER BY/LIMIT for correct SQL semantics)
     final unionSql = _union();
     if (unionSql.isNotEmpty) {
+      // knex.js's `union([...], wrap=true)` (and unionAll/intersect/except
+      // equivalents) wraps the BASE select too — not just each unioned leg.
+      // When the wrap flag is set on ANY union leg, knex.js parenthesizes
+      // each leg INCLUDING the base; knex-dart was parenthesizing only the
+      // additional legs, dropping the parens around the base. Verified
+      // against real knex.js 3.3.0 for the `union/wrapped-array` parity
+      // case — see the allowlist/failure history for this batch.
+      final unions = grouped['union'];
+      final wrapBase =
+          unions is List &&
+          (unions as List).any((u) => (u['wrap'] as bool? ?? false));
+      if (wrapBase) {
+        final baseSql = parts.join(' ');
+        parts
+          ..clear()
+          ..add('($baseSql)');
+      }
       parts.add(unionSql);
     }
 
@@ -285,9 +332,7 @@ class QueryCompiler {
 
     // Raw (from fromRaw())
     if (table is Raw) {
-      final sql = table.toSQL();
-      bindings.addAll(sql.bindings);
-      return _tableNameCache = sql.sql;
+      return _tableNameCache = _inlineRaw(table);
     }
 
     // Simple string table name
@@ -330,6 +375,7 @@ class QueryCompiler {
 
     // Check for DISTINCT flag and collect columns
     bool hasDistinct = false;
+    String distinctOnClause = '';
     final cols = <String>[];
 
     for (final stmt in columnStmts) {
@@ -366,32 +412,59 @@ class QueryCompiler {
         continue;
       }
 
-      // Handle distinctOn
+      // Handle distinctOn — a separate `distinct on (...)` prefix, NOT a
+      // regular selected column (matches knex.js: `.distinctOn(['a','b'])
+      // .select('*')` compiles to `select distinct on ("a", "b") *`, not
+      // `select "a", "b", *`).
       if (stmt['distinctOn'] != null) {
-        if (stmt['distinctOn'] is List) {
-          final distinctCols = stmt['distinctOn'] as List;
-          final formatted = formatter.columnize(distinctCols);
-          cols.add(formatted);
-          continue;
+        // Redshift is deliberately included here even though
+        // _isPostgresLikeDriver excludes it: real knex.js's redshift
+        // compiler extends its postgres compiler and doesn't override
+        // distinctOn(), so it inherits `distinct on (...)` support directly
+        // — verified against knex.js 3.3.0. Same inheritance pattern as the
+        // sqlite/redshift skipLocked() split in _waitMode() above.
+        if (!_isPostgresLikeDriver && client.driverName != 'redshift') {
+          throw StateError(
+            '.distinctOn() is currently only supported on PostgreSQL',
+          );
         }
+        final distinctCols = stmt['distinctOn'] as List;
+        distinctOnClause = 'distinct on (${formatter.columnize(distinctCols)}) ';
+        continue;
       }
 
       // Handle regular columns (but check for QueryBuilder first)
       final columns = stmt['columns'];
       if (columns != null && columns is List && columns.isNotEmpty) {
-        // Check each column - could be string, QueryBuilder, or Raw
+        // Check each column - could be string, QueryBuilder, Raw, or a
+        // { alias: column } aliasing Map
         for (final col in columns) {
           if (col is QueryBuilder) {
             cols.add(_compileSubquery(col));
           } else if (col is Raw) {
-            final rawSql = col.toSQL();
-            bindings.addAll(rawSql.bindings);
-            cols.add(rawSql.sql);
+            cols.add(_inlineRaw(col));
+          } else if (col is Map) {
+            col.forEach((alias, value) {
+              cols.add(_aliasedColumn(alias.toString(), value));
+            });
           } else {
-            // Regular string column
-            cols.add(formatter.wrap(col.toString()));
+            // Regular column — pass the raw value (not `.toString()`-ed) so
+            // `formatter.wrap()` can dispatch on its actual type: a numeric
+            // literal (e.g. `select(0)`) must compile to a bare `0`, not a
+            // quoted identifier `"0"` (matches knex.js's `wrap()`, which
+            // returns `typeof value === 'number'` values as-is).
+            cols.add(formatter.wrap(col).toString());
           }
         }
+        continue;
+      }
+
+      // { alias: column, ... } passed directly to select() (not wrapped in a
+      // List) — same aliasing notation, applied to every entry.
+      if (columns != null && columns is Map && columns.isNotEmpty) {
+        columns.forEach((alias, value) {
+          cols.add(_aliasedColumn(alias.toString(), value));
+        });
         continue;
       }
 
@@ -405,9 +478,7 @@ class QueryCompiler {
       // Handle Raw in SELECT
       final rawValue = stmt['value'];
       if (rawValue != null && rawValue is Raw) {
-        final sql = rawValue.toSQL();
-        bindings.addAll(sql.bindings);
-        cols.add(sql.sql);
+        cols.add(_inlineRaw(rawValue));
         continue;
       }
 
@@ -420,7 +491,9 @@ class QueryCompiler {
 
     // Build SELECT clause
     final columnList = cols.isEmpty ? '*' : cols.join(', ');
-    final distinctClause = hasDistinct ? 'distinct ' : '';
+    final distinctClause = distinctOnClause.isNotEmpty
+        ? distinctOnClause
+        : (hasDistinct ? 'distinct ' : '');
 
     if (tableName.isNotEmpty) {
       return 'select $distinctClause$columnList from $tableName';
@@ -501,11 +574,6 @@ class QueryCompiler {
   /// - "age" > $1
   /// - "users"."id" != $1
   String whereBasic(Map<String, dynamic> statement) {
-    // Check for null value and delegate into whereNull
-    if (statement['value'] == null) {
-      return whereNull(statement);
-    }
-
     return '${_not(statement, '') + formatter.wrap(statement['column'])} ${formatter.operator(statement['operator'])} ${_valueClause(statement)}';
   }
 
@@ -549,26 +617,50 @@ class QueryCompiler {
   /// Supports:
   /// - Array of values: "column" in (?, ?, ?)
   /// - Subquery: "column" in (SELECT ...)
+  /// - Raw: "column" in (`<raw sql>`) — e.g. `whereIn('id', raw('select (:test)', {...}))`
   String whereIn(Map<String, dynamic> statement) {
-    final column = formatter.wrap(statement['column']);
+    final columns = statement['column'];
+    final multiColumn = columns is List;
+    final column = multiColumn
+        ? '(${formatter.columnize(columns)})'
+        : formatter.wrap(columns);
     final values = statement['value'];
 
     String valueClause;
     if (values is QueryBuilder) {
       // Subquery
       valueClause = _compileSubquery(values);
+    } else if (values is Raw) {
+      // Raw expression (e.g. a raw subquery) — previously fell through to
+      // `values as List`, which threw a TypeError instead of compiling;
+      // knex.js supports this directly (`whereIn('id', raw('select (:test)',
+      // {test: [1,2,3]}))` → `"id" in (select (?))`).
+      valueClause = '(${_inlineRaw(values)})';
     } else if (values is Function) {
       final subBuilder = QueryBuilder(client);
       values(subBuilder);
       valueClause = _compileSubquery(subBuilder);
     } else {
-      // Array of values
+      // Array of scalar values or row-value tuples. Knex uses `values` on
+      // SQLite for tuple lists, while its other query compilers use ordinary
+      // parenthesized rows.
       final valuesList = values as List;
-      final placeholders = <String>[];
-      for (final value in valuesList) {
-        placeholders.add(client.parameter(value, bindings));
+      if (valuesList.isNotEmpty && valuesList.every((value) => value is List)) {
+        final rows = valuesList
+            .cast<List>()
+            .map(
+              (row) =>
+                  '(${row.map((value) => client.parameter(value, bindings)).join(', ')})',
+            )
+            .join(', ');
+        valueClause = _isSqliteLikeDriver ? '( values $rows)' : '($rows)';
+      } else {
+        final placeholders = <String>[];
+        for (final value in valuesList) {
+          placeholders.add(client.parameter(value, bindings));
+        }
+        valueClause = '(${placeholders.join(', ')})';
       }
-      valueClause = '(${placeholders.join(', ')})';
     }
 
     return '$column ${_not(statement, 'in ')}$valueClause';
@@ -577,12 +669,12 @@ class QueryCompiler {
   /// Compile WHERE raw clause
   ///
   ///
-  /// Compiles a Raw SQL condition
+  /// Compiles a Raw SQL condition. `.whereNot(raw(...))` prefixes with `not `
+  /// (matches knex.js: `where not is_active`), mirroring the `_not()` prefix
+  /// convention used by every other WHERE compiler above.
   String whereRaw(Map<String, dynamic> statement) {
     final raw = statement['value'] as Raw;
-    final sql = raw.toSQL();
-    bindings.addAll(sql.bindings);
-    return sql.sql;
+    return '${_not(statement, '')}${_inlineRaw(raw)}';
   }
 
   /// Compile WHERE BETWEEN clause
@@ -617,11 +709,14 @@ class QueryCompiler {
     final subBuilder = QueryBuilder(client);
     callback(subBuilder);
 
-    // Get the SQL for the subquery
+    // Get the SQL for the subquery, renumbering $N placeholders to continue
+    // from the parent's running binding count (mirrors _compileSubquery()).
+    final bindingOffset = bindings.length;
     final subSQL = subBuilder.toSQL();
+    final sql = _offsetPlaceholders(subSQL.sql, bindingOffset);
     bindings.addAll(subSQL.bindings);
 
-    return '${_not(statement, 'exists ')}(${subSQL.sql})';
+    return '${_not(statement, 'exists ')}($sql)';
   }
 
   /// Compile WHERE WRAPPED clause (grouped conditions)
@@ -680,9 +775,7 @@ class QueryCompiler {
       if (stmt['type'] == 'joinRaw') {
         final value = stmt['value'];
         if (value is Raw) {
-          final rawSql = value.toSQL();
-          bindings.addAll(rawSql.bindings);
-          sql.add(rawSql.sql);
+          sql.add(_inlineRaw(value));
         } else {
           sql.add(value.toString());
         }
@@ -817,7 +910,13 @@ class QueryCompiler {
   String _onBasic(Map<String, dynamic> clause) {
     final first = formatter.wrap(clause['column']);
     final operator = clause['operator'];
-    final second = formatter.wrap(clause['value']);
+    final value = clause['value'];
+    // Raw value: knex.js treats `on('a', '=', raw('?',[v]))` as a raw SQL
+    // fragment on the right of the operator — `on "a" = ?` with `v` as
+    // binding — NOT as an identifier reference. Without this dispatch,
+    // `formatter.wrap` quoted the raw's `?` as a string literal,
+    // producing `on "a" = "?"` instead of `on "a" = ?`.
+    final second = value is Raw ? _inlineRaw(value) : formatter.wrap(value);
     return '$first $operator $second';
   }
 
@@ -855,9 +954,7 @@ class QueryCompiler {
     if (values is QueryBuilder) {
       inValues = _compileSubquery(values);
     } else if (values is Raw) {
-      final sql = values.toSQL();
-      bindings.addAll(sql.bindings);
-      inValues = '(${sql.sql})';
+      inValues = '(${_inlineRaw(values)})';
     } else if (values is List) {
       final placeholders = values
           .map((v) => client.parameter(v, bindings))
@@ -889,17 +986,17 @@ class QueryCompiler {
     final callback = clause['value'] as Function;
     final subBuilder = QueryBuilder(client);
     callback(subBuilder);
+    final bindingOffset = bindings.length;
     final subSQL = subBuilder.toSQL();
+    final sql = _offsetPlaceholders(subSQL.sql, bindingOffset);
     bindings.addAll(subSQL.bindings);
-    return '${_not(clause, 'exists')} (${subSQL.sql})';
+    return '${_not(clause, 'exists')} ($sql)';
   }
 
   String _onRaw(Map<String, dynamic> clause) {
     final value = clause['value'];
     if (value is Raw) {
-      final sql = value.toSQL();
-      bindings.addAll(sql.bindings);
-      return sql.sql;
+      return _inlineRaw(value);
     }
     return value.toString();
   }
@@ -918,21 +1015,46 @@ class QueryCompiler {
   }
 
   String _onJsonPathEquals(Map<String, dynamic> clause) {
-    String fn;
     final driver = client.driverName;
-    if (driver == 'mysql' || driver == 'mysql2' || driver == 'sqlite3') {
-      fn = 'json_extract';
-    } else {
-      fn = 'jsonb_path_query_first';
-    }
-
     final firstCol = formatter.wrap(clause['columnFirst']);
     final secondCol = formatter.wrap(clause['columnSecond']);
-    final firstPath = client.parameter(clause['jsonPathFirst'], bindings);
-    final secondPath = client.parameter(clause['jsonPathSecond'], bindings);
+    final rawFirstPath = clause['jsonPathFirst'] as String;
+    final rawSecondPath = clause['jsonPathSecond'] as String;
 
-    return '$fn($firstCol, $firstPath) = $fn($secondCol, $secondPath)';
+    if (driver == 'cockroachdb') {
+      // Knex's Cockroach compiler uses json_extract_path(), whose arguments
+      // are individual path components rather than JSONPath strings.
+      final firstKey = client.parameter(_jsonPathKey(rawFirstPath), bindings);
+      final secondKey = client.parameter(_jsonPathKey(rawSecondPath), bindings);
+      return 'json_extract_path($firstCol, $firstKey) = '
+          'json_extract_path($secondCol, $secondKey)';
+    }
+
+    final firstPath = client.parameter(rawFirstPath, bindings);
+    final secondPath = client.parameter(rawSecondPath, bindings);
+
+    if (driver == 'mssql') {
+      return 'JSON_VALUE($firstCol, $firstPath) = '
+          'JSON_VALUE($secondCol, $secondPath)';
+    }
+    if (driver == 'mariadb') {
+      return 'json_unquote(json_extract($firstCol, $firstPath)) = '
+          'json_unquote(json_extract($secondCol, $secondPath))';
+    }
+    if (driver == 'redshift') {
+      return 'json_extract_path_text($firstCol, $firstPath) = '
+          'json_extract_path_text($secondCol, $secondPath)';
+    }
+    if (driver == 'mysql' || driver == 'mysql2' || _isSqliteLikeDriver) {
+      return 'json_extract($firstCol, $firstPath) = '
+          'json_extract($secondCol, $secondPath)';
+    }
+    return 'jsonb_path_query_first($firstCol, $firstPath) = '
+        'jsonb_path_query_first($secondCol, $secondPath)';
   }
+
+  String _jsonPathKey(String path) =>
+      path.startsWith(r'$.') ? path.substring(2) : path;
 
   /// Compile GROUP BY clause
   ///
@@ -947,9 +1069,7 @@ class QueryCompiler {
       if (stmt['type'] == 'groupByRaw') {
         final value = stmt['value'];
         if (value is Raw) {
-          final rawSql = value.toSQL();
-          bindings.addAll(rawSql.bindings);
-          columns.add(rawSql.sql);
+          columns.add(_inlineRaw(value));
         } else {
           columns.add(value.toString());
         }
@@ -1003,6 +1123,10 @@ class QueryCompiler {
         return havingBetween(statement);
       case 'havingNull':
         return havingNull(statement);
+      case 'havingExists':
+        return havingExists(statement);
+      case 'havingWrapped':
+        return havingWrapped(statement);
       default:
         throw Exception('Unknown HAVING type: $type');
     }
@@ -1073,6 +1197,66 @@ class QueryCompiler {
     return not ? '$column is not null' : '$column is null';
   }
 
+  /// Compile HAVING EXISTS clause
+  ///
+  ///
+  /// Examples:
+  /// - having exists (SELECT ...)
+  /// - having not exists (SELECT ...)
+  String havingExists(Map<String, dynamic> statement) {
+    final callback = statement['value'] as QueryBuilderCallback;
+
+    // Create a new QueryBuilder for the subquery
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+
+    // Get the SQL for the subquery, renumbering $N placeholders to continue
+    // from the parent's running binding count (mirrors _compileSubquery()).
+    final bindingOffset = bindings.length;
+    final subSQL = subBuilder.toSQL();
+    final sql = _offsetPlaceholders(subSQL.sql, bindingOffset);
+    bindings.addAll(subSQL.bindings);
+
+    return '${_not(statement, 'exists ')}($sql)';
+  }
+
+  /// Compile grouped HAVING conditions (parentheses)
+  ///
+  ///
+  /// Mirrors [whereWrapped]: builds the nested HAVING clauses on a fresh
+  /// sub-builder, renumbers `$N` placeholders to continue from the parent's
+  /// binding count, and strips the leading `having ` prefix.
+  String havingWrapped(Map<String, dynamic> statement) {
+    final callback = statement['value'] as QueryBuilderCallback;
+
+    // Create a new QueryBuilder for the wrapped conditions
+    final subBuilder = QueryBuilder(client);
+    callback(subBuilder);
+
+    // Get the current binding count before adding subquery bindings
+    final bindingOffset = bindings.length;
+
+    // Compile the HAVING clauses from the sub-builder
+    final subCompiler = client.queryCompiler(subBuilder);
+    var havingSQL = subCompiler._having();
+
+    if (havingSQL.isEmpty) return '';
+
+    // Renumber parameter placeholders to continue from parent's count
+    havingSQL = _offsetPlaceholders(havingSQL, bindingOffset);
+
+    // Merge bindings from subquery into parent bindings
+    bindings.addAll(subCompiler.bindings);
+
+    // Remove the leading "having " (7 characters)
+    final condition = havingSQL.substring(7);
+
+    // Apply NOT if needed
+    final notStr = (statement['not'] as bool? ?? false) ? 'not ' : '';
+
+    return '$notStr($condition)';
+  }
+
   /// Compile ORDER BY clause
   ///
   ///
@@ -1088,9 +1272,7 @@ class QueryCompiler {
       if (stmt['type'] == 'orderByRaw') {
         final value = stmt['value'];
         if (value is Raw) {
-          final rawSql = value.toSQL();
-          bindings.addAll(rawSql.bindings);
-          sql.add(rawSql.sql);
+          sql.add(_inlineRaw(value));
         } else {
           sql.add(value.toString());
         }
@@ -1100,8 +1282,9 @@ class QueryCompiler {
       // Get column and wrap it
       final column = formatter.wrap(stmt['value']);
 
-      // Get direction (default to 'asc' if not specified)
-      final direction = stmt['direction'] as String? ?? 'asc';
+      // Raw directions (for example, `raw('desc nulls last')`) are emitted
+      // verbatim by knex.js; ordinary values are validated by Formatter.
+      final direction = formatter.direction(stmt['direction'] ?? 'asc');
 
       // Format: "column" asc  or  "column" desc
       sql.add('$column $direction');
@@ -1156,14 +1339,42 @@ class QueryCompiler {
     final lock = single['lock'] as String?;
     if (lock == null) return '';
 
-    final mysqlLike =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-    final postgresLike =
-        client.driverName == 'pg' ||
-        client.driverName == 'postgres' ||
-        client.driverName == 'postgresql' ||
-        client.driverName == 'cockroachdb' ||
-        client.driverName == 'mock';
+    // Redshift and SQLite have no row-locking support at all — knex.js
+    // silently drops the lock clause entirely for every one of the 4 modes
+    // on both (Redshift additionally logs a console warning; SQLite doesn't
+    // even do that) — verified directly against real knex.js 3.3.0, not
+    // assumed from the family grouping below. Previously these fell through
+    // to the generic postgres-shaped branches, emitting `for update`/`for
+    // share` — invalid on SQLite (no such clause) and semantically wrong
+    // for Redshift (which processed the request as if it were a no-op,
+    // where knex-dart's version implied real row-level locking that
+    // Redshift doesn't provide).
+    if (client.driverName == 'redshift' || _isSqliteLikeDriver) {
+      return '';
+    }
+
+    // MSSQL doesn't have a trailing `FOR UPDATE`/`FOR SHARE` clause at
+    // all — its lock hints (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attach
+    // directly to the table reference in the FROM clause instead, a
+    // different position in the SQL text this trailing-clause-shaped
+    // method can't produce. Emitting the generic postgres-style text here
+    // would be silently wrong T-SQL (MSSQL doesn't recognize a bare `for
+    // update` as a lock hint the way postgres does). Refuse loudly instead
+    // — a real fix needs the FROM-clause compiler to know about pending
+    // lock hints, not a one-line change here.
+    if (client.driverName == 'mssql') {
+      throw StateError(
+        '.$lock() on MSSQL requires a table-hint (WITH (UPDLOCK)/WITH '
+        '(HOLDLOCK)) attached to the FROM clause, not a trailing clause — '
+        'not currently supported by knex-dart',
+      );
+    }
+
+    // Use the family-aware helper so mariadb (and any future mysql-family
+    // driver name) is dispatched correctly here too — same fix as the JSON
+    // where family.
+    final mysqlLike = _isMySqlLikeDriver;
+    final postgresLike = _isPostgresLikeDriver;
 
     switch (lock) {
       case 'forUpdate':
@@ -1195,6 +1406,33 @@ class QueryCompiler {
   String _waitMode() {
     final waitMode = single['waitMode'] as String?;
     if (waitMode == null) return '';
+
+    // SQLite (and the turso/d1 family sharing its wire format) has no lock
+    // clause at all, so a trailing `skip locked`/`nowait` fragment would be
+    // emitted with no lock text in front of it — invalid SQL. Real knex.js
+    // throws here too (its base QueryCompiler.skipLocked()/.noWait() aren't
+    // overridden by the sqlite3 compiler) — verified against knex.js 3.3.0:
+    // `.forUpdate().skipLocked()` on sqlite3 throws
+    // ".skipLocked() is currently only supported on MySQL 8.0+ and
+    // PostgreSQL 9.5+". Redshift is deliberately NOT included here even
+    // though it also drops the lock clause: it inherits postgres's
+    // skipLocked()/noWait() unchanged, so real knex.js emits the (already
+    // odd) `select * from "users" skip locked` with no lock clause — this
+    // mirrors that, not a bug to "fix" independently of upstream.
+    if (_isSqliteLikeDriver) {
+      switch (waitMode) {
+        case 'skipLocked':
+          throw StateError(
+            '.skipLocked() is currently only supported on MySQL 8.0+ and '
+            'PostgreSQL 9.5+',
+          );
+        case 'noWait':
+          throw StateError(
+            '.noWait() is currently only supported on MySQL 8.0+, MariaDB '
+            '10.3.0+ and PostgreSQL 9.5+',
+          );
+      }
+    }
 
     switch (waitMode) {
       case 'skipLocked':
@@ -1229,10 +1467,20 @@ class QueryCompiler {
 
     for (final stmt in unions) {
       final type = stmt['type'] as String; // 'union' or 'union all'
-      final query = stmt['value'];
+      var query = stmt['value'];
       final wrap = stmt['wrap'] as bool? ?? false;
 
       String sql;
+
+      // Callback form (`.union([(qb) => qb.select(...), ...])`) — matches
+      // knex.js's array-of-callbacks union shape. Without this, a Function
+      // entry silently fell through to the `else { continue; }` branch below
+      // and the whole UNION branch vanished from the SQL with no error.
+      if (query is Function) {
+        final subBuilder = QueryBuilder(client);
+        query(subBuilder);
+        query = subBuilder;
+      }
 
       if (query is QueryBuilder) {
         // Get current binding count BEFORE compiling unioned query
@@ -1249,9 +1497,7 @@ class QueryCompiler {
         // Merge bindings
         bindings.addAll(queryCompiler.bindings);
       } else if (query is Raw) {
-        final rawSQL = query.toSQL();
-        sql = rawSQL.sql;
-        bindings.addAll(rawSQL.bindings);
+        sql = _inlineRaw(query);
       } else {
         continue;
       }
@@ -1275,7 +1521,8 @@ class QueryCompiler {
   /// [stmt] keys (all):
   ///   - `method`       — SQL function name: 'row_number', 'rank', 'dense_rank',
   ///                      'lead', 'lag', 'first_value', 'last_value', 'nth_value'
-  ///   - `alias`        — optional alias string (NOT quoted, matching JS behaviour)
+  ///   - `alias`        — optional alias string (identifier-wrapped, matching
+  ///                      knex.js 3.2.10+'s analytic-function alias escaping)
   ///   - `raw`          — optional [Raw] whose .sql replaces the entire OVER body
   ///   - `partitions`   — List of String or `{'column': String, 'order': String?}`
   ///   - `order`        — List of String or `{'column': String, 'order': String?}`
@@ -1322,12 +1569,9 @@ class QueryCompiler {
     var sql = '$funcCall over (';
 
     if (raw != null && raw is Raw) {
-      final rawSQL = raw.toSQL();
-      bindings.addAll(rawSQL.bindings);
-
       // If caller passes only an order expression (e.g. `"score" desc`),
       // normalize it to `order by ...` inside OVER(...).
-      var overClause = rawSQL.sql.trim();
+      var overClause = _inlineRaw(raw).trim();
       if (overClause.isNotEmpty && !_isCompleteAnalyticOverClause(overClause)) {
         overClause = 'order by $overClause';
       }
@@ -1375,7 +1619,7 @@ class QueryCompiler {
     sql += ')';
 
     if (alias != null && alias.isNotEmpty) {
-      sql += ' as $alias';
+      sql += ' as ${formatter.wrap(alias)}';
     }
 
     return sql;
@@ -1436,10 +1680,17 @@ class QueryCompiler {
 
         // Merge bindings
         bindings.addAll(cteQuery.bindings);
+
+        // If the CTE body itself carries an alias (`.with('x', builder.as('y'))`
+        // or a nested `.with()` whose inner query used `.as()`), knex.js wraps
+        // the body in its own parens + alias *inside* the outer `"x" as (...)`
+        // wrapper: `"x" as ((select ...) as "y")`. Mirror that here — without
+        // it the alias was silently dropped.
+        if (query.alias != null) {
+          cteSql = '($cteSql) as ${formatter.wrapAsIdentifier(query.alias!)}';
+        }
       } else if (query is Raw) {
-        final rawSQL = query.toSQL();
-        cteSql = rawSQL.sql;
-        bindings.addAll(rawSQL.bindings);
+        cteSql = _inlineRaw(query);
       } else {
         continue;
       }
@@ -1465,12 +1716,28 @@ class QueryCompiler {
   /// Compile INSERT query
   ///
   String _insertQuery() {
+    // An empty INSERT (e.g. `insert([])`, or `insert([{}, {}])` — multiple
+    // all-empty rows) is a no-op in knex.js: compiles to nothing at all,
+    // dropping WITH/ON CONFLICT/RETURNING too, not just the insert clause
+    // itself. Checked up front, before any binding-generating compilation,
+    // so it can't touch `bindings` (which would desync placeholder numbers
+    // in the non-empty path below, since WITH must be compiled — and its
+    // bindings recorded — before INSERT's).
+    if (_isEmptyInsert()) return '';
+
     final parts = <String>[];
     final onConflict = single['onConflict'] as Map<String, dynamic>?;
 
+    // WITH (CTE) clauses must precede INSERT — mirrors _updateQuery() /
+    // _deleteQuery(), which both already do this. Without it, a `.with(...)`
+    // preceding `.insert(...)` was silently dropped from the compiled SQL.
+    final withSql = _with();
+    if (withSql.isNotEmpty) {
+      parts.add(withSql);
+    }
+
     // MySQL INSERT IGNORE is a prefix modifier — handle it at INSERT level
-    final isIgnorePrefixDialect =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
+    final isIgnorePrefixDialect = _isMySqlLikeDriver;
     final isIgnore = onConflict?['strategy'] == 'ignore';
 
     parts.add(_insert(ignorePrefix: isIgnorePrefixDialect && isIgnore));
@@ -1488,9 +1755,7 @@ class QueryCompiler {
         final whereStmts = grouped['where'];
         final hasWhere = whereStmts != null && whereStmts.isNotEmpty;
         if (hasWhere) {
-          final isMySQL =
-              client.driverName == 'mysql' || client.driverName == 'mysql2';
-          if (isMySQL) {
+          if (_isMySqlLikeDriver) {
             throw StateError(
               '.onConflict().merge().where() is not supported for mysql',
             );
@@ -1511,24 +1776,54 @@ class QueryCompiler {
     return parts.join(' ');
   }
 
+  /// Whether `.insert(...)` compiles to nothing at all (a no-op), mirroring
+  /// [_insert]'s empty-array/all-empty-rows handling without generating any
+  /// SQL or touching `bindings` — see [_insertQuery] for why that matters.
+  bool _isEmptyInsert() {
+    final insertValue = single['insert'];
+    if (insertValue == null) return true;
+    if (insertValue is List) {
+      if (insertValue.isEmpty) return true;
+      if (insertValue.length > 1) {
+        return insertValue.every((row) => (row as Map).isEmpty);
+      }
+    }
+    return false;
+  }
+
   /// Compile INSERT statement
   ///
   String _insert({bool ignorePrefix = false}) {
     final insertValue = single['insert'];
     if (insertValue == null) return '';
 
-    // Normalize to list of maps
+    final table = formatter.wrap(single['table']);
+    final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
+    // Mirrors knex.js's per-dialect `_emptyInsertValue`: MySQL requires an
+    // explicit empty column/value list, everyone else accepts DEFAULT VALUES.
+    final emptyInsertValue = _isMySqlLikeDriver
+        ? '() values ()'
+        : 'default values';
+
+    // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
+    // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
+    // `Map<String, dynamic>`), so convert element-by-element rather than a
+    // blind `List.cast()`, which defers the type check to iteration time and
+    // throws deep inside the values-building loop below instead of here.
     final List<Map<String, dynamic>> rows;
     if (insertValue is List) {
       if (insertValue.isEmpty) {
-        throw ArgumentError('Cannot insert empty array');
+        // knex.js treats `insert([])` as a no-op — compiles to nothing.
+        return '';
       }
-      rows = insertValue.cast<Map<String, dynamic>>();
-    } else if (insertValue is Map<String, dynamic>) {
+      rows = insertValue
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+    } else if (insertValue is Map) {
       if (insertValue.isEmpty) {
-        throw ArgumentError('Cannot insert empty object');
+        return '$keyword $table $emptyInsertValue';
       }
-      rows = [insertValue];
+      rows = [Map<String, dynamic>.from(insertValue)];
     } else {
       throw ArgumentError('INSERT values must be Map or List<Map>');
     }
@@ -1543,13 +1838,40 @@ class QueryCompiler {
         if (seen.add(key)) columns.add(key);
       }
     }
+    // knex.js's `_prepInsert` sorts the column list alphabetically
+    // (`Object.keys(data[i]).sort()`), not first-seen-order — the row-value
+    // loop below already looks values up by column name (order-independent
+    // per row), so sorting here is a pure ordering fix with no semantic
+    // change to which value lands in which column.
+    columns.sort();
+
+    if (columns.isEmpty) {
+      // Every row was an empty map (e.g. `insert([{}])`). A single all-empty
+      // row inserts default values for the whole row; more than one is
+      // ambiguous — DEFAULT VALUES can't be repeated per-row — so knex.js
+      // drops it as a no-op, same as `insert([])`.
+      if (rows.length == 1) {
+        return '$keyword $table $emptyInsertValue';
+      }
+      return '';
+    }
+
     final columnsSql = columns.map((c) => formatter.wrap(c)).join(', ');
 
     // SQLite (and its family: turso, d1) rejects the DEFAULT keyword inside a
-    // VALUES list, so a ragged multi-row insert cannot be expressed there —
-    // knex.js refuses it, and so do we. Detect it up front for a clear error.
-    const sqliteFamily = {'sqlite', 'sqlite3', 'turso', 'd1'};
-    final isSqliteFamily = sqliteFamily.contains(client.driverName);
+    // VALUES list, so a ragged multi-row insert cannot be expressed there by
+    // default. knex.js has the same restriction unless the caller opts in via
+    // its `useNullAsDefault` config flag (in which case it also switches the
+    // whole multi-row shape to a `select ... union all select ...` form — a
+    // legacy compatibility shim for SQLite versions predating multi-row
+    // VALUES support, <3.7.11/2012, which knex-dart intentionally doesn't
+    // replicate; see the `cte/insert-multi-source::sqlite` parity allowlist
+    // entry). knex-dart honors the same flag (`KnexConfig.useNullAsDefault`)
+    // more simply: a missing cell just binds `null` in the existing native
+    // VALUES syntax, which every SQLite version knex-dart targets accepts
+    // directly — no shim needed.
+    final isSqliteFamily = _isSqliteLikeDriver;
+    final useNullAsDefault = client.config.useNullAsDefault;
 
     // Build VALUES clauses
     final valuesClauses = <String>[];
@@ -1558,12 +1880,14 @@ class QueryCompiler {
       for (final col in columns) {
         if (row.containsKey(col)) {
           rowBindings.add(client.parameter(row[col], bindings));
+        } else if (useNullAsDefault) {
+          rowBindings.add(client.parameter(null, bindings));
         } else {
           if (isSqliteFamily) {
             throw StateError(
               'SQLite does not support DEFAULT in a multi-row INSERT with '
-              'differing columns. Give every row the same columns, or split '
-              'into separate inserts.',
+              'differing columns. Give every row the same columns, split '
+              'into separate inserts, or set KnexConfig.useNullAsDefault.',
             );
           }
           // Missing cell → SQL DEFAULT keyword (uppercase, matching knex.js and
@@ -1574,8 +1898,6 @@ class QueryCompiler {
       valuesClauses.add('(${rowBindings.join(', ')})');
     }
 
-    final table = formatter.wrap(single['table']);
-    final keyword = ignorePrefix ? 'insert ignore into' : 'insert into';
     return '$keyword $table ($columnsSql) values ${valuesClauses.join(', ')}';
   }
 
@@ -1594,11 +1916,8 @@ class QueryCompiler {
     final strategy = onConflict['strategy'] as String;
     final column = onConflict['columns']; // String | List<String> | null
 
-    final isMySQL =
-        client.driverName == 'mysql' || client.driverName == 'mysql2';
-
     if (strategy == 'ignore') {
-      if (isMySQL) {
+      if (_isMySqlLikeDriver) {
         // MySQL: INSERT IGNORE is a prefix — nothing to add here
         return '';
       }
@@ -1629,11 +1948,28 @@ class QueryCompiler {
       Map<String, dynamic>? rawUpdateValues;
 
       if (mergeColumns == null) {
-        // No arg: update all inserted columns
+        // No arg: update all inserted columns. knex.js derives this list from
+        // the same `_prepInsert` pass used for the INSERT column list itself
+        // — the union of every row's keys (not just row[0]'s: a ragged
+        // multi-row insert can have a column that only appears from the
+        // second row onward, and it must still be merge-updated), sorted
+        // alphabetically (`Object.keys(...).sort()`), matching the INSERT
+        // column list itself.
+        // Same defensive conversion as _insert() — a row can arrive as
+        // Map<dynamic, dynamic> (e.g. from a dynamically-typed source);
+        // .cast<Map<String, dynamic>>() only lazily checks the outer List
+        // element type, so a mismatched row still throws later inside the
+        // merge-column loop instead of here.
         final rows = insertValue is List
-            ? insertValue.cast<Map<String, dynamic>>()
-            : [insertValue as Map<String, dynamic>];
-        updateColumns = rows[0].keys.toList();
+            ? insertValue
+                  .map((row) => Map<String, dynamic>.from(row as Map))
+                  .toList()
+            : [Map<String, dynamic>.from(insertValue as Map)];
+        final columnSet = <String>{};
+        for (final row in rows) {
+          columnSet.addAll(row.keys);
+        }
+        updateColumns = columnSet.toList()..sort();
       } else if (mergeColumns is List) {
         updateColumns = List<String>.from(mergeColumns);
       } else if (mergeColumns is Map) {
@@ -1643,7 +1979,7 @@ class QueryCompiler {
         updateColumns = [];
       }
 
-      if (isMySQL) {
+      if (_isMySqlLikeDriver) {
         // MySQL: ON DUPLICATE KEY UPDATE col=VALUES(col), ...
         final setClauses = <String>[];
         if (rawUpdateValues != null) {
@@ -1689,6 +2025,14 @@ class QueryCompiler {
     if (column is List && column.isNotEmpty) {
       return ' (${column.map((c) => formatter.wrap(c as String)).join(', ')})';
     }
+    if (column is Raw) {
+      // A raw conflict target (e.g. `onConflict(raw('(value) WHERE deleted_at
+      // IS NULL'))`, a partial-index conflict target) carries its own
+      // parens/guard clause — inline it verbatim, matching knex.js. Without
+      // this branch the entire target was silently dropped, producing a bare
+      // `on conflict do nothing`/`do update` instead of a targeted one.
+      return ' ${_inlineRaw(column)}';
+    }
     return '';
   }
 
@@ -1702,13 +2046,20 @@ class QueryCompiler {
       return '';
     }
 
+    if (!_supports(SqlCapability.returning)) {
+      // Mirrors knex.js: dialects without RETURNING support (mysql,
+      // redshift, ...) log a warning and silently drop the clause rather
+      // than failing the whole query.
+      client.logger.warning(
+        '.returning() is not supported by ${client.driverName} and will '
+        'not have any effect.',
+      );
+      return '';
+    }
+
     final columns = (returningCols as List<String>)
         .map((c) => formatter.wrap(c))
         .join(', ');
-
-    if (!_supports(SqlCapability.returning)) {
-      throw StateError('RETURNING is not supported by ${client.driverName}');
-    }
 
     return 'returning $columns';
   }
@@ -1731,6 +2082,20 @@ class QueryCompiler {
       parts.add(where);
     }
 
+    // MySQL-only extension: `UPDATE ... SET ... WHERE ... ORDER BY ...
+    // LIMIT ...`. Standard SQL doesn't allow ORDER BY/LIMIT on UPDATE, so
+    // this is gated to MySQL to match knex.js's mysql-querycompiler.
+    if (_isMySqlLikeDriver) {
+      final order = _order();
+      if (order.isNotEmpty) {
+        parts.add(order);
+      }
+      final limit = _limit();
+      if (limit.isNotEmpty) {
+        parts.add(limit);
+      }
+    }
+
     final returning = _returning();
     if (returning.isNotEmpty) {
       parts.add(returning);
@@ -1748,6 +2113,21 @@ class QueryCompiler {
     if (updateMap == null && counterMap == null) {
       throw ArgumentError('Empty .update() call detected!');
     }
+
+    final table = formatter.wrap(single['table']);
+
+    // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
+    // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
+    // to match knex.js's mysql-querycompiler. Compiled BEFORE the SET list
+    // below — its ON-clause bindings (from a bound onVal()) must precede
+    // the SET bindings in `bindings` to match MySQL's positional `?`
+    // placeholders, which are resolved strictly in text order (the join
+    // clause appears before `set ...` in the returned SQL). Building SET
+    // first previously appended its bindings ahead of the join's, silently
+    // shifting every bound value to the wrong placeholder whenever the
+    // join's ON clause carried a bound value.
+    final join = _isMySqlLikeDriver ? _join() : '';
+    final joinClause = join.isNotEmpty ? ' $join' : '';
 
     final updates = <String>[];
 
@@ -1771,12 +2151,19 @@ class QueryCompiler {
       }
     }
 
-    final table = formatter.wrap(single['table']);
-    return 'update $table set ${updates.join(', ')}';
+    return 'update $table$joinClause set ${updates.join(', ')}';
   }
 
   /// Compile DELETE query
   ///
+  /// Mirrors knex.js's per-dialect handling of `.del()` combined with
+  /// `.join(...)`. Standard SQL has no JOIN clause on DELETE, so each dialect
+  /// family expresses it differently — silently dropping the join (the
+  /// previous behavior here) would change query semantics, not just syntax:
+  ///   - Postgres/CockroachDB: `DELETE FROM t USING j WHERE ... AND` join-on
+  ///     conditions (join ON conditions fold into WHERE).
+  ///   - MySQL/SQLite/Redshift (and default): `DELETE t FROM t` join `WHERE
+  ///     ...` (join stays a real JOIN clause; WHERE is untouched).
   String _deleteQuery() {
     final parts = <String>[];
 
@@ -1786,19 +2173,112 @@ class QueryCompiler {
       parts.add(withSql);
     }
 
-    parts.add(_delete());
+    // Side-effect-free emptiness check — deliberately NOT `_join().isEmpty`.
+    // `_join()` compiles ON conditions (via `_compileJoinClauseSequence` →
+    // `client.parameter()`) and appends to `bindings` as a side effect;
+    // calling it here just to probe emptiness, then compiling the same
+    // conditions again in the postgres branch below via
+    // `_deleteUsingJoins()`, would append every bound join value TWICE and
+    // in the wrong slot (before WHERE's bindings instead of after — SQL text
+    // order for the postgres USING transform is `where <where> and <join
+    // conditions>`, so bindings must accumulate WHERE-then-join, not
+    // join-then-WHERE-then-join-again).
+    final hasJoins = (grouped['join']?.isNotEmpty ?? false);
 
-    final where = _where();
-    if (where.isNotEmpty) {
-      parts.add(where);
+    if (!hasJoins) {
+      parts.add(_delete());
+      final where = _where();
+      if (where.isNotEmpty) {
+        parts.add(where);
+      }
+    } else if (_isPostgresLikeDriver) {
+      parts.add(_delete());
+      // Compile WHERE first so its bindings land before the join ON
+      // conditions' bindings, matching the text order below.
+      final where = _where();
+      const wherePrefix = 'where ';
+      final whereBody = where.isEmpty
+          ? ''
+          : (where.startsWith(wherePrefix)
+                ? where.substring(wherePrefix.length)
+                : where); // defensive: never silently drop a non-empty WHERE
+      final usingJoins = _deleteUsingJoins();
+      if (usingJoins.tables.isNotEmpty) {
+        parts.add('using ${usingJoins.tables.join(',')}');
+      }
+      final combined = [
+        if (whereBody.isNotEmpty) whereBody,
+        ...usingJoins.conditions,
+      ].join(' and ');
+      if (combined.isNotEmpty) {
+        parts.add('where $combined');
+      }
+    } else {
+      final table = formatter.wrap(single['table']);
+      // Text order here is `<join> where ...`, so compile the join first —
+      // its bindings must precede WHERE's, matching the SQL text.
+      final joinSql = _join();
+      parts.add('delete $table from $table $joinSql');
+      final where = _where();
+      if (where.isNotEmpty) {
+        parts.add(where);
+      }
     }
 
-    final returning = _returning();
-    if (returning.isNotEmpty) {
-      parts.add(returning);
+    // MySQL-only extension: `DELETE ... WHERE ... LIMIT ...`. Standard SQL
+    // has no LIMIT on DELETE, so this is gated to MySQL to match knex.js's
+    // mysql-querycompiler.
+    if (_isMySqlLikeDriver) {
+      final limit = _limit();
+      if (limit.isNotEmpty) {
+        parts.add(limit);
+      }
+    }
+
+    // SQLite supports RETURNING on INSERT/UPDATE but NOT DELETE (verified
+    // against real knex.js — its sqlite3 dialect never emits it there),
+    // unlike every other capability-gated verb, which is symmetric. Skip it
+    // here regardless of the `returning` capability flag.
+    if (!_isSqliteLikeDriver) {
+      final returning = _returning();
+      if (returning.isNotEmpty) {
+        parts.add(returning);
+      }
     }
 
     return parts.join(' ');
+  }
+
+  /// Extracts JOIN tables and their ON-condition text for the Postgres
+  /// `DELETE ... USING` transform: each joined table becomes a USING entry
+  /// and its ON condition(s) fold into WHERE (see `_deleteQuery`).
+  ({List<String> tables, List<String> conditions}) _deleteUsingJoins() {
+    final joins = grouped['join'];
+    final tables = <String>[];
+    final conditions = <String>[];
+    if (joins == null) return (tables: tables, conditions: conditions);
+
+    for (final stmt in joins) {
+      // Raw/lateral joins have no table+condition shape to fold into USING;
+      // leave them out rather than emit something incorrect (not exercised
+      // by any known call pattern here).
+      if (stmt['type'] == 'joinRaw' || stmt['type'] == 'joinLateral') {
+        continue;
+      }
+      tables.add(_wrapTableIdentifier(stmt['table'].toString()));
+      if (stmt['join'] == 'cross') {
+        continue; // CROSS JOIN has no ON condition to fold in.
+      }
+      if (stmt['joinClause'] != null) {
+        final cond = _compileJoinClauses(stmt['joinClause']);
+        if (cond.isNotEmpty) conditions.add(cond);
+      } else {
+        final col1 = formatter.wrap(stmt['column1']);
+        final col2 = formatter.wrap(stmt['column2']);
+        conditions.add('$col1 = $col2');
+      }
+    }
+    return (tables: tables, conditions: conditions);
   }
 
   /// Compile TRUNCATE TABLE statement
@@ -1806,9 +2286,21 @@ class QueryCompiler {
   /// Postgres appends `restart identity`.
   String _truncateQuery() {
     final table = tableName;
-    final driver = client.driverName;
+    final driver = client.driverName.toLowerCase();
+    // Deliberately narrower than _isPostgresLikeDriver: cockroachdb and
+    // redshift both compile truncate() to plain `truncate $table` (verified
+    // against real knex.js 3.3.0), NOT the `restart identity` suffix — only
+    // literal Postgres gets that.
     if (driver == 'pg' || driver == 'postgres' || driver == 'postgresql') {
       return 'truncate $table restart identity';
+    }
+    // SQLite has no TRUNCATE statement. Knex.js compiles its truncate()
+    // builder method to DELETE FROM instead (including the Turso/D1 family).
+    if (_isSqliteLikeDriver) {
+      return 'delete from $table';
+    }
+    if (driver == 'mssql') {
+      return 'truncate table $table';
     }
     return 'truncate $table';
   }
@@ -1842,8 +2334,27 @@ class QueryCompiler {
       final columns = value
           .map((col) => formatter.wrap(col.toString()))
           .join(', ');
-      final distinctPart = distinct.isNotEmpty ? 'distinct $columns' : columns;
-      final aggregated = '$method($distinctPart)';
+      // Postgres-family: with DISTINCT + multiple columns, knex.js's pg
+      // query-compiler treats the column list as a row constructor — emitting
+      // `count(distinct("foo", "bar"))` (extra parens around the column
+      // list) — unlike mysql/sqlite which emit the standard
+      // `count(distinct \`foo\`, \`bar\`)`. Verified against real knex.js 3.3.0
+      // for all three dialects. (Single-column distinct is identical across
+      // all dialects — `count(distinct "foo")` — already handled by the
+      // string-value path below.)
+      // Redshift is included alongside _isPostgresLikeDriver (which
+      // excludes it) because this specific row-constructor behavior is
+      // inherited from Redshift's postgres compiler base — same
+      // include-redshift-explicitly pattern as distinctOn()'s dialect gate.
+      final isPgFamily = _isPostgresLikeDriver || client.driverName == 'redshift';
+      final String aggregated;
+      if (distinct.isNotEmpty && value.length > 1 && isPgFamily) {
+        aggregated = '$method(distinct($columns))';
+      } else if (distinct.isNotEmpty) {
+        aggregated = '$method(distinct $columns)';
+      } else {
+        aggregated = '$method($columns)';
+      }
       return [addAlias(aggregated, stmt['alias'] as String?)];
     }
 
@@ -1896,24 +2407,74 @@ class QueryCompiler {
     final distinct = stmt['aggregateDistinct'] == true ? 'distinct ' : '';
     final method = stmt['method'] as String;
     final raw = stmt['value'] as Raw;
-    final sql = raw.toSQL();
 
-    // Add bindings from the Raw instance
-    bindings.addAll(sql.bindings);
-
-    return '$method($distinct${sql.sql})';
+    return '$method($distinct${_inlineRaw(raw)})';
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // JSON OPERATORS (PG, MySQL, SQLite)
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // These three driver-family checks previously used bare `client.driverName
+  // == 'mysql'` / `== 'sqlite'` / `== 'pg'` comparisons, which never matched
+  // this codebase's actual driver-name strings for the core dialects
+  // (`mysql2`, `sqlite3`) — the mysql/sqlite branches below were dead code
+  // for every dialect built via `KnexQuery.forClient`. Widened to the same
+  // alias sets used elsewhere in this file (`_lock()`'s `postgresLike`, the
+  // `isMySQL` checks throughout) and to the sqlite-family set (turso/d1),
+  // matching the family-aware-dispatch convention this codebase otherwise
+  // follows for SQLite-family dialects.
+  //
+  // `_isPostgresLikeDriver` is also used by `_deleteQuery()`'s
+  // Postgres-vs-JOIN-clause DELETE dispatch (deliberately NOT Redshift —
+  // knex.js's redshift-querycompiler doesn't inherit pg-querycompiler's
+  // `del()` override, and none of Redshift's JSON-where shapes are exercised
+  // by knex.js's own test suite either — verified against real knex.js).
+  //
+  // Includes `mariadb` (knex-dart supports `KnexDialect.mariadb`, which emits
+  // driver-name `'mariadb'`, uses the mysql formatter and `?` placeholders
+  // — see knex_query.dart `_driverStr`/`wrapIdentifierImpl`/`parameterPlaceholder`).
+  // Previously missing here, which silently routed JSON-where, INSERT IGNORE,
+  // onConflict merge/ignore, UPDATE join/order/limit and DELETE limit off the
+  // intended MySQL-shaped compile path for mariadb — leaving compiled SQL
+  // semantically wrong (e.g. `where \`c\` = ?` instead of
+  // `where json_contains(\`c\`, ?)`, or a JOIN clause dropped from an UPDATE
+  // entirely). Mirrors the `mariadb` inclusion in `schema_compiler`'s
+  // `_isMySqlLike`.
+  bool get _isMySqlLikeDriver =>
+      client.driverName == 'mysql' ||
+      client.driverName == 'mysql2' ||
+      client.driverName == 'mariadb';
+  bool get _isSqliteLikeDriver =>
+      const {'sqlite', 'sqlite3', 'turso', 'd1'}.contains(client.driverName);
+  bool get _isPostgresLikeDriver => const {
+    'pg',
+    'postgres',
+    'postgresql',
+    'cockroachdb',
+  }.contains(client.driverName);
+
   String _whereJsonObject(Map<String, dynamic> statement) {
-    return '${_not(statement, '') + formatter.wrap(statement['column'])} = ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isMySqlLikeDriver) {
+      // MySQL has no `=` semantics for JSON columns; knex.js wraps in
+      // json_contains() instead.
+      return '${_not(statement, '')}json_contains($col, $val)';
+    }
+    return '${_not(statement, '') + col} = $val';
   }
 
   String _whereJsonPath(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
+    // Postgres only (NOT cockroachdb — cockroachdb uses `json_extract_path`
+    // with the JSONPath split into positional segments, a materially
+    // different transform not implemented here; see the
+    // `json/where-path::cockroachdb` parity allowlist entry).
+    final isPg =
+        client.driverName == 'pg' ||
+        client.driverName == 'postgres' ||
+        client.driverName == 'postgresql';
+    if (isPg) {
       final col = formatter.wrap(statement['column']);
       final path = client.parameter(statement['jsonPath'], bindings);
       final op = formatter.operator(statement['operator']);
@@ -1928,31 +2489,55 @@ class QueryCompiler {
 
       final valClause = _valueClause(statement);
       return '${_not(statement, '')}jsonb_path_query_first($col, $path)$castValue $op $valClause';
-    } else if (client.driverName == 'mysql' || client.driverName == 'sqlite') {
+    } else if (_isMySqlLikeDriver || _isSqliteLikeDriver) {
       final col = formatter.wrap(statement['column']);
       final path = client.parameter(statement['jsonPath'], bindings);
       final op = formatter.operator(statement['operator']);
       final valClause = _valueClause(statement);
       return '${_not(statement, '')}json_extract($col, $path) $op $valClause';
     }
-    // Fallback if not supported
-    return whereBasic(statement);
+    // Not implemented for this dialect (cockroachdb) or genuinely
+    // unsupported (redshift — real knex.js itself throws compiling this).
+    // Previously fell through to whereBasic(), silently compiling a plain
+    // (wrong) column comparison instead of refusing.
+    throw StateError('whereJsonPath is not supported by ${client.driverName}');
   }
 
   String _whereJsonSupersetOf(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
-      return '${_not(statement, '') + formatter.wrap(statement['column'])} @> ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isPostgresLikeDriver) {
+      return '${_not(statement, '')}$col @> $val';
     }
-    statement['operator'] = '=';
-    return whereBasic(statement); // Unsupported on other dialects right now
+    if (_isMySqlLikeDriver) {
+      // No space after the comma here — matches knex.js's mysql-querycompiler
+      // for whereJsonSupersetOf specifically (whereJsonObject's json_contains
+      // call, above, does have a space; knex.js is simply inconsistent about
+      // it between the two).
+      return '${_not(statement, '')}json_contains($col,$val)';
+    }
+    // Previously fell through to whereBasic() with operator forced to '=',
+    // silently compiling a plain (wrong) equality check instead of
+    // refusing.
+    throw StateError(
+      'whereJsonSupersetOf is not supported by ${client.driverName}',
+    );
   }
 
   String _whereJsonSubsetOf(Map<String, dynamic> statement) {
-    if (client.driverName == 'pg') {
-      return '${_not(statement, '') + formatter.wrap(statement['column'])} <@ ${_valueClause(statement)}';
+    final col = formatter.wrap(statement['column']);
+    final val = _valueClause(statement);
+    if (_isPostgresLikeDriver) {
+      return '${_not(statement, '')}$col <@ $val';
     }
-    statement['operator'] = '=';
-    return whereBasic(statement); // Unsupported on other dialects right now
+    if (_isMySqlLikeDriver) {
+      // Argument order is reversed vs. supersetOf — matches knex.js. No
+      // space after the comma (see the note in _whereJsonSupersetOf).
+      return '${_not(statement, '')}json_contains($val,$col)';
+    }
+    throw StateError(
+      'whereJsonSubsetOf is not supported by ${client.driverName}',
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

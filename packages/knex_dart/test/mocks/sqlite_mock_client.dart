@@ -2,7 +2,7 @@ import 'mock_client.dart';
 
 /// Mock client mimicking SQLite: double-quoted identifiers, ? placeholders.
 class SqliteMockClient extends MockClient {
-  SqliteMockClient() : super(driverName: 'sqlite3');
+  SqliteMockClient({super.config}) : super(driverName: 'sqlite3');
 
   @override
   String wrapIdentifierImpl(String value) {

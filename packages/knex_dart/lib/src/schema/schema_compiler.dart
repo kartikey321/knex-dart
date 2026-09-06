@@ -152,8 +152,15 @@ class SchemaCompiler {
     final driver = client.driverName.toLowerCase();
 
     if (_isPostgresLike(driver)) {
+      // Redshift: `create table t (like src)` — no `including all` suffix.
+      // Redshift's `LIKE` form already copies column defs, distribution, and
+      // sort keys; the `INCLUDING ALL` clause is a Postgres-only extension
+      // (knex.js's redshift client omits it — verified against real knex.js
+      // 3.3.0). Cockroachdb supports it and knex.js's cockroachdb client
+      // emits it match postgres.
+      final likeSuffix = driver == 'redshift' ? '' : ' including all';
       if (callback == null) {
-        _pushQuery('create table $tableRef (like $sourceRef including all)');
+        _pushQuery('create table $tableRef (like $sourceRef$likeSuffix)');
         return;
       }
 
@@ -162,12 +169,11 @@ class SchemaCompiler {
       final extraColumns = tb.columns
           .map((c) => c.toSQL(dialect: client.driverName, wrap: _wrap))
           .toList();
-      final extraSql = extraColumns.isEmpty
-          ? ''
-          : ', ${extraColumns.join(', ')}';
+      final extraSql =
+          extraColumns.isEmpty ? '' : ', ${extraColumns.join(', ')}';
 
       _pushQuery(
-        'create table $tableRef (like $sourceRef including all$extraSql)',
+        'create table $tableRef (like $sourceRef$likeSuffix$extraSql)',
       );
       _pushDeferredConstraintsForTable(tableName, tableRef, tb);
       return;
@@ -202,10 +208,16 @@ class SchemaCompiler {
 
   void _createView(String viewName, dynamic definition) {
     final compiled = _compileSelectable(definition, operation: 'createView');
-    _pushQuery(
-      'create view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
-    );
+    // View DDL cannot accept parameters at parse time — Postgres/MySQL/SQLite
+    // all reject `create view ... where col = $1` (or `?`). knex.js inlines
+    // bound values directly into the view's SQL string at compile time
+    // (verified against real knex.js 3.3.0: `create view "v" as select *
+    // from "users" where "active" = true` — no bindings, the literal `true`
+    // is baked into the SQL). Without this, knex-dart emitted
+    // `... where "active" = $1` with a separate `[true]` bindings list,
+    // which Postgres/MySQL/SQLite all reject at execution time.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
+    _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
   }
 
   void _createViewOrReplace(String viewName, dynamic definition) {
@@ -214,17 +226,23 @@ class SchemaCompiler {
       operation: 'createViewOrReplace',
     );
     final driver = client.driverName.toLowerCase();
+    // Same view-DDL-can't-take-bindings reason as _createView — inline them.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
     if (_isSqliteLike(driver)) {
       _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
+      _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
+      return;
+    }
+    if (driver == 'mssql') {
+      // MSSQL has no `CREATE OR REPLACE VIEW` — `CREATE OR ALTER VIEW` is
+      // its equivalent (verified against real knex.js 3.3.0).
       _pushQuery(
-        'create view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-        compiled.bindings,
+        'CREATE OR ALTER VIEW ${_prefixedTableName(viewName)} AS $inlinedSql',
       );
       return;
     }
     _pushQuery(
-      'create or replace view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
+      'create or replace view ${_prefixedTableName(viewName)} as $inlinedSql',
     );
   }
 
@@ -234,9 +252,12 @@ class SchemaCompiler {
       definition,
       operation: 'createMaterializedView',
     );
+    // Same view-DDL binding-inlining reason as _createView — see the
+    // comment there. Materialized views in Postgres are equally unable to
+    // accept parameters at parse time.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
     _pushQuery(
-      'create materialized view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
+      'create materialized view ${_prefixedTableName(viewName)} as $inlinedSql',
     );
   }
 
@@ -255,11 +276,20 @@ class SchemaCompiler {
     final driver = client.driverName.toLowerCase();
     if (driver == 'mssql') {
       final name = _prefixedTableName(viewName);
-      _pushQuery("if object_id('$name', 'V') is not null DROP VIEW $name");
+      _pushQuery(
+        "if object_id('${_objectIdLiteral(name)}', 'V') is not null DROP VIEW $name",
+      );
       return;
     }
     _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
   }
+
+  /// Escape a `$name` reference for embedding inside an MSSQL `object_id('...')`
+  /// string literal. `object_id()` takes its argument as a string, not an
+  /// identifier, so a literal `'` in the table/schema name — untouched by
+  /// bracket-quoting, a different escape mechanism — must be doubled or it
+  /// terminates the literal early.
+  String _objectIdLiteral(String ref) => ref.replaceAll("'", "''");
 
   void _dropMaterializedView(String viewName) {
     _ensurePostgresOnly('dropMaterializedView');
@@ -328,7 +358,9 @@ class SchemaCompiler {
     final deferredConstraints = <Map<String, dynamic>>[];
 
     for (final col in tb.columns) {
-      columnDefs.add(col.toSQL(dialect: client.driverName, wrap: _wrap));
+      columnDefs.add(
+        col.toSQL(dialect: client.driverName, wrap: _wrap, tableName: tableName),
+      );
 
       // Collect unique/FK constraints for separate ALTER TABLE statements
       if (col.isUnique) {
@@ -336,6 +368,7 @@ class SchemaCompiler {
           'type': 'unique',
           'column': col.name,
           'table': tableName,
+          'indexName': col.uniqueIndexName,
         });
       }
       if (col.referencesColumn != null && col.referencesTable != null) {
@@ -355,6 +388,27 @@ class SchemaCompiler {
     // parity). This is required for SQLite, which cannot add a primary key via
     // ALTER TABLE after creation; it is also valid for Postgres/MySQL.
     var primaryInline = '';
+    // ColumnBuilder.primary() is the fluent counterpart to table.primary().
+    // It must participate in the CREATE TABLE primary-key clause rather than
+    // being silently discarded after the column definition is compiled.
+    final primaryColumn = tb.columns.where((col) => col.isPrimary).firstOrNull;
+    if (primaryColumn != null && !primaryColumn.type.contains('primary key')) {
+      final colStr = _wrap(primaryColumn.name);
+      // MySQL/SQLite only omit the `constraint "name"` prefix when the
+      // caller didn't supply one (verified against real knex.js 3.3.0:
+      // `.primary()` bare omits it, but `.primary('name')` includes it
+      // identically to Postgres). Previously this omitted the name
+      // unconditionally on these dialects, silently dropping an explicitly
+      // requested constraint name.
+      final omitsConstraintName = (_isSqliteLike(client.driverName) ||
+              _isMySqlLike(client.driverName)) &&
+          primaryColumn.primaryConstraintName == null;
+      final constraintName =
+          primaryColumn.primaryConstraintName ?? '${tableName}_pkey';
+      primaryInline = omitsConstraintName
+          ? ', primary key ($colStr)'
+          : ', constraint ${_wrap(constraintName)} primary key ($colStr)';
+    }
     for (final stmt in tb.alterStatements) {
       if (stmt['method'] == 'primary') {
         final args = stmt['args'] as List;
@@ -415,11 +469,92 @@ class SchemaCompiler {
       }
     }
 
-    // Main CREATE TABLE statement
+    // Fold FOREIGN KEY constraints inline for MSSQL too — same reasoning as
+    // SQLite above, but MSSQL's inline form (like its deferred ALTER TABLE
+    // form elsewhere in this file) always names the constraint, unlike
+    // SQLite's bare `foreign key (...)`. Verified against real knex.js
+    // 3.3.0's test/unit/schema-builder/mssql.js "adds foreign key with
+    // onUpdate and onDelete": `CREATE TABLE [person] (..., CONSTRAINT
+    // [person_user_id_foreign] FOREIGN KEY ([user_id]) REFERENCES [users]
+    // ([id]) ON DELETE SET NULL, ...)` — a deferred `ALTER TABLE ADD
+    // CONSTRAINT` (as used for Postgres/MySQL below) is never emitted for
+    // MSSQL createTable.
+    if (client.driverName == 'mssql') {
+      void writeInlineForeignMssql(
+        dynamic col,
+        dynamic refTable,
+        dynamic refCol,
+        dynamic onDelete,
+        dynamic onUpdate,
+      ) {
+        if (refTable == null || refCol == null) return;
+        final constraintName = '${tableName}_${col}_foreign';
+        foreignInline.write(
+          ', constraint ${_wrap(constraintName)} foreign key (${_wrap(col)}) references ${_wrap(refTable)} (${_wrap(refCol)})',
+        );
+        if (onDelete != null) foreignInline.write(' on delete $onDelete');
+        if (onUpdate != null) foreignInline.write(' on update $onUpdate');
+      }
+
+      for (final c in deferredConstraints) {
+        if (c['type'] == 'foreign') {
+          writeInlineForeignMssql(
+            c['column'],
+            c['referencesTable'],
+            c['referencesColumn'],
+            c['onDelete'],
+            c['onUpdate'],
+          );
+        }
+      }
+      for (final stmt in tb.alterStatements) {
+        if (stmt['method'] == 'foreign') {
+          final data = (stmt['args'] as List)[0] as Map<String, dynamic>;
+          writeInlineForeignMssql(
+            data['column'],
+            data['inTable'],
+            data['references'],
+            data['onDelete'],
+            data['onUpdate'],
+          );
+        }
+      }
+    }
+
+    // Main CREATE TABLE statement. `table.comment(...)` previously set
+    // TableBuilder.single['comment'] but nothing ever read it, silently
+    // dropping the comment on every dialect. MySQL folds it inline into the
+    // CREATE TABLE statement itself (` comment = '...'`); Postgres-family
+    // emits a separate `comment on table ...` statement right after (both
+    // verified against real knex.js 3.3.0); SQLite has no table-comment
+    // support and knex.js silently drops it there too.
     final tableRef = _prefixedTableName(tableName);
-    final sql =
-        '$prefix $tableRef (${columnDefs.join(', ')}$primaryInline$foreignInline)';
+    final comment = tb.single['comment'] as String?;
+    final isMySql = _isMySqlLike(client.driverName);
+    final commentSuffix =
+        comment != null && isMySql ? " comment = '${_escapeComment(comment)}'" : '';
+    final tableBody =
+        '$tableRef (${columnDefs.join(', ')}$primaryInline$foreignInline)$commentSuffix';
+    final sql = prefix == 'create table if not exists' && client.driverName == 'mssql'
+        // MSSQL has no `CREATE TABLE IF NOT EXISTS` — knex.js instead guards
+        // with `IF OBJECT_ID(...) IS NULL CREATE TABLE ...` (verified
+        // against real knex.js 3.3.0), same existence-check idiom as
+        // _dropTableIfExists's mssql branch.
+        ? "if object_id('${_objectIdLiteral(tableRef)}', 'U') is null CREATE TABLE $tableBody"
+        : '$prefix $tableBody';
     _pushQuery(sql);
+
+    if (comment != null && _isPostgresLike(client.driverName)) {
+      _pushQuery("comment on table $tableRef is '${_escapeComment(comment)}'");
+    } else if (comment != null &&
+        comment.isNotEmpty &&
+        client.driverName == 'mssql') {
+      // MSSQL treats an empty comment as a no-op (verified against real
+      // knex.js 3.3.0: `t.comment('')` compiles to zero statements there,
+      // unlike Postgres/MySQL which both still emit theirs for an empty
+      // string).
+      _pushQuery(_mssqlCommentStatement(tableName, comment));
+    }
 
     _pushDeferredConstraintsForTable(
       tableName,
@@ -428,6 +563,62 @@ class SchemaCompiler {
       precomputed: deferredConstraints,
       skipPrimary: true,
     );
+  }
+
+  /// Escapes a table comment for use as a SQL string literal, dialect-aware
+  /// like ColumnBuilder._sqlString: MySQL-family strings treat `\` as an
+  /// escape character (NO_BACKSLASH_ESCAPES is off by default), so an
+  /// unescaped backslash right before the closing quote would escape the
+  /// quote itself and break out of the literal. Everywhere else, plain `'`
+  /// doubling is sufficient.
+  String _escapeComment(String value) {
+    if (_isMySqlLike(client.driverName)) {
+      return value.replaceAll('\\', r'\\').replaceAll("'", r"\'");
+    }
+    return value.replaceAll("'", "''");
+  }
+
+  /// MSSQL has no `COMMENT ON TABLE`/inline `COMMENT =` clause — table
+  /// comments are stored as an "extended property" via
+  /// sp_addextendedproperty (first time) or sp_updateextendedproperty
+  /// (property already exists), guarded by an existence check. Verified
+  /// against real knex.js 3.3.0, including its `withSchema()` handling
+  /// (defaults to 'dbo' when no schema was set).
+  String _mssqlCommentStatement(String tableName, String comment) {
+    // schemaName/tableName are embedded inside N'...' string literals (the
+    // stored-proc arguments), not as bracket-quoted identifiers — a literal
+    // `'` in either must be doubled or it terminates the literal early.
+    final schemaName = (builder.schema ?? 'dbo').replaceAll("'", "''");
+    final table = tableName.replaceAll("'", "''");
+    final escapedComment = _escapeComment(comment);
+    return "IF EXISTS(SELECT * FROM sys.fn_listextendedproperty(N'MS_Description', "
+        "N'Schema', N'$schemaName', N'Table', N'$table', NULL, NULL))\n"
+        "  EXEC sys.sp_updateextendedproperty N'MS_Description', N'$escapedComment', "
+        "N'Schema', N'$schemaName', N'Table', N'$table'\n"
+        "ELSE\n"
+        "  EXEC sys.sp_addextendedproperty N'MS_Description', N'$escapedComment', "
+        "N'Schema', N'$schemaName', N'Table', N'$table'";
+  }
+
+  /// MSSQL's default `.unique()` shape: a filtered `CREATE UNIQUE INDEX`
+  /// (not a `CONSTRAINT ... UNIQUE`) that excludes NULLs, since a standard
+  /// MSSQL unique constraint/index otherwise allows at most one NULL row —
+  /// this brings MSSQL's null semantics in line with every other dialect's
+  /// unique constraint (which allows unlimited NULLs). Verified against real
+  /// knex.js 3.3.0's mssql-tablecompiler.js `unique()`: default path (no
+  /// `{useConstraint: true}` — which has no Dart-side call to mirror it
+  /// with, knex-dart's `unique()` takes no options object) emits `CREATE
+  /// UNIQUE INDEX [name] ON [table] ([cols]) WHERE [col1] IS NOT NULL [AND
+  /// [col2] IS NOT NULL ...]`.
+  String _mssqlUniqueIndexSql(
+    String tableRef,
+    String constraintName,
+    List<dynamic> cols,
+  ) {
+    final colStr = cols.map((c) => _wrap(c)).join(', ');
+    final predicate =
+        cols.map((c) => '${_wrap(c)} is not null').join(' and ');
+    return 'create unique index ${_wrap(constraintName)} on $tableRef ($colStr) where $predicate';
   }
 
   /// Drop a table
@@ -440,7 +631,9 @@ class SchemaCompiler {
     final driver = client.driverName.toLowerCase();
     if (driver == 'mssql') {
       final name = _prefixedTableName(tableName);
-      _pushQuery("if object_id('$name', 'U') is not null DROP TABLE $name");
+      _pushQuery(
+        "if object_id('${_objectIdLiteral(name)}', 'U') is not null DROP TABLE $name",
+      );
       return;
     }
     _pushQuery('drop table if exists ${_prefixedTableName(tableName)}');
@@ -499,10 +692,104 @@ class SchemaCompiler {
 
     // Handle added columns
     for (final col in tb.columns) {
+      // MySQL's `ADD col_def` (no COLUMN keyword) is what knex.js emits, but
+      // `ADD COLUMN col_def` is equally valid MySQL syntax — this divergence
+      // is a deliberate, already-documented [ACCEPTED] cosmetic difference
+      // (see schema/alter-table-add-column::mysql in schema_parity_test.dart's
+      // allowlist), not something to chase here.
       final addKeyword = driver == 'mssql' ? 'add' : 'add column';
       _pushQuery(
-        'alter table $tableRef $addKeyword ${col.toSQL(dialect: client.driverName, wrap: _wrap)}',
+        'alter table $tableRef $addKeyword ${col.toSQL(dialect: client.driverName, wrap: _wrap, tableName: tableName)}',
       );
+    }
+
+    // `table.comment(...)` inside alterTable — see _buildCreateTable's
+    // comment handling for the dialect matrix (Postgres: separate
+    // `comment on table`; MySQL: separate `alter table ... comment = ...`,
+    // not inline this time since there's no CREATE TABLE statement to fold
+    // into; MSSQL: sp_addextendedproperty/sp_updateextendedproperty dance,
+    // see _mssqlCommentStatement; SQLite: no-op).
+    final comment = tb.single['comment'] as String?;
+    if (comment != null) {
+      if (_isPostgresLike(client.driverName)) {
+        _pushQuery("comment on table $tableRef is '${_escapeComment(comment)}'");
+      } else if (_isMySqlLike(client.driverName)) {
+        _pushQuery("alter table $tableRef comment = '${_escapeComment(comment)}'");
+      } else if (client.driverName == 'mssql' && comment.isNotEmpty) {
+        _pushQuery(_mssqlCommentStatement(tableName, comment));
+      }
+    }
+
+    // A fluent `.unique()` declared on a newly-added column is a deferred
+    // unique constraint in knex.js (same shape as the deferred foreign-key/
+    // primary-key handling below). Previously it was compiled as only ADD
+    // COLUMN, silently losing the constraint. Statement-ordering caveat:
+    // knex.js interleaves constraint statements in column-declaration order
+    // and batches every ADD COLUMN into a single comma-joined statement —
+    // both left as-is here (pre-existing, separately tracked gap; see the
+    // schema-parity harness's alter-table-add-* [OPEN BUG] entries).
+    for (final col in tb.columns) {
+      if (!col.isUnique) continue;
+      final constraintName = col.uniqueIndexName ?? '${tableName}_${col.name}_unique';
+      if (_isSqliteLike(client.driverName)) {
+        _pushQuery(
+          'create unique index ${_wrap(constraintName)} on $tableRef (${_wrap(col.name)})',
+        );
+      } else if (_isMySqlLike(client.driverName)) {
+        _pushQuery(
+          'alter table $tableRef add unique ${_wrap(constraintName)}(${_wrap(col.name)})',
+        );
+      } else if (client.driverName == 'mssql') {
+        _pushQuery(_mssqlUniqueIndexSql(tableRef, constraintName, [col.name]));
+      } else {
+        _pushQuery(
+          'alter table $tableRef add constraint ${_wrap(constraintName)} unique (${_wrap(col.name)})',
+        );
+      }
+    }
+
+    // A reference declared on a newly-added column is a deferred foreign-key
+    // constraint in knex.js. Previously it was compiled as only ADD COLUMN,
+    // silently losing the constraint.
+    for (final col in tb.columns) {
+      if (col.referencesColumn == null || col.referencesTable == null) continue;
+      if (_isSqliteLike(client.driverName)) {
+        throw UnsupportedError(
+          'foreign is not supported on an existing SQLite table — '
+          'declare it in createTable, or recreate the table instead',
+        );
+      }
+      final constraintName = '${tableName}_${col.name}_foreign';
+      var fk =
+          'alter table $tableRef add constraint ${_wrap(constraintName)} foreign key (${_wrap(col.name)}) references ${_wrap(col.referencesTable!)} (${_wrap(col.referencesColumn!)})';
+      if (col.onDeleteAction != null) fk += ' on delete ${col.onDeleteAction}';
+      if (col.onUpdateAction != null) fk += ' on update ${col.onUpdateAction}';
+      _pushQuery(fk);
+    }
+
+    // A column-level .primary() declared on a newly-added column is a
+    // deferred primary-key constraint in knex.js (same shape as the
+    // deferred foreign-key handling above). Previously it was compiled as
+    // only ADD COLUMN, silently losing the constraint.
+    for (final col in tb.columns) {
+      if (!col.isPrimary) continue;
+      if (_isSqliteLike(client.driverName)) {
+        throw UnsupportedError(
+          'primary is not supported on an existing SQLite table — '
+          'declare it in createTable, or recreate the table instead',
+        );
+      }
+      final constraintName = col.primaryConstraintName ?? '${tableName}_pkey';
+      final colStr = _wrap(col.name);
+      if (_isMySqlLike(client.driverName)) {
+        _pushQuery(
+          'alter table $tableRef add primary key ${_wrap(constraintName)}($colStr)',
+        );
+      } else {
+        _pushQuery(
+          'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
+        );
+      }
     }
 
     // Handle alter statements
@@ -514,17 +801,61 @@ class SchemaCompiler {
         case 'dropColumn':
           _pushQuery('alter table $tableRef drop column ${_wrap(args[0])}');
           break;
+        case 'dropColumns':
+          // knex.js emits a single combined `alter table t drop column X,
+          // drop column Y` statement (or `drop X, drop Y` for MySQL-family)
+          // — verified against real knex.js 3.3.0 for pg/mysql/sqlite/
+          // redshift. SQLite's own ALTER TABLE grammar only allows one
+          // operation per statement anyway (a comma-joined multi-drop is a
+          // syntax error there), and knex.js reroutes through a PRAGMA-based
+          // table rebuild instead (see the `alter-table-drop-column::sqlite`
+          // ACCEPTED entry) — not implemented here for the same reason, so
+          // SQLite falls back to one valid statement per column.
+          if (_isSqliteLike(client.driverName)) {
+            for (final col in args) {
+              _pushQuery('alter table $tableRef drop column ${_wrap(col)}');
+            }
+          } else if (_isMySqlLike(client.driverName)) {
+            final dropParts = args.map((col) => 'drop ${_wrap(col)}').join(', ');
+            _pushQuery('alter table $tableRef $dropParts');
+          } else if (client.driverName == 'mssql') {
+            // MSSQL's multi-column form is a single DROP COLUMN keyword
+            // followed by a comma-separated column list — `DROP COLUMN
+            // [a], [b]`, not `DROP COLUMN [a], DROP COLUMN [b]` — verified
+            // against real knex.js 3.3.0. (Real knex.js also emits a
+            // dynamic-SQL dance per column beforehand to drop any bound
+            // DEFAULT constraint first, which MSSQL requires before a
+            // DROP COLUMN will succeed — not implemented here, see the
+            // alter-table-drop-column::mssql OPEN BUG entry; this fixes
+            // only the DROP COLUMN statement's own syntax, which was
+            // previously wrong on its own terms regardless of that gap.)
+            final cols = args.map((col) => _wrap(col)).join(', ');
+            _pushQuery('alter table $tableRef drop column $cols');
+          } else {
+            final dropParts =
+                args.map((col) => 'drop column ${_wrap(col)}').join(', ');
+            _pushQuery('alter table $tableRef $dropParts');
+          }
+          break;
         case 'renameColumn':
           if (client.driverName == 'mssql') {
-            // MSSQL uses sp_rename with bindings to avoid injection.
-            // Object name includes schema prefix when set (matches _renameTable).
-            final objectName = builder.schema != null
-                ? '${builder.schema}.$tableName.${args[0]}'
-                : '$tableName.${args[0]}';
-            _pushQuery('exec sp_rename ?, ?, ?', [
+            // MSSQL uses sp_rename with bindings to avoid injection. The
+            // object-name binding is `<wrapped, schema-prefixed table
+            // name>.<raw column name>` — matching knex.js's
+            // `this.tableName() + '.' + from` exactly (tableName() already
+            // wraps with brackets and includes the schema prefix; see
+            // _prefixedTableName). The literal `'COLUMN'` type-of-object
+            // argument is NOT a bound parameter in knex.js — it's baked
+            // directly into the SQL text (verified against real knex.js
+            // 3.3.0's mssql-tablecompiler.js `renameColumn`, and
+            // test/unit/schema-builder/mssql.js's "rename column of view"
+            // case, which asserts exactly 2 bindings and a literal
+            // `'COLUMN'` in the sql string). Previously this bound it as a
+            // 3rd `?` placeholder — wrong statement shape, not just cosmetic.
+            final objectName = '${_prefixedTableName(tableName)}.${args[0]}';
+            _pushQuery("exec sp_rename ?, ?, 'COLUMN'", [
               objectName,
               args[1],
-              'COLUMN',
             ]);
           } else if (client.driverName == 'mysql' ||
               client.driverName == 'mysql2' ||
@@ -550,6 +881,12 @@ class SchemaCompiler {
             _pushQuery(
               'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
             );
+          } else if (_isMySqlLike(client.driverName)) {
+            _pushQuery(
+              'alter table $tableRef add unique ${_wrap(constraintName)}($colStr)',
+            );
+          } else if (client.driverName == 'mssql') {
+            _pushQuery(_mssqlUniqueIndexSql(tableRef, constraintName, cols));
           } else {
             _pushQuery(
               'alter table $tableRef add constraint ${_wrap(constraintName)} unique ($colStr)',
@@ -601,9 +938,19 @@ class SchemaCompiler {
               : '${tableName}_${cols.join('_')}_index';
           if (client.driverName == 'mysql' ||
               client.driverName == 'mysql2' ||
-              client.driverName == 'mariadb') {
-            // MySQL requires ON <table> to identify the index.
+              client.driverName == 'mariadb' ||
+              client.driverName == 'mssql') {
+            // MySQL and MSSQL both require ON <table> to identify the index
+            // (verified against real knex.js 3.3.0 for mssql, including
+            // withSchema() qualifying the table, not the index name).
             _pushQuery('drop index ${_wrap(indexName)} on $tableRef');
+          } else if (_isPostgresLike(client.driverName)) {
+            // Postgres-family DROP INDEX qualifies the index name itself
+            // with the schema (not the table) — `"schema"."index_name"`,
+            // matching knex.js. SQLite-family ignores withSchema() here
+            // entirely (verified against real knex.js 3.3.0), so only
+            // postgres-family gets the prefix.
+            _pushQuery('drop index ${_prefixedTableName(indexName as String)}');
           } else {
             _pushQuery('drop index ${_wrap(indexName)}');
           }
@@ -659,11 +1006,23 @@ class SchemaCompiler {
         case 'dropTimestamps':
           // JS PG: alter table "t" drop column "created_at", drop column "updated_at"
           // JS MySQL: alter table `t` drop `created_at`, drop `updated_at`
-          if (client.driverName == 'mysql' || client.driverName == 'mysql2') {
+          // SQLite: same one-operation-per-statement limitation as
+          // dropColumns above — comma-joining is a syntax error there.
+          if (_isSqliteLike(client.driverName)) {
+            for (final col in args) {
+              _pushQuery('alter table $tableRef drop column ${_wrap(col)}');
+            }
+          } else if (_isMySqlLike(client.driverName)) {
+            // Includes mariadb (which uses the same `drop X` spelling as mysql).
             final dropParts = args
                 .map((col) => 'drop ${_wrap(col)}')
                 .join(', ');
             _pushQuery('alter table $tableRef $dropParts');
+          } else if (client.driverName == 'mssql') {
+            // Same MSSQL multi-column form as dropColumns above — a single
+            // DROP COLUMN keyword with a comma-separated column list.
+            final cols = args.map((col) => _wrap(col)).join(', ');
+            _pushQuery('alter table $tableRef drop column $cols');
           } else {
             final dropParts = args
                 .map((col) => 'drop column ${_wrap(col)}')
@@ -683,9 +1042,15 @@ class SchemaCompiler {
           final constraintName = args.length > 1 && args[1] != null
               ? args[1] as String
               : '${tableName}_pkey';
-          _pushQuery(
-            'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
-          );
+          if (_isMySqlLike(client.driverName)) {
+            _pushQuery(
+              'alter table $tableRef add primary key ${_wrap(constraintName)}($colStr)',
+            );
+          } else {
+            _pushQuery(
+              'alter table $tableRef add constraint ${_wrap(constraintName)} primary key ($colStr)',
+            );
+          }
           break;
         case 'dropPrimary':
           if (client.driverName == 'mysql' ||
@@ -718,6 +1083,15 @@ class SchemaCompiler {
               client.driverName == 'mariadb') {
             _pushQuery(
               'alter table $tableRef drop index ${_wrap(constraintName)}',
+            );
+          } else if (client.driverName == 'mssql') {
+            // MSSQL creates unique constraints as indexes (CREATE UNIQUE
+            // INDEX, see the 'unique' case above), so they're dropped like
+            // any other index — DROP INDEX ... ON <table>, not ALTER TABLE
+            // ... DROP CONSTRAINT (verified against real knex.js 3.3.0,
+            // including withSchema() qualifying the table name).
+            _pushQuery(
+              'drop index ${_wrap(constraintName)} on $tableRef',
             );
           } else {
             _pushQuery(
@@ -753,23 +1127,147 @@ class SchemaCompiler {
   void _alterView(String viewName, dynamic definition) {
     final compiled = _compileSelectable(definition, operation: 'alterView');
     final driver = client.driverName.toLowerCase();
+    // Same view-DDL-can't-take-bindings reason as _createView — inline
+    // them. _alterView is knex-dart's own simplified "redefine the view"
+    // API (compiled as CREATE [OR REPLACE] VIEW, unlike knex.js's real
+    // alterView which is a column-rename-only ViewBuilder op with no SELECT
+    // definition) — it hits the exact same DDL-can't-bind restriction and
+    // was the one view-creation path not migrated when the others were.
+    final inlinedSql = _inlineBindings(compiled.sql, compiled.bindings);
     if (_isSqliteLike(driver)) {
       _pushQuery('drop view if exists ${_prefixedTableName(viewName)}');
+      _pushQuery('create view ${_prefixedTableName(viewName)} as $inlinedSql');
+      return;
+    }
+    if (driver == 'mssql') {
+      // MSSQL has no `CREATE OR REPLACE VIEW` — see _createViewOrReplace.
       _pushQuery(
-        'create view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-        compiled.bindings,
+        'CREATE OR ALTER VIEW ${_prefixedTableName(viewName)} AS $inlinedSql',
       );
       return;
     }
     _pushQuery(
-      'create or replace view ${_prefixedTableName(viewName)} as ${compiled.sql}',
-      compiled.bindings,
+      'create or replace view ${_prefixedTableName(viewName)} as $inlinedSql',
     );
   }
 
   void _raw(String sql, List<dynamic> bindings) {
     _pushQuery(sql, bindings);
   }
+
+  /// Inline bindings back into a SQL string as escaped literals. Used only
+  /// for view-DDL compile paths (`_createView`/`_createViewOrReplace`/
+  /// `_createMaterializedView`) — Postgres/MySQL/SQLite view DDL cannot
+  /// accept parameters at parse time, so knex.js inlines the values at
+  /// compile time (verified against real knex.js 3.3.0:
+  /// `create view "v" as select * from "users" where "active" = true` —
+  /// no bindings, the literal `true` is baked into the SQL string). This
+  /// mirrors that by replacing `?` and `$N` placeholders (the dialect's
+  /// parameter shape) with the dialect-escaped value, in binding order.
+  ///
+  /// Escaping follows the same family rules as `column_builder.dart`'s
+  /// `_sqlString`:
+  /// - Postgres-family: doubles `'` and `\`, prefixing `E` only when the
+  ///   value actually contains a backslash.
+  /// - MySQL-family: full C-style escape sequences including backslash.
+  /// - SQLite-family and everything else: plain `'` doubling only.
+  /// Booleans become `'1'`/`'0'` (MySQL/SQLite convention) — TODO:
+  /// pg-native `true`/`false`. Numbers and `null` are emitted bare.
+  String _inlineBindings(String sql, List<dynamic> bindings) {
+    if (bindings.isEmpty) return sql;
+    final driver = client.driverName;
+    final isPg = _postgresLikeSet.contains(driver);
+    final isMysql = _mysqlLikeSet.contains(driver);
+    String escapeValue(dynamic v) {
+      if (v == null) return 'null';
+      if (v is bool) {
+        // knex.js inlines `true`/`false` (bare SQL booleans) for a boolean
+        // binding across ALL dialects' view DDL — verified against real
+        // knex.js 3.3.0 for pg, mysql2, sqlite3, cockroachdb, redshift
+        // (all emit `... where "active" = true`, never `'1'`/`'0'`).
+        // Without this, knex-dart emitted `'1'` for mysql/sqlite-family
+        // matching the boolean-column-storage convention — wrong here
+        // because the bound value is the literal `true` (boolean-typed),
+        // not a `1`/`0` integer masquerading as boolean.
+        return v ? 'true' : 'false';
+      }
+      if (v is num) return v.toString();
+      if (v is String) {
+        if (isPg) {
+          var hasBackslash = false;
+          final buf = StringBuffer("'");
+          for (final rune in v.runes) {
+            final ch = String.fromCharCode(rune);
+            if (ch == "'") {
+              buf.write("''");
+            } else if (ch == '\\') {
+              buf.write(r'\\');
+              hasBackslash = true;
+            } else {
+              buf.write(ch);
+            }
+          }
+          buf.write("'");
+          final escaped = buf.toString();
+          return hasBackslash ? 'E$escaped' : escaped;
+        }
+        if (isMysql) {
+          final buf = StringBuffer("'");
+          for (final rune in v.runes) {
+            final ch = String.fromCharCode(rune);
+            buf.write(_mysqlEscapesInline[ch] ?? ch);
+          }
+          buf.write("'");
+          return buf.toString();
+        }
+        // sqlite and everything else: plain `'` doubling
+        return "'${v.replaceAll("'", "''")}'";
+      }
+      // Fall back to .toString() for any other type — same as the
+      // `formatValue` default in `knex_query.dart`.
+      return v.toString();
+    }
+
+    // Replace placeholders in order. Postgres placeholders are `$N`
+    // (1-indexed); mysql/sqlite are `?`. Replace each occurrence with the
+    // next binding's escaped literal.
+    var result = sql;
+    var bi = 0;
+    // Postgres `\$N` — match the N-th placeholder, swap for bindings[N-1].
+    if (isPg) {
+      result = result.replaceAllMapped(
+        RegExp(r'\$(\d+)'),
+        (m) => bi < bindings.length ? escapeValue(bindings[bi++]) : m[0]!,
+      );
+      return result;
+    }
+    // mysql/sqlite `?` — replace each occurrence with the next binding.
+    result = result.replaceAllMapped(
+      RegExp(r'\?'),
+      (m) => bi < bindings.length ? escapeValue(bindings[bi++]) : m[0]!,
+    );
+    return result;
+  }
+
+  static const _postgresLikeSet = {
+    'pg',
+    'postgres',
+    'postgresql',
+    'cockroachdb',
+    'redshift',
+  };
+  static const _mysqlLikeSet = {'mysql', 'mysql2', 'mariadb'};
+  static const _mysqlEscapesInline = {
+    '\x00': r'\0',
+    '\b': r'\b',
+    '\t': r'\t',
+    '\n': r'\n',
+    '\r': r'\r',
+    '\x1a': r'\Z',
+    '"': r'\"',
+    "'": r"\'",
+    '\\': r'\\',
+  };
 
   ({String sql, List<dynamic> bindings}) _compileSelectable(
     dynamic value, {
@@ -825,6 +1323,7 @@ class SchemaCompiler {
             'type': 'unique',
             'column': col.name,
             'table': tableName,
+            'indexName': col.uniqueIndexName,
           });
         }
         if (col.referencesColumn != null && col.referencesTable != null) {
@@ -844,19 +1343,33 @@ class SchemaCompiler {
     for (final constraint in deferredConstraints) {
       if (constraint['type'] == 'unique') {
         final col = constraint['column'];
-        final constraintName = '${tableName}_${col}_unique';
+        final constraintName =
+            (constraint['indexName'] as String?) ?? '${tableName}_${col}_unique';
         if (_isSqliteLike(client.driverName)) {
           _pushQuery(
             'create unique index ${_wrap(constraintName)} on $tableRef (${_wrap(col)})',
           );
+        } else if (_isMySqlLike(client.driverName)) {
+          // MySQL's ADD UNIQUE has its own shape — no `constraint` keyword,
+          // no space before the column list — verified against real knex.js
+          // 3.3.0: `alter table t add unique t_email_unique(email)`.
+          _pushQuery(
+            'alter table $tableRef add unique ${_wrap(constraintName)}(${_wrap(col)})',
+          );
+        } else if (client.driverName == 'mssql') {
+          _pushQuery(_mssqlUniqueIndexSql(tableRef, constraintName, [col]));
         } else {
           _pushQuery(
             'alter table $tableRef add constraint ${_wrap(constraintName)} unique (${_wrap(col)})',
           );
         }
       } else if (constraint['type'] == 'foreign') {
-        if (_isSqliteLike(client.driverName)) {
-          // SQLite does not support ALTER TABLE ADD CONSTRAINT for foreign keys
+        if (_isSqliteLike(client.driverName) || client.driverName == 'mssql') {
+          // SQLite cannot ALTER TABLE ADD CONSTRAINT for foreign keys at all.
+          // MSSQL *can*, but knex.js instead folds every createTable foreign
+          // key inline into the CREATE TABLE statement itself (see
+          // _buildCreateTable's mssql-specific foreignInline block above) —
+          // this deferred path is never reached for mssql createTable.
           continue;
         }
         final col = constraint['column'];
@@ -880,11 +1393,16 @@ class SchemaCompiler {
       final args = stmt['args'] as List;
 
       if (method == 'foreign') {
-        if (_isSqliteLike(client.driverName)) {
+        if (_isSqliteLike(client.driverName) || client.driverName == 'mssql') {
           // Create-time only (this loop never runs for a real alterTable —
           // see _alterTable's own 'foreign' case, which throws instead).
-          // SQLite can't ALTER TABLE ADD CONSTRAINT, so _buildCreateTable
-          // folds this inline into the CREATE TABLE statement instead.
+          // SQLite can't ALTER TABLE ADD CONSTRAINT for foreign keys at all;
+          // MSSQL can, but knex.js instead folds every createTable foreign
+          // key inline (fluent .foreign() included) into the CREATE TABLE
+          // statement itself — see _buildCreateTable's mssql-specific
+          // foreignInline block, which already handles this same
+          // tb.alterStatements 'foreign' case. Without this skip, mssql
+          // foreign keys were emitted twice: once inline, once here.
           continue;
         }
         final data = args[0] as Map<String, dynamic>;
@@ -925,6 +1443,8 @@ class SchemaCompiler {
           _pushQuery(
             'create unique index ${_wrap(constraintName)} on $tableRef ($colStr)',
           );
+        } else if (client.driverName == 'mssql') {
+          _pushQuery(_mssqlUniqueIndexSql(tableRef, constraintName, cols));
         } else {
           _pushQuery(
             'alter table $tableRef add constraint ${_wrap(constraintName)} unique ($colStr)',

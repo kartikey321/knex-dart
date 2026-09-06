@@ -65,6 +65,32 @@ void main() {
       );
     });
 
+    test(
+      'merge() with no arg on a ragged multi-row insert updates the union '
+      "of all rows' keys, not just row[0]'s (verified against real "
+      'knex.js)',
+      () {
+        final sql = QueryBuilder(pg)
+            .table('t')
+            .insert([
+              {'Zebra': 1, 'apple': 2},
+              {'apple': 3, 'Zoo': 4},
+            ])
+            .onConflict('apple')
+            .merge()
+            .toSQL();
+
+        expect(
+          sql.sql,
+          'insert into "t" ("Zebra", "Zoo", "apple") values '
+          r'($1, DEFAULT, $2), (DEFAULT, $3, $4) on conflict ("apple") do '
+          'update set "Zebra" = excluded."Zebra", "Zoo" = excluded."Zoo", '
+          '"apple" = excluded."apple"',
+        );
+        expect(sql.bindings, [1, 2, 4, 3]);
+      },
+    );
+
     test('merge(List) updates only specified columns', () {
       final sql = QueryBuilder(pg)
           .table('users')
@@ -89,6 +115,29 @@ void main() {
 
       expect(sql.sql, contains('do update set "name" ='));
       expect(sql.bindings, contains('Updated Alice'));
+    });
+
+    test('merge(Map) inlines a Raw value instead of binding it', () {
+      final sql = QueryBuilder(pg)
+          .table('leases')
+          .insert({'group_key': 'g1', 'fence': 1})
+          .onConflict('group_key')
+          .merge({
+            'fence': pg.raw('DEFAULT'),
+            'lease_until': pg.raw('clock_timestamp()'),
+          })
+          .toSQL();
+
+      expect(
+        sql.sql,
+        contains(
+          'do update set "fence" = DEFAULT, "lease_until" = clock_timestamp()',
+        ),
+      );
+      // Raw fragments must not appear as bound parameters. Binding order
+      // follows the sorted INSERT column order ("fence" before "group_key"),
+      // matching knex.js's `_prepInsert` — verified against real knex.js.
+      expect(sql.bindings, [1, 'g1']);
     });
 
     test('merge() chained with returning()', () {

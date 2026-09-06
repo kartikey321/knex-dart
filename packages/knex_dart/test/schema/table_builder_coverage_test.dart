@@ -23,10 +23,14 @@ void main() {
       expect(t.columns.first.type, contains('bigint'));
     });
 
-    test('boolean uses tinyint(1)', () {
+    test('boolean uses boolean (knex.js 3.x parity)', () {
+      // knex.js 3.x dropped the legacy `tinyint(1)` spelling for MySQL; all
+      // clients now emit `boolean` for `table.boolean(col)`. Verified
+      // against real knex.js 3.3.0 — see table_builder.dart's
+      // `_booleanType()` citation.
       final t = TableBuilder(mysql, 'create', 'tbl');
       t.boolean('active');
-      expect(t.columns.first.type, equals('tinyint(1)'));
+      expect(t.columns.first.type, equals('boolean'));
     });
 
     test('datetime uses datetime (not timestamptz)', () {
@@ -35,10 +39,10 @@ void main() {
       expect(t.columns.first.type, equals('datetime'));
     });
 
-    test('float uses float', () {
+    test('float uses float(8, 2) — knex.js applies default precision/scale', () {
       final t = TableBuilder(mysql, 'create', 'tbl');
       t.float('score');
-      expect(t.columns.first.type, equals('float'));
+      expect(t.columns.first.type, equals('float(8, 2)'));
     });
 
     test('uuid uses char(36)', () {
@@ -89,10 +93,10 @@ void main() {
       expect(t.columns.first.type, equals('char(36)'));
     });
 
-    test('jsonb uses text (SQLite has no jsonb)', () {
+    test('jsonb uses json (matching knex.js SQLite compilation)', () {
       final t = TableBuilder(sqlite, 'create', 'tbl');
       t.jsonb('meta');
-      expect(t.columns.first.type, equals('text'));
+      expect(t.columns.first.type, equals('json'));
     });
 
     test('float uses float', () {

@@ -158,7 +158,7 @@ void main() {
       ]);
     });
 
-    test('view methods accept Raw and preserve bindings', () {
+    test('view methods accept Raw and inline bindings (knex.js 3.x parity)', () {
       final client = MockClient(driverName: 'pg');
       final definition = client.raw('select * from users where id = ?', [42]);
       final sqls = client
@@ -166,11 +166,18 @@ void main() {
           .createView('v_user_42', definition)
           .toSQL();
 
+      // View DDL cannot accept parameters at parse time — Postgres/MySQL/
+      // SQLite all reject `create view ... where col = $1` (or `?`). knex.js
+      // inlines bound values directly into the view's SQL string at compile
+      // time (verified against real knex.js 3.3.0 — single statement,
+      // no bindings attached). Previously knex-dart emitted
+      // `... where id = $1` with a separate bindings list `[42]`, which the
+      // engines all reject at execution time. Mirrors knex.js now.
       expect(
         sqls.first['sql'],
-        'create view "v_user_42" as select * from users where id = \$1',
+        'create view "v_user_42" as select * from users where id = 42',
       );
-      expect(sqls.first['bindings'], [42]);
+      expect(sqls.first['bindings'], isEmpty);
     });
 
     test('materialized view methods compile for Postgres', () {
@@ -246,8 +253,8 @@ void main() {
           .alterTable('users', (t) => t.renameColumn('name', 'full_name'))
           .toSQL();
 
-      expect(sqls.first['sql'], 'exec sp_rename ?, ?, ?');
-      expect(sqls.first['bindings'], ['myschema.users.name', 'full_name', 'COLUMN']);
+      expect(sqls.first['sql'], "exec sp_rename ?, ?, 'COLUMN'");
+      expect(sqls.first['bindings'], ['"myschema"."users".name', 'full_name']);
     });
 
     test('renameColumn compiles for MSSQL without schema uses table.column', () {
@@ -257,8 +264,8 @@ void main() {
           .alterTable('users', (t) => t.renameColumn('name', 'full_name'))
           .toSQL();
 
-      expect(sqls.first['sql'], 'exec sp_rename ?, ?, ?');
-      expect(sqls.first['bindings'], ['users.name', 'full_name', 'COLUMN']);
+      expect(sqls.first['sql'], "exec sp_rename ?, ?, 'COLUMN'");
+      expect(sqls.first['bindings'], ['"users".name', 'full_name']);
     });
 
     test('drop-if-exists compiles with MSSQL object_id guards', () {

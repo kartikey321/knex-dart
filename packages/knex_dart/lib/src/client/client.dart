@@ -217,11 +217,73 @@ abstract class Client {
   /// - Oracle: :1, :2, :3, ...
   String parameterPlaceholder(int index);
 
+  /// Offset any `$N`-style numbered placeholders in [sql] by [offset]
+  /// positions.
+  ///
+  /// No-op for positional (`?`) dialects, where the pattern never matches.
+  /// Used when inlining a compiled fragment (a [Raw] value, a subquery) into
+  /// a query that already has [offset] prior bindings, so the fragment's
+  /// placeholders continue the running `$N` sequence instead of restarting
+  /// from `$1` and colliding with — or leaving gaps in — the placeholders
+  /// already emitted for the surrounding query.
+  ///
+  /// Scans character-by-character rather than using a blind regex, because a
+  /// `$N`-shaped substring can legitimately appear inside a single-quoted SQL
+  /// string literal embedded in the fragment (e.g. a `Raw` value like
+  /// `client.raw("note = '\$1 discount'")`) — that text must be left alone,
+  /// not treated as a placeholder. `''` is tracked as the standard SQL
+  /// escaped-quote sequence (stays inside the literal, not a close+reopen).
+  ///
+  /// Placeholder renumbering itself is done digit-by-digit in one pass
+  /// (never via repeated `replaceAll('$1', …)`), which avoids a related bug:
+  /// `$1` also matches inside `$10`/`$11`, including tokens a prior
+  /// substitution just produced — e.g. with offset 9 a two-binding fragment
+  /// would rewrite `$2`→`$11`, then `$1`→`$10` would also hit the `$1`
+  /// inside that new `$11`, yielding `$101`.
+  String offsetPlaceholders(String sql, int offset) {
+    if (offset <= 0) return sql;
+    final buffer = StringBuffer();
+    var inString = false;
+    var i = 0;
+    while (i < sql.length) {
+      final ch = sql[i];
+      if (ch == "'") {
+        inString = !inString;
+        buffer.write(ch);
+        i++;
+        continue;
+      }
+      if (!inString && ch == r'$' && i + 1 < sql.length) {
+        var j = i + 1;
+        while (j < sql.length &&
+            sql.codeUnitAt(j) >= 0x30 &&
+            sql.codeUnitAt(j) <= 0x39) {
+          j++;
+        }
+        if (j > i + 1) {
+          final n = int.parse(sql.substring(i + 1, j));
+          buffer.write('\$${n + offset}');
+          i = j;
+          continue;
+        }
+      }
+      buffer.write(ch);
+      i++;
+    }
+    return buffer.toString();
+  }
+
   /// Add a value to bindings and return the parameter placeholder
   ///
   ///
   /// This is used by the QueryCompiler to add bound parameters
   /// to queries while building the SQL string.
+  ///
+  /// If [value] is a [Raw] instance, it is inlined as SQL text (its own
+  /// bindings spliced into [bindings]) instead of being bound as an opaque
+  /// parameter — mirroring knex.js's `Client.prototype.parameter`, which is
+  /// the single place Raw values are unwrapped for every parameter position
+  /// (insert/update/merge values, where clauses, limit/offset, etc).
   ///
   /// Example:
   /// ```dart
@@ -231,6 +293,38 @@ abstract class Client {
   /// // placeholder = '$1' (for PostgreSQL)
   /// ```
   String parameter(dynamic value, List<dynamic> bindings) {
+    if (value is Raw) {
+      final bindingOffset = bindings.length;
+      final sql = value.toSQL();
+      final offsetSql = offsetPlaceholders(sql.sql, bindingOffset);
+      bindings.addAll(sql.bindings);
+      return offsetSql;
+    }
+    if (value is Function) {
+      // Callback subquery in a parameter position (e.g.
+      // `.where('id', '=', (qb) => qb.select(...))`) — mirrors knex.js's
+      // `Client.prototype.parameter`, which checks `typeof value ===
+      // 'function'` before falling through to the Raw/QueryBuilder unwrap.
+      final subBuilder = QueryBuilder(this);
+      (value as dynamic)(subBuilder);
+      return parameter(subBuilder, bindings);
+    }
+    if (value is QueryBuilder) {
+      // Scalar subquery in a parameter position (e.g.
+      // `.where('id', '=', otherBuilder)`) — mirrors knex.js's
+      // `unwrapRaw`/`Client.prototype.parameter`, which compiles a
+      // QueryBuilder value the same way it compiles a Raw one instead of
+      // binding the builder object itself as an opaque parameter.
+      final bindingOffset = bindings.length;
+      final subCompiler = queryCompiler(value);
+      final sql = subCompiler.toSQL();
+      final offsetSql = offsetPlaceholders(sql.sql, bindingOffset);
+      bindings.addAll(sql.bindings);
+      final isSelectLike = subCompiler.method == 'select' ||
+          subCompiler.method == 'first' ||
+          subCompiler.method == 'pluck';
+      return isSelectLike ? '($offsetSql)' : offsetSql;
+    }
     bindings.add(value);
     return parameterPlaceholder(bindings.length);
   }
