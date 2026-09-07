@@ -22,7 +22,14 @@
 /// (`destroyPool`/`_closeFileSystem`/`_initializeImpl`). Testing the wrapper
 /// on top would assert the exact same thing through an extra layer of
 /// indirection.
+///
+/// `@Retry(0)`: dart_test.yaml sets `retry: 2` package-wide for Chrome (for
+/// occasional browser-launch flakiness), but a retry on a lifecycle
+/// regression here would be exactly the wrong outcome — a real race
+/// condition failing once and then passing on retry must show up as a
+/// failure, not get silently absorbed.
 @TestOn('browser')
+@Retry(0)
 library;
 
 import 'package:test/test.dart';

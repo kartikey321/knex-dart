@@ -16,7 +16,12 @@
 /// Uses `storageMode: 'memory'`, so unlike the OPFS/IndexedDB tests this
 /// needs neither a dedicated Worker nor `lib/web_assets/opfs_worker.dart.js`
 /// — only sqlite3.wasm.
+///
+/// `@Retry(0)`: same reasoning as opfs_indexeddb_close_test.dart — a
+/// regression here is deterministic, and dart_test.yaml's package-wide
+/// Chrome `retry: 2` (for browser-launch flakiness) must not mask it.
 @TestOn('browser')
+@Retry(0)
 library;
 
 import 'package:knex_dart_sqlite/knex_dart_sqlite.dart';
