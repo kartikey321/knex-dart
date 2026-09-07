@@ -202,34 +202,25 @@ jobs:
           sed -i.bak "/knex_dart_duckdb/d" pubspec.yaml
           dart pub get
 
-      # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart
-      # dart test serves package assets from lib/ under relative packages/<pkg>/...
+      # SQLite WASM — sqlite3 package exposes package:sqlite3/wasm.dart.
+      # `dart test --platform=chrome` serves this package's own files (test/
+      # and lib/) under a per-run URL, not a stable /packages/<pkg>/... route
+      # — see WorkerHarness.packageRootUrl in test/browser/worker_harness.dart
+      # for how tests resolve lib/web_assets/* at runtime.
       - name: Download SQLite WASM asset
         working-directory: drivers/knex_dart_sqlite
-        run: |
-          SQLITE3_VERSION="$(ruby -rjson -e '
-            cfg = JSON.parse(File.read("../../.dart_tool/package_config.json"))
-            pkg = cfg["packages"].find { |p| p["name"] == "sqlite3" }
-            abort("sqlite3 package not found in package_config") unless pkg
-            root = pkg["rootUri"]
-            root = root.sub(%r{\Afile://}, "") if root.start_with?("file://")
-            root = File.expand_path(root, "../../.dart_tool") unless root.start_with?("/")
-            version = File.basename(root)[/^sqlite3-(.+)$/, 1]
-            abort("Could not infer sqlite3 version from #{root}") unless version
-            puts version
-          ')"
+        run: dart run tool/download_wasm.dart
 
-          URL_TAGGED="https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-${SQLITE3_VERSION}/sqlite3.wasm"
-          URL_LATEST="https://github.com/simolus3/sqlite3.dart/releases/latest/download/sqlite3.wasm"
-          URL_VERSIONED_V="https://github.com/simolus3/sqlite3.dart/releases/download/v${SQLITE3_VERSION}/sqlite3.wasm"
-          URL_VERSIONED_RAW="https://github.com/simolus3/sqlite3.dart/releases/download/${SQLITE3_VERSION}/sqlite3.wasm"
-
-          mkdir -p lib/web_assets
-          curl -fL "$URL_TAGGED" -o lib/web_assets/sqlite3.wasm \
-            || curl -fL "$URL_LATEST" -o lib/web_assets/sqlite3.wasm \
-            || curl -fL "$URL_VERSIONED_V" -o lib/web_assets/sqlite3.wasm \
-            || curl -fL "$URL_VERSIONED_RAW" -o lib/web_assets/sqlite3.wasm
-          ls -lh lib/web_assets/sqlite3.wasm
+      # test/browser/opfs_indexeddb_close_test.dart spawns a real dedicated
+      # Worker running test/browser/opfs_worker.dart (SimpleOpfsFileSystem —
+      # package:sqlite3's OPFS VFS — only works inside a dedicated worker,
+      # never on a tab's main thread). `dart test` only compiles the
+      # *_test.dart entrypoints it runs, so this second, worker-only
+      # entrypoint has to be compiled separately, same idea as vendoring the
+      # DuckDB WASM binary above.
+      - name: Compile OPFS/IndexedDB browser-test worker
+        working-directory: drivers/knex_dart_sqlite
+        run: dart run tool/build_browser_worker.dart
 
       - name: Run SQLite WASM tests (Chrome)
         working-directory: drivers/knex_dart_sqlite
