@@ -402,7 +402,16 @@ class SQLiteClient extends Client {
         }
         return result;
       } catch (e) {
-        db.execute('ROLLBACK');
+        try {
+          db.execute('ROLLBACK');
+        } catch (_) {
+          // See sqlite_client.dart's equivalent guard (native client): a
+          // failing ROLLBACK here (already-ended transaction, concurrent
+          // close) must not skip the update-hook stack cleanup below or mask
+          // the original error with the rollback's own — mirrors the
+          // SAVEPOINT branch above, which already guards its ROLLBACK TO
+          // SAVEPOINT the same way.
+        }
         await _settleUpdateHookQueue();
         _txUpdateStack.removeLast();
         rethrow;
