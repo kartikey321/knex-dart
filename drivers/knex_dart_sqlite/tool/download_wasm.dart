@@ -56,39 +56,36 @@ Future<void> main() async {
   if (!outDir.existsSync()) outDir.createSync(recursive: true);
   final outFile = File('${outDir.path}/sqlite3.wasm');
 
-  final candidateUrls = [
-    'https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-$version/sqlite3.wasm',
-    'https://github.com/simolus3/sqlite3.dart/releases/download/v$version/sqlite3.wasm',
-    'https://github.com/simolus3/sqlite3.dart/releases/download/$version/sqlite3.wasm',
-    'https://github.com/simolus3/sqlite3.dart/releases/latest/download/sqlite3.wasm',
-  ];
+  // simolus3/sqlite3.dart tags every sqlite3 package release as
+  // "sqlite3-$version" — checked every release back to 2.7.7, no exceptions
+  // — so this is the only URL that has ever been correct. No "latest" or
+  // alternate-tag-format fallback: either could silently download a
+  // sqlite3.wasm that doesn't match the version pub actually resolved
+  // (declared in pubspec.yaml), testing a different binary than intended.
+  // Fail loudly instead if this doesn't match.
+  final url =
+      'https://github.com/simolus3/sqlite3.dart/releases/download/'
+      'sqlite3-$version/sqlite3.wasm';
 
   final client = HttpClient();
   try {
-    for (final url in candidateUrls) {
-      print('Trying $url ...');
-      try {
-        final request = await client.getUrl(Uri.parse(url));
-        final response = await request.close();
-        if (response.statusCode != 200) {
-          print('  -> HTTP ${response.statusCode}, trying next candidate.');
-          await response.drain<void>();
-          continue;
-        }
-        final sink = outFile.openWrite();
-        await response.pipe(sink);
-        print('Saved sqlite3.wasm (${_mb(outFile.lengthSync())}) to '
-            '${outFile.path}');
-        return;
-      } on Object catch (e) {
-        print('  -> failed: $e');
-      }
+    print('Downloading $url ...');
+    final request = await client.getUrl(Uri.parse(url));
+    final response = await request.close();
+    if (response.statusCode != 200) {
+      await response.drain<void>();
+      stderr.writeln(
+        'Could not download sqlite3.wasm for version $version: '
+        'HTTP ${response.statusCode} from $url.',
+      );
+      exitCode = 1;
+      return;
     }
-    stderr.writeln(
-      'Could not download sqlite3.wasm from any candidate URL for version '
-      '$version.',
+    final sink = outFile.openWrite();
+    await response.pipe(sink);
+    print(
+      'Saved sqlite3.wasm (${_mb(outFile.lengthSync())}) to ${outFile.path}',
     );
-    exitCode = 1;
   } finally {
     client.close(force: true);
   }
