@@ -144,16 +144,26 @@ class SQLiteClient extends Client {
     // below (registration, open) throws, or if the client is closed before
     // initialization finishes.
     _fileSystem = fileSystem;
-    sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
 
-    final opened = sqlite.open(_filename);
-    if (_isClosed) {
-      opened.close();
+    // If registration or open() throws, this Future rejects and connect()
+    // never returns a client — so no caller can ever reach close() to
+    // release fileSystem. Release it here instead, on the way out.
+    CommonDatabase? opened;
+    try {
+      sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
+      opened = sqlite.open(_filename);
+      if (_isClosed) {
+        opened.close();
+        await _closeFileSystem();
+        return;
+      }
+      _db = opened;
+      _setupUpdateHook(opened);
+    } catch (_) {
+      opened?.close();
       await _closeFileSystem();
-      return;
+      rethrow;
     }
-    _db = opened;
-    _setupUpdateHook(opened);
   }
 
   /// Releases the resources held by [_fileSystem], if any.
