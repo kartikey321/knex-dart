@@ -223,10 +223,22 @@ Future<Map<String, dynamic>> _closeDuringInit(
     closeError = e;
   }
 
+  // A query issued after this race must fail with an accurate "is closed"
+  // error, not the misleading "failed to initialize" message _ensureDb()
+  // used to give when _db was left null by the early-return branch inside
+  // _initializeImpl() rather than by a genuine init failure.
+  Object? queryAfterCloseError;
+  try {
+    await client.rawQuery('SELECT 1', const []);
+  } on Object catch (e) {
+    queryAfterCloseError = e;
+  }
+
   return {
     'isClosed': client.isClosed,
     'initError': initError?.toString(),
     'closeError': closeError?.toString(),
+    'queryAfterCloseError': queryAfterCloseError?.toString(),
   };
 }
 

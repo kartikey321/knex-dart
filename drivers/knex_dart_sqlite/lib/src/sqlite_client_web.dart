@@ -241,6 +241,13 @@ class SQLiteClient extends Client {
   Future<CommonDatabase> _ensureDb() async {
     if (_isClosed) throw StateError('SQLiteClient is closed');
     await initialize();
+    // Re-check: close() may have run while the await above was pending and
+    // won the race against a still-in-flight _initializeImpl() (which then
+    // takes its early-return branch and leaves _db null without throwing) —
+    // that's "closed concurrently", not "failed to initialize", and deserves
+    // the accurate error rather than the misleading wasm-loading message
+    // below.
+    if (_isClosed) throw StateError('SQLiteClient is closed');
     final db = _db;
     if (db == null) {
       throw StateError(
@@ -278,6 +285,13 @@ class SQLiteClient extends Client {
     if (_isClosed) return;
     try {
       await initialize();
+    } catch (_) {
+      // initialize() may have failed (e.g. VFS registration or sqlite.open()
+      // threw) — that failure already propagated once to whoever originally
+      // awaited initialize()/connect(); close() is cleanup, not a second
+      // place to report it, and must still release whatever
+      // _initializeImpl() managed to create (_fileSystem) before it failed
+      // — which the finally block below does regardless of this catch.
     } finally {
       await _updatesSub?.cancel();
       // Close the sqlite3 database (and thus each open file's `xClose()`)

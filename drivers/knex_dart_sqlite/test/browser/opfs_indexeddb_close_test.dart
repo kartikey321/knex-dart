@@ -171,6 +171,16 @@ void main() {
           // close() should complete cleanly afterwards.
           expect(result['initError'], isNull, reason: result.toString());
           expect(result['closeError'], isNull, reason: result.toString());
+          // A query against the now-closed client must fail with an
+          // accurate "is closed" error — not the misleading
+          // "failed to initialize" message _ensureDb() would give if it
+          // only checked _isClosed once, before awaiting the init this
+          // same race left pending.
+          expect(
+            result['queryAfterCloseError'],
+            allOf(isNotNull, contains('is closed')),
+            reason: result.toString(),
+          );
           await pumpEventQueue();
           expect(harness.uncaughtWorkerErrors, isEmpty);
 
