@@ -25,6 +25,11 @@ class PostgresClient {
   /// Creates a new PostgreSQL client connected to the database via a pool.
   ///
   /// [poolConfig] controls pool size and acquire timeout.
+  ///
+  /// [applicationName], if set, is sent to the server as the
+  /// `application_name` startup parameter — visible in `pg_stat_activity`
+  /// and server logs, useful for identifying which application/service a
+  /// given connection belongs to. Left unset by default (no parameter sent).
   static Future<PostgresClient> connect({
     required String host,
     int port = 5432,
@@ -33,6 +38,7 @@ class PostgresClient {
     String? password,
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
+    String? applicationName,
   }) async {
     final endpoint = Endpoint(
       host: host,
@@ -48,6 +54,7 @@ class PostgresClient {
         maxConnectionCount: poolConfig.max,
         sslMode: useSSL ? SslMode.require : SslMode.disable,
         connectTimeout: Duration(milliseconds: poolConfig.acquireTimeoutMillis),
+        applicationName: applicationName,
       ),
     );
 

@@ -33,6 +33,10 @@ class KnexPostgres {
         _pipeline = pipeline;
 
   /// Create a Knex instance connected to PostgreSQL.
+  ///
+  /// [applicationName], if set, is sent to the server as the
+  /// `application_name` startup parameter — visible in `pg_stat_activity`
+  /// and server logs.
   static Future<KnexPostgres> connect({
     required String host,
     int port = 5432,
@@ -42,6 +46,7 @@ class KnexPostgres {
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
+    String? applicationName,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -51,6 +56,7 @@ class KnexPostgres {
       password: password,
       useSSL: useSSL,
       poolConfig: poolConfig,
+      applicationName: applicationName,
     );
     return KnexPostgres._(
       client,
@@ -78,6 +84,7 @@ class KnexPostgres {
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
+    String? applicationName,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -87,6 +94,7 @@ class KnexPostgres {
       password: password,
       useSSL: useSSL,
       poolConfig: poolConfig,
+      applicationName: applicationName,
     );
     return KnexPostgres._(
       client,
@@ -118,6 +126,7 @@ class KnexPostgres {
     bool useSSL = true,
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
+    String? applicationName,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -127,6 +136,7 @@ class KnexPostgres {
       password: password,
       useSSL: useSSL,
       poolConfig: poolConfig,
+      applicationName: applicationName,
     );
     return KnexPostgres._(
       client,
