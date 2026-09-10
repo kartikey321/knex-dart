@@ -1,5 +1,4 @@
 import 'package:knex_dart/knex_dart.dart';
-import 'package:postgres/postgres.dart' show QueryMode;
 
 import 'postgres_client.dart';
 
@@ -45,11 +44,6 @@ class KnexPostgres {
   ///
   /// [timeZone] sets the session's `TimeZone` (e.g. `'UTC'`), equivalent to
   /// `SET TIME ZONE` for every connection in the pool.
-  ///
-  /// [queryMode] selects the wire protocol; set to [QueryMode.simple] when
-  /// connecting through a proxy that doesn't support the Extended Query
-  /// Protocol's prepared statements (e.g. PgBouncer in transaction-pooling
-  /// mode).
   static Future<KnexPostgres> connect({
     required String host,
     int port = 5432,
@@ -62,7 +56,6 @@ class KnexPostgres {
     String? applicationName,
     Duration? queryTimeout,
     String? timeZone,
-    QueryMode? queryMode,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -75,7 +68,6 @@ class KnexPostgres {
       applicationName: applicationName,
       queryTimeout: queryTimeout,
       timeZone: timeZone,
-      queryMode: queryMode,
     );
     return KnexPostgres._(
       client,
@@ -106,7 +98,6 @@ class KnexPostgres {
     String? applicationName,
     Duration? queryTimeout,
     String? timeZone,
-    QueryMode? queryMode,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -119,7 +110,6 @@ class KnexPostgres {
       applicationName: applicationName,
       queryTimeout: queryTimeout,
       timeZone: timeZone,
-      queryMode: queryMode,
     );
     return KnexPostgres._(
       client,
@@ -154,7 +144,6 @@ class KnexPostgres {
     String? applicationName,
     Duration? queryTimeout,
     String? timeZone,
-    QueryMode? queryMode,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -167,7 +156,6 @@ class KnexPostgres {
       applicationName: applicationName,
       queryTimeout: queryTimeout,
       timeZone: timeZone,
-      queryMode: queryMode,
     );
     return KnexPostgres._(
       client,

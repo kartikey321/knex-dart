@@ -39,14 +39,6 @@ class PostgresClient {
   /// [timeZone], if set, is sent as the session's `TimeZone` startup
   /// parameter (e.g. `'UTC'`, `'America/New_York'`) — equivalent to `SET
   /// TIME ZONE` for every connection in the pool.
-  ///
-  /// [queryMode], if set, selects the wire protocol used for queries.
-  /// Defaults to [QueryMode.extended] (the `postgres` package's own
-  /// default). Set to [QueryMode.simple] when connecting through a proxy
-  /// that doesn't support the Extended Query Protocol's prepared
-  /// statements — e.g. PgBouncer in transaction-pooling mode, where
-  /// Extended-mode queries otherwise fail with confusing "prepared
-  /// statement does not exist" errors.
   static Future<PostgresClient> connect({
     required String host,
     int port = 5432,
@@ -58,7 +50,6 @@ class PostgresClient {
     String? applicationName,
     Duration? queryTimeout,
     String? timeZone,
-    QueryMode? queryMode,
   }) async {
     final endpoint = Endpoint(
       host: host,
@@ -77,7 +68,6 @@ class PostgresClient {
         applicationName: applicationName,
         queryTimeout: queryTimeout,
         timeZone: timeZone,
-        queryMode: queryMode,
       ),
     );
 
