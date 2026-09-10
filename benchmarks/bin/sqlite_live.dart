@@ -12,7 +12,7 @@ class CapturingHistogram extends APIHistogram<double> {
   final List<(double value, Map<String, Object> attrs)> recordings = [];
 
   CapturingHistogram(APIMeter meter)
-    : super('db.client.operation.duration', null, 's', true, meter);
+    : super('db.client.operation.duration', null, 's', meter);
 
   @override
   void record(double value, [Attributes? attributes]) {
