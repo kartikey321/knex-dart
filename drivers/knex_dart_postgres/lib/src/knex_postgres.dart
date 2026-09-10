@@ -1,4 +1,5 @@
 import 'package:knex_dart/knex_dart.dart';
+import 'package:postgres/postgres.dart' show QueryMode;
 
 import 'postgres_client.dart';
 
@@ -37,6 +38,18 @@ class KnexPostgres {
   /// [applicationName], if set, is sent to the server as the
   /// `application_name` startup parameter — visible in `pg_stat_activity`
   /// and server logs.
+  ///
+  /// [queryTimeout] aborts a single query after it runs this long, separate
+  /// from [PoolConfig.acquireTimeoutMillis] (which only bounds acquiring a
+  /// connection from the pool).
+  ///
+  /// [timeZone] sets the session's `TimeZone` (e.g. `'UTC'`), equivalent to
+  /// `SET TIME ZONE` for every connection in the pool.
+  ///
+  /// [queryMode] selects the wire protocol; set to [QueryMode.simple] when
+  /// connecting through a proxy that doesn't support the Extended Query
+  /// Protocol's prepared statements (e.g. PgBouncer in transaction-pooling
+  /// mode).
   static Future<KnexPostgres> connect({
     required String host,
     int port = 5432,
@@ -47,6 +60,9 @@ class KnexPostgres {
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
     String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
+    QueryMode? queryMode,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -57,6 +73,9 @@ class KnexPostgres {
       useSSL: useSSL,
       poolConfig: poolConfig,
       applicationName: applicationName,
+      queryTimeout: queryTimeout,
+      timeZone: timeZone,
+      queryMode: queryMode,
     );
     return KnexPostgres._(
       client,
@@ -85,6 +104,9 @@ class KnexPostgres {
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
     String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
+    QueryMode? queryMode,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -95,6 +117,9 @@ class KnexPostgres {
       useSSL: useSSL,
       poolConfig: poolConfig,
       applicationName: applicationName,
+      queryTimeout: queryTimeout,
+      timeZone: timeZone,
+      queryMode: queryMode,
     );
     return KnexPostgres._(
       client,
@@ -127,6 +152,9 @@ class KnexPostgres {
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
     String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
+    QueryMode? queryMode,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -137,6 +165,9 @@ class KnexPostgres {
       useSSL: useSSL,
       poolConfig: poolConfig,
       applicationName: applicationName,
+      queryTimeout: queryTimeout,
+      timeZone: timeZone,
+      queryMode: queryMode,
     );
     return KnexPostgres._(
       client,

@@ -30,6 +30,23 @@ class PostgresClient {
   /// `application_name` startup parameter — visible in `pg_stat_activity`
   /// and server logs, useful for identifying which application/service a
   /// given connection belongs to. Left unset by default (no parameter sent).
+  ///
+  /// [queryTimeout], if set, aborts a single query after it runs this long
+  /// (protects against a runaway query holding a connection indefinitely).
+  /// Distinct from [PoolConfig.acquireTimeoutMillis], which only bounds how
+  /// long acquiring a connection from the pool may take.
+  ///
+  /// [timeZone], if set, is sent as the session's `TimeZone` startup
+  /// parameter (e.g. `'UTC'`, `'America/New_York'`) — equivalent to `SET
+  /// TIME ZONE` for every connection in the pool.
+  ///
+  /// [queryMode], if set, selects the wire protocol used for queries.
+  /// Defaults to [QueryMode.extended] (the `postgres` package's own
+  /// default). Set to [QueryMode.simple] when connecting through a proxy
+  /// that doesn't support the Extended Query Protocol's prepared
+  /// statements — e.g. PgBouncer in transaction-pooling mode, where
+  /// Extended-mode queries otherwise fail with confusing "prepared
+  /// statement does not exist" errors.
   static Future<PostgresClient> connect({
     required String host,
     int port = 5432,
@@ -39,6 +56,9 @@ class PostgresClient {
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
     String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
+    QueryMode? queryMode,
   }) async {
     final endpoint = Endpoint(
       host: host,
@@ -55,6 +75,9 @@ class PostgresClient {
         sslMode: useSSL ? SslMode.require : SslMode.disable,
         connectTimeout: Duration(milliseconds: poolConfig.acquireTimeoutMillis),
         applicationName: applicationName,
+        queryTimeout: queryTimeout,
+        timeZone: timeZone,
+        queryMode: queryMode,
       ),
     );
 
