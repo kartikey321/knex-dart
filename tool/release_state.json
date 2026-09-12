@@ -1,0 +1,80 @@
+{
+  "knex_dart": {
+    "lastPublishedVersion": "1.3.0",
+    "lastPublishedCommit": "cce54b959779c924c71d58db7dc6ee24917eb9ba",
+    "lastPublishedAt": "2026-06-20T14:52:43+05:30",
+    "source": "bootstrap:tag:knex_dart-v1.3.0"
+  },
+  "knex_dart_capabilities": {
+    "lastPublishedVersion": "0.3.0",
+    "lastPublishedCommit": "aa96c851311baa84750ca3699fbaf01789798855",
+    "lastPublishedAt": "2026-06-03T21:28:25+05:30",
+    "source": "bootstrap:tag:knex_dart_capabilities-v0.3.0"
+  },
+  "knex_dart_lint": {
+    "lastPublishedVersion": "0.3.0",
+    "lastPublishedCommit": "aa96c851311baa84750ca3699fbaf01789798855",
+    "lastPublishedAt": "2026-06-03T21:28:25+05:30",
+    "source": "bootstrap:tag:knex_dart_lint-v0.3.0"
+  },
+  "knex_dart_postgres": {
+    "lastPublishedVersion": "0.3.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_postgres-v0.3.1"
+  },
+  "knex_dart_mysql": {
+    "lastPublishedVersion": "0.3.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_mysql-v0.3.1"
+  },
+  "knex_dart_sqlite": {
+    "lastPublishedVersion": "0.4.0",
+    "lastPublishedCommit": "c5651010a7a2aec4f54a03860a7ac977606b6901",
+    "lastPublishedAt": "2026-06-20T15:13:43+05:30",
+    "source": "bootstrap:tag:knex_dart_sqlite-v0.4.0"
+  },
+  "knex_dart_turso": {
+    "lastPublishedVersion": "0.2.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_turso-v0.2.1"
+  },
+  "knex_dart_d1": {
+    "lastPublishedVersion": "0.2.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_d1-v0.2.1"
+  },
+  "knex_dart_duckdb": {
+    "lastPublishedVersion": "0.2.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_duckdb-v0.2.1"
+  },
+  "knex_dart_snowflake": {
+    "lastPublishedVersion": "0.2.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_snowflake-v0.2.1"
+  },
+  "knex_dart_bigquery": {
+    "lastPublishedVersion": "0.2.1",
+    "lastPublishedCommit": "5e0b46c39832e29fb1fbf5be235d908b98ebe4e3",
+    "lastPublishedAt": "2026-06-03T23:27:57+05:30",
+    "source": "bootstrap:tag:knex_dart_bigquery-v0.2.1"
+  },
+  "knex_dart_mssql": {
+    "lastPublishedVersion": "0.2.0",
+    "lastPublishedCommit": "a37d0ba1373b00461b8b67174a0f287ddd16a857",
+    "lastPublishedAt": "2026-06-03T22:53:46+05:30",
+    "source": "bootstrap:tag:knex_dart_mssql-v0.2.0"
+  },
+  "knex_dart_otel": {
+    "lastPublishedVersion": "0.1.1",
+    "lastPublishedCommit": null,
+    "lastPublishedAt": null,
+    "source": "bootstrap:pub.dev (no git tag found in repo history — published outside the CI tag-triggered flow)"
+  }
+}

@@ -122,6 +122,50 @@ For Claude users, `.claude/skills/add-driver/SKILL.md` has a step-by-step contri
 - Playground release: `git tag playground-v<x.y.z> && git push --tags`
 - Docs release: `git tag docs-v<x.y.z> && git push --tags`
 
+### Before bumping a version: check what's actually pending
+
+Don't rely on eyeballing `pubspec.yaml`'s version against pub.dev — it's
+unreliable in both directions (a package can have real unreleased changes
+sitting on `main` with no version bump to show for it, or show as
+"published" with no corresponding git tag at all because someone ran
+`dart pub publish` by hand). Run:
+
+```bash
+dart run tool/check_release_status.dart            # cross-checks pub.dev too
+dart run tool/check_release_status.dart --offline   # skip the network calls
+```
+
+For every publishable package this reports: the current `pubspec.yaml`
+version, what `tool/release_state.json` says was actually last published and
+from which commit, the latest matching git tag (if any), pub.dev's live
+version, and — the useful part — every commit since the last real release
+that touched `lib/`/`bin`/`pubspec.yaml` (test-only changes are called out
+separately since they usually don't need a version bump). It flags:
+`NEEDS A VERSION BUMP` when there are unreleased shippable changes,
+`MISMATCH`/`disagrees` when the state file, the git tag, and pub.dev don't
+all agree, and `NOT IN release_state.json` for anything that's never been
+recorded (shouldn't happen for any current package; would mean a new package
+was added without bootstrapping an entry).
+
+### `tool/release_state.json` — the source of truth for "what's released"
+
+This file records, per package, `lastPublishedVersion` / `lastPublishedCommit`
+/ `lastPublishedAt`. **It's written only by CI**, as the final step of the
+"Publish to pub.dev" job in `.github/workflows/ci.yml`
+(`tool/record_release_state.dart`), immediately after `melos publish`
+succeeds — never by hand, and never as part of a feature PR. It exists
+specifically because git tags alone weren't reliable: `knex_dart_otel` is
+live on pub.dev with no matching tag in this repo's history at all, which a
+tag-only check can't detect but this file's cross-check against pub.dev can.
+
+If you ever publish manually outside the tag-triggered CI flow (should be
+rare — only ever necessary for a genuinely new package's first publish,
+which pub.dev requires to happen from an authenticated local machine), update
+`tool/release_state.json` yourself in the same commit so it doesn't drift:
+record the version, the commit you published from, the timestamp, and set
+`"source"` to something identifiable (e.g. `"manual:<your reason>"`) instead
+of the `"ci:tag:..."` shape CI writes.
+
 ## Docs Site
 
 Content lives in `docs/site/content/` as Markdown. Pages map to URLs directly:
