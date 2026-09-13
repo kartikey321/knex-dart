@@ -1,12 +1,4 @@
-# Dart / Flutter tool state
-.dart_tool/
-
-# Build outputs
-build/
-
-# Library packages should not commit lockfiles.
-pubspec.lock
-
-# Flutter tool artifacts (if present)
-.flutter-plugins
-.flutter-plugins-dependencies
+# Downloaded sqlite3 WASM binary and the compiled OPFS/IndexedDB browser-test
+# worker — regenerated via: dart run tool/download_wasm.dart
+#                           dart run tool/build_browser_worker.dart
+lib/web_assets/

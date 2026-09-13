@@ -273,7 +273,23 @@ class SQLiteClient extends Client {
         }
         return result;
       } catch (e) {
-        _db.execute('ROLLBACK');
+        try {
+          _db.execute('ROLLBACK');
+        } catch (_) {
+          // ROLLBACK can itself fail — e.g. the callback already ended the
+          // transaction via raw SQL ("cannot rollback - no transaction is
+          // active"), or the connection was closed concurrently. Swallow so
+          // the cleanup below still runs and the *original* error (not this
+          // one) is what propagates — mirrors the SAVEPOINT branch above,
+          // which already guards its ROLLBACK TO SAVEPOINT the same way.
+          // Before this guard existed, a failing ROLLBACK here would skip
+          // _txUpdateStack.removeLast() below, permanently leaving a stale
+          // entry on the stack — which made watch() silently stop emitting
+          // for non-transactional writes for the rest of this client's
+          // lifetime, because the update hook checks
+          // `_txUpdateStack.isNotEmpty` to decide whether to buffer instead
+          // of forwarding straight to _updateController.
+        }
         _txUpdateStack.removeLast(); // discard all uncommitted updates
         rethrow;
       } finally {

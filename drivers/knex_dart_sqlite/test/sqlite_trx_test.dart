@@ -214,6 +214,68 @@ void main() {
       expect(rows.first['name'], 'AfterFail');
     });
 
+    // ── 11b. A failing ROLLBACK must not mask the original error or corrupt
+    //         the update-hook stack ─────────────────────────────────────────
+    //
+    // If the callback already ended the transaction via raw SQL (or the
+    // connection is torn down concurrently), sqlite3.execute('ROLLBACK')
+    // itself throws ("cannot rollback - no transaction is active"). Before
+    // this was guarded (mirroring the SAVEPOINT branch's existing
+    // try/catch), that secondary failure propagated *instead of* the
+    // original callback error, and skipped _txUpdateStack.removeLast() —
+    // leaving a permanent stale entry that made watch() silently stop seeing
+    // non-transactional writes for the rest of the client's lifetime (the
+    // update hook buffers into _txUpdateStack.last instead of forwarding to
+    // _updateController whenever the stack is non-empty).
+
+    test(
+      'rollback failure inside a failed trx preserves the original error',
+      () async {
+        Object? caught;
+        try {
+          await db.trx((tx) async {
+            await tx.rawSql('COMMIT'); // ends the transaction early
+            throw Exception('boom');
+          });
+        } catch (e) {
+          caught = e;
+        }
+        expect(caught, isA<Exception>());
+        expect(caught.toString(), contains('boom'));
+      },
+    );
+
+    test(
+      'watch() still emits for non-transactional writes after a rollback '
+      'failure',
+      () async {
+        try {
+          await db.trx((tx) async {
+            await tx.rawSql('COMMIT');
+            throw Exception('boom');
+          });
+        } catch (_) {
+          // Expected — asserted by the previous test; ignored here.
+        }
+
+        final emissions = <int>[];
+        final sub = db
+            .watch(db(_table).select(['*']))
+            .listen((rows) => emissions.add(rows.length));
+        await Future<void>.delayed(Duration.zero);
+
+        await db.insert(db(_table).insert({'id': 60, 'name': 'AfterBadRollback'}));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await sub.cancel();
+
+        // Before the fix: only the initial (empty) emission ever arrived —
+        // the insert's update-hook event was buffered into a stale
+        // _txUpdateStack entry that no top-level commit will ever flush.
+        expect(emissions, hasLength(2));
+        expect(emissions.last, 1);
+      },
+    );
+
     // ── 12. webStorageMode must fail fast on native ───────────────────────────
 
     test(

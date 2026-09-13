@@ -1,0 +1,38 @@
+# Chrome settings for `dart test --platform=chrome` (used both by the
+# existing WASM tests and by the OPFS/IndexedDB worker tests under
+# test/browser/ — see test/browser/opfs_indexeddb_close_test.dart).
+#
+# No `custom_html_template_path` here: unlike drivers/knex_dart_duckdb (which
+# needs one to inject CDN <script type="module"> glue for duckdb-wasm), this
+# package's WASM loading happens entirely in Dart via
+# `WasmSqlite3.loadFromUrl`, and both sqlite3.wasm and the compiled worker
+# script are already reachable from the default test page through its own
+# location (see WorkerHarness.packageRootUrl in test/browser/worker_harness.dart)
+# — a custom template would apply package-wide for no benefit here and would
+# risk the already-green default WASM tests.
+on_platform:
+  chrome:
+    timeout: 5m
+    # NOT used to paper over flakiness in test/browser/'s race-condition
+    # tests specifically — those were separately verified to pass
+    # deterministically on the first try (repeated runs with retry: 0 and
+    # -j 1); this only covers this driver's other Chrome suites (WASM
+    # loading, sqlite_trx_test.dart et al., mirroring duckdb's dart_test.yaml
+    # precedent for occasional browser-launch flakiness in CI).
+    retry: 2
+    settings:
+      headless: true
+      arguments: >-
+        --no-sandbox
+        --disable-gpu
+        --headless=new
+        --disable-dev-shm-usage
+        --disable-software-rasterizer
+        --no-first-run
+        --mute-audio
+        --disable-extensions
+        --disable-background-timer-throttling
+        --disable-backgrounding-occluded-windows
+        --disable-popup-blocking
+        --disable-notifications
+        --disable-translate

@@ -15,6 +15,17 @@ class SQLiteClient extends Client {
   final SQLiteWebStorageMode _storageMode;
   bool _isClosed = false;
 
+  /// The virtual file system created for this client during
+  /// [_initializeImpl], kept so it can be released in [destroyPool].
+  ///
+  /// [SimpleOpfsFileSystem] holds open `FileSystemSyncAccessHandle`s and
+  /// [IndexedDbFileSystem] holds an open `IDBDatabase` connection; both must
+  /// be explicitly closed or they outlive this client (browsers do not
+  /// promptly release either just because the Dart object is unreferenced),
+  /// which then blocks any later attempt to delete/replace the underlying
+  /// storage (OPFS `removeEntry` / `indexedDB.deleteDatabase`).
+  VirtualFileSystem? _fileSystem;
+
   /// Depth counter for nested transactions (0 = no active transaction).
   int _transactionDepth = 0;
 
@@ -26,7 +37,8 @@ class SQLiteClient extends Client {
 
   Future<void>? _initialization;
   final List<List<SqliteUpdate>> _txUpdateStack = [];
-  late final StreamController<SqliteUpdate> _updateController;
+  final StreamController<SqliteUpdate> _updateController =
+      StreamController<SqliteUpdate>.broadcast(sync: true);
   StreamSubscription<SqliteUpdate>? _updatesSub;
 
   SQLiteClient._(
@@ -128,19 +140,60 @@ class SQLiteClient extends Client {
   Future<void> _initializeImpl() async {
     final sqlite = await _loadSqlite3();
     final fileSystem = await _createFileSystem();
-    sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
+    // Store the reference immediately so it can be released even if a step
+    // below (registration, open) throws, or if the client is closed before
+    // initialization finishes.
+    _fileSystem = fileSystem;
 
-    final opened = sqlite.open(_filename);
-    if (_isClosed) {
-      opened.close();
-      return;
+    // If registration or open() throws, this Future rejects and connect()
+    // never returns a client — so no caller can ever reach close() to
+    // release fileSystem. Release it here instead, on the way out.
+    CommonDatabase? opened;
+    try {
+      sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
+      opened = sqlite.open(_filename);
+      if (_isClosed) {
+        opened.close();
+        await _closeFileSystem();
+        return;
+      }
+      _db = opened;
+      _setupUpdateHook(opened);
+    } catch (_) {
+      opened?.close();
+      await _closeFileSystem();
+      rethrow;
     }
-    _db = opened;
-    _setupUpdateHook(opened);
+  }
+
+  /// Releases the resources held by [_fileSystem], if any.
+  ///
+  /// [SimpleOpfsFileSystem] and [IndexedDbFileSystem] each hold a real,
+  /// exclusive browser-level resource (OPFS sync access handles / an
+  /// `IDBDatabase` connection) that is not released just because this Dart
+  /// object becomes unreferenced — it must be closed explicitly, or it
+  /// blocks later attempts to delete/replace the same storage.
+  /// [InMemoryFileSystem] holds nothing external and needs no cleanup.
+  ///
+  /// This must never throw: it always runs from a `finally` block, and an
+  /// exception here must not mask the original error or skip the rest of
+  /// that cleanup.
+  Future<void> _closeFileSystem() async {
+    final fs = _fileSystem;
+    _fileSystem = null;
+    if (fs == null) return;
+    try {
+      if (fs is SimpleOpfsFileSystem) {
+        fs.close();
+      } else if (fs is IndexedDbFileSystem) {
+        await fs.close();
+      }
+    } catch (_) {
+      // Best-effort cleanup; swallow so callers' finally blocks still run.
+    }
   }
 
   void _setupUpdateHook(CommonDatabase db) {
-    _updateController = StreamController<SqliteUpdate>.broadcast(sync: true);
     _updatesSub = db.updates.listen((update) {
       if (_updateController.isClosed) return;
       if (_txUpdateStack.isNotEmpty) {
@@ -188,6 +241,13 @@ class SQLiteClient extends Client {
   Future<CommonDatabase> _ensureDb() async {
     if (_isClosed) throw StateError('SQLiteClient is closed');
     await initialize();
+    // Re-check: close() may have run while the await above was pending and
+    // won the race against a still-in-flight _initializeImpl() (which then
+    // takes its early-return branch and leaves _db null without throwing) —
+    // that's "closed concurrently", not "failed to initialize", and deserves
+    // the accurate error rather than the misleading wasm-loading message
+    // below.
+    if (_isClosed) throw StateError('SQLiteClient is closed');
     final db = _db;
     if (db == null) {
       throw StateError(
@@ -225,11 +285,22 @@ class SQLiteClient extends Client {
     if (_isClosed) return;
     try {
       await initialize();
+    } catch (_) {
+      // initialize() may have failed (e.g. VFS registration or sqlite.open()
+      // threw) — that failure already propagated once to whoever originally
+      // awaited initialize()/connect(); close() is cleanup, not a second
+      // place to report it, and must still release whatever
+      // _initializeImpl() managed to create (_fileSystem) before it failed
+      // — which the finally block below does regardless of this catch.
     } finally {
       await _updatesSub?.cancel();
+      // Close the sqlite3 database (and thus each open file's `xClose()`)
+      // before releasing the VFS-level resources below — OPFS/IndexedDB
+      // handles must stay valid until sqlite3 is done flushing them.
       _db?.close();
       _db = null;
       _isClosed = true;
+      await _closeFileSystem();
       if (!_updateController.isClosed) {
         await _updateController.close();
       }
@@ -355,7 +426,16 @@ class SQLiteClient extends Client {
         }
         return result;
       } catch (e) {
-        db.execute('ROLLBACK');
+        try {
+          db.execute('ROLLBACK');
+        } catch (_) {
+          // See sqlite_client.dart's equivalent guard (native client): a
+          // failing ROLLBACK here (already-ended transaction, concurrent
+          // close) must not skip the update-hook stack cleanup below or mask
+          // the original error with the rollback's own — mirrors the
+          // SAVEPOINT branch above, which already guards its ROLLBACK TO
+          // SAVEPOINT the same way.
+        }
         await _settleUpdateHookQueue();
         _txUpdateStack.removeLast();
         rethrow;
