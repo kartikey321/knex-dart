@@ -2330,32 +2330,36 @@ class QueryCompiler {
       return value;
     }
 
-    // Handle array values: count(['id', 'name'])
-    if (value is List) {
-      final columns = value
+    // Postgres-family: with DISTINCT + multiple columns, knex.js's pg
+    // query-compiler treats the column list as a row constructor — emitting
+    // `count(distinct("foo", "bar"))` (extra parens around the column
+    // list) — unlike mysql/sqlite which emit the standard
+    // `count(distinct \`foo\`, \`bar\`)`. Verified against real knex.js 3.3.0
+    // for all three dialects, and independently for the map-arg form
+    // (`countDistinct({total: ['foo','bar']})` behaves identically to the
+    // list-arg form). (Single-column distinct is identical across all
+    // dialects — `count(distinct "foo")` — already handled by the
+    // string-value path below.)
+    // Redshift is included alongside _isPostgresLikeDriver (which
+    // excludes it) because this specific row-constructor behavior is
+    // inherited from Redshift's postgres compiler base — same
+    // include-redshift-explicitly pattern as distinctOn()'s dialect gate.
+    final isPgFamily = _isPostgresLikeDriver || client.driverName == 'redshift';
+    String aggregateColumnList(String method, List columns) {
+      final colStr = columns
           .map((col) => formatter.wrap(col.toString()))
           .join(', ');
-      // Postgres-family: with DISTINCT + multiple columns, knex.js's pg
-      // query-compiler treats the column list as a row constructor — emitting
-      // `count(distinct("foo", "bar"))` (extra parens around the column
-      // list) — unlike mysql/sqlite which emit the standard
-      // `count(distinct \`foo\`, \`bar\`)`. Verified against real knex.js 3.3.0
-      // for all three dialects. (Single-column distinct is identical across
-      // all dialects — `count(distinct "foo")` — already handled by the
-      // string-value path below.)
-      // Redshift is included alongside _isPostgresLikeDriver (which
-      // excludes it) because this specific row-constructor behavior is
-      // inherited from Redshift's postgres compiler base — same
-      // include-redshift-explicitly pattern as distinctOn()'s dialect gate.
-      final isPgFamily = _isPostgresLikeDriver || client.driverName == 'redshift';
-      final String aggregated;
-      if (distinct.isNotEmpty && value.length > 1 && isPgFamily) {
-        aggregated = '$method(distinct($columns))';
+      if (distinct.isNotEmpty && columns.length > 1 && isPgFamily) {
+        return '$method(distinct($colStr))';
       } else if (distinct.isNotEmpty) {
-        aggregated = '$method(distinct $columns)';
-      } else {
-        aggregated = '$method($columns)';
+        return '$method(distinct $colStr)';
       }
+      return '$method($colStr)';
+    }
+
+    // Handle array values: count(['id', 'name'])
+    if (value is List) {
+      final aggregated = aggregateColumnList(method, value);
       return [addAlias(aggregated, stmt['alias'] as String?)];
     }
 
@@ -2368,13 +2372,7 @@ class QueryCompiler {
         final alias = entry.key as String;
         final column = entry.value;
         if (column is List) {
-          final columns = column
-              .map((col) => formatter.wrap(col.toString()))
-              .join(', ');
-          final distinctPart = distinct.isNotEmpty
-              ? 'distinct $columns'
-              : columns;
-          final aggregated = '$method($distinctPart)';
+          final aggregated = aggregateColumnList(method, column);
           return addAlias(aggregated, alias);
         }
         final wrapped = formatter.wrap(column.toString());

@@ -190,5 +190,26 @@ void main() {
       );
       expect(result.bindings, isEmpty);
     });
+
+    test('Test 13: Count distinct with multiple columns via map arg', () {
+      final qb = QueryBuilder(client);
+      qb.table('events').countDistinct({
+        'total': ['user_id', 'event_type'],
+      });
+      final compiler = QueryCompiler(client, qb);
+      final result = compiler.toSQL();
+
+      // Same pg-family row-constructor form as the list-arg version above —
+      // verified against real knex.js 3.3.0's pg client
+      // (countDistinct({total: ['a','b']}) behaves identically to
+      // countDistinct(['a','b']), just with an alias).
+      expect(
+        result.sql,
+        equals(
+          'select count(distinct("user_id", "event_type")) as "total" from "events"',
+        ),
+      );
+      expect(result.bindings, isEmpty);
+    });
   });
 }
