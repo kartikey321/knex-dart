@@ -16,7 +16,7 @@ void main() {
           'internally consistent with the real corpus', () {
         validateFixtureData(
           dialect: dialect,
-          corpusIds: queryCorpusCases.keys.toSet(),
+          corpusIds: {...queryCorpusCases.keys, ...schemaCorpusCases.keys},
         );
       });
 

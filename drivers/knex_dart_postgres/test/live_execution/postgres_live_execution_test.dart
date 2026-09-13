@@ -59,7 +59,16 @@ void main() {
   });
 
   test('every fixture-linked case executes without error', () async {
-    final links = fixtureLinksByDialect['postgres']!;
+    // Excludes schema/* ids — those are the schema-DDL corpus, covered by
+    // postgres_schema_live_execution_test.dart's own per-case-schema run
+    // (a shared run-level schema like this one can't satisfy DDL cases that
+    // need opposite starting states for the same table/column/constraint
+    // name — see postgres_schema_ddl_profiles.dart).
+    final links = Map.fromEntries(
+      fixtureLinksByDialect['postgres']!.entries.where(
+        (e) => !e.key.startsWith('schema/'),
+      ),
+    );
     final failures = <String>[];
 
     for (final entry in links.entries) {

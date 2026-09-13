@@ -23,6 +23,7 @@ import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:postgres/postgres.dart' show ServerException;
 
 import 'postgres_fixture_profiles.dart';
+import 'postgres_schema_ddl_profiles.dart';
 
 /// Raw outcome of one case attempt, before any [MechanicalStatus]
 /// collapsing — used by fixture-linking triage, which needs the actual
@@ -76,6 +77,36 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
     }
     for (final stmt in profile.seed) {
       await client.rawSql(stmt);
+    }
+  }
+
+  /// Applies one schema-DDL-corpus fixture profile's prerequisite DDL
+  /// (`postgres_schema_ddl_profiles.dart`) inside this run's private
+  /// schema. Distinct from [applyFixtureProfile] (the query corpus's
+  /// profiles, which also carry seed rows) — schema-DDL profiles are
+  /// DDL-only and, unlike the query corpus's profiles, are each meant to
+  /// be applied into a fresh, single-case-only schema (see
+  /// `postgres_schema_ddl_profiles.dart`'s docstring for why).
+  Future<void> applySchemaDdlProfile(String profileId) async {
+    final ddl = postgresSchemaDdlProfiles[profileId];
+    if (ddl == null) {
+      throw ArgumentError('Unknown postgres schema-DDL fixture profile: $profileId');
+    }
+    await client.rawSql('SET search_path TO "$schemaName"');
+    for (final stmt in ddl) {
+      await client.rawSql(stmt);
+    }
+  }
+
+  /// Drops the database-level named schemas some schema-DDL profiles create
+  /// via `withSchema(...)` (`postgresSchemaDdlNamedSchemasToClean`) — these
+  /// live alongside, not inside, this run's own ephemeral [schemaName], so
+  /// [tearDownRun] alone never reaches them. Safe to call unconditionally
+  /// after every schema-DDL case (each `DROP SCHEMA IF EXISTS` is a no-op
+  /// when that case didn't create the named schema).
+  Future<void> cleanUpNamedSchemas() async {
+    for (final name in postgresSchemaDdlNamedSchemasToClean) {
+      await client.rawSql('DROP SCHEMA IF EXISTS "$name" CASCADE');
     }
   }
 
