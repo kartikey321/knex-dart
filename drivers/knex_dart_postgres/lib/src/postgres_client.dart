@@ -25,6 +25,20 @@ class PostgresClient {
   /// Creates a new PostgreSQL client connected to the database via a pool.
   ///
   /// [poolConfig] controls pool size and acquire timeout.
+  ///
+  /// [applicationName], if set, is sent to the server as the
+  /// `application_name` startup parameter — visible in `pg_stat_activity`
+  /// and server logs, useful for identifying which application/service a
+  /// given connection belongs to. Left unset by default (no parameter sent).
+  ///
+  /// [queryTimeout], if set, aborts a single query after it runs this long
+  /// (protects against a runaway query holding a connection indefinitely).
+  /// Distinct from [PoolConfig.acquireTimeoutMillis], which only bounds how
+  /// long acquiring a connection from the pool may take.
+  ///
+  /// [timeZone], if set, is sent as the session's `TimeZone` startup
+  /// parameter (e.g. `'UTC'`, `'America/New_York'`) — equivalent to `SET
+  /// TIME ZONE` for every connection in the pool.
   static Future<PostgresClient> connect({
     required String host,
     int port = 5432,
@@ -33,6 +47,9 @@ class PostgresClient {
     String? password,
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
+    String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
   }) async {
     final endpoint = Endpoint(
       host: host,
@@ -48,6 +65,9 @@ class PostgresClient {
         maxConnectionCount: poolConfig.max,
         sslMode: useSSL ? SslMode.require : SslMode.disable,
         connectTimeout: Duration(milliseconds: poolConfig.acquireTimeoutMillis),
+        applicationName: applicationName,
+        queryTimeout: queryTimeout,
+        timeZone: timeZone,
       ),
     );
 

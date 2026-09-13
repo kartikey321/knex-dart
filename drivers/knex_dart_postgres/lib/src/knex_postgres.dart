@@ -33,6 +33,17 @@ class KnexPostgres {
         _pipeline = pipeline;
 
   /// Create a Knex instance connected to PostgreSQL.
+  ///
+  /// [applicationName], if set, is sent to the server as the
+  /// `application_name` startup parameter — visible in `pg_stat_activity`
+  /// and server logs.
+  ///
+  /// [queryTimeout] aborts a single query after it runs this long, separate
+  /// from [PoolConfig.acquireTimeoutMillis] (which only bounds acquiring a
+  /// connection from the pool).
+  ///
+  /// [timeZone] sets the session's `TimeZone` (e.g. `'UTC'`), equivalent to
+  /// `SET TIME ZONE` for every connection in the pool.
   static Future<KnexPostgres> connect({
     required String host,
     int port = 5432,
@@ -42,6 +53,9 @@ class KnexPostgres {
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
+    String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -51,6 +65,9 @@ class KnexPostgres {
       password: password,
       useSSL: useSSL,
       poolConfig: poolConfig,
+      applicationName: applicationName,
+      queryTimeout: queryTimeout,
+      timeZone: timeZone,
     );
     return KnexPostgres._(
       client,
@@ -78,6 +95,9 @@ class KnexPostgres {
     bool useSSL = false,
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
+    String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -87,6 +107,9 @@ class KnexPostgres {
       password: password,
       useSSL: useSSL,
       poolConfig: poolConfig,
+      applicationName: applicationName,
+      queryTimeout: queryTimeout,
+      timeZone: timeZone,
     );
     return KnexPostgres._(
       client,
@@ -118,6 +141,9 @@ class KnexPostgres {
     bool useSSL = true,
     PoolConfig poolConfig = const PoolConfig(),
     List<QueryInterceptor> interceptors = const [],
+    String? applicationName,
+    Duration? queryTimeout,
+    String? timeZone,
   }) async {
     final client = await PostgresClient.connect(
       host: host,
@@ -127,6 +153,9 @@ class KnexPostgres {
       password: password,
       useSSL: useSSL,
       poolConfig: poolConfig,
+      applicationName: applicationName,
+      queryTimeout: queryTimeout,
+      timeZone: timeZone,
     );
     return KnexPostgres._(
       client,
