@@ -315,16 +315,31 @@ const Map<String, Map<String, String>> unsupportedEngineAllowlist = {
         'participates in a later composite primary()), deferred there; not '
         'fixable by any fixture profile.',
     'schema/raw-with-binding':
-        'schema.raw(\'select ? as value\', [1]) leaves the literal \'?\' '
-        'unconverted with bindings attached separately — verified this is '
-        'not a knex-dart gap by running the identical call against real '
-        'knex.js 3.3.0 directly (node), which produces the exact same '
-        '{sql: "select ? as value", bindings: [1]} shape. knex.js\'s own '
-        'schema.raw() is a dumb passthrough; the caller is expected to '
-        'write dialect-correct placeholders themselves. Postgres correctly '
-        'rejects the literal \'?\' as a syntax error (42601) since its '
-        'wire protocol expects \$N. A faithful mirror of real knex.js '
-        'behavior, not a knex-dart defect.',
+        '[OPEN BUG] schema.raw(\'select ? as value\', [1]) compiles to the '
+        'literal \'?\' with bindings attached separately — that COMPILED '
+        'representation genuinely matches real knex.js 3.3.0\'s own '
+        '`.toSQL()` output for the identical call (verified directly against '
+        'a local knex.js checkout: both produce {sql: "select ? as value", '
+        'bindings: [1]}), so this is not a text-parity gap. But real '
+        'knex.js does NOT send that \'?\' to the server as-is — verified by '
+        'actually EXECUTING the identical schema.raw() call against real '
+        'Postgres via knex.js directly (not just comparing .toSQL()): it '
+        'succeeds, because knex.js\'s query-execution path '
+        '(query-executioner.js -> the pg dialect\'s positionBindings()) '
+        'converts \'?\' to \$1/\$2/... immediately before sending, separately '
+        'from compilation. knex-dart\'s query-level raw() already does this '
+        'same conversion at compile time (confirmed: '
+        'join/raw-with-binding::postgres compiles straight to "... = \$1", '
+        'not "... = ?") — schema_compiler.dart\'s `_raw()` is the one path '
+        'that does not, passing the SQL straight through to execution '
+        'unconverted, so Postgres correctly rejects the literal \'?\' '
+        'in the wire protocol (42601). A real, verified knex-dart defect '
+        'in schema.raw()\'s standalone execution path, not fixable by any '
+        'fixture profile — deferred rather than fixed inline here since a '
+        'correct fix needs a dialect-aware SQL lexer (skipping quoted '
+        'literals/identifiers/comments), the same "heavy lift" CodeRabbit '
+        'already flagged for the structurally similar view-DDL '
+        '_inlineBindings() gap, not a quick fix.',
   },
 
   'sqlite': {

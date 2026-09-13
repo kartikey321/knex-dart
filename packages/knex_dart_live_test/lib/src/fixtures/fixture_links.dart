@@ -274,7 +274,6 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     'schema/create-table-unique-composite-named': 'schema_ddl_empty_v1',
     'schema/create-table-unique-named': 'schema_ddl_empty_v1',
     'schema/drop-extension-if-exists': 'schema_ddl_empty_v1',
-    'schema/drop-table-if-exists': 'schema_ddl_empty_v1',
     'schema/view-create-materialized-raw': 'schema_ddl_empty_v1',
     'schema/view-create-or-replace-raw': 'schema_ddl_empty_v1',
     'schema/view-create-raw': 'schema_ddl_empty_v1',
@@ -287,7 +286,8 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     'schema/alter-table-add-boolean': 'schema_ddl_users_bare_v1',
     'schema/alter-table-add-column': 'schema_ddl_users_bare_v1',
     'schema/alter-table-add-column-primary-fluent': 'schema_ddl_users_bare_v1',
-    'schema/alter-table-add-column-primary-fluent-named': 'schema_ddl_users_bare_v1',
+    'schema/alter-table-add-column-primary-fluent-named':
+        'schema_ddl_users_bare_v1',
     'schema/alter-table-add-date': 'schema_ddl_users_bare_v1',
     'schema/alter-table-add-datetime': 'schema_ddl_users_bare_v1',
     'schema/alter-table-add-decimal': 'schema_ddl_users_bare_v1',
@@ -342,9 +342,12 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     'schema/alter-table-add-index': 'schema_ddl_users_constraints_v1',
     'schema/alter-table-add-index-named': 'schema_ddl_users_constraints_v1',
     'schema/alter-table-primary-named': 'schema_ddl_users_constraints_v1',
-    'schema/alter-table-primary-single-column': 'schema_ddl_users_constraints_v1',
-    'schema/alter-table-primary-single-column-unnamed': 'schema_ddl_users_constraints_v1',
-    'schema/alter-table-unique-single-column': 'schema_ddl_users_constraints_v1',
+    'schema/alter-table-primary-single-column':
+        'schema_ddl_users_constraints_v1',
+    'schema/alter-table-primary-single-column-unnamed':
+        'schema_ddl_users_constraints_v1',
+    'schema/alter-table-unique-single-column':
+        'schema_ddl_users_constraints_v1',
 
     // 'user' (singular) table.
     'schema/alter-table-add-json': 'schema_ddl_user_singular_v1',
@@ -356,18 +359,26 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     'schema/alter-table-drop-column': 'schema_ddl_users_nickname_v1',
     'schema/alter-table-rename-column': 'schema_ddl_users_nickname_v1',
     'schema/alter-table-drop-columns-multiple': 'schema_ddl_users_foo_bar_v1',
-    'schema/alter-table-drop-columns-multi': 'schema_ddl_users_nickname_avatar_v1',
+    'schema/alter-table-drop-columns-multi':
+        'schema_ddl_users_nickname_avatar_v1',
     'schema/alter-table-drop-timestamps': 'schema_ddl_users_timestamps_v1',
-    'schema/alter-table-set-nullable': 'schema_ddl_users_email_v1',
+    // setNullable() emits DROP NOT NULL — needs email to start NOT NULL so
+    // the statement has a real effect to prove, not a silent no-op against
+    // an already-nullable column.
+    'schema/alter-table-set-nullable': 'schema_ddl_users_email_not_null_v1',
     'schema/alter-table-drop-nullable': 'schema_ddl_users_email_v1',
     'schema/alter-table-drop-unique': 'schema_ddl_users_unique_default_v1',
     'schema/alter-table-drop-unique-named': 'schema_ddl_users_unique_named_v1',
     'schema/alter-table-drop-index': 'schema_ddl_users_index_default_v1',
     'schema/alter-table-drop-index-named': 'schema_ddl_users_index_named_v1',
-    'schema/alter-table-drop-unique-null-columns-named': 'schema_ddl_users_unique_foo_v1',
-    'schema/alter-table-drop-index-null-columns-named': 'schema_ddl_users_index_foo_v1',
-    'schema/alter-table-drop-foreign-null-columns-named': 'schema_ddl_users_foreign_foo_v1',
-    'schema/alter-table-drop-primary-named': 'schema_ddl_users_primary_named_v1',
+    'schema/alter-table-drop-unique-null-columns-named':
+        'schema_ddl_users_unique_foo_v1',
+    'schema/alter-table-drop-index-null-columns-named':
+        'schema_ddl_users_index_foo_v1',
+    'schema/alter-table-drop-foreign-null-columns-named':
+        'schema_ddl_users_foreign_foo_v1',
+    'schema/alter-table-drop-primary-named':
+        'schema_ddl_users_primary_named_v1',
 
     // memberships table variants.
     'schema/alter-table-add-unique-composite': 'schema_ddl_memberships_bare_v1',
@@ -382,14 +393,16 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     'schema/alter-table-foreign-both-actions': 'schema_ddl_orders_user_id_v1',
 
     'schema/alter-table-column-unsigned': 'schema_ddl_t_bare_v1',
-    'schema/alter-table-drop-unique-composite': 'schema_ddl_composite_key_test_v1',
+    'schema/alter-table-drop-unique-composite':
+        'schema_ddl_composite_key_test_v1',
 
     // CREATE-type cases needing a reference table.
     'schema/create-table-foreign-column': 'schema_ddl_users_ref_v1',
     'schema/create-table-foreign-fluent-cascade': 'schema_ddl_users_ref_v1',
     'schema/create-table-foreign-onupdate': 'schema_ddl_users_ref_v1',
     'schema/create-table-foreign-both-actions': 'schema_ddl_users_ref_v1',
-    'schema/create-table-foreign-mixed-actions': 'schema_ddl_users_accounts_ref_v1',
+    'schema/create-table-foreign-mixed-actions':
+        'schema_ddl_users_accounts_ref_v1',
     'schema/create-table-like': 'schema_ddl_users_name_ref_v1',
     'schema/create-table-like-basic': 'schema_ddl_users_name_ref_v1',
     'schema/create-table-like-with-columns': 'schema_ddl_users_name_ref_v1',
@@ -401,6 +414,10 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     // DROP/RENAME/REFRESH-type cases needing their target to pre-exist.
     'schema/drop-table': 'schema_ddl_users_ref_v1',
     'schema/rename-table': 'schema_ddl_users_ref_v1',
+    // A real pre-existing table, not schema_ddl_empty_v1 — otherwise DROP
+    // TABLE IF EXISTS users is a silent no-op that can't tell a correct
+    // DROP from one targeting the wrong identifier.
+    'schema/drop-table-if-exists': 'schema_ddl_users_ref_v1',
     'schema/drop-schema': 'schema_ddl_billing_schema_v1',
     'schema/drop-schema-cascade': 'schema_ddl_billing_schema_v1',
     'schema/drop-schema-if-exists': 'schema_ddl_billing_schema_v1',
@@ -408,18 +425,22 @@ const Map<String, Map<String, String>> fixtureLinksByDialect = {
     'schema/drop-materialized-view': 'schema_ddl_active_users_mv_v1',
     'schema/refresh-materialized-view': 'schema_ddl_active_users_mv_v1',
     'schema/drop-materialized-view-if-exists': 'schema_ddl_active_users_mv_v1',
-    'schema/refresh-materialized-view-concurrently': 'schema_ddl_active_users_mv_concurrent_v1',
+    'schema/refresh-materialized-view-concurrently':
+        'schema_ddl_active_users_mv_concurrent_v1',
     'schema/view-refresh-materialized': 'schema_ddl_view_to_refresh_v1',
-    'schema/view-refresh-materialized-concurrently': 'schema_ddl_view_to_refresh_concurrent_v1',
+    'schema/view-refresh-materialized-concurrently':
+        'schema_ddl_view_to_refresh_concurrent_v1',
     'schema/view-drop': 'schema_ddl_view_users_v1',
     'schema/view-rename': 'schema_ddl_view_old_v1',
     'schema/drop-view-if-exists': 'schema_ddl_view_active_users_v1',
 
     // withSchema()-qualified cases.
     'schema/drop-table-with-schema': 'schema_ddl_myschema_users_table_v1',
-    'schema/drop-table-if-exists-with-schema': 'schema_ddl_myschema_users_table_v1',
+    'schema/drop-table-if-exists-with-schema':
+        'schema_ddl_myschema_users_table_v1',
     'schema/view-drop-with-schema': 'schema_ddl_myschema_users_view_v1',
-    'schema/alter-table-drop-index-with-schema': 'schema_ddl_myschema_cap_users_index_v1',
+    'schema/alter-table-drop-index-with-schema':
+        'schema_ddl_myschema_cap_users_index_v1',
 
     // Extension-provided column type.
     'schema/column-specifictype-unique-notnull': 'schema_ddl_citext_users_v1',

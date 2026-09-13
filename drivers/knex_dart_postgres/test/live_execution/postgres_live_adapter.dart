@@ -50,6 +50,20 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
   late final String schemaName;
   final _random = Random.secure();
 
+  /// Extra schemas appended to `search_path` after [schemaName], for the
+  /// rare schema-DDL profile whose case needs to resolve something (e.g.
+  /// an extension-provided type like `citext`) that isn't — and can't be
+  /// made to be — visible from an isolated ephemeral schema alone. Empty
+  /// by default: every other case deliberately sees *only* [schemaName],
+  /// so a leftover table from an unrelated integration-test suite can
+  /// never silently satisfy a case's prerequisite. Applies to both
+  /// [applySchemaDdlProfile] and [runCaseRaw]/[runCase] — the case's own
+  /// compiled DDL runs under the same search_path setup did.
+  List<String> extraSearchPathSchemas = const [];
+
+  String get _searchPath =>
+      ['"$schemaName"', ...extraSearchPathSchemas].join(', ');
+
   PostgresLiveAdapter(this.client);
 
   @override
@@ -80,6 +94,29 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
     }
   }
 
+  /// Records, at [recordPreexistingNamedSchemas] time (before this run does
+  /// anything), which of [postgresSchemaDdlNamedSchemasToClean] already
+  /// existed — anything already there belongs to something *this run did
+  /// not create*, database-level and outside our own ephemeral [schemaName],
+  /// and must never be touched by [cleanUpNamedSchemas]. A boolean
+  /// "did our own CREATE SCHEMA statement succeed" flag is NOT sufficient
+  /// here: several schema-DDL cases (e.g. schema/create-schema itself
+  /// creates 'billing') mutate a named schema as their OWN compiled action,
+  /// not via the prerequisite profile, so cleanup must react to what
+  /// actually exists before/after, not to which specific statement ran.
+  Set<String> _preexistingNamedSchemas = const {};
+
+  Future<void> recordPreexistingNamedSchemas() async {
+    final rows = await client.rawSql(
+      'select schema_name from information_schema.schemata '
+      'where schema_name = any(\$1)',
+      [postgresSchemaDdlNamedSchemasToClean],
+    );
+    _preexistingNamedSchemas = rows
+        .map((r) => r['schema_name'] as String)
+        .toSet();
+  }
+
   /// Applies one schema-DDL-corpus fixture profile's prerequisite DDL
   /// (`postgres_schema_ddl_profiles.dart`) inside this run's private
   /// schema. Distinct from [applyFixtureProfile] (the query corpus's
@@ -87,25 +124,45 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
   /// DDL-only and, unlike the query corpus's profiles, are each meant to
   /// be applied into a fresh, single-case-only schema (see
   /// `postgres_schema_ddl_profiles.dart`'s docstring for why).
+  ///
+  /// Runs `SET LOCAL search_path` and every DDL statement inside one
+  /// [PostgresClient.trx] call (committed on success) rather than as
+  /// separate [PostgresClient.rawSql] calls — each `rawSql` independently
+  /// leases a connection from the pool, so nothing would otherwise
+  /// guarantee `SET search_path` and the DDL that follows land on the
+  /// *same* physical session.
   Future<void> applySchemaDdlProfile(String profileId) async {
     final ddl = postgresSchemaDdlProfiles[profileId];
     if (ddl == null) {
-      throw ArgumentError('Unknown postgres schema-DDL fixture profile: $profileId');
+      throw ArgumentError(
+        'Unknown postgres schema-DDL fixture profile: $profileId',
+      );
     }
-    await client.rawSql('SET search_path TO "$schemaName"');
-    for (final stmt in ddl) {
-      await client.rawSql(stmt);
-    }
+    await client.trx<void>((trx) async {
+      await trx.rawSql('SET LOCAL search_path TO $_searchPath');
+      for (final stmt in ddl) {
+        await trx.rawSql(stmt);
+      }
+    });
   }
 
-  /// Drops the database-level named schemas some schema-DDL profiles create
-  /// via `withSchema(...)` (`postgresSchemaDdlNamedSchemasToClean`) — these
-  /// live alongside, not inside, this run's own ephemeral [schemaName], so
-  /// [tearDownRun] alone never reaches them. Safe to call unconditionally
-  /// after every schema-DDL case (each `DROP SCHEMA IF EXISTS` is a no-op
-  /// when that case didn't create the named schema).
+  /// Drops whichever of [postgresSchemaDdlNamedSchemasToClean] now exist
+  /// but did NOT exist when [recordPreexistingNamedSchemas] was called (at
+  /// the start of this run) — i.e. only what this run itself created,
+  /// whether via [applySchemaDdlProfile]'s own prerequisite DDL or via the
+  /// case's own compiled action (some cases, e.g. schema/create-schema,
+  /// create/drop a named schema as their own test subject, not via a
+  /// prerequisite). Anything that already existed before this run started
+  /// is left completely alone, unconditionally — confirmed by reproducing
+  /// exactly the failure mode this guards against: a foreign
+  /// pre-existing "billing" schema (with real data in it) survived a case
+  /// whose own CREATE SCHEMA billing failed with 42P06 "already exists"
+  /// only after this fix; the naive "did setup succeed" flag it replaced
+  /// did not distinguish that case's cleanup from any other's and
+  /// destroyed the foreign schema anyway.
   Future<void> cleanUpNamedSchemas() async {
     for (final name in postgresSchemaDdlNamedSchemasToClean) {
+      if (_preexistingNamedSchemas.contains(name)) continue;
       await client.rawSql('DROP SCHEMA IF EXISTS "$name" CASCADE');
     }
   }
@@ -114,7 +171,9 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
   /// keep-on-failure runs don't accumulate forever. A run kept for
   /// inspection has that long to be looked at before the next run sweeps
   /// it; this is a best-effort safety net, not a guarantee.
-  Future<void> _sweepStaleSchemas({Duration maxAge = const Duration(hours: 6)}) async {
+  Future<void> _sweepStaleSchemas({
+    Duration maxAge = const Duration(hours: 6),
+  }) async {
     final rows = await client.rawSql(
       "select schema_name from information_schema.schemata "
       "where schema_name like 'live\\_pg\\_%' escape '\\'",
@@ -169,7 +228,7 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
       // or a real error) — client.trx rethrows it, so this never returns
       // normally; the outcome is always decided in a catch clause below.
       await client.trx<void>((trx) async {
-        await trx.rawSql('SET LOCAL search_path TO "$schemaName"');
+        await trx.rawSql('SET LOCAL search_path TO $_searchPath');
         await body(_PostgresLiveCaseSession(trx));
         throw const _RollbackAfterCase();
       });

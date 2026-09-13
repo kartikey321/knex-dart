@@ -36,5 +36,26 @@ void main() {
       final links = fixtureLinksByDialect['postgres']!;
       expect(links.containsKey('table/dotted-schema'), false);
     });
+
+    test('every postgres schema-DDL corpus case is either fixture-linked or '
+        'unsupported-engine-allowlisted — none silently unclassified', () {
+      final links = fixtureLinksByDialect['postgres']!.keys
+          .where((id) => id.startsWith('schema/'))
+          .toSet();
+      final allowlisted = unsupportedEngineAllowlist['postgres']!.keys
+          .where((id) => id.startsWith('schema/'))
+          .toSet();
+      final schemaIds = schemaCorpusCases.keys.toSet();
+      final unclassified = schemaIds.difference(links).difference(allowlisted);
+      expect(
+        unclassified,
+        isEmpty,
+        reason:
+            'These schema-DDL corpus ids are neither linked nor '
+            'allowlisted — a new case (or an accidentally deleted link) '
+            'would otherwise be silently skipped by the live-execution '
+            'test: $unclassified',
+      );
+    });
   });
 }

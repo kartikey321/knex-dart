@@ -3,7 +3,9 @@
 /// `fixtureLinksByDialect['postgres']` under a `schema/*` id executes
 /// without error, and every case listed in
 /// `unsupportedEngineAllowlist['postgres']` under a `schema/*` id still
-/// reproduces its documented failure.
+/// reproduces its documented failure — with the SAME SQLSTATE the
+/// allowlist reason cites, not just "some failure occurred" (a regression
+/// to a *different* failure shape would otherwise slip through unnoticed).
 ///
 /// Unlike `postgres_live_execution_test.dart` (the query corpus, one shared
 /// schema/run for the whole file), EVERY schema-DDL case here gets its own
@@ -21,6 +23,19 @@ import 'package:knex_dart_postgres/knex_dart_postgres.dart';
 import 'package:test/test.dart';
 
 import 'postgres_live_adapter.dart';
+import 'postgres_schema_ddl_profiles.dart';
+
+/// The SQLSTATE (or, for the one non-ServerException case, a distinctive
+/// substring of the client-side error) each allowlisted schema-DDL case's
+/// `unsupported_engine_allowlist.dart` reason cites as ITS failure, not
+/// just "any" failure.
+const Map<String, String> _expectedAllowlistFailureMarkers = {
+  'schema/create-extension': '0A000',
+  'schema/create-extension-if-not-exists': '0A000',
+  'schema/drop-extension': '42704',
+  'schema/create-table-primary-composite-with-increments': '42P16',
+  'schema/raw-with-binding': '42601',
+};
 
 void main() {
   late PostgresClient client;
@@ -47,10 +62,28 @@ void main() {
   /// the mechanical outcome. Always tears down (including the
   /// withSchema()-created named schemas, which live alongside — not
   /// inside — the per-case ephemeral schema).
-  Future<MechanicalResult> runSchemaCase(String caseId, String profileId) async {
+  ///
+  /// [expectFailure]: for the allowlist-ratchet test, where the case is
+  /// SUPPOSED to fail — once that expected failure has been observed and
+  /// verified, the ephemeral schema has already served its purpose and
+  /// keeping it around (this adapter's normal "keep on failure, for
+  /// inspection" behavior) would just leak it for up to 6 hours on every
+  /// green run for no benefit.
+  Future<MechanicalResult> runSchemaCase(
+    String caseId,
+    String profileId, {
+    bool expectFailure = false,
+  }) async {
     final adapter = PostgresLiveAdapter(client);
+    if (postgresSchemaDdlProfilesNeedingPublicFallback.contains(profileId)) {
+      adapter.extraSearchPathSchemas = const ['public'];
+    }
     await adapter.setUpRun();
-    var succeeded = false;
+    // Must happen before anything below has a chance to create/mutate a
+    // named schema (myschema/mySchema/billing) — see
+    // recordPreexistingNamedSchemas's doc comment.
+    await adapter.recordPreexistingNamedSchemas();
+    var cleanupSucceeded = false;
     try {
       await adapter.applySchemaDdlProfile(profileId);
       final result = await adapter.runCase(
@@ -61,7 +94,9 @@ void main() {
           await session.executeSchema(builder);
         },
       );
-      succeeded = result.status == MechanicalStatus.executedWithoutError;
+      final executedCleanly =
+          result.status == MechanicalStatus.executedWithoutError;
+      cleanupSucceeded = expectFailure ? !executedCleanly : executedCleanly;
       return result;
     } catch (e) {
       // applySchemaDdlProfile itself failing (a bug in this profile's own
@@ -74,11 +109,20 @@ void main() {
         fixtureProfile: profileId,
       );
     } finally {
-      // Keep the schema around (runSucceeded: false) whenever anything
-      // above didn't cleanly succeed, mirroring tearDownRun's own
-      // "keep failures reproducible" contract.
-      await adapter.tearDownRun(runSucceeded: succeeded);
-      await adapter.cleanUpNamedSchemas();
+      // Keep the schema around (runSucceeded: false) only when something
+      // genuinely unexpected happened, mirroring tearDownRun's own "keep
+      // failures reproducible" contract — an *expected* failure that was
+      // just verified needs no further inspection.
+      //
+      // Cleanup itself failing (e.g. connection contention when many test
+      // files run concurrently against the same Postgres container, as
+      // `dart test --tags=postgres` does by default) must never propagate
+      // out of a `finally` and abort the whole case loop mid-run, silently
+      // skipping every case still queued behind it — best-effort only.
+      try {
+        await adapter.tearDownRun(runSucceeded: cleanupSucceeded);
+        await adapter.cleanUpNamedSchemas();
+      } catch (_) {}
     }
   }
 
@@ -100,32 +144,42 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
-  test(
-    'every unsupported-engine-allowlisted schema-DDL case still fails to '
-    'execute (ratchet: a case that starts succeeding demands re-triage, '
-    'not a silently-stale allowlist entry)',
-    () async {
-      final allowlist = unsupportedEngineAllowlist['postgres']!;
-      final schemaAllowlist = Map.fromEntries(
-        allowlist.entries.where((e) => e.key.startsWith('schema/')),
-      );
-      final unexpectedSuccesses = <String>[];
+  test('every unsupported-engine-allowlisted schema-DDL case still fails with '
+      'the exact SQLSTATE its allowlist reason cites (ratchet: a case that '
+      'starts succeeding — or starts failing for a DIFFERENT reason — '
+      'demands re-triage, not a silently-stale or silently-wrong allowlist '
+      'entry)', () async {
+    final allowlist = unsupportedEngineAllowlist['postgres']!;
+    final schemaAllowlist = Map.fromEntries(
+      allowlist.entries.where((e) => e.key.startsWith('schema/')),
+    );
+    final problems = <String>[];
 
-      for (final caseId in schemaAllowlist.keys) {
-        final result = await runSchemaCase(caseId, 'schema_ddl_empty_v1');
-        if (result.status == MechanicalStatus.executedWithoutError) {
-          unexpectedSuccesses.add(caseId);
-        }
+    for (final caseId in schemaAllowlist.keys) {
+      final result = await runSchemaCase(
+        caseId,
+        'schema_ddl_empty_v1',
+        expectFailure: true,
+      );
+      if (result.status == MechanicalStatus.executedWithoutError) {
+        problems.add('$caseId: now executes cleanly, expected a failure');
+        continue;
       }
+      final expectedMarker = _expectedAllowlistFailureMarkers[caseId];
+      if (expectedMarker == null) {
+        problems.add(
+          '$caseId: missing an entry in _expectedAllowlistFailureMarkers '
+          '— add one so this ratchet actually checks something',
+        );
+      } else if (!(result.detail ?? '').contains(expectedMarker)) {
+        problems.add(
+          '$caseId: expected failure to mention "$expectedMarker" '
+          '(per its allowlist reason) but got: ${result.detail}',
+        );
+      }
+    }
 
-      expect(schemaAllowlist, isNotEmpty);
-      expect(
-        unexpectedSuccesses,
-        isEmpty,
-        reason:
-            'Allowlisted schema-DDL case(s) now execute cleanly — re-triage '
-            'and remove the allowlist entry: $unexpectedSuccesses',
-      );
-    },
-  );
+    expect(schemaAllowlist, isNotEmpty);
+    expect(problems, isEmpty, reason: problems.join('\n'));
+  });
 }

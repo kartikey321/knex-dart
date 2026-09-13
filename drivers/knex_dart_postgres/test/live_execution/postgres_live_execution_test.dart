@@ -88,24 +88,21 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
-  test(
-    'isolation held: every fixture profile\'s row counts are unchanged '
-    'after running every linked case (proves every case rolled back '
-    'cleanly, including inserts/updates/deletes)',
-    () async {
-      for (final profileEntry in _expectedCounts.entries) {
-        for (final tableEntry in profileEntry.value.entries) {
-          final counts = await client.rawSql(
-            'select count(*) as n from '
-            '"${adapter.schemaName}"."${tableEntry.key}"',
-          );
-          expect(
-            counts.single['n'],
-            tableEntry.value,
-            reason: '${profileEntry.key}.${tableEntry.key}',
-          );
-        }
+  test('isolation held: every fixture profile\'s row counts are unchanged '
+      'after running every linked case (proves every case rolled back '
+      'cleanly, including inserts/updates/deletes)', () async {
+    for (final profileEntry in _expectedCounts.entries) {
+      for (final tableEntry in profileEntry.value.entries) {
+        final counts = await client.rawSql(
+          'select count(*) as n from '
+          '"${adapter.schemaName}"."${tableEntry.key}"',
+        );
+        expect(
+          counts.single['n'],
+          tableEntry.value,
+          reason: '${profileEntry.key}.${tableEntry.key}',
+        );
       }
-    },
-  );
+    }
+  });
 }

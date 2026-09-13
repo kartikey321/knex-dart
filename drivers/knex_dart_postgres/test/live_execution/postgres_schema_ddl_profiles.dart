@@ -20,9 +20,12 @@
 ///
 /// Every DDL block here was verified by an actual dry run against real
 /// Postgres (see PR description / commit message for the harness), not
-/// hand-derived from reading the compiler source alone — Postgres's exact
-/// default constraint/index-naming rules (`<table>_<cols>_unique`,
-/// `<table>_<cols>_index`, `<table>_<cols>_foreign`, `<table>_pkey`) had to
+/// hand-derived from reading the compiler source alone — knex-dart's own
+/// exact default constraint/index-naming convention (`<table>_<cols>_unique`,
+/// `<table>_<cols>_index`, `<table>_<cols>_foreign`, `<table>_pkey`; see
+/// `schema_compiler.dart`'s `dropUnique`/`dropIndex`/`dropForeign`/
+/// `dropPrimary`/`unique`/`index`/`foreign`/`primary` cases — these are NOT
+/// Postgres's own native default-naming rules) had to
 /// match knex-dart's OWN computed defaults exactly for drop-type cases to
 /// find what they're dropping.
 library;
@@ -47,13 +50,17 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
 
   // The three cases targeting `alterTable('user', ...)` — literally
   // singular, a distinct table from `users`.
-  'schema_ddl_user_singular_v1': ['CREATE TABLE "user" (id serial primary key)'],
+  'schema_ddl_user_singular_v1': [
+    'CREATE TABLE "user" (id serial primary key)',
+  ],
 
   // `users.nickname` pre-existing, nothing else — for
   // alter-table-drop-column/alter-table-rename-column, which need it
   // present (the ADD-column cluster above needs it ABSENT, hence separate
   // profiles even though both just concern "a nickname column").
-  'schema_ddl_users_nickname_v1': ['CREATE TABLE users (nickname varchar(100))'],
+  'schema_ddl_users_nickname_v1': [
+    'CREATE TABLE users (nickname varchar(100))',
+  ],
 
   'schema_ddl_users_foo_bar_v1': [
     'CREATE TABLE users (foo varchar(100), bar varchar(100))',
@@ -65,6 +72,14 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
     'CREATE TABLE users (created_at timestamp, updated_at timestamp)',
   ],
   'schema_ddl_users_email_v1': ['CREATE TABLE users (email varchar(100))'],
+
+  // NOT NULL (not just present) — alter-table-set-nullable emits DROP NOT
+  // NULL, which is a silent no-op against an already-nullable column (as
+  // schema_ddl_users_email_v1 is) and so can't actually prove the
+  // statement ran; this profile lets it prove a real state change.
+  'schema_ddl_users_email_not_null_v1': [
+    'CREATE TABLE users (email varchar(100) NOT NULL)',
+  ],
 
   // Default-named unique/index constraints on `users.email` — the exact
   // name knex-dart's own dropUnique/dropIndex compute when called
@@ -143,9 +158,11 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
         'composite_key_test_column_a_column_b_unique UNIQUE (column_a, column_b)',
   ],
 
-  // Reference-only `users` shapes for CREATE-type cases (FK target, view
-  // source, createTableLike source) — these only READ the shape, so many
-  // otherwise-unrelated cases can safely share one.
+  // `users(id)` as a minimal pre-existing object: an FK/view/createTableLike
+  // reference target for most cases sharing this profile, but also the
+  // literal target for drop-table/rename-table/drop-table-if-exists —
+  // "only ever read" would be wrong for those three; what's actually
+  // shared is that none of them need any column/constraint beyond `id`.
   'schema_ddl_users_ref_v1': ['CREATE TABLE users (id serial primary key)'],
   'schema_ddl_users_accounts_ref_v1': [
     'CREATE TABLE users (id serial primary key)',
@@ -167,9 +184,11 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
     'CREATE TABLE t (x integer)',
     'CREATE MATERIALIZED VIEW active_users_mv AS SELECT * FROM t',
   ],
+  // REFRESH ... CONCURRENTLY requires a unique index on the MATERIALIZED
+  // VIEW itself, not on its base table (confirmed directly — a base-table
+  // index contributes nothing here, so it's deliberately omitted).
   'schema_ddl_active_users_mv_concurrent_v1': [
     'CREATE TABLE t (x integer)',
-    'CREATE UNIQUE INDEX active_users_mv_x ON t (x)',
     'CREATE MATERIALIZED VIEW active_users_mv AS SELECT * FROM t',
     'CREATE UNIQUE INDEX active_users_mv_idx ON active_users_mv (x)',
   ],
@@ -179,13 +198,14 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
   ],
   'schema_ddl_view_to_refresh_concurrent_v1': [
     'CREATE TABLE t (x integer)',
-    'CREATE UNIQUE INDEX view_to_refresh_x ON t (x)',
     'CREATE MATERIALIZED VIEW view_to_refresh AS SELECT * FROM t',
     'CREATE UNIQUE INDEX view_to_refresh_idx ON view_to_refresh (x)',
   ],
   'schema_ddl_view_users_v1': ['CREATE VIEW users AS SELECT 1 AS x'],
   'schema_ddl_view_old_v1': ['CREATE VIEW old_view AS SELECT 1 AS x'],
-  'schema_ddl_view_active_users_v1': ['CREATE VIEW active_users AS SELECT 1 AS x'],
+  'schema_ddl_view_active_users_v1': [
+    'CREATE VIEW active_users AS SELECT 1 AS x',
+  ],
 
   // withSchema('myschema'/'mySchema') cases — these are DATABASE-level
   // schemas, siblings of (not nested inside) each case's own ephemeral
@@ -205,15 +225,32 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
     'CREATE INDEX users_foo_index ON "mySchema".users(foo)',
   ],
 
-  // CREATE EXTENSION with no explicit SCHEMA clause installs into whatever
-  // schema is first in search_path (verified directly against real
-  // Postgres) — since the adapter always points search_path at this case's
-  // own ephemeral schema first, this never touches (or depends on)
-  // "public".
+  // CREATE EXTENSION IF NOT EXISTS is a no-op when citext is already
+  // installed ANYWHERE in the database (extensions are unique per-database,
+  // not per-schema, and an explicit SCHEMA clause is ignored on skip too —
+  // confirmed by reproducing exactly this against real Postgres). So this
+  // profile is the one entry in [postgresSchemaDdlProfilesNeedingPublicFallback]:
+  // its case only ever creates a table named "users" (which — confirmed —
+  // still resolves to the ephemeral schema's own copy, correctly shadowing
+  // any "public.users" leftover, since the ephemeral schema is always first
+  // in search_path) and needs the CITEXT *type* specifically, which is
+  // only guaranteed reachable by also including "public" as a fallback.
   'schema_ddl_citext_users_v1': [
     'CREATE EXTENSION IF NOT EXISTS citext',
     'CREATE TABLE users ()',
   ],
+};
+
+/// Profile ids whose case needs "public" appended as a search_path
+/// fallback (after this run's own ephemeral schema) — see
+/// `schema_ddl_citext_users_v1`'s comment for why. Every other profile
+/// deliberately excludes "public" entirely, so a leftover table from an
+/// unrelated integration-test suite (e.g. the hand-written
+/// `postgres_test.dart` suite's own long-lived `public.users`) can never
+/// silently satisfy — or be mistaken for — a schema-DDL case's own
+/// prerequisite.
+const Set<String> postgresSchemaDdlProfilesNeedingPublicFallback = {
+  'schema_ddl_citext_users_v1',
 };
 
 /// Database-level schema names some profiles above create via
