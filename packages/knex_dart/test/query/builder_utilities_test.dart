@@ -84,6 +84,24 @@ void main() {
       expect(sql.bindings, []);
     });
 
+    test('truncate uses DELETE FROM for the SQLite family', () {
+      for (final dialect in ['sqlite', 'turso', 'd1']) {
+        final sql = KnexQuery.forClient(
+          dialect,
+        ).queryBuilder().table('users').truncate().toSQL();
+        expect(sql.sql, 'delete from "users"');
+        expect(sql.bindings, isEmpty);
+      }
+    });
+
+    test('truncate uses TRUNCATE TABLE for MSSQL', () {
+      final sql = KnexQuery.forClient(
+        'mssql',
+      ).queryBuilder().table('users').truncate().toSQL();
+      expect(sql.sql, 'truncate table [users]');
+      expect(sql.bindings, isEmpty);
+    });
+
     // Test 6: forUpdate()
     test('Test 6: forUpdate()', () {
       final sql = client

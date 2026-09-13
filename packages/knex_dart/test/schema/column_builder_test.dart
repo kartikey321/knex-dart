@@ -76,10 +76,99 @@ void main() {
       expect(col.toSQL(), contains("default 'active'"));
     });
 
-    test('defaultTo with arbitrary object falls through to toString()', () {
-      final col = ColumnBuilder('meta', 'json')..defaultTo(_Stringify('{}'));
-      expect(col.toSQL(), contains('default {}'));
+    test(
+      'defaultTo with arbitrary object falls through to a quoted, '
+      "escaped toString() (matches knex.js's _escapeBinding fallback)",
+      () {
+        final col = ColumnBuilder(
+          'meta',
+          'json',
+        )..defaultTo(_Stringify('{}'));
+        expect(col.toSQL(), contains("default '{}'"));
+      },
+    );
+
+    test('defaultTo(String) with an embedded quote is escaped', () {
+      final col = ColumnBuilder(
+        'name',
+        'varchar(50)',
+      )..defaultTo("O'Brien");
+      expect(col.toSQL(), contains("default 'O''Brien'"));
     });
+
+    test('defaultTo(Map) on a json column JSON-encodes the value', () {
+      final col = ColumnBuilder(
+        'meta',
+        'json',
+        isJson: true,
+      )..defaultTo({'active': true});
+      expect(col.toSQL(), contains('default \'{"active":true}\''));
+    });
+
+    test('defaultTo(List) on a jsonb column JSON-encodes the value', () {
+      final col = ColumnBuilder(
+        'tags',
+        'jsonb',
+        isJson: true,
+      )..defaultTo(['a', 'b']);
+      expect(col.toSQL(), contains('default \'["a","b"]\''));
+    });
+
+    test(
+      'defaultTo(Map) on a Redshift jsonb column (mapped to varchar(max)) '
+      'still JSON-encodes — isJson tracks the logical type, not the mapped '
+      'SQL type string (verified against real knex.js)',
+      () {
+        final col = ColumnBuilder(
+          'c',
+          'varchar(max)',
+          isJson: true,
+        )..defaultTo({
+            'x': ['y'],
+          });
+        expect(
+          col.toSQL(dialect: 'redshift'),
+          contains('default \'{"x":["y"]}\''),
+        );
+      },
+    );
+
+    test(
+      'defaultTo(String) with a backslash is escaped per-dialect: Postgres '
+      "doubles it and adds an E-prefix (verified against real knex.js)",
+      () {
+        final col = ColumnBuilder('s', 'varchar(255)')..defaultTo(r'a\b');
+        expect(col.toSQL(dialect: 'pg'), contains(r"default E'a\\b'"));
+      },
+    );
+
+    test(
+      'defaultTo(String) with a backslash on MySQL is escaped without an '
+      'E-prefix (verified against real knex.js)',
+      () {
+        final col = ColumnBuilder('s', 'varchar(255)')..defaultTo(r'a\b');
+        expect(col.toSQL(dialect: 'mysql'), contains(r"default 'a\\b'"));
+      },
+    );
+
+    test(
+      'defaultTo(String) with a newline on MySQL uses a C-style escape '
+      '(verified against real knex.js)',
+      () {
+        final col = ColumnBuilder('s', 'varchar(255)')..defaultTo('a\nb');
+        expect(col.toSQL(dialect: 'mysql'), contains(r"default 'a\nb'"));
+      },
+    );
+
+    test(
+      "defaultTo(String) with a backslash on SQLite is left unescaped — "
+      'matches knex.js falling back to the base Client (no backslash '
+      'handling) for dialects without their own _escapeBinding',
+      () {
+        final col = ColumnBuilder('s', 'varchar(255)')..defaultTo(r'a\b');
+        expect(col.toSQL(dialect: 'sqlite'), contains(r"default 'a\b'"));
+      },
+    );
   });
 
   group('ColumnBuilder - toSQL dialect and wrap', () {

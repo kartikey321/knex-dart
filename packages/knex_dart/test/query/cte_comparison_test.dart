@@ -84,12 +84,16 @@ void main() {
       ).withRecursive('tree', recursive).select(['*']).from('tree');
       final sql = query.toSQL();
 
-      // JS: with recursive "tree" as (select * from "nodes" where "parent_id" is null union select "n".* from "nodes" as "n" inner join "tree" as "t" on "n"."parent_id" = "t"."id") select * from "tree"
+      // JS: with recursive "tree" as (select * from "nodes" where
+      // "parent_id" = $1 union select "n".* from "nodes" as "n" inner
+      // join "tree" as "t" on "n"."parent_id" = "t"."id") select * from
+      // "tree". Explicit `=` with null is parameterized; only the two-arg
+      // `where('parent_id', null)` shorthand emits `is null`.
       expect(
         sql.sql,
-        'with recursive "tree" as (select * from "nodes" where "parent_id" is null union select "n".* from "nodes" as "n" inner join "tree" as "t" on "n"."parent_id" = "t"."id") select * from "tree"',
+        'with recursive "tree" as (select * from "nodes" where "parent_id" = \$1 union select "n".* from "nodes" as "n" inner join "tree" as "t" on "n"."parent_id" = "t"."id") select * from "tree"',
       );
-      expect(sql.bindings, []);
+      expect(sql.bindings, [null]);
     });
 
     test('CTE with WHERE in main query', () {

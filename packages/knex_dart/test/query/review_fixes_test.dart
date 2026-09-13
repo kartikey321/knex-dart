@@ -30,15 +30,19 @@ void main() {
           .where('cnt', '<', 100)
           .toSQL();
 
+      // Column order is alphabetically sorted ("cnt" before "email"),
+      // matching knex.js's `_prepInsert`/implicit-merge column ordering —
+      // verified against real knex.js output.
       expect(
         sql.sql,
-        'insert into "users" ("email", "cnt") values (\$1, \$2) '
+        'insert into "users" ("cnt", "email") values (\$1, \$2) '
         'on conflict ("email") do update set '
-        '"email" = excluded."email", "cnt" = excluded."cnt" '
+        '"cnt" = excluded."cnt", "email" = excluded."email" '
         'where "cnt" < \$3',
       );
-      // Binding order: insert values first, then the guard predicate.
-      expect(sql.bindings, ['a@b.com', 1, 100]);
+      // Binding order: insert values first (sorted-column order), then the
+      // guard predicate.
+      expect(sql.bindings, [1, 'a@b.com', 100]);
     });
 
     test('MySQL throws — ON DUPLICATE KEY UPDATE has no WHERE guard', () {
@@ -363,6 +367,300 @@ void main() {
       final sql =
           QueryBuilder(pg).table('sales').groupBy('region').toSQL();
       expect(sql.sql, endsWith('group by "region"'));
+    });
+  });
+
+  group('where(Raw) — bool/not flags', () {
+    // Previously `where()`'s Raw branch hardcoded `'bool': 'and'` and never
+    // stored a `'not'` key at all, so `.orWhere(raw(...))` silently compiled
+    // as AND (dropping the OR), and `.whereNot(raw(...))`/
+    // `.orWhereNot(raw(...))` silently dropped the NOT — both change query
+    // semantics, not just formatting. Verified against real knex.js.
+    test('.whereNot(raw(...)) prefixes with "not "', () {
+      final sql = QueryBuilder(pg)
+          .table('testtable')
+          .whereNot(pg.raw('is_active'))
+          .toSQL();
+      expect(sql.sql, 'select * from "testtable" where not is_active');
+      expect(sql.bindings, isEmpty);
+    });
+
+    test('.orWhereNot(raw(...)) prefixes with "not " and joins with OR', () {
+      final sql = QueryBuilder(pg)
+          .table('t')
+          .where('a', 1)
+          .orWhereNot(pg.raw('is_active'))
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "a" = \$1 or not is_active');
+      expect(sql.bindings, [1]);
+    });
+
+    test('.orWhere(raw(...)) joins with OR, not AND', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .where('a', 1)
+          .orWhere(pg.raw('b = 2'))
+          .toSQL();
+      expect(sql.sql, 'select * from "users" where "a" = \$1 or b = 2');
+      expect(sql.bindings, [1]);
+    });
+
+    test('plain .where(raw(...)) is unaffected (still AND, no NOT)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .where('a', 1)
+          .where(pg.raw('b = 2'))
+          .toSQL();
+      expect(sql.sql, 'select * from "users" where "a" = \$1 and b = 2');
+      expect(sql.bindings, [1]);
+    });
+  });
+
+  group('select() numeric literal', () {
+    // `_columns()` called `.toString()` on every select() column before
+    // handing it to `formatter.wrap()`, which loses the `num` type that
+    // `wrap()` special-cases (numbers pass through bare) — so `select(0)`
+    // compiled to the quoted identifier `"0"` instead of the bare literal
+    // `0`. Verified against real knex.js (`select 0`).
+    test('select(0) compiles to a bare numeric literal, not a quoted '
+        'identifier', () {
+      final sql = QueryBuilder(pg).select([0]).toSQL();
+      expect(sql.sql, 'select 0');
+    });
+
+    test('select(0) with a table still compiles the literal bare', () {
+      final sql = QueryBuilder(pg).table('t').select([0]).toSQL();
+      expect(sql.sql, 'select 0 from "t"');
+    });
+
+    test('string columns are unaffected (still wrapped as identifiers)', () {
+      final sql = QueryBuilder(pg).table('t').select(['id']).toSQL();
+      expect(sql.sql, 'select "id" from "t"');
+    });
+  });
+
+  group('whereIn/whereNotIn with a Raw value', () {
+    // Previously `whereIn()`'s compiler only handled QueryBuilder/Function
+    // values before falling through to an unconditional `values as List`
+    // cast — a Raw value (e.g. a raw subquery with named bindings) threw a
+    // TypeError instead of compiling. knex.js supports this directly.
+    test('whereIn(col, raw(...)) compiles the raw fragment inside IN (...)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .select(['*'])
+          .whereIn(
+            'id',
+            pg.raw('select (:test)', {
+              'test': [1, 2, 3],
+            }),
+          )
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where "id" in (select (\$1))');
+      expect(sql.bindings, [
+        [1, 2, 3],
+      ]);
+    });
+
+    test('whereNotIn(col, raw(...)) also compiles (shares the same '
+        'compiler path)', () {
+      final sql = QueryBuilder(pg)
+          .table('users')
+          .whereNotIn('id', pg.raw('select id from banned'))
+          .toSQL();
+
+      expect(sql.sql, 'select * from "users" where "id" not in (select id from banned)');
+      expect(sql.bindings, isEmpty);
+    });
+  });
+
+  group('DELETE ... LIMIT — MySQL-only extension (knex.js 3.2.9+)', () {
+    test('MySQL: .delete().limit(n) compiles a trailing LIMIT clause', () {
+      final sql = QueryBuilder(
+        my,
+      ).table('users').where('id', '>', 1).delete().limit(1).toSQL();
+
+      expect(sql.sql, 'delete from `users` where `id` > ? limit ?');
+      expect(sql.bindings, [1, 1]);
+    });
+
+    test('Postgres: .delete().limit(n) silently ignores the no-op LIMIT '
+        '(standard SQL has no DELETE...LIMIT)', () {
+      final sql = QueryBuilder(
+        pg,
+      ).table('users').where('id', '>', 1).delete().limit(1).toSQL();
+
+      expect(sql.sql, 'delete from "users" where "id" > \$1');
+      expect(sql.bindings, [1]);
+    });
+
+    test('SQLite: .delete().limit(n) silently ignores the no-op LIMIT', () {
+      final sql = QueryBuilder(
+        SqliteMockClient(),
+      ).table('users').where('id', '>', 1).delete().limit(1).toSQL();
+
+      expect(sql.sql, 'delete from "users" where "id" > ?');
+      expect(sql.bindings, [1]);
+    });
+  });
+
+  group(
+    'Analytic/window function alias — identifier-wrapped (knex.js 3.2.10+)',
+    () {
+      test('rank() alias is wrapped like any other identifier', () {
+        final sql = QueryBuilder(
+          pg,
+        ).table('accounts').select(['*']).rank('test_alias', 'email', 'address').toSQL();
+
+        expect(
+          sql.sql,
+          'select *, rank() over (partition by "address" order by "email") as "test_alias" from "accounts"',
+        );
+      });
+    },
+  );
+
+  group('SQLite RETURNING — supported on INSERT/UPDATE, not DELETE '
+      '(knex.js 3.2.9+ for the empty-insert shape specifically)', () {
+    test('SQLite: insert().returning() emits RETURNING', () {
+      final sql = QueryBuilder(
+        SqliteMockClient(),
+      ).table('users').insert({'email': 'a'}).returning(['id']).toSQL();
+
+      expect(sql.sql, 'insert into "users" ("email") values (?) returning "id"');
+    });
+
+    test('SQLite: insert([{}]).returning() emits DEFAULT VALUES + RETURNING', () {
+      final sql = QueryBuilder(
+        SqliteMockClient(),
+      ).table('users').insert([{}]).returning(['id']).toSQL();
+
+      expect(sql.sql, 'insert into "users" default values returning "id"');
+    });
+
+    test('SQLite: update().returning() emits RETURNING', () {
+      final sql = QueryBuilder(SqliteMockClient())
+          .table('users')
+          .where('id', 1)
+          .update({'email': 'a'})
+          .returning(['id'])
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "email" = ? where "id" = ? returning "id"',
+      );
+    });
+
+    test(
+      'SQLite: delete().returning() silently drops RETURNING (matches '
+      'knex.js — sqlite3 never supports RETURNING on DELETE)',
+      () {
+        final sql = QueryBuilder(SqliteMockClient())
+            .table('users')
+            .where('id', 1)
+            .delete()
+            .returning(['id'])
+            .toSQL();
+
+        expect(sql.sql, 'delete from "users" where "id" = ?');
+      },
+    );
+  });
+
+  // ── CodeRabbit-flagged fixes (PR #17 review) ─────────────────────────────
+
+  group('.pluck() subquery in a parameter position is parenthesized', () {
+    test('matches .select()/.first() subquery wrapping', () {
+      final sub = pg.queryBuilder().table('t2').pluck('id');
+      final sql =
+          pg.queryBuilder().table('t1').where('t1_id', '=', sub).toSQL();
+      expect(sql.sql, 'select * from "t1" where "t1_id" = (select "id" from "t2")');
+    });
+  });
+
+  group('whereNot()/orWhereNot() with a "between" operator', () {
+    test('whereNot(col, "between", [a, b]) compiles to NOT BETWEEN', () {
+      final sql = pg
+          .queryBuilder()
+          .table('t')
+          .whereNot('id', 'between', [1, 2])
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "id" not between \$1 and \$2');
+    });
+
+    test('orWhereNot(col, "between", [a, b]) compiles to NOT BETWEEN', () {
+      final sql = pg
+          .queryBuilder()
+          .table('t')
+          .orWhereNot('id', 'between', [1, 2])
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "id" not between \$1 and \$2');
+    });
+
+    test('where(col, "between", [a, b]) (no whereNot) still compiles to BETWEEN', () {
+      final sql =
+          pg.queryBuilder().table('t').where('id', 'between', [1, 2]).toSQL();
+      expect(sql.sql, 'select * from "t" where "id" between \$1 and \$2');
+    });
+
+    test('where(col, "not between", [a, b]) (operator spelled out directly) still NOT BETWEEN', () {
+      final sql = pg
+          .queryBuilder()
+          .table('t')
+          .where('id', 'not between', [1, 2])
+          .toSQL();
+      expect(sql.sql, 'select * from "t" where "id" not between \$1 and \$2');
+    });
+  });
+
+  group('lock modes — dialects with no row-locking support', () {
+    test('Redshift: forUpdate()/forShare() are silent no-ops (no lock clause)', () {
+      final redshift = MockClient(driverName: 'redshift');
+      expect(
+        redshift.queryBuilder().table('t').forUpdate().toSQL().sql,
+        'select * from "t"',
+      );
+      expect(
+        redshift.queryBuilder().table('t').forShare().toSQL().sql,
+        'select * from "t"',
+      );
+    });
+
+    test('SQLite: forUpdate()/forShare() are silent no-ops (no lock clause)', () {
+      final sql = SqliteMockClient()
+          .queryBuilder()
+          .table('t')
+          .forUpdate()
+          .toSQL();
+      expect(sql.sql, 'select * from "t"');
+    });
+
+    test('MSSQL: forUpdate()/forShare() throw rather than emit wrong SQL', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        () => mssql.queryBuilder().table('t').forUpdate().toSQL(),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('MySQL UPDATE ... JOIN ... SET — binding order', () {
+    test('join ON-clause bindings precede SET bindings, matching SQL text order', () {
+      final sql = my.queryBuilder().table('users').join(
+        'accounts',
+        (j) => j
+            .on('users.id', '=', 'accounts.user_id')
+            .onVal('accounts.status', '=', 'active'),
+      ).update({'users.name': 'Bob'}).toSQL();
+
+      expect(
+        sql.sql,
+        'update `users` inner join `accounts` on `users`.`id` = '
+        '`accounts`.`user_id` and `accounts`.`status` = ? set `users`.`name` = ?',
+      );
+      // Previously ['Bob', 'active'] — wrong slot for both placeholders.
+      expect(sql.bindings, ['active', 'Bob']);
     });
   });
 }

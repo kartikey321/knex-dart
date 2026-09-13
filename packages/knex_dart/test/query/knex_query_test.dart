@@ -91,9 +91,26 @@ void main() {
         expect(q.dialect, KnexDialect.sqlite);
       });
 
-      test('resolves cockroachdb → postgres dialect', () {
+      test('resolves cockroachdb → postgres dialect, preserves driverName', () {
+        // cockroachdb shares KnexDialect.postgres (identical capability set),
+        // but driverName must stay 'cockroachdb' — the schema/query compilers
+        // dispatch on the raw driverName string (_isPostgresLike-style
+        // checks), not the coarse enum, and already treat 'cockroachdb' as a
+        // distinct member of those checks. Previously this collapsed to the
+        // generic 'pg', making any cockroachdb-specific compiler branch
+        // unreachable via this connectionless API and producing $1/$2 params
+        // + double-quoted identifiers that happened to be right only because
+        // no compiler branch currently differs between pg and cockroachdb —
+        // not because driverName was correct.
         final q = KnexQuery.forClient('cockroachdb');
         expect(q.dialect, KnexDialect.postgres);
+        expect(q.driverName, 'cockroachdb');
+      });
+
+      test('resolves crdb → postgres dialect, preserves cockroachdb driverName', () {
+        final q = KnexQuery.forClient('crdb');
+        expect(q.dialect, KnexDialect.postgres);
+        expect(q.driverName, 'cockroachdb');
       });
 
       test('resolves turso → turso dialect', () {

@@ -6,7 +6,11 @@ enum KnexDialect { postgres, mysql, sqlite, mariadb,
 /// SQL features whose support varies by dialect in knex_dart.
 enum SqlCapability {
   // ── Already supported ────────────────────────────────────────────────────
-  /// `RETURNING` clause — PostgreSQL only.
+  /// `RETURNING` clause — PostgreSQL, plus SQLite-family (sqlite/turso/d1,
+  /// SQLite >=3.35) on INSERT/UPDATE. Not MySQL. SQLite's DELETE-specific
+  /// exception (no RETURNING there despite supporting it elsewhere) isn't
+  /// expressible as a single per-dialect flag — see the carve-out in
+  /// QueryCompiler._deleteQuery.
   returning,
 
   /// `FULL OUTER JOIN` — PostgreSQL only (MySQL/SQLite don't support it).
@@ -66,7 +70,12 @@ const Map<KnexDialect, Set<SqlCapability>> dialectCapabilities = {
     SqlCapability.windowFunctions,
     SqlCapability.json, // partial — no @> or jsonb operators
   },
+  // SQLite >=3.35 supports RETURNING, but only on INSERT/UPDATE — never on
+  // DELETE (knex.js's own sqlite3 dialect never emits it there either).
+  // That asymmetry isn't expressible as a single per-dialect capability
+  // flag; the DELETE-specific carve-out lives in QueryCompiler._deleteQuery.
   KnexDialect.sqlite: {
+    SqlCapability.returning,
     SqlCapability.onConflictMerge,
     SqlCapability.cte,
     SqlCapability.windowFunctions,
@@ -94,17 +103,21 @@ const Map<KnexDialect, Set<SqlCapability>> dialectCapabilities = {
     SqlCapability.intersectExcept,
   },
   // Turso (libSQL): SQLite-compatible dialect over HTTP.
-  // Same capabilities as SQLite (libSQL is built on SQLite 3.45+).
-  // No RETURNING, no LATERAL, no FULL OUTER JOIN.
+  // Same capabilities as SQLite (libSQL is built on SQLite 3.45+), including
+  // the RETURNING-except-on-DELETE asymmetry noted above. No LATERAL, no
+  // FULL OUTER JOIN.
   KnexDialect.turso: {
+    SqlCapability.returning,
     SqlCapability.onConflictMerge,
     SqlCapability.cte,
     SqlCapability.windowFunctions,
     SqlCapability.intersectExcept,
   },
   // Cloudflare D1: SQLite dialect via Cloudflare REST API.
-  // Same SQLite capability set. No RETURNING, no LATERAL, no FULL OUTER JOIN.
+  // Same SQLite capability set, including the RETURNING-except-on-DELETE
+  // asymmetry noted above. No LATERAL, no FULL OUTER JOIN.
   KnexDialect.d1: {
+    SqlCapability.returning,
     SqlCapability.onConflictMerge,
     SqlCapability.cte,
     SqlCapability.windowFunctions,
@@ -198,6 +211,8 @@ KnexDialect? dialectFromDriverName(String? driverName) {
     case 'bigquery':
     case 'big_query':
       return KnexDialect.bigquery;
+    case 'mssql':
+      return KnexDialect.mssql;
     default:
       return null;
   }

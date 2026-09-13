@@ -471,4 +471,132 @@ void main() {
       expect(sql, contains('on update RESTRICT'));
     });
   });
+
+  group('column-level .primary() declared inside alterTable', () {
+    // Found by an adversarial review of the parity-batch fixes: the
+    // createTable-time primary()-inline fix didn't cover the alterTable
+    // path — a column-level .primary() added to an existing table compiled
+    // as only ADD COLUMN, silently losing the primary key constraint. Same
+    // bug family as the earlier .references().inTable()-on-alterTable fix.
+    // All expected SQL verified against real knex.js.
+    test('Postgres emits a deferred ADD CONSTRAINT PRIMARY KEY', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary();
+      });
+      final sqls = schema.toSQL();
+      expect(sqls.length, 2);
+      expect(sqls[0]['sql'], 'alter table "t" add column "id" integer');
+      expect(
+        sqls[1]['sql'],
+        'alter table "t" add constraint "t_pkey" primary key ("id")',
+      );
+    });
+
+    test('MySQL emits its own ADD PRIMARY KEY syntax (no "constraint" '
+        'keyword, name immediately before the parens)', () {
+      final schema = MySQLMockClient().schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary();
+      });
+      final sqls = schema.toSQL();
+      expect(sqls.length, 2);
+      expect(
+        stmtContaining(sqls, 'add primary key'),
+        contains('add primary key `t_pkey`(`id`)'),
+      );
+    });
+
+    test('a custom constraintName is respected instead of the default '
+        '"<table>_pkey"', () {
+      final schema = client.schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary(constraintName: 'custom_pk');
+      });
+      final sql = schema.toSQL()[1]['sql'] as String;
+      expect(sql, contains('constraint "custom_pk" primary key ("id")'));
+    });
+
+    test('a custom constraintName on createTable is also respected (was '
+        'previously always hardcoded to "<table>_pkey")', () {
+      final schema = client.schemaBuilder();
+      schema.createTable('t', (table) {
+        table.integer('id').primary(constraintName: 'custom_pk');
+      });
+      final sql = schema.toSQL().first['sql'] as String;
+      expect(sql, contains('constraint "custom_pk" primary key ("id")'));
+    });
+
+    test('SQLite refuses rather than silently dropping the constraint '
+        '(cannot ALTER TABLE ADD CONSTRAINT; matches the existing '
+        'foreign()-on-alterTable SQLite precedent)', () {
+      final schema = SqliteMockClient().schemaBuilder();
+      schema.alterTable('t', (table) {
+        table.integer('id').primary();
+      });
+      expect(() => schema.toSQL(), throwsA(isA<UnsupportedError>()));
+    });
+  });
+
+  // ── CodeRabbit-flagged fixes (PR #17 review) ─────────────────────────────
+
+  group('MSSQL: identifiers embedded in string literals are quote-escaped', () {
+    // Uses the real MSSQL client (via KnexQuery.forClient), not MockClient —
+    // MockClient.wrapIdentifierImpl falls through to generic double-quoting
+    // for every driver except MySQL, so it never exercises MSSQL's real
+    // bracket identifier quoting. Flagged by CodeRabbit: these tests passed
+    // while asserting mock quoting, not the MSSQL dialect they claim to test.
+    test('createTableIfNotExists\' object_id() guard escapes a table name with a quote', () {
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql.createTableIfNotExists(
+        "o'brien",
+        (t) => t.string('x'),
+      ).toSQL().first['sql'] as String;
+      expect(sql, contains("object_id('[o''brien]', 'U')"));
+    });
+
+    test('table.comment() escapes a schema name with a quote', () {
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql
+          .withSchema("o'brien")
+          .createTable('t', (table) {
+            table.string('x');
+            table.comment('hi');
+          })
+          .toSQL()
+          .last['sql'] as String;
+      expect(sql, contains("N'o''brien'"));
+    });
+  });
+
+  group('MSSQL: multi-column DROP COLUMN uses a single keyword + column list', () {
+    test('dropColumns(["a", "b"]) — not one DROP COLUMN per column', () {
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql.alterTable('t', (table) {
+        table.dropColumns(['a', 'b']);
+      }).toSQL().last['sql'] as String;
+      expect(sql, 'alter table [t] drop column [a], [b]');
+    });
+
+    test('dropTimestamps() — same single-keyword multi-column form', () {
+      final mssql = KnexQuery.forClient('mssql').schemaBuilder();
+      final sql = mssql.alterTable('t', (table) {
+        table.dropTimestamps();
+      }).toSQL().last['sql'] as String;
+      expect(sql, 'alter table [t] drop column [created_at], [updated_at]');
+    });
+  });
+
+  group('alterView() inlines bindings (view DDL can\'t bind parameters)', () {
+    test('a bound WHERE value is inlined, not left as a separate binding', () {
+      final pgClient = MockClient();
+      final def = pgClient.queryBuilder()
+          .table('users')
+          .select(['*'])
+          .where('active', true);
+      final stmt = pgClient.schemaBuilder().alterView('v', def).toSQL().single;
+      expect(stmt['sql'], 'create or replace view "v" as select * from "users" where "active" = true');
+      expect(stmt['bindings'], isEmpty);
+    });
+  });
 }

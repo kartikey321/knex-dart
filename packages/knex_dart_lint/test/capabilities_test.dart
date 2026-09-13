@@ -19,7 +19,10 @@ void main() {
   });
 
   test('sqlite capability shape', () {
-    expect(supportsCapability(KnexDialect.sqlite, SqlCapability.returning), isFalse);
+    // SQLite >=3.35 supports RETURNING on INSERT/UPDATE (verified against
+    // real knex.js); the DELETE-specific exception to that is a QueryCompiler
+    // dialect carve-out, not part of this capability flag.
+    expect(supportsCapability(KnexDialect.sqlite, SqlCapability.returning), isTrue);
     expect(supportsCapability(KnexDialect.sqlite, SqlCapability.fullOuterJoin), isFalse);
     expect(supportsCapability(KnexDialect.sqlite, SqlCapability.lateralJoin), isFalse);
     expect(supportsCapability(KnexDialect.sqlite, SqlCapability.onConflictMerge), isTrue);

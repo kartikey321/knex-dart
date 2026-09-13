@@ -53,7 +53,7 @@ class RawFormatter {
 
       // Double question mark - identifier binding
       if (matchStr == '??') {
-        return client.wrapIdentifier(value.toString());
+        return _wrapIdentifierColumnized(value.toString(), client);
       }
 
       // Single question mark - regular binding
@@ -143,7 +143,7 @@ class RawFormatter {
           // :key: - identifier binding (wrapped, no parameter)
           return matchStr.replaceFirst(
             p1!,
-            client.wrapIdentifier(value.toString()),
+            _wrapIdentifierColumnized(value.toString(), client),
           );
         }
 
@@ -157,5 +157,14 @@ class RawFormatter {
     );
 
     return FormattedSql(replaced, result);
+  }
+
+  /// Wraps a (possibly dotted) identifier segment-by-segment, mirroring
+  /// knex.js's `columnize()` used by both `??` and `:key:` raw-identifier
+  /// substitution. `client.wrapIdentifier()` alone treats the whole string
+  /// as a single token — `'users.name'` would come out as a single quoted
+  /// identifier (`` `users.name` ``) instead of two (`` `users`.`name` ``).
+  static String _wrapIdentifierColumnized(String value, Client client) {
+    return value.split('.').map(client.wrapIdentifier).join('.');
   }
 }

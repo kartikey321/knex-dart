@@ -16,10 +16,10 @@ void main() {
       ).table('users').select(['*']).rank('alias_name', 'email', 'firstName');
       final sql = query.toSQL();
 
-      // JS: select *, rank() over (partition by "firstName" order by "email") as alias_name from "users"
+      // JS: select *, rank() over (partition by "firstName" order by "email") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, rank() over (partition by "firstName" order by "email") as alias_name from "users"',
+        'select *, rank() over (partition by "firstName" order by "email") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -31,10 +31,10 @@ void main() {
           .rank('alias_name', ['email', 'address'], ['firstName', 'lastName']);
       final sql = query.toSQL();
 
-      // JS: select *, rank() over (partition by "firstName", "lastName" order by "email", "address") as alias_name from "users"
+      // JS: select *, rank() over (partition by "firstName", "lastName" order by "email", "address") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, rank() over (partition by "firstName", "lastName" order by "email", "address") as alias_name from "users"',
+        'select *, rank() over (partition by "firstName", "lastName" order by "email", "address") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -45,10 +45,10 @@ void main() {
       ).table('users').select(['*']).rank('alias_name', 'email');
       final sql = query.toSQL();
 
-      // JS: select *, rank() over (order by "email") as alias_name from "users"
+      // JS: select *, rank() over (order by "email") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, rank() over (order by "email") as alias_name from "users"',
+        'select *, rank() over (order by "email") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -60,10 +60,10 @@ void main() {
           .denseRank('alias_name', 'email', 'firstName');
       final sql = query.toSQL();
 
-      // JS: select *, dense_rank() over (partition by "firstName" order by "email") as alias_name from "users"
+      // JS: select *, dense_rank() over (partition by "firstName" order by "email") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, dense_rank() over (partition by "firstName" order by "email") as alias_name from "users"',
+        'select *, dense_rank() over (partition by "firstName" order by "email") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -79,10 +79,10 @@ void main() {
           );
       final sql = query.toSQL();
 
-      // JS: select *, dense_rank() over (partition by "firstName", "lastName" order by "email", "address") as alias_name from "users"
+      // JS: select *, dense_rank() over (partition by "firstName", "lastName" order by "email", "address") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, dense_rank() over (partition by "firstName", "lastName" order by "email", "address") as alias_name from "users"',
+        'select *, dense_rank() over (partition by "firstName", "lastName" order by "email", "address") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -94,10 +94,10 @@ void main() {
           .rowNumber('alias_name', 'email', 'firstName');
       final sql = query.toSQL();
 
-      // JS: select *, row_number() over (partition by "firstName" order by "email") as alias_name from "users"
+      // JS: select *, row_number() over (partition by "firstName" order by "email") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, row_number() over (partition by "firstName" order by "email") as alias_name from "users"',
+        'select *, row_number() over (partition by "firstName" order by "email") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -113,10 +113,10 @@ void main() {
           );
       final sql = query.toSQL();
 
-      // JS: select *, row_number() over (partition by "firstName", "lastName" order by "email", "address") as alias_name from "users"
+      // JS: select *, row_number() over (partition by "firstName", "lastName" order by "email", "address") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, row_number() over (partition by "firstName", "lastName" order by "email", "address") as alias_name from "users"',
+        'select *, row_number() over (partition by "firstName", "lastName" order by "email", "address") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -128,10 +128,10 @@ void main() {
           .rowNumber('alias_name', client.raw('order by ?? desc', ['salary']));
       final sql = query.toSQL();
 
-      // JS: select *, row_number() over (order by "salary" desc) as alias_name from "users"
+      // JS: select *, row_number() over (order by "salary" desc) as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, row_number() over (order by "salary" desc) as alias_name from "users"',
+        'select *, row_number() over (order by "salary" desc) as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -145,10 +145,10 @@ void main() {
       );
       final sql = query.toSQL();
 
-      // JS: select *, row_number() over (partition by "firstName" order by "email") as alias_name from "users"
+      // JS: select *, row_number() over (partition by "firstName" order by "email") as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, row_number() over (partition by "firstName" order by "email") as alias_name from "users"',
+        'select *, row_number() over (partition by "firstName" order by "email") as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -162,10 +162,10 @@ void main() {
       );
       final sql = query.toSQL();
 
-      // JS: select *, row_number() over (partition by "firstName" desc order by ) as alias_name from "users"
+      // JS: select *, row_number() over (partition by "firstName" desc order by ) as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, row_number() over (partition by "firstName" desc order by ) as alias_name from "users"',
+        'select *, row_number() over (partition by "firstName" desc order by ) as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -182,10 +182,10 @@ void main() {
       );
       final sql = query.toSQL();
 
-      // JS: select *, row_number() over (partition by "firstName" asc, "lastName" desc order by ) as alias_name from "users"
+      // JS: select *, row_number() over (partition by "firstName" asc, "lastName" desc order by ) as "alias_name" from "users"
       expect(
         sql.sql,
-        'select *, row_number() over (partition by "firstName" asc, "lastName" desc order by ) as alias_name from "users"',
+        'select *, row_number() over (partition by "firstName" asc, "lastName" desc order by ) as "alias_name" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -211,10 +211,10 @@ void main() {
           .rowNumber('rn', 'salary', 'dept');
       final sql = query.toSQL();
 
-      // JS: select "name", "email", row_number() over (partition by "dept" order by "salary") as rn from "users"
+      // JS: select "name", "email", row_number() over (partition by "dept" order by "salary") as "rn" from "users"
       expect(
         sql.sql,
-        'select "name", "email", row_number() over (partition by "dept" order by "salary") as rn from "users"',
+        'select "name", "email", row_number() over (partition by "dept" order by "salary") as "rn" from "users"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -227,10 +227,10 @@ void main() {
           .where('active', true);
       final sql = query.toSQL();
 
-      // JS: select *, rank() over (partition by "dept" order by "salary") as r from "users" where "active" = ?
+      // JS: select *, rank() over (partition by "dept" order by "salary") as "r" from "users" where "active" = ?
       expect(
         sql.sql,
-        'select *, rank() over (partition by "dept" order by "salary") as r from "users" where "active" = \$1',
+        'select *, rank() over (partition by "dept" order by "salary") as "r" from "users" where "active" = \$1',
       );
       expect(sql.bindings, [true]);
     });
@@ -246,7 +246,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", "salary", lead("salary") over (partition by "dept" order by "salary") as next_sal from "employees"',
+        'select "name", "salary", lead("salary") over (partition by "dept" order by "salary") as "next_sal" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -261,7 +261,7 @@ void main() {
       // defaultVal 0 is emitted as a bound parameter (not interpolated)
       expect(
         sql.sql,
-        'select "name", "salary", lead("salary", 1, \$1) over (partition by "dept" order by "salary") as next_sal from "employees"',
+        'select "name", "salary", lead("salary", 1, \$1) over (partition by "dept" order by "salary") as "next_sal" from "employees"',
       );
       expect(sql.bindings, [0]);
     });
@@ -287,7 +287,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", lag("salary") over (order by "created_at") as prev_sal from "employees"',
+        'select "name", lag("salary") over (order by "created_at") as "prev_sal" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -301,7 +301,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", lag("salary", 2) over (order by "created_at") as prev2 from "employees"',
+        'select "name", lag("salary", 2) over (order by "created_at") as "prev2" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -315,7 +315,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", "salary", first_value("salary") over (partition by "dept" order by "salary") as first_sal from "employees"',
+        'select "name", "salary", first_value("salary") over (partition by "dept" order by "salary") as "first_sal" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -336,7 +336,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", last_value("salary") over (partition by "dept" order by "salary" asc rows between unbounded preceding and unbounded following) as last_sal from "employees"',
+        'select "name", last_value("salary") over (partition by "dept" order by "salary" asc rows between unbounded preceding and unbounded following) as "last_sal" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -350,7 +350,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", nth_value("salary", 2) over (partition by "dept" order by "salary") as second_sal from "employees"',
+        'select "name", nth_value("salary", 2) over (partition by "dept" order by "salary") as "second_sal" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -367,7 +367,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "salary", first_value("salary") over (order by "salary" asc rows between unbounded preceding and current row) as running_first from "employees"',
+        'select "salary", first_value("salary") over (order by "salary" asc rows between unbounded preceding and current row) as "running_first" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -388,7 +388,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", last_value("salary") over (partition by "dept" order by "salary" desc range between unbounded preceding and current row) as last_in_range from "employees"',
+        'select "name", last_value("salary") over (partition by "dept" order by "salary" desc range between unbounded preceding and current row) as "last_in_range" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -404,7 +404,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "name", lead("salary") over (partition by "dept" order by "salary") as next_sal from "employees"',
+        'select "name", lead("salary") over (partition by "dept" order by "salary") as "next_sal" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });
@@ -420,7 +420,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select "salary", first_value("salary") over (order by "salary" asc rows between 3 preceding and 2 following) as f from "employees"',
+        'select "salary", first_value("salary") over (order by "salary" asc rows between 3 preceding and 2 following) as "f" from "employees"',
       );
       expect(sql.bindings, isEmpty);
     });

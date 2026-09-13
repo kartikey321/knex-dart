@@ -25,3 +25,5 @@ dependencies:
 dev_dependencies:
   test: ^1.31.0
   lints: ^6.1.0
+  knex_dart_live_test:
+    path: ../../packages/knex_dart_live_test

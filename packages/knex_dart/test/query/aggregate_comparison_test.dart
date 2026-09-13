@@ -176,9 +176,38 @@ void main() {
       final result = compiler.toSQL();
 
       print('Test 12: ${result.sql}');
+      // pg-family treats distinct multi-column as a row constructor — emits
+      // count(distinct("user_id", "event_type")) with extra parens around the
+      // column list (verified against real knex.js 3.3.0's pg client). The
+      // non-pg shape is count(distinct "user_id", "event_type") — covered by
+      // the parity harness's `agg/count-distinct-multi-col::mysql/sqlite`
+      // cases which dart matches mysql/sqlite exactly.
       expect(
         result.sql,
-        equals('select count(distinct "user_id", "event_type") from "events"'),
+        equals(
+          'select count(distinct("user_id", "event_type")) from "events"',
+        ),
+      );
+      expect(result.bindings, isEmpty);
+    });
+
+    test('Test 13: Count distinct with multiple columns via map arg', () {
+      final qb = QueryBuilder(client);
+      qb.table('events').countDistinct({
+        'total': ['user_id', 'event_type'],
+      });
+      final compiler = QueryCompiler(client, qb);
+      final result = compiler.toSQL();
+
+      // Same pg-family row-constructor form as the list-arg version above —
+      // verified against real knex.js 3.3.0's pg client
+      // (countDistinct({total: ['a','b']}) behaves identically to
+      // countDistinct(['a','b']), just with an alias).
+      expect(
+        result.sql,
+        equals(
+          'select count(distinct("user_id", "event_type")) as "total" from "events"',
+        ),
       );
       expect(result.bindings, isEmpty);
     });

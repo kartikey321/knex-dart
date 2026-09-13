@@ -134,8 +134,16 @@ class Formatter {
     final rawSql = _unwrapRaw(value, false);
     if (rawSql != null) return rawSql;
 
-    // Lookup operator (case-insensitive)
-    final op = _operators[value.toString().toLowerCase()];
+    // Lookup operator (case-insensitive, trimmed). knex.js accepts operator
+    // strings with trailing/leading whitespace (e.g. `where('id', 'not
+    // between ', [1, 2])` — note the trailing space in the JS test) and
+    // normalizes them silently via its operator-validator; without the
+    // trim() here, knex-dart threw `Exception: The operator "not between "
+    // is not permitted` instead of accepting the value the caller passed.
+    // Verified against real knex.js 3.3.0 (the `'where not between,
+    // alternate'` it() block at builder.js:L1323 passes `'not between '`
+    // verbatim and compiles to `... "id" not between ? and ?`).
+    final op = _operators[value.toString().toLowerCase().trim()];
     if (op == null) {
       throw Exception('The operator "$value" is not permitted');
     }

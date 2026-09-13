@@ -387,6 +387,25 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add a PostgreSQL `DISTINCT ON (...)` clause.
+  ///
+  ///
+  /// Postgres-only — compiling on any other dialect throws. [columns] must
+  /// be non-empty (matches knex.js's `distinctOn requires at least one
+  /// argument`).
+  ///
+  /// Example: distinctOn(['author_id']).orderBy('author_id').orderBy('created_at', 'desc')
+  QueryBuilder distinctOn(List<String> columns) {
+    if (columns.isEmpty) {
+      throw ArgumentError('distinctOn requires at least one argument');
+    }
+    _statements.add({
+      'grouping': 'columns',
+      'distinctOn': columns,
+    });
+    return this;
+  }
+
   /// Add an INNER JOIN clause
   ///
   ///
@@ -447,10 +466,13 @@ class QueryBuilder {
 
   /// Adds an `OUTER JOIN` clause.
   ///
-  /// Emits the bare `outer join` keyword. Not every database accepts an
-  /// unqualified `OUTER JOIN` (PostgreSQL does; some engines require
-  /// `LEFT`/`RIGHT`/`FULL`) — prefer [leftOuterJoin], [rightOuterJoin], or
-  /// [fullOuterJoin] unless you specifically need this form.
+  /// Emits the bare `outer join` keyword, mirroring knex.js's own
+  /// `outerJoin()` (which emits the identical unqualified text). No
+  /// mainstream engine actually accepts a bare `OUTER JOIN` — Postgres,
+  /// MySQL, and SQL Server all require `LEFT`/`RIGHT`/`FULL` before
+  /// `OUTER` — so this exists only for SQL-text parity with knex.js;
+  /// prefer [leftOuterJoin], [rightOuterJoin], or [fullOuterJoin] for SQL
+  /// you intend to actually run.
   ///
   /// ```dart
   /// qb.table('a').outerJoin('b', 'a.id', 'b.a_id');
@@ -629,7 +651,13 @@ class QueryBuilder {
         'type': 'whereRaw',
         'grouping': 'where',
         'value': column,
-        'bool': 'and',
+        // Read (and reset) the pending bool/not flags, same as every other
+        // branch below — previously hardcoded to 'and' with no 'not' key at
+        // all, so `.orWhere(raw(...))` silently compiled as AND and
+        // `.whereNot(raw(...))`/`.orWhereNot(raw(...))` silently dropped the
+        // NOT, changing query semantics (knex.js: `where not is_active`).
+        'bool': _bool(),
+        'not': _not(),
       });
       return this;
     }
@@ -665,6 +693,38 @@ class QueryBuilder {
       val = value;
     }
 
+    // Polymorphic whereBetween dispatch: knex.js's `.where(col, 'between',
+    // [a, b])` and `.where(col, 'not between', [a, b])` forms compile to
+    // `whereBetween`/`whereNotBetween`, NOT the basic `col between $1`
+    // form emitted by whereBasic. Previously the polymorphic form went
+    // through whereBasic, which treated `[1, 2]` as a single list-typed
+    // binding and emitted `where "id" not between $1` (one placeholder —
+    // wrong cardinality, no `and $2` clause). Verified against real knex.js
+    // 3.3.0 — see the `'where not between, alternate'` it() block at
+    // builder.js:L1323 which passes `'not between '` verbatim and compiles
+    // to `... "id" not between ? and ?` with bindings `[1, 2]`. Without
+    // this polymorphic dispatch, knex-dart accepted the operator (after a
+    // `.trim()` fix in formatter.operator) but emitted the wrong binding
+    // shape.
+    final opNorm = operator.toString().toLowerCase().trim();
+    if (val is List &&
+        val.length == 2 &&
+        (opNorm == 'between' || opNorm == 'not between')) {
+      // Only SET the flag when the operator string itself says "not
+      // between" (e.g. `.where(col, 'not between', [1, 2])` called
+      // directly). Previously this unconditionally called
+      // `_not(opNorm == 'not between')`, which for a bare 'between'
+      // operator assigned `_not(false)` — clobbering a NOT flag a caller
+      // had already set via `.whereNot(col, 'between', [1, 2])`/
+      // `.orWhereNot(...)`, silently inverting the query to the opposite
+      // of what was requested (compiled `between` instead of `not
+      // between`, matching exactly the rows the caller meant to exclude).
+      if (opNorm == 'not between') {
+        _not(true);
+      }
+      return whereBetween(column as String, val);
+    }
+
     _statements.add({
       'type': 'whereBasic',
       'grouping': 'where',
@@ -684,7 +744,7 @@ class QueryBuilder {
   /// Supports orderBy(column, [direction])
   /// - direction defaults to 'asc'
   /// - direction can be 'asc' or 'desc'
-  QueryBuilder orderBy(String column, [String direction = 'asc']) {
+  QueryBuilder orderBy(String column, [dynamic direction = 'asc']) {
     _statements.add({
       'grouping': 'order',
       'type': 'orderByBasic',
@@ -746,7 +806,6 @@ class QueryBuilder {
     return ret;
   }
 
-
   /// Add an OR WHERE clause
   ///
   ///
@@ -803,7 +862,7 @@ class QueryBuilder {
   ///
   /// Accepts either a List of values or a QueryBuilder for subqueries
   ///
-  QueryBuilder whereIn(String column, dynamic values) {
+  QueryBuilder whereIn(dynamic column, dynamic values) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereIn',
@@ -817,7 +876,7 @@ class QueryBuilder {
 
   /// Add a WHERE NOT IN clause
   ///
-  QueryBuilder whereNotIn(String column, dynamic values) {
+  QueryBuilder whereNotIn(dynamic column, dynamic values) {
     _statements.add({
       'grouping': 'where',
       'type': 'whereIn',
@@ -1149,6 +1208,27 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add grouped HAVING conditions in parentheses
+  ///
+  ///
+  /// Example:
+  /// ```dart
+  /// havingWrapped((qb) {
+  ///   qb.having('email', '>', 10).orHaving('email', '=', 7);
+  /// })
+  /// // Generates: HAVING (email > 10 OR email = 7)
+  /// ```
+  QueryBuilder havingWrapped(QueryBuilderCallback callback) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingWrapped',
+      'value': callback,
+      'not': _not(),
+      'bool': _bool(),
+    });
+    return this;
+  }
+
   /// Add a HAVING clause
   ///
   ///
@@ -1331,6 +1411,23 @@ class QueryBuilder {
     return this;
   }
 
+  /// Add an OR HAVING NOT BETWEEN clause
+  QueryBuilder orHavingNotBetween(String column, List<dynamic> values) {
+    assert(
+      values.length == 2,
+      'orHavingNotBetween requires a list of exactly 2 values',
+    );
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingBetween',
+      'column': column,
+      'value': values,
+      'bool': 'or',
+      'not': true,
+    });
+    return this;
+  }
+
   /// Add a HAVING NULL clause
   ///
   QueryBuilder havingNull(String column) {
@@ -1378,6 +1475,41 @@ class QueryBuilder {
       'not': true,
     });
     return this;
+  }
+
+  /// Add a HAVING EXISTS clause with a subquery
+  ///
+  ///
+  /// Example:
+  /// ```dart
+  /// havingExists((qb) {
+  ///   qb.select('baz').table('users');
+  /// })
+  /// ```
+  QueryBuilder havingExists(QueryBuilderCallback callback) {
+    _statements.add({
+      'grouping': 'having',
+      'type': 'havingExists',
+      'value': callback,
+      'not': _not(),
+      'bool': _bool(),
+    });
+    return this;
+  }
+
+  /// Add a HAVING NOT EXISTS clause
+  QueryBuilder havingNotExists(QueryBuilderCallback callback) {
+    return _not(true).havingExists(callback) as QueryBuilder;
+  }
+
+  /// OR version of HAVING EXISTS
+  QueryBuilder orHavingExists(QueryBuilderCallback callback) {
+    return _bool('or').havingExists(callback) as QueryBuilder;
+  }
+
+  /// OR version of HAVING NOT EXISTS
+  QueryBuilder orHavingNotExists(QueryBuilderCallback callback) {
+    return _bool('or')._not(true).havingExists(callback) as QueryBuilder;
   }
 
   /// Set a row-level lock FOR UPDATE
@@ -1487,9 +1619,7 @@ class QueryBuilder {
       });
     } else {
       // String/array overload: (alias, orderBy, [partitionBy])
-      final order = second == null
-          ? []
-          : (second is! List ? [second] : second);
+      final order = second == null ? [] : (second is! List ? [second] : second);
       final List partitions;
       if (third == null) {
         partitions = [];
