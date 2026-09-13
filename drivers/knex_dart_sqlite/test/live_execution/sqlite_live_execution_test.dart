@@ -10,6 +10,14 @@
 /// file database created fresh for this run, so this test needs no tags and
 /// no environment variables (mirroring the existing untagged sqlite
 /// integration tests in `drivers/knex_dart_sqlite/test/integration/`).
+///
+/// VM-only: [SqliteLiveAdapter] opens a real file-backed database via
+/// `package:sqlite3`'s native FFI bindings (through the non-web
+/// `SQLiteClient.connect(filename: ...)` path) — those bindings don't
+/// compile under dart2js. Without this, `dart test --platform=chrome`
+/// (which discovers every `*_test.dart` under `test/` with no path filter)
+/// tries to compile this file too and fails outright at compile time.
+@TestOn('vm')
 library;
 
 import 'package:knex_dart_live_test/knex_dart_live_test.dart';
