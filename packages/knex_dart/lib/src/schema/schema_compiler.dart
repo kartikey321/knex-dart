@@ -1228,16 +1228,23 @@ class SchemaCompiler {
       return v.toString();
     }
 
-    // Replace placeholders in order. Postgres placeholders are `$N`
-    // (1-indexed); mysql/sqlite are `?`. Replace each occurrence with the
+    // Replace placeholders in order. Numbered `$N` dialects (postgres
+    // family, duckdb — anything whose parameterPlaceholder(1) is `$1`,
+    // rather than a hardcoded dialect-name list that omits some of them)
+    // are 1-indexed; mysql/sqlite are `?`. Replace each occurrence with the
     // next binding's escaped literal.
     var result = sql;
     var bi = 0;
-    // Postgres `\$N` — match the N-th placeholder, swap for bindings[N-1].
-    if (isPg) {
+    // Numbered `$N` — match the N-th placeholder, swap for bindings[N-1].
+    if (client.parameterPlaceholder(1) == r'$1') {
       result = result.replaceAllMapped(
         RegExp(r'\$(\d+)'),
-        (m) => bi < bindings.length ? escapeValue(bindings[bi++]) : m[0]!,
+        (m) {
+          final index = int.parse(m[1]!) - 1;
+          return index >= 0 && index < bindings.length
+              ? escapeValue(bindings[index])
+              : m[0]!;
+        },
       );
       return result;
     }

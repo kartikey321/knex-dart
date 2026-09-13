@@ -180,6 +180,23 @@ void main() {
       expect(sqls.first['bindings'], isEmpty);
     });
 
+    test('view methods accept Raw and inline bindings on DuckDB '
+        '(also uses \$N placeholders, distinct from the postgres-family '
+        'driver-name set)', () {
+      final client = MockClient(driverName: 'duckdb');
+      final definition = client.raw('select * from users where id = ?', [42]);
+      final sqls = client
+          .schemaBuilder()
+          .createView('v_user_42', definition)
+          .toSQL();
+
+      expect(
+        sqls.first['sql'],
+        'create view "v_user_42" as select * from users where id = 42',
+      );
+      expect(sqls.first['bindings'], isEmpty);
+    });
+
     test('materialized view methods compile for Postgres', () {
       final client = MockClient(driverName: 'pg');
       final sqls = client
