@@ -1089,14 +1089,15 @@ class QueryCompiler {
     final havings = grouped['having'];
     if (havings == null || havings.isEmpty) return '';
 
-    final sql = <String>['having'];
+    final sql = <String>[];
 
-    for (var i = 0; i < havings.length; i++) {
-      final stmt = havings[i];
+    for (final stmt in havings) {
       final val = _compileHavingType(stmt);
 
       if (val.isNotEmpty) {
-        if (i > 0) {
+        if (sql.isEmpty) {
+          sql.add('having');
+        } else {
           // Add boolean operator (and/or)
           final bool = stmt['bool'] as String? ?? 'and';
           sql.add(bool);

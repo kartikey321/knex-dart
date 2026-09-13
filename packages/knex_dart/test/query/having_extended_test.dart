@@ -292,6 +292,19 @@ void main() {
       );
       expect(sql.bindings, [10, 7]);
     });
+
+    test('empty havingWrapped followed by a real having() does not '
+        'emit a leading boolean operator', () {
+      final sql = client
+          .queryBuilder()
+          .table('users')
+          .select(['*'])
+          .havingWrapped((q) {})
+          .having('total', '>', 1)
+          .toSQL();
+      expect(sql.sql, 'select * from "users" having "total" > \$1');
+      expect(sql.bindings, [1]);
+    });
   });
 
   group('orHaving and orHavingRaw', () {
