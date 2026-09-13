@@ -1,6 +1,12 @@
 import '../client/client.dart';
 
 /// Transaction configuration
+@Deprecated(
+  'Client.transaction()/Transaction were never implemented (always throw '
+  'UnimplementedError) and will be removed in a future major version. Use '
+  'the callback-style transaction API instead, e.g. KnexPostgres.trx((trx) '
+  'async { ... }) or Client.runInTransaction().',
+)
 class TransactionConfig {
   final String? isolationLevel;
   final bool? readOnly;
@@ -15,7 +21,15 @@ class TransactionConfig {
 
 /// Transaction class
 ///
-/// Stub implementation - full implementation in Week 12.
+/// Never implemented — every driver's `Client.transaction()` override throws
+/// `UnimplementedError`. Use the callback-style transaction API instead
+/// (e.g. `KnexPostgres.trx((trx) async { ... })`, or `Client.runInTransaction()`).
+@Deprecated(
+  'Client.transaction()/Transaction were never implemented (always throw '
+  'UnimplementedError) and will be removed in a future major version. Use '
+  'the callback-style transaction API instead, e.g. KnexPostgres.trx((trx) '
+  'async { ... }) or Client.runInTransaction().',
+)
 class Transaction {
   // ignore: unused_field
   final Client _client;
