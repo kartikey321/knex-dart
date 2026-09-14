@@ -105,6 +105,16 @@ abstract class Client {
   }
 
   /// Start a new transaction
+  ///
+  /// Never implemented in any driver — every override throws
+  /// `UnimplementedError`. Use the callback-style transaction API instead,
+  /// e.g. `KnexPostgres.trx((trx) async { ... })`, or [runInTransaction].
+  @Deprecated(
+    'transaction()/Transaction were never implemented (always throw '
+    'UnimplementedError) and will be removed in a future major version. Use '
+    'the callback-style transaction API instead, e.g. KnexPostgres.trx((trx) '
+    'async { ... }) or runInTransaction().',
+  )
   Future<Transaction> transaction([TransactionConfig? config]);
 
   /// Execute a raw SQL query

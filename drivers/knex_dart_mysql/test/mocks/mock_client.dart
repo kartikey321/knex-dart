@@ -45,6 +45,7 @@ class MockClient extends Client {
       SchemaCompiler(this, builder);
 
   @override
+  // ignore: deprecated_member_use
   Future<Transaction> transaction([config]) => throw UnimplementedError();
 
   @override

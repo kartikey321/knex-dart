@@ -1,3 +1,12 @@
+## 1.3.2
+
+- Deprecated `Client.transaction()`, `Transaction`, and `TransactionConfig`.
+  This explicit-transaction-object API was never implemented — every driver
+  override throws `UnimplementedError` — and will be removed in a future
+  major version. Use the callback-style transaction API instead, e.g.
+  `KnexPostgres.trx((trx) async { ... })`, or `Client.runInTransaction()`.
+  No behavior change; this is a deprecation-only release.
+
 ## 1.3.1
 
 Correctness fixes surfaced by an adversarial knex.js-vs-knex-dart comparison
