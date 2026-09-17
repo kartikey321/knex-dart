@@ -106,14 +106,19 @@ abstract class Client {
 
   /// Start a new transaction
   ///
-  /// Never implemented in any driver — every override throws
-  /// `UnimplementedError`. Use the callback-style transaction API instead,
-  /// e.g. `KnexPostgres.trx((trx) async { ... })`, or [runInTransaction].
+  /// Never implemented — every driver override throws (`UnimplementedError`
+  /// in real drivers, `UnsupportedError` in `KnexQuery`). Use the
+  /// callback-style transaction API instead, e.g.
+  /// `KnexPostgres.trx((trx) async { ... })`. [runInTransaction] is also an
+  /// option, but only on drivers that override it to pin a single physical
+  /// connection (currently Postgres, MySQL, SQLite) — the base
+  /// implementation is unsafe on other pooled drivers.
   @Deprecated(
-    'transaction()/Transaction were never implemented (always throw '
-    'UnimplementedError) and will be removed in a future major version. Use '
-    'the callback-style transaction API instead, e.g. KnexPostgres.trx((trx) '
-    'async { ... }) or runInTransaction().',
+    'transaction()/Transaction were never implemented (every driver override '
+    'throws) and will be removed in a future major version. Use the '
+    'callback-style transaction API instead, e.g. KnexPostgres.trx((trx) '
+    'async { ... }). runInTransaction() is safe only on drivers that '
+    'override it to pin one physical connection (Postgres, MySQL, SQLite).',
   )
   Future<Transaction> transaction([TransactionConfig? config]);
 

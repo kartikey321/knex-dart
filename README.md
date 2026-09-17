@@ -58,7 +58,7 @@ For SQL generation only (no live connection):
 
 ```yaml
 dependencies:
-  knex_dart: ^1.3.1
+  knex_dart: ^1.3.2
   knex_dart_capabilities: ^0.3.1
 ```
 
