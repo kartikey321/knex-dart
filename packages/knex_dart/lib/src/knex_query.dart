@@ -234,6 +234,7 @@ class _DialectClient extends Client {
   Future<void> destroy() => Future.value();
 
   @override
+  // ignore: deprecated_member_use
   Future<Transaction> transaction([TransactionConfig? config]) =>
       throw UnsupportedError('KnexQuery does not support transactions.');
 

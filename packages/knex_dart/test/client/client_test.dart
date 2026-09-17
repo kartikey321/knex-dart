@@ -286,6 +286,7 @@ class _CustomClient extends Client {
       SchemaCompiler(this, builder);
 
   @override
+  // ignore: deprecated_member_use
   Future<Transaction> transaction([TransactionConfig? config]) =>
       throw UnimplementedError();
 

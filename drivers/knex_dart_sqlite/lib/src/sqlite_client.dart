@@ -181,6 +181,7 @@ class SQLiteClient extends Client {
   }
 
   @override
+  // ignore: deprecated_member_use
   Future<Transaction> transaction([TransactionConfig? config]) async {
     throw UnimplementedError('Use beginTransaction() for SQLite transactions');
   }

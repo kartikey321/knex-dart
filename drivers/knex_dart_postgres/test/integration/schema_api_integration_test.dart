@@ -53,6 +53,7 @@ class _PgLiveSchemaClient extends Client {
       SchemaCompiler(this, builder);
 
   @override
+  // ignore: deprecated_member_use
   Future<Transaction> transaction([TransactionConfig? config]) =>
       throw UnimplementedError();
 
