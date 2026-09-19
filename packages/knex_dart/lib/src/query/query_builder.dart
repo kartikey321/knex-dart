@@ -96,12 +96,34 @@ class QueryBuilder {
   }
 
   /// Execute the query
+  ///
+  /// Never implemented — always throws `UnimplementedError` on every driver.
+  /// A `QueryBuilder` returned by `db('table')` / `db.queryBuilder()` is
+  /// bound to a dialect-only client for SQL compilation, not the driver's
+  /// real executing client, so there is no working generic implementation.
+  /// Use the driver wrapper's own execution methods instead, e.g.
+  /// `db.select(qb)` / `db.insert(qb)` / `db.update(qb)` / `db.delete(qb)`,
+  /// or `db.execute(qb)` for a method-agnostic dispatch.
+  @Deprecated(
+    'QueryBuilder.execute()/then were never implemented (always throw '
+    'UnimplementedError) and will be removed in a future major version. Use '
+    'the driver wrapper\'s execution methods instead, e.g. db.select(qb) / '
+    'db.insert(qb) / db.update(qb) / db.delete(qb), or db.execute(qb).',
+  )
   Future<List<Map<String, dynamic>>> execute() async {
-    // Stub - will be implemented in Week 2
     throw UnimplementedError('QueryBuilder.execute() not yet implemented');
   }
 
   /// Alias for execute
+  ///
+  /// Never implemented — see [execute].
+  @Deprecated(
+    'QueryBuilder.execute()/then were never implemented (always throw '
+    'UnimplementedError) and will be removed in a future major version. Use '
+    'the driver wrapper\'s execution methods instead, e.g. db.select(qb) / '
+    'db.insert(qb) / db.update(qb) / db.delete(qb), or db.execute(qb).',
+  )
+  // ignore: deprecated_member_use_from_same_package
   Future<List<Map<String, dynamic>>> get then => execute();
 
   bool _isSelectQuery() {
