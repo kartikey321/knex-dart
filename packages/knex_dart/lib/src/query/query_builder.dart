@@ -97,10 +97,20 @@ class QueryBuilder {
 
   /// Execute the query
   ///
-  /// Never implemented — always throws `UnimplementedError` on every driver.
-  /// A `QueryBuilder` returned by `db('table')` / `db.queryBuilder()` is
-  /// bound to a dialect-only client for SQL compilation, not the driver's
-  /// real executing client, so there is no working generic implementation.
+  /// Never implemented — always throws `UnimplementedError`, unconditionally,
+  /// regardless of driver.
+  ///
+  /// On most drivers (Postgres, MySQL, DuckDB, MSSQL, Turso, BigQuery, D1,
+  /// Snowflake), a `QueryBuilder` returned by `db('table')` /
+  /// `db.queryBuilder()` is bound to a dialect-only client used purely for
+  /// SQL compilation, not the driver's real executing client — so even a
+  /// naive `_client.rawQuery(...)`-based implementation would not work
+  /// there. SQLite is the one exception — its `QueryBuilder` is bound to
+  /// the real executing `SQLiteClient` — but a generic implementation would
+  /// still bypass the wrapper's `KnexInterceptorPipeline` (OTel, logging,
+  /// custom interceptors) that `db.select(qb)` etc. route through, so it
+  /// isn't a uniform fix across drivers either way.
+  ///
   /// Use the driver wrapper's own execution methods instead, e.g.
   /// `db.select(qb)` / `db.insert(qb)` / `db.update(qb)` / `db.delete(qb)`,
   /// or `db.execute(qb)` for a method-agnostic dispatch.

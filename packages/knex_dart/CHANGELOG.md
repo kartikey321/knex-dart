@@ -1,13 +1,15 @@
 ## 1.3.3
 
 - Deprecated `QueryBuilder.execute()` and `QueryBuilder.then`. Both were
-  never implemented — always throw `UnimplementedError` — because a
-  `QueryBuilder` returned by `db('table')` / `db.queryBuilder()` is bound to
-  a dialect-only client used for SQL compilation, not the driver's real
-  executing client. Use the driver wrapper's own execution methods instead,
-  e.g. `db.select(qb)` / `db.insert(qb)` / `db.update(qb)` / `db.delete(qb)`,
-  or `db.execute(qb)` for method-agnostic dispatch. No behavior change; this
-  is a deprecation-only release.
+  never implemented — always throw `UnimplementedError` unconditionally, on
+  every driver. On most drivers, a `QueryBuilder` returned by `db('table')`
+  / `db.queryBuilder()` is bound to a dialect-only client used purely for
+  SQL compilation, not the driver's real executing client (SQLite is the
+  one exception, though a fix there would still bypass the wrapper's
+  interceptor pipeline). Use the driver wrapper's own execution methods
+  instead, e.g. `db.select(qb)` / `db.insert(qb)` / `db.update(qb)` /
+  `db.delete(qb)`, or `db.execute(qb)` for method-agnostic dispatch. No
+  behavior change; this is a deprecation-only release.
 
 ## 1.3.2
 
