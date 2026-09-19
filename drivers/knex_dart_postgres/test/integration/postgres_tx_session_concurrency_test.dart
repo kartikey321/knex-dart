@@ -17,16 +17,28 @@
 ///
 /// The fix (see [PostgresClient._txSessionZoneKey]) pins the session as a
 /// [Zone] value instead of a plain field: `runInTransaction` forks a new
-/// zone per top-level call. A genuine nested call (made from within
-/// [action]'s own async call graph) inherits that zone and correctly reuses
-/// the session — the reentrancy guard still works. A concurrent, unrelated
-/// call runs in a sibling zone that never sees it, so it correctly acquires
-/// its own connection and opens its own independent transaction instead of
-/// colliding with someone else's.
+/// zone per top-level call, keyed by a fresh `Object()` unique to each
+/// [PostgresClient] instance (not a shared static key — an earlier version
+/// of this fix used one, which let one client's session leak to a second
+/// client instance called from inside the first's transaction; see test 4).
+/// A genuine nested call (made from within [action]'s own async call graph)
+/// inherits that zone and correctly reuses the session — the reentrancy
+/// guard still works. A concurrent, unrelated call runs in a sibling zone
+/// that never sees it, so it correctly acquires its own connection and
+/// opens its own independent transaction instead of colliding with
+/// someone else's.
+///
+/// Zone values are retained by anything scheduled from within the zone, not
+/// just by [action]'s own direct execution — so a detached
+/// `Future`/`Timer`/stream listener that outlives [action] would otherwise
+/// silently reuse a session whose connection may already be back in the
+/// pool. [PostgresClient._txSession] guards against this with a completion
+/// flag that turns late use into a clear `StateError` (see test 5).
 ///
 /// These tests exist so a future refactor of `runInTransaction`'s session
-/// storage cannot silently regress back to the old field-based behavior
-/// without a test failing.
+/// storage cannot silently regress back to the old field-based behavior, or
+/// reintroduce the shared-key/leaked-callback hazards above, without a test
+/// failing.
 @Tags(['postgres'])
 library;
 
@@ -254,18 +266,19 @@ void main() {
 
         await aReady.future.timeout(_timeout);
 
-        // B starts while A's session is still pinned — but B's own action
-        // pauses partway through, straddling the moment A's rollback
-        // completes and A's zone/session go out of scope.
+        // B starts as its own top-level runInTransaction() call — a fresh
+        // zone/session from the moment it's invoked, never A's — while A's
+        // transaction happens to still be open. B's own action pauses
+        // partway through, straddling the moment A's rollback completes.
         final futureB = db!.runInTransaction<String>(() async {
           await db!.rawSql(
             'INSERT INTO $_table (id, name) VALUES (101, \'B-row-1\')',
           );
           bReady.complete();
           await bProceed.future.timeout(_timeout);
-          // B's own zone/session are still in scope here regardless of
-          // what happened to A in the meantime — this must land in the
-          // same transaction as B-row-1, not autocommit independently.
+          // B's session is still its own regardless of what happened to A
+          // in the meantime — this must land in the same transaction as
+          // B-row-1, not autocommit independently.
           await db!.rawSql(
             'INSERT INTO $_table (id, name) VALUES (102, \'B-row-2\')',
           );
@@ -274,8 +287,8 @@ void main() {
 
         await bReady.future.timeout(_timeout);
 
-        // Release A. Its rollback completes and its zone/session go out of
-        // scope before A's runInTransaction future settles.
+        // Release A; its rollback completes before A's runInTransaction
+        // future settles. This must have no effect on B's own session.
         if (!aProceed.isCompleted) aProceed.complete();
         await expectLater(futureA, throwsA(isA<Exception>()));
 
@@ -300,6 +313,120 @@ void main() {
         expect(rows, hasLength(2));
         final ids = rows.map((r) => r['id']).toSet();
         expect(ids, {101, 102});
+      },
+    );
+
+    // ── 4. Two DIFFERENT PostgresClient instances never share a session ──────
+    //
+    // Regression for a bug in an earlier version of this fix: the Zone key
+    // that pins the session was `static`, so it was shared by every
+    // PostgresClient instance in the isolate — meaning client B's queries,
+    // if code reached into B from inside client A's runInTransaction
+    // callback, would incorrectly execute on A's pinned session/connection
+    // instead of acquiring B's own. The key is now a fresh Object() per
+    // instance; this test proves a second client's runInTransaction() opens
+    // its own independent transaction even when invoked from directly
+    // inside the first client's still-open one.
+
+    test(
+      'a second PostgresClient instance, called from inside the first\'s '
+      'runInTransaction(), does not see or share the first\'s session',
+      () async {
+        if (skipReason != null) return markTestSkipped(skipReason!);
+
+        final dbB = await _tryConnect();
+        if (dbB == null) return markTestSkipped(skipReason!);
+        addTearDown(dbB.close);
+
+        String? resultB;
+        try {
+          await db!.runInTransaction<void>(() async {
+            await db!.rawSql(
+              'INSERT INTO $_table (id, name) VALUES (100, \'A-row\')',
+            );
+
+            // Called from directly inside A's pinned zone. If the zone key
+            // were shared across instances, dbB would incorrectly pick up
+            // A's session here instead of acquiring its own connection.
+            resultB = await dbB.runInTransaction<String>(() async {
+              await dbB.rawSql(
+                'INSERT INTO $_table (id, name) VALUES (101, \'B-row\')',
+              );
+              return 'B-committed';
+            });
+
+            throw Exception('A deliberately fails');
+          });
+        } catch (e) {
+          expect(e, isA<Exception>());
+        }
+
+        expect(resultB, 'B-committed');
+
+        // A's row is rolled back; B's independent transaction committed.
+        final rows = await db!.select(selectAll());
+        expect(rows, hasLength(1));
+        expect(rows.single['id'], 101);
+        expect(rows.single['name'], 'B-row');
+      },
+    );
+
+    // ── 5. A leaked callback can't reuse a completed session ──────────────────
+    //
+    // Zone values are retained by anything scheduled from within the zone,
+    // not just by `action`'s own direct execution — so a detached
+    // Future/Timer/stream listener that `action` starts but doesn't await
+    // still "sees" the pinned session even after runInTransaction() itself
+    // has returned and the underlying connection may already be back in
+    // the pool. `_PinnedSession.completed` (set in runInTransaction's
+    // `finally`) turns that into a loud StateError instead of a silent,
+    // potentially-corrupting reuse of a stale session.
+
+    test(
+      'a detached callback that outlives runInTransaction() throws instead '
+      'of silently reusing the completed session',
+      () async {
+        if (skipReason != null) return markTestSkipped(skipReason!);
+
+        final leakedAttempted = Completer<void>();
+        final leakedResult = Completer<Object>();
+
+        await db!.runInTransaction<void>(() async {
+          // Deliberately NOT awaited — this is the leak under test. It
+          // waits for the outer call to fully complete before firing.
+          unawaited(
+            Future(() async {
+              await leakedAttempted.future;
+              try {
+                await db!.rawSql(
+                  'INSERT INTO $_table (id, name) VALUES (999, \'leaked\')',
+                );
+                leakedResult.complete('no-error');
+              } catch (e) {
+                leakedResult.complete(e);
+              }
+            }),
+          );
+          await db!.rawSql(
+            'INSERT INTO $_table (id, name) VALUES (100, \'A-row\')',
+          );
+        });
+
+        // runInTransaction() has now returned — pinned.completed is true.
+        leakedAttempted.complete();
+        final result = await leakedResult.future.timeout(_timeout);
+
+        expect(result, isA<StateError>());
+        expect(
+          (result as StateError).message,
+          contains('already completed'),
+        );
+
+        // A's own transaction committed normally; the leaked callback never
+        // got to insert its row.
+        final rows = await db!.select(selectAll());
+        expect(rows, hasLength(1));
+        expect(rows.single['id'], 100);
       },
     );
   });

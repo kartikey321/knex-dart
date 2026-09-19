@@ -11,7 +11,7 @@ class PostgresClient {
   final Pool<void> _pool;
   bool _isClosed = false;
 
-  /// Zone key under which [runInTransaction] pins the active [TxSession].
+  /// Zone key under which [runInTransaction] pins the active [_PinnedSession].
   ///
   /// A plain instance field cannot distinguish "the same logical transaction
   /// calling back into itself" from "a completely unrelated concurrent
@@ -22,7 +22,16 @@ class PostgresClient {
   /// while a concurrent, unrelated call runs in a sibling zone that never
   /// sees it — so it correctly acquires its own connection and transaction
   /// instead of silently sharing (and corrupting) someone else's.
-  static const _txSessionZoneKey = #knex_dart_postgres_tx_session;
+  ///
+  /// **Must be a per-instance key, not a shared constant**: a `static`/const
+  /// key would make one [PostgresClient]'s pinned session visible to every
+  /// *other* [PostgresClient] instance whose code happens to run nested
+  /// inside the same zone (e.g. a callback that reaches into a second
+  /// client) — routing that second client's queries onto the first
+  /// client's connection. A fresh [Object] per instance rules that out:
+  /// `Zone` value lookups key on identity, so no other instance's key can
+  /// ever match this one's.
+  final Object _txSessionZoneKey = Object();
 
   /// Pinned transaction session for the currently executing zone, set only
   /// while [runInTransaction] is active on this call chain.
@@ -36,7 +45,30 @@ class PostgresClient {
   /// client instance safe, not just sequential ones. Fully concurrent
   /// transaction use can also reach for [trx], which scopes the session to
   /// the callback closure explicitly.
-  TxSession? get _txSession => Zone.current[_txSessionZoneKey] as TxSession?;
+  ///
+  /// Throws [StateError] if the pinned session's [runInTransaction] call has
+  /// already completed — this happens if [action] leaks an un-awaited
+  /// callback (a detached `Future`, a `Timer`, a stream listener) that
+  /// outlives [action] itself and later tries to run a query. That callback
+  /// still runs inside the forked zone (zone values are retained by
+  /// anything scheduled from within it, not just [action]'s own direct
+  /// execution), so without this check it would silently reuse a session
+  /// whose connection may already be back in the pool — the throw makes
+  /// that a loud, immediate failure instead.
+  TxSession? get _txSession {
+    final pinned = Zone.current[_txSessionZoneKey] as _PinnedSession?;
+    if (pinned == null) return null;
+    if (pinned.completed) {
+      throw StateError(
+        'PostgresClient: attempted to use a transaction session after its '
+        'runInTransaction() call already completed. This happens when '
+        '`action` leaves an un-awaited Future/Timer/stream listener running '
+        'that later executes a query — await all work started inside '
+        'runInTransaction() before it returns.',
+      );
+    }
+    return pinned.session;
+  }
 
   PostgresClient._(this._pool);
 
@@ -215,10 +247,21 @@ class PostgresClient {
       return action();
     }
     return _pool.withConnection(
-      (conn) => conn.runTx(
-        (session) =>
-            runZoned(action, zoneValues: {_txSessionZoneKey: session}),
-      ),
+      (conn) => conn.runTx((session) async {
+        final pinned = _PinnedSession(session);
+        try {
+          return await runZoned(
+            action,
+            zoneValues: {_txSessionZoneKey: pinned},
+          );
+        } finally {
+          // Marks the session unusable for anything that outlived `action`
+          // (a leaked Future/Timer/stream listener) — see _txSession's doc
+          // comment. Without this, such a caller would silently reuse a
+          // session whose connection may already be back in the pool.
+          pinned.completed = true;
+        }
+      }),
     );
   }
 
@@ -247,6 +290,18 @@ class PostgresClient {
       ),
     );
   }
+}
+
+/// Wraps a [TxSession] pinned via [PostgresClient.runInTransaction] with a
+/// liveness flag, so a callback that outlives its [PostgresClient._run]
+/// (a leaked `Future`/`Timer`/stream listener) fails loudly instead of
+/// silently reusing a session whose connection may already be back in the
+/// pool. See [PostgresClient._txSession]'s doc comment.
+class _PinnedSession {
+  final TxSession session;
+  bool completed = false;
+
+  _PinnedSession(this.session);
 }
 
 /// Low-level transaction-scoped Postgres session executor.
