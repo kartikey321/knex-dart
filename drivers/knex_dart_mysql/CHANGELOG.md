@@ -1,3 +1,17 @@
+## 0.3.3
+
+- Fixed a race in `TarnPool._createAndAcquire()`: unlike its sibling call
+  sites (`_ensureMin`, `_fillPendingOrEnsureMin`), it didn't check whether
+  the pool had been closed while its `create()` call was still in flight.
+  A connection created after `close()` had already fully resolved (because
+  `_free`/`_used` were both empty at the time, so `close()` had nothing to
+  wait for) was handed out as a successful `acquire()` from a pool that had
+  already reported itself closed — a live connection leaked into a "closed"
+  pool's `_used` list, never destroyed by the pool itself. Now guarded the
+  same way as the other two call sites: the newly created connection is
+  destroyed and `acquire()` throws `StateError('Connection pool closed')`
+  instead.
+
 ## 0.3.2
 
 - Bumped `knex_dart` lower bound to `^1.3.0`.
