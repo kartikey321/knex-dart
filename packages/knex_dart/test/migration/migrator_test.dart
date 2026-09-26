@@ -394,13 +394,64 @@ void main() {
         isFalse,
       );
 
-      // Re-running latest() should resume from where it left off: 001 is
-      // already applied and 002 still throws, so 003 still never runs.
+      // A permanently-failing 002 keeps blocking everything after it:
+      // 001 is skipped (already applied) and 003 still never runs. This
+      // only proves the blocked state is stable — recovery once 002 is
+      // fixed is covered by the next test.
       await expectLater(
         migrator.latest,
         throwsA(isA<KnexMigrationException>()),
       );
       expect(client.appliedNames, ['001_ok']);
+    });
+
+    test('latest() recovers after a failed migration is fixed: the retry '
+        'applies the failed migration and everything after it', () async {
+      final client = _MigrationTestClient();
+      final knex = Knex(client);
+      const m1 = SqlMigration(
+        name: '001_ok',
+        upSql: ['create table ok_table (id integer primary key)'],
+        downSql: ['drop table ok_table'],
+      );
+      final m2 = _FailOnceUpMigration(name: '002_flaky');
+      const m3 = SqlMigration(
+        name: '003_after',
+        upSql: ['create table after_table (id integer primary key)'],
+        downSql: ['drop table after_table'],
+      );
+      final migrator = knex.migrator(migrations: [m1, m2, m3]);
+
+      await expectLater(
+        migrator.latest,
+        throwsA(isA<KnexMigrationException>()),
+      );
+      expect(client.appliedNames, ['001_ok']);
+      expect(
+        client.executedAppSql.any((s) => s.contains('after_table')),
+        isFalse,
+      );
+
+      // The "fix" ships: 002's up() now succeeds. Re-running latest()
+      // must skip 001 and apply 002 and 003.
+      await migrator.latest();
+
+      expect(client.appliedNames, ['001_ok', '002_flaky', '003_after']);
+      expect(m2.upCalls, 2);
+      expect(
+        client.executedAppSql.where((s) => s.contains('ok_table')).length,
+        1,
+        reason: '001_ok must not be re-applied on the retry',
+      );
+      expect(
+        client.executedAppSql,
+        contains('create table after_table (id integer primary key)'),
+      );
+      expect(await migrator.status(), [
+        {'name': '001_ok', 'status': 'completed'},
+        {'name': '002_flaky', 'status': 'completed'},
+        {'name': '003_after', 'status': 'completed'},
+      ]);
     });
 
     test('rollback() leaves the tracking table consistent when down() throws '
@@ -487,6 +538,8 @@ void main() {
       expect(client.trackingDdl, hasLength(2));
 
       final finalStatus = await migrator.status();
+      // Exactly one more _ensureTable() for this status() call.
+      expect(client.trackingDdl, hasLength(3));
       expect(finalStatus, [
         {'name': '001_fresh', 'status': 'completed'},
         {'name': '002_fresh', 'status': 'completed'},
@@ -639,6 +692,29 @@ class _ThrowingUpMigration implements MigrationUnit {
   @override
   Future<void> up(Knex knex) async {
     throw StateError('$name: intentional failure in up()');
+  }
+
+  @override
+  Future<void> down(Knex knex) async {}
+}
+
+/// A migration whose [up] throws on its first call and succeeds afterwards,
+/// modelling "the failing migration was fixed" between two [Migrator.latest]
+/// runs.
+class _FailOnceUpMigration implements MigrationUnit {
+  @override
+  final String name;
+
+  int upCalls = 0;
+
+  _FailOnceUpMigration({required this.name});
+
+  @override
+  Future<void> up(Knex knex) async {
+    upCalls++;
+    if (upCalls == 1) {
+      throw StateError('$name: intentional first-attempt failure in up()');
+    }
   }
 
   @override

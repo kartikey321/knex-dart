@@ -113,11 +113,13 @@ class Migrator {
   /// then applies the same migration(s) — running a migration's `up()`
   /// (DDL/DML) more than once, which is the real hazard. What happens next
   /// to the tracking row depends on the schema: `_ensureTable` declares
-  /// `name` as the primary key, so on a real database the losing racer's
-  /// insert into the tracking table typically fails with a primary-key
-  /// violation — surfacing as an opaque [KnexMigrationException] from an
-  /// otherwise-applied migration — rather than silently duplicating the
-  /// row. [KnexMigrationLockException] is reserved for a future locking
+  /// `name` as the primary key, so on a real database, when both `up()`
+  /// bodies complete, the losing racer's insert into the tracking table
+  /// typically fails with a primary-key violation — surfacing as an opaque
+  /// [KnexMigrationException] — rather than silently duplicating the row.
+  /// (With non-idempotent DDL such as a plain `CREATE TABLE`, the losing
+  /// `up()` will usually fail first, before it reaches the tracking
+  /// insert.) [KnexMigrationLockException] is reserved for a future locking
   /// mechanism, but nothing currently throws it. Callers that may run
   /// [latest] from multiple processes/isolates concurrently are responsible
   /// for serializing those calls themselves (e.g. an external advisory
