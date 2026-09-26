@@ -335,7 +335,11 @@ void main() {
         if (skipReason != null) return markTestSkipped(skipReason!);
 
         final dbB = await _tryConnect();
-        if (dbB == null) return markTestSkipped(skipReason!);
+        if (dbB == null) {
+          return markTestSkipped(
+            'Could not open a second PostgreSQL connection at $_host:$_port',
+          );
+        }
         addTearDown(dbB.close);
 
         String? resultB;
