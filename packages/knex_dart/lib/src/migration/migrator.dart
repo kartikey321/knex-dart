@@ -105,6 +105,24 @@ class Migrator {
   }
 
   /// Run all pending migrations in one new batch.
+  ///
+  /// **Concurrency note:** this method takes no lock on the migrations
+  /// tracking table. If two [Migrator] instances (or two overlapping calls)
+  /// race on [latest] against the same table, both can read the same
+  /// "pending" snapshot before either has recorded its inserts, and each
+  /// then applies the same migration(s) — running a migration's `up()`
+  /// (DDL/DML) more than once, which is the real hazard. What happens next
+  /// to the tracking row depends on the schema: `_ensureTable` declares
+  /// `name` as the primary key, so on a real database the losing racer's
+  /// insert into the tracking table typically fails with a primary-key
+  /// violation — surfacing as an opaque [KnexMigrationException] from an
+  /// otherwise-applied migration — rather than silently duplicating the
+  /// row. [KnexMigrationLockException] is reserved for a future locking
+  /// mechanism, but nothing currently throws it. Callers that may run
+  /// [latest] from multiple processes/isolates concurrently are responsible
+  /// for serializing those calls themselves (e.g. an external advisory
+  /// lock or a deploy-time mutex). See the "known limitation" test in
+  /// `test/migration/migrator_test.dart` for a reproduction.
   Future<void> latest() async {
     final migrations = await _resolveMigrations();
     await _ensureTable();
