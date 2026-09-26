@@ -559,6 +559,90 @@ void main() {
       expect(client.appliedNames, isEmpty);
     });
 
+    test('with transactions enabled, a failing up() is rolled back (never '
+        'committed) and stops the batch', () async {
+      final client = _MigrationTestClient(
+        config: KnexConfig(
+          client: 'mock',
+          connection: {},
+          migrations: MigrationConfig(disableTransactions: false),
+        ),
+      );
+      final knex = Knex(client);
+      const m1 = SqlMigration(
+        name: '001_ok',
+        upSql: ['create table ok_table (id integer primary key)'],
+        downSql: ['drop table ok_table'],
+      );
+      const m2 = _ThrowingUpMigration(name: '002_boom');
+      const m3 = SqlMigration(
+        name: '003_never_reached',
+        upSql: ['create table never_table (id integer primary key)'],
+        downSql: ['drop table never_table'],
+      );
+      final migrator = knex.migrator(migrations: const [m1, m2, m3]);
+
+      await expectLater(
+        migrator.latest,
+        throwsA(
+          isA<KnexMigrationException>().having(
+            (e) => e.message,
+            'message',
+            contains('failed during up'),
+          ),
+        ),
+      );
+
+      // 001 ran in its own committed transaction; 002 ran in one that was
+      // rolled back; 003 never started a transaction at all.
+      expect(client.txStatements, ['begin', 'commit', 'begin', 'rollback']);
+      expect(client.appliedNames, ['001_ok']);
+      expect(
+        client.executedAppSql.any((s) => s.contains('never_table')),
+        isFalse,
+      );
+    });
+
+    test('with transactions enabled, a failing down() is rolled back and '
+        'leaves the tracking row in place', () async {
+      final client = _MigrationTestClient(
+        config: KnexConfig(
+          client: 'mock',
+          connection: {},
+          migrations: MigrationConfig(disableTransactions: false),
+        ),
+      );
+      final knex = Knex(client);
+      const m1 = SqlMigration(
+        name: '001_first',
+        upSql: ['create table first_table (id integer primary key)'],
+        downSql: ['drop table first_table'],
+      );
+      const m2 = _ThrowingDownMigration(name: '002_bad_down');
+      final migrator = knex.migrator(migrations: const [m1, m2]);
+
+      await migrator.latest();
+      expect(client.txStatements, ['begin', 'commit', 'begin', 'commit']);
+      client.txStatements.clear();
+
+      await expectLater(
+        migrator.rollback,
+        throwsA(
+          isA<KnexMigrationException>().having(
+            (e) => e.message,
+            'message',
+            contains('failed during down'),
+          ),
+        ),
+      );
+
+      // Rollback processes the batch in reverse: 002's down() throws inside
+      // its transaction, which is rolled back and stops the run before the
+      // tracking-row delete and before 001's down() is attempted.
+      expect(client.txStatements, ['begin', 'rollback']);
+      expect(client.appliedNames, ['001_first', '002_bad_down']);
+    });
+
     test('KNOWN LIMITATION: latest() has no locking, so two concurrent calls '
         'racing on the same pending migration both execute up() '
         '— see the concurrency note on Migrator.latest() in '
@@ -627,6 +711,13 @@ class _MigrationTestClient extends MockClient {
   /// was created; this list exists specifically so tests can.
   final List<String> trackingDdl = [];
 
+  /// Transaction control statements (`begin` / `commit` / `rollback`) in
+  /// call order — what `Client.runInTransaction()` issues when
+  /// `MigrationConfig.disableTransactions` is `false`. The mock has no real
+  /// transaction semantics (it never undoes tracking rows on rollback), so
+  /// tests can only assert the statement sequence, not data visibility.
+  final List<String> txStatements = [];
+
   _MigrationTestClient({super.config}) : super(driverName: 'pg');
 
   List<String> get appliedNames =>
@@ -639,6 +730,7 @@ class _MigrationTestClient extends MockClient {
     if (normalized.startsWith('begin') ||
         normalized.startsWith('commit') ||
         normalized.startsWith('rollback')) {
+      txStatements.add(normalized.split(RegExp(r'[\s;]')).first);
       return [];
     }
 
