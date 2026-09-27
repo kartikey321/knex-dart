@@ -1,3 +1,18 @@
+## 0.3.0
+
+- **Breaking (internal): swapped the backing driver from `mssql_connection`
+  (FFI/FreeTDS) to `mssql` (pure Dart, TDS 7.4/8.0, no native dependencies).**
+  This removes the `brew install freetds` / `apt-get install freetds-dev`
+  system dependency entirely, and structurally eliminates a class of bugs
+  found in the FFI driver during this investigation: a global singleton
+  connection, a blocking synchronous FFI call that could freeze the whole
+  isolate, and a socket-lifecycle bug in its reachability probe.
+  `KnexMssql`/`MssqlTrxClient`'s public API is unchanged — only the
+  internal `MssqlClient` implementation was rewritten.
+  **Not yet validated against a live SQL Server** in this environment
+  (blocked by a local Docker/Rosetta limitation, unrelated to the driver);
+  relying on CI's real SQL Server container for first real verification.
+
 ## 0.2.0
 
 - Added `QueryInterceptor` pipeline support: attach OTel, logging, or custom
