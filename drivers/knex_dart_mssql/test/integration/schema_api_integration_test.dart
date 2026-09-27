@@ -95,7 +95,10 @@ Future<KnexMssql?> _tryConnect() async {
       username: username,
       password: password,
     );
-  } catch (_) {
+  } catch (e) {
+    // Surface the real cause instead of a generic "not reachable" — see
+    // https://github.com/kartikey321/knex-dart/pull/29.
+    print('MSSQL connect failed: $e');
     return null;
   }
 }

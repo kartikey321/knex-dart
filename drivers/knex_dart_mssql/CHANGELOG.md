@@ -12,6 +12,14 @@
   **Not yet validated against a live SQL Server** in this environment
   (blocked by a local Docker/Rosetta limitation, unrelated to the driver);
   relying on CI's real SQL Server container for first real verification.
+- Added `encrypt`/`trustServerCertificate` parameters to
+  `KnexMssql.connect()`/`MssqlClient.connect()`, defaulting to
+  `encrypt: true, trustServerCertificate: true`. The `mssql` package
+  defaults to strict certificate validation (`trustServerCertificate:
+  false`), unlike the previous FFI driver, which did not enforce TLS
+  certificate validation by default — most local/on-prem/CI SQL Server
+  instances (including this repo's own docker-compose setup) present a
+  self-signed certificate and would otherwise fail to connect.
 
 ## 0.2.0
 

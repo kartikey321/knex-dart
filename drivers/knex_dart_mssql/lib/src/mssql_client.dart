@@ -30,6 +30,16 @@ class MssqlClient {
   /// [host] is the server hostname or IP address.
   /// [port] defaults to `1433`.
   /// [database] is the initial catalog to connect to.
+  ///
+  /// [encrypt] and [trustServerCertificate] control TLS. The underlying
+  /// `mssql` package defaults to `encrypt: true, trustServerCertificate:
+  /// false` — mandatory TLS with real certificate validation, which the
+  /// previous FFI driver (`mssql_connection`) did not enforce by default.
+  /// [trustServerCertificate] defaults to `true` here to match that prior
+  /// behavior and because most local/on-prem/CI SQL Server instances (the
+  /// ones this docker-compose setup and CI both use) present a self-signed
+  /// certificate. Set it to `false` for a server with a certificate from a
+  /// trusted CA.
   static Future<MssqlClient> connect({
     required String host,
     String port = '1433',
@@ -37,6 +47,8 @@ class MssqlClient {
     required String username,
     required String password,
     int timeoutSeconds = 15,
+    bool encrypt = true,
+    bool trustServerCertificate = true,
   }) async {
     final conn = await tds.MssqlConnection.connect(
       host: host,
@@ -44,6 +56,8 @@ class MssqlClient {
       database: database,
       user: username,
       password: password,
+      encrypt: encrypt,
+      trustServerCertificate: trustServerCertificate,
       timeout: Duration(seconds: timeoutSeconds),
     );
     return MssqlClient._(conn);
