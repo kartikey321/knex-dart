@@ -123,7 +123,13 @@ class MssqlClient {
   ) async {
     if (_isClosed) throw StateError('MssqlClient is closed');
 
-    final (rewritten, params) = _rewriteParams(sql, bindings);
+    // With no bindings, send the SQL unchanged. Rewriting unconditionally
+    // would treat a literal `?` in the SQL text itself (e.g. inside a
+    // string literal) as a placeholder and crash with a RangeError trying
+    // to read a binding that doesn't exist.
+    final (rewritten, params) = bindings.isEmpty
+        ? (sql, const <String, Object?>{})
+        : _rewriteParams(sql, bindings);
     final result = await _conn.query(rewritten, params);
     return [
       for (final row in result.rows)

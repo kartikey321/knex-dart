@@ -1,6 +1,6 @@
 # knex_dart_mssql
 
-Microsoft SQL Server driver for [knex_dart](https://pub.dev/packages/knex_dart) using the `mssql_connection` FreeTDS-based runtime.
+Microsoft SQL Server driver for [knex_dart](https://pub.dev/packages/knex_dart) using [`mssql`](https://pub.dev/packages/mssql), a pure-Dart TDS 7.4/8.0 implementation — no native dependencies.
 
 [![Pub Version](https://img.shields.io/pub/v/knex_dart_mssql)](https://pub.dev/packages/knex_dart_mssql)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -9,7 +9,7 @@ Microsoft SQL Server driver for [knex_dart](https://pub.dev/packages/knex_dart) 
 
 ```yaml
 dependencies:
-  knex_dart_mssql: ^0.2.0
+  knex_dart_mssql: ^0.3.0
 ```
 
 ## Quick Start
@@ -22,6 +22,11 @@ final db = await KnexMssql.connect(
   database: 'AdventureWorks',
   username: 'sa',
   password: 's3cr3t!',
+  // Defaults: encrypt: true, trustServerCertificate: true — TLS is on, but
+  // the server's certificate isn't validated, matching most local/on-prem
+  // SQL Server instances, which present a self-signed certificate. Set
+  // trustServerCertificate: false for a server with a certificate from a
+  // trusted CA (e.g. Azure SQL).
 );
 
 final rows = await db.select(
@@ -38,10 +43,8 @@ await db.close();
 
 ## Platform Requirements
 
-- Native runtime only (uses FFI through `mssql_connection`).
-- FreeTDS installation is required:
-  - macOS: `brew install freetds`
-  - Ubuntu/Debian: `sudo apt-get install -y freetds-dev libct4`
+- Pure Dart — no native library or system dependency required (no FreeTDS
+  install step). Works anywhere a Dart `Socket`/`SecureSocket` does.
 
 ## Dialect Capabilities
 
@@ -53,25 +56,13 @@ Implemented driver/compiler highlights:
 - `having(...)` and `havingRaw(...)` compilation.
 - Window-function SQL generation from query builder methods.
 
-## Azure SQL Edge — `sybnvarchar` workaround
-
-Azure SQL Edge returns `sybnvarchar` column types that the official
-`mssql_connection ^3.0.0` does not handle, causing a runtime error.
-Until the fix is merged upstream, add this override to your app's
-`pubspec.yaml`:
-
-```yaml
-dependency_overrides:
-  mssql_connection:
-    git:
-      url: https://github.com/kartikey321/mssql_connection
-      ref: fix/sybnvarchar-azure-sql-edge
-```
-
 ## Known Limitations
 
-- No connection pooling in this driver (single shared connection runtime).
-- Underlying `MssqlConnection` is singleton-based; operations are effectively serialized.
+- One physical connection per `KnexMssql`/`MssqlClient` instance — no
+  connection pooling wired into this driver yet (the underlying `mssql`
+  package has its own `MssqlPool`, not yet adopted here). Unlike the
+  previous driver, this connection is *not* a process-wide singleton:
+  separate `KnexMssql.connect()` calls are fully independent.
 - SQL Server-specific bracket quoting (`[col]`) is not emitted by default query compiler; use `raw()` when exact bracketed SQL is needed.
 - Alias aggregate expressions (for example `count(*) as total`) so result keys are predictable.
 
