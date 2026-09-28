@@ -445,12 +445,18 @@ const Map<String, String> parityAllowlist = {
       'the test mirrors the sqlite refusal).',
   'join/full-outer::d1':
       '[ACCEPTED] see join/full-outer::sqlite — d1 is sqlite-family.',
+  'on/bare-string::mssql':
+      '[ACCEPTED] knex.js\'s mssql client silently drops the bare-string '
+      '.on() clause content entirely, compiling to '
+      '"... inner join [contacts] on " with nothing after "on" — invalid '
+      'SQL that would fail at the database. Confirmed directly against '
+      'the fixture (not a display artifact). knex-dart correctly emits '
+      'the ON clause content; matching knex.js here would mean '
+      'deliberately emitting broken SQL.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].
-const Set<String> _skipDialects = {
-  'mssql', // not a core SQL-gen dialect — lives in the knex_dart_mssql package
-};
+const Set<String> _skipDialects = {};
 
 /// knex-dart uses SQL-standard double quotes for SQLite; knex.js sqlite3 uses
 /// backticks. Both are valid SQLite identifier quoting — normalize the surface

@@ -261,7 +261,10 @@ class _MssqlSchemaClient extends Client {
       '[${identifier.replaceAll(']', ']]')}]';
 
   @override
-  String parameterPlaceholder(int index) => '?';
+  // [index] is 1-based; knex.js's mssql client numbers placeholders 0-based
+  // (@p0, @p1, ...) — see the identical shift in
+  // packages/knex_dart/lib/src/knex_query.dart's parameterPlaceholder.
+  String parameterPlaceholder(int index) => '@p${index - 1}';
 
   @override
   String formatValue(value) => value.toString();

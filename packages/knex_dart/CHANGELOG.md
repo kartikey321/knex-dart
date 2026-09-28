@@ -1,3 +1,26 @@
+## 1.3.3
+
+- MSSQL query compilation now emits `@p0`, `@p1`, … numbered parameter
+  placeholders, matching knex.js's mssql client exactly, instead of the
+  generic `?` used for other positional-placeholder dialects. This was the
+  single largest source of divergence in a newly-enabled MSSQL compile-parity
+  sweep (previously excluded from `parity_test.dart` entirely, based on a
+  stale comment claiming mssql wasn't reachable via the core harness — it
+  is). `Client.offsetPlaceholders` (used when inlining a `Raw` value or
+  subquery into a query that already has prior bindings, so nested
+  placeholders continue the running numbered sequence) now derives the
+  active numbered-placeholder prefix (`$` or `@p`) from
+  `parameterPlaceholder` itself instead of only recognizing `$N`, so mssql
+  gets the same renumbering correctness Postgres already had — including the
+  `$11`→`$101`-style collision guard from 1.3.1, now covering `@pN` too.
+  `SchemaCompiler._inlineBindings` (used for `CREATE VIEW`/materialized-view
+  bodies, which can't take bound parameters in most dialects) gained the
+  matching `@pN` recognition branch.
+  No breaking change to the public query-builder API; `.toSQL()` output for
+  mssql queries with bindings changes shape (placeholder text and parameter
+  passing), which downstream code inspecting compiled SQL text directly
+  should account for.
+
 ## 1.3.2
 
 - Deprecated `Client.transaction()`, `Transaction`, and `TransactionConfig`.
