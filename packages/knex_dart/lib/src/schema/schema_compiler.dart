@@ -1231,8 +1231,9 @@ class SchemaCompiler {
     // Replace placeholders in order. Numbered `$N` dialects (postgres
     // family, duckdb — anything whose parameterPlaceholder(1) is `$1`,
     // rather than a hardcoded dialect-name list that omits some of them)
-    // are 1-indexed; mysql/sqlite are `?`. Replace each occurrence with the
-    // next binding's escaped literal.
+    // are 1-indexed; mssql's `@pN` is 0-indexed (see
+    // Client.parameterPlaceholder for KnexDialect.mssql); mysql/sqlite are
+    // `?`. Replace each occurrence with the next binding's escaped literal.
     var result = sql;
     var bi = 0;
     // Numbered `$N` — match the N-th placeholder, swap for bindings[N-1].
@@ -1241,6 +1242,20 @@ class SchemaCompiler {
         RegExp(r'\$(\d+)'),
         (m) {
           final index = int.parse(m[1]!) - 1;
+          return index >= 0 && index < bindings.length
+              ? escapeValue(bindings[index])
+              : m[0]!;
+        },
+      );
+      return result;
+    }
+    // Numbered `@pN` (mssql) — 0-indexed, so @p0 swaps for bindings[0]
+    // directly, no shift.
+    if (client.parameterPlaceholder(1) == '@p0') {
+      result = result.replaceAllMapped(
+        RegExp(r'@p(\d+)'),
+        (m) {
+          final index = int.parse(m[1]!);
           return index >= 0 && index < bindings.length
               ? escapeValue(bindings[index])
               : m[0]!;

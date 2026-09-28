@@ -1,3 +1,11 @@
+## 0.3.1
+
+- Compiled QueryBuilder SQL now arrives with `@p0`/`@p1`/… placeholders
+  already in place (see `knex_dart` 1.3.3), so `MssqlClient`'s internal
+  execution path no longer rewrites them — the `?`-to-`@pN` rewriter is now
+  used only for user-supplied raw SQL via `raw()`/`rawSql()`, which keeps
+  its existing, documented `?`-based convention unchanged.
+
 ## 0.3.0
 
 - **Breaking (internal): swapped the backing driver from `mssql_connection`

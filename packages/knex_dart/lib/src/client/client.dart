@@ -232,31 +232,38 @@ abstract class Client {
   /// - Oracle: :1, :2, :3, ...
   String parameterPlaceholder(int index);
 
-  /// Offset any `$N`-style numbered placeholders in [sql] by [offset]
-  /// positions.
+  /// Offset any numbered placeholders in [sql] (`$N` for Postgres-family,
+  /// `@pN` for MSSQL) by [offset] positions.
   ///
-  /// No-op for positional (`?`) dialects, where the pattern never matches.
+  /// No-op for positional (`?`) dialects, where neither pattern matches —
+  /// determined generically from [parameterPlaceholder] itself (see
+  /// [_numberedPlaceholderPrefix]) rather than hardcoding a dialect list, so
+  /// a future numbered-placeholder dialect doesn't need this method touched.
   /// Used when inlining a compiled fragment (a [Raw] value, a subquery) into
   /// a query that already has [offset] prior bindings, so the fragment's
-  /// placeholders continue the running `$N` sequence instead of restarting
-  /// from `$1` and colliding with — or leaving gaps in — the placeholders
-  /// already emitted for the surrounding query.
+  /// placeholders continue the running numbered sequence instead of
+  /// restarting from the first placeholder and colliding with — or leaving
+  /// gaps in — the placeholders already emitted for the surrounding query.
   ///
   /// Scans character-by-character rather than using a blind regex, because a
-  /// `$N`-shaped substring can legitimately appear inside a single-quoted SQL
-  /// string literal embedded in the fragment (e.g. a `Raw` value like
-  /// `client.raw("note = '\$1 discount'")`) — that text must be left alone,
-  /// not treated as a placeholder. `''` is tracked as the standard SQL
-  /// escaped-quote sequence (stays inside the literal, not a close+reopen).
+  /// placeholder-shaped substring can legitimately appear inside a
+  /// single-quoted SQL string literal embedded in the fragment (e.g. a `Raw`
+  /// value like `client.raw("note = '\$1 discount'")`) — that text must be
+  /// left alone, not treated as a placeholder. `''` is tracked as the
+  /// standard SQL escaped-quote sequence (stays inside the literal, not a
+  /// close+reopen).
   ///
   /// Placeholder renumbering itself is done digit-by-digit in one pass
   /// (never via repeated `replaceAll('$1', …)`), which avoids a related bug:
   /// `$1` also matches inside `$10`/`$11`, including tokens a prior
   /// substitution just produced — e.g. with offset 9 a two-binding fragment
   /// would rewrite `$2`→`$11`, then `$1`→`$10` would also hit the `$1`
-  /// inside that new `$11`, yielding `$101`.
+  /// inside that new `$11`, yielding `$101`. The same hazard applies to
+  /// `@pN` and is guarded the same way.
   String offsetPlaceholders(String sql, int offset) {
     if (offset <= 0) return sql;
+    final prefix = _numberedPlaceholderPrefix();
+    if (prefix == null) return sql;
     final buffer = StringBuffer();
     var inString = false;
     var i = 0;
@@ -268,16 +275,16 @@ abstract class Client {
         i++;
         continue;
       }
-      if (!inString && ch == r'$' && i + 1 < sql.length) {
-        var j = i + 1;
+      if (!inString && sql.startsWith(prefix, i)) {
+        var j = i + prefix.length;
         while (j < sql.length &&
             sql.codeUnitAt(j) >= 0x30 &&
             sql.codeUnitAt(j) <= 0x39) {
           j++;
         }
-        if (j > i + 1) {
-          final n = int.parse(sql.substring(i + 1, j));
-          buffer.write('\$${n + offset}');
+        if (j > i + prefix.length) {
+          final n = int.parse(sql.substring(i + prefix.length, j));
+          buffer.write('$prefix${n + offset}');
           i = j;
           continue;
         }
@@ -286,6 +293,22 @@ abstract class Client {
       i++;
     }
     return buffer.toString();
+  }
+
+  /// This dialect's numbered-placeholder prefix (`$` for `$1`/`$2`/…, `@p`
+  /// for `@p0`/`@p1`/…), derived from [parameterPlaceholder] itself rather
+  /// than a hardcoded dialect list. Returns `null` for positional (`?`)
+  /// dialects, where placeholders carry no number to renumber.
+  String? _numberedPlaceholderPrefix() {
+    final sample = parameterPlaceholder(1);
+    if (sample.startsWith(r'$') &&
+        int.tryParse(sample.substring(1)) != null) {
+      return r'$';
+    }
+    if (sample.startsWith('@p') && int.tryParse(sample.substring(2)) != null) {
+      return '@p';
+    }
+    return null;
   }
 
   /// Add a value to bindings and return the parameter placeholder
