@@ -245,9 +245,14 @@ await db.close();
 - `TOP N` for LIMIT
 - `RETURNING`-equivalent via `OUTPUT` clause
 
-> **System dependency:** Requires the FreeTDS shared library.
-> Linux: `sudo apt-get install libsybdb5`
-> macOS: `brew install freetds`
+> **No system dependency:** the driver is pure Dart ([`mssql`](https://pub.dev/packages/mssql),
+> TDS 7.4/8.0) — no native library to install.
+>
+> **TLS defaults:** `KnexMssql.connect()` defaults to `encrypt: true,
+> trustServerCertificate: true` — TLS on, server certificate not validated,
+> matching most local/on-prem SQL Server instances (self-signed
+> certificate). Set `trustServerCertificate: false` for a server with a
+> certificate from a trusted CA.
 
 ---
 

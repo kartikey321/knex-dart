@@ -9,7 +9,7 @@ DuckDB driver for [knex_dart](https://pub.dev/packages/knex_dart) for in-process
 
 ```yaml
 dependencies:
-  knex_dart_duckdb: ^0.1.0
+  knex_dart_duckdb: ^0.2.1
 ```
 
 ## Quick Start

@@ -1,26 +1,26 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:knex_dart/knex_dart.dart';
-import 'package:mssql_connection/mssql_connection.dart';
+import 'package:mssql/mssql.dart' as tds;
 
-/// SQL Server database client via the mssql_connection FFI package (FreeTDS).
+/// SQL Server database client via the pure-Dart `mssql` package (TDS 7.4/8.0).
 ///
-/// **System dependency**: Requires FreeTDS to be installed:
-///   - macOS:  `brew install freetds`
-///   - Ubuntu: `sudo apt-get install -y freetds-dev libct4`
-///   - Windows: install FreeTDS from https://www.freetds.org
+/// **No native dependencies**: unlike the previous FreeTDS/FFI-based driver,
+/// this talks TDS directly over a plain [Socket]/[SecureSocket] — no system
+/// library to install, no shared native singleton, no blocking FFI calls that
+/// could freeze the isolate.
 ///
-/// **Singleton**: The underlying [MssqlConnection] uses a single shared
-/// connection. All calls are serialized through that connection. Use a
-/// single [MssqlClient] instance per process; for concurrent workloads
-/// queue operations or use multiple processes.
+/// **One connection per instance**: this client owns a single
+/// [tds.MssqlConnection] and serializes calls through it, matching the
+/// previous driver's semantics. For concurrent workloads, create multiple
+/// [MssqlClient] instances (or see [tds.MssqlPool] for a pooled alternative
+/// upstream — not yet wired into this driver).
 ///
 /// **SQL dialect**: SQL Server uses square-bracket identifiers (`[col]`),
-/// `@p1`-style positional parameters, and `TOP n` instead of `LIMIT n`.
-/// The knex_dart query builder emits bracketed identifiers for this driver.
+/// `@name`-style named parameters, and `TOP n` instead of `LIMIT n`. The
+/// knex_dart query builder emits bracketed identifiers and `?` positional
+/// placeholders for this driver; [_rewriteParams] converts those to the
+/// `@pN` named-parameter form the underlying driver expects.
 class MssqlClient {
-  final MssqlConnection _conn;
+  final tds.MssqlConnection _conn;
   bool _isClosed = false;
 
   MssqlClient._(this._conn);
@@ -30,6 +30,16 @@ class MssqlClient {
   /// [host] is the server hostname or IP address.
   /// [port] defaults to `1433`.
   /// [database] is the initial catalog to connect to.
+  ///
+  /// [encrypt] and [trustServerCertificate] control TLS. The underlying
+  /// `mssql` package defaults to `encrypt: true, trustServerCertificate:
+  /// false` — mandatory TLS with real certificate validation, which the
+  /// previous FFI driver (`mssql_connection`) did not enforce by default.
+  /// [trustServerCertificate] defaults to `true` here to match that prior
+  /// behavior and because most local/on-prem/CI SQL Server instances (the
+  /// ones this docker-compose setup and CI both use) present a self-signed
+  /// certificate. Set it to `false` for a server with a certificate from a
+  /// trusted CA.
   static Future<MssqlClient> connect({
     required String host,
     String port = '1433',
@@ -37,19 +47,19 @@ class MssqlClient {
     required String username,
     required String password,
     int timeoutSeconds = 15,
+    bool encrypt = true,
+    bool trustServerCertificate = true,
   }) async {
-    final conn = MssqlConnection.getInstance();
-    final ok = await conn.connect(
-      ip: host,
-      port: port,
-      databaseName: database,
-      username: username,
+    final conn = await tds.MssqlConnection.connect(
+      host: host,
+      port: int.parse(port),
+      database: database,
+      user: username,
       password: password,
-      timeoutInSeconds: timeoutSeconds,
+      encrypt: encrypt,
+      trustServerCertificate: trustServerCertificate,
+      timeout: Duration(seconds: timeoutSeconds),
     );
-    if (!ok) {
-      throw StateError('Failed to connect to SQL Server at $host:$port');
-    }
     return MssqlClient._(conn);
   }
 
@@ -89,11 +99,11 @@ class MssqlClient {
     await _conn.beginTransaction();
     try {
       final result = await callback(MssqlTrxClient._(this));
-      await _conn.commit();
+      await _conn.commitTransaction();
       return result;
     } catch (e) {
       try {
-        await _conn.rollback();
+        await _conn.rollbackTransaction();
       } catch (_) {}
       rethrow;
     }
@@ -102,7 +112,7 @@ class MssqlClient {
   Future<void> close() async {
     if (_isClosed) return;
     _isClosed = true;
-    await _conn.disconnect();
+    await _conn.close();
   }
 
   // ─── Internal execution ───────────────────────────────────────────────────
@@ -113,21 +123,28 @@ class MssqlClient {
   ) async {
     if (_isClosed) throw StateError('MssqlClient is closed');
 
-    if (bindings.isEmpty) {
-      final json = await _conn.getData(sql);
-      return _parseJson(json);
-    }
-
-    final (rewritten, params) = _rewriteParams(sql, bindings);
-    final json = await _conn.getDataWithParams(rewritten, params);
-    return _parseJson(json);
+    // With no bindings, send the SQL unchanged. Rewriting unconditionally
+    // would treat a literal `?` in the SQL text itself (e.g. inside a
+    // string literal) as a placeholder and crash with a RangeError trying
+    // to read a binding that doesn't exist.
+    final (rewritten, params) = bindings.isEmpty
+        ? (sql, const <String, Object?>{})
+        : _rewriteParams(sql, bindings);
+    final result = await _conn.query(rewritten, params);
+    return [
+      for (final row in result.rows)
+        {
+          for (var i = 0; i < row.columnNames.length; i++)
+            row.columnNames[i]: row.valueAt(i),
+        },
+    ];
   }
 
-  (String sql, Map<String, dynamic> params) _rewriteParams(
+  (String sql, Map<String, Object?> params) _rewriteParams(
     String sql,
     List<dynamic> bindings,
   ) {
-    final params = <String, dynamic>{};
+    final params = <String, Object?>{};
     var index = 0;
     var paramId = 0;
     final rewritten = sql.replaceAllMapped(RegExp(r'\?'), (_) {
@@ -141,13 +158,6 @@ class MssqlClient {
       return '@$key';
     });
     return (rewritten, params);
-  }
-
-  List<Map<String, dynamic>> _parseJson(String json) {
-    if (json.isEmpty) return [];
-    final decoded = jsonDecode(json) as Map<String, dynamic>;
-    final rows = decoded['rows'] as List<dynamic>? ?? [];
-    return rows.cast<Map<String, dynamic>>();
   }
 }
 

@@ -12,6 +12,8 @@ class KnexMssql {
   KnexMssql._(this._client, {required KnexInterceptorPipeline pipeline})
       : _pipeline = pipeline;
 
+  /// See [MssqlClient.connect] for [encrypt]/[trustServerCertificate] defaults
+  /// and rationale.
   static Future<KnexMssql> connect({
     required String host,
     String port = '1433',
@@ -19,6 +21,8 @@ class KnexMssql {
     required String username,
     required String password,
     int timeoutSeconds = 15,
+    bool encrypt = true,
+    bool trustServerCertificate = true,
     List<QueryInterceptor> interceptors = const [],
   }) async {
     final client = await MssqlClient.connect(
@@ -28,6 +32,8 @@ class KnexMssql {
       username: username,
       password: password,
       timeoutSeconds: timeoutSeconds,
+      encrypt: encrypt,
+      trustServerCertificate: trustServerCertificate,
     );
     return KnexMssql._(
       client,
