@@ -282,6 +282,64 @@ const Map<String, Map<String, String>> unsupportedEngineAllowlist = {
         'FROM-clause entry for table \\"tblPersonData\\"". Not a knex-dart '
         'defect — this shape needs .updateFrom() for Postgres, which the '
         'case does not use.',
+
+    // ── Schema-DDL corpus ──────────────────────────────────────────────
+    'schema/create-extension':
+        '"test" is not a real, installable Postgres extension on any '
+        'standard image — confirmed via psql/live execution: 0A000, '
+        '"could not open extension control file '
+        '.../extension/test.control: No such file or directory". Mirrors '
+        'the same pattern as the query corpus\'s deliberately-invalid '
+        'raw-literal probes (e.g. insert/raw-value): the case is text-'
+        'parity-only, not meant to run against a real server. No fixture '
+        'can install a nonexistent extension. Not a knex-dart defect.',
+    'schema/create-extension-if-not-exists':
+        'Same root cause as schema/create-extension ("test" is not a real '
+        'extension) — confirmed via the same 0A000 error. Not a knex-dart '
+        'defect.',
+    'schema/drop-extension':
+        'Same root cause as schema/create-extension ("test" was never '
+        'created, so DROP EXTENSION test fails with 42704 "extension '
+        '\\"test\\" does not exist") — confirmed via live execution. Not a '
+        'knex-dart defect.',
+    'schema/create-table-primary-composite-with-increments':
+        '[OPEN BUG] already tracked in schema_parity_test.dart\'s '
+        'schemaParityAllowlist: increments() emits its own inline "primary '
+        'key" even when the same createTable() call also declares a '
+        'separate composite primary() over the same column, so Postgres '
+        'rejects the table with 42P16 "multiple primary keys for table '
+        '\\"users\\" are not allowed". Confirmed via live execution — this '
+        'is the parity-level divergence actually manifesting as an '
+        'execution failure, not a new defect. A cross-column-aware '
+        'refactor (increments() would need to know whether its own column '
+        'participates in a later composite primary()), deferred there; not '
+        'fixable by any fixture profile.',
+    'schema/raw-with-binding':
+        '[OPEN BUG] schema.raw(\'select ? as value\', [1]) compiles to the '
+        'literal \'?\' with bindings attached separately — that COMPILED '
+        'representation genuinely matches real knex.js 3.3.0\'s own '
+        '`.toSQL()` output for the identical call (verified directly against '
+        'a local knex.js checkout: both produce {sql: "select ? as value", '
+        'bindings: [1]}), so this is not a text-parity gap. But real '
+        'knex.js does NOT send that \'?\' to the server as-is — verified by '
+        'actually EXECUTING the identical schema.raw() call against real '
+        'Postgres via knex.js directly (not just comparing .toSQL()): it '
+        'succeeds, because knex.js\'s query-execution path '
+        '(query-executioner.js -> the pg dialect\'s positionBindings()) '
+        'converts \'?\' to \$1/\$2/... immediately before sending, separately '
+        'from compilation. knex-dart\'s query-level raw() already does this '
+        'same conversion at compile time (confirmed: '
+        'join/raw-with-binding::postgres compiles straight to "... = \$1", '
+        'not "... = ?") — schema_compiler.dart\'s `_raw()` is the one path '
+        'that does not, passing the SQL straight through to execution '
+        'unconverted, so Postgres correctly rejects the literal \'?\' '
+        'in the wire protocol (42601). A real, verified knex-dart defect '
+        'in schema.raw()\'s standalone execution path, not fixable by any '
+        'fixture profile — deferred rather than fixed inline here since a '
+        'correct fix needs a dialect-aware SQL lexer (skipping quoted '
+        'literals/identifiers/comments), the same "heavy lift" CodeRabbit '
+        'already flagged for the structurally similar view-DDL '
+        '_inlineBindings() gap, not a quick fix.',
   },
 
   'sqlite': {
