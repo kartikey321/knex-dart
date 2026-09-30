@@ -93,6 +93,23 @@ void main() {
       expect(qb.toSQL().sql, equals('select *'));
     });
 
+    test(
+      'queryBuilder().execute()/then still throw even though SQLite (unlike '
+      'other drivers) binds the builder to its real executing client',
+      () {
+        // ignore: deprecated_member_use
+        final qb = db.queryBuilder().table('items').select(['*']);
+        // SQLite is the one driver where qb.client IS the real, executing
+        // SQLiteClient (see QueryBuilder.execute()'s doc comment) — but
+        // execute()/then are unconditional stubs that never dispatch to
+        // it, so they throw regardless.
+        // ignore: deprecated_member_use
+        expect(() => qb.execute(), throwsA(isA<UnimplementedError>()));
+        // ignore: deprecated_member_use
+        expect(() => qb.then, throwsA(isA<UnimplementedError>()));
+      },
+    );
+
     test('schema getter returns a SchemaBuilder', () {
       expect(db.schema, isNotNull);
     });

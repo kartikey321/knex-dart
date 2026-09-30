@@ -153,16 +153,24 @@ class TarnPool<C> {
 
   Future<C> _createAndAcquire() async {
     _creating++;
+    late final C conn;
     try {
-      final conn = await create();
-      _creating--;
-      _used.add(PoolResource<C>(conn));
-      _startReaping();
-      return conn;
+      conn = await create();
     } catch (e) {
       _creating--;
       rethrow;
     }
+    _creating--;
+    if (_destroyed) {
+      // The pool was closed while this connection was being created.
+      // Don't hand out a "successful" acquire from a closed pool, and
+      // don't leak the connection we just created.
+      destroy(conn).ignore();
+      throw StateError('Connection pool closed');
+    }
+    _used.add(PoolResource<C>(conn));
+    _startReaping();
+    return conn;
   }
 
   /// Create a connection for a pending waiter, or fall back to [_ensureMin].
