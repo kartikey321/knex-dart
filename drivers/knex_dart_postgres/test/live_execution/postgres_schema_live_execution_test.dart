@@ -69,14 +69,24 @@ void main() {
   /// keeping it around (this adapter's normal "keep on failure, for
   /// inspection" behavior) would just leak it for up to 6 hours on every
   /// green run for no benefit.
+  ///
+  /// [cleanupErrors]: appended to (never thrown) if either teardown call
+  /// fails — surfaced by the caller as a real, named test failure rather
+  /// than silently swallowed, so a real leak shows up as red CI instead
+  /// of an easy-to-miss log line.
   Future<MechanicalResult> runSchemaCase(
     String caseId,
     String profileId, {
     bool expectFailure = false,
+    required List<String> cleanupErrors,
   }) async {
     final adapter = PostgresLiveAdapter(client);
-    if (postgresSchemaDdlProfilesNeedingPublicFallback.contains(profileId)) {
-      adapter.extraSearchPathSchemas = const ['public'];
+    final extensionFallback = postgresSchemaDdlProfileExtensionFallbacks[profileId];
+    if (extensionFallback != null) {
+      final extensionSchema = await adapter.findExtensionSchema(
+        extensionFallback,
+      );
+      adapter.extraSearchPathSchemas = [extensionSchema ?? 'public'];
     }
     await adapter.setUpRun();
     // Must happen before anything below has a chance to create/mutate a
@@ -124,12 +134,23 @@ void main() {
       // created by this run is left behind, and the *next* case's
       // recordPreexistingNamedSchemas() sees it as pre-existing and skips
       // cleaning it up too, cascading the leak forward.
+      //
+      // "Never abort the loop" does not mean "never notice" — every
+      // failure here is appended to [cleanupErrors], which the caller
+      // asserts is empty at the end of the whole run. A real leak is a
+      // red test, not a line in a log nobody reads.
       try {
         await adapter.tearDownRun(runSucceeded: cleanupSucceeded);
-      } catch (_) {}
+      } catch (e) {
+        cleanupErrors.add('$caseId ($profileId): tearDownRun failed: $e');
+      }
       try {
         await adapter.cleanUpNamedSchemas();
-      } catch (_) {}
+      } catch (e) {
+        cleanupErrors.add(
+          '$caseId ($profileId): cleanUpNamedSchemas failed: $e',
+        );
+      }
     }
   }
 
@@ -139,9 +160,14 @@ void main() {
       links.entries.where((e) => e.key.startsWith('schema/')),
     );
     final failures = <String>[];
+    final cleanupErrors = <String>[];
 
     for (final entry in schemaLinks.entries) {
-      final result = await runSchemaCase(entry.key, entry.value);
+      final result = await runSchemaCase(
+        entry.key,
+        entry.value,
+        cleanupErrors: cleanupErrors,
+      );
       if (result.status != MechanicalStatus.executedWithoutError) {
         failures.add('${entry.key} (${entry.value}): ${result.detail}');
       }
@@ -149,6 +175,13 @@ void main() {
 
     expect(schemaLinks, isNotEmpty);
     expect(failures, isEmpty, reason: failures.join('\n'));
+    expect(
+      cleanupErrors,
+      isEmpty,
+      reason:
+          'Cleanup failures — a fixture schema may be leaked:\n'
+          '${cleanupErrors.join('\n')}',
+    );
   });
 
   test('every unsupported-engine-allowlisted schema-DDL case still fails with '
@@ -161,12 +194,14 @@ void main() {
       allowlist.entries.where((e) => e.key.startsWith('schema/')),
     );
     final problems = <String>[];
+    final cleanupErrors = <String>[];
 
     for (final caseId in schemaAllowlist.keys) {
       final result = await runSchemaCase(
         caseId,
         'schema_ddl_empty_v1',
         expectFailure: true,
+        cleanupErrors: cleanupErrors,
       );
       if (result.status == MechanicalStatus.executedWithoutError) {
         problems.add('$caseId: now executes cleanly, expected a failure');
@@ -188,5 +223,12 @@ void main() {
 
     expect(schemaAllowlist, isNotEmpty);
     expect(problems, isEmpty, reason: problems.join('\n'));
+    expect(
+      cleanupErrors,
+      isEmpty,
+      reason:
+          'Cleanup failures — a fixture schema may be leaked:\n'
+          '${cleanupErrors.join('\n')}',
+    );
   });
 }

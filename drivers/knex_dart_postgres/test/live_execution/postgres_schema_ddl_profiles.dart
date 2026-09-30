@@ -229,28 +229,40 @@ const Map<String, List<String>> postgresSchemaDdlProfiles = {
   // installed ANYWHERE in the database (extensions are unique per-database,
   // not per-schema, and an explicit SCHEMA clause is ignored on skip too —
   // confirmed by reproducing exactly this against real Postgres). So this
-  // profile is the one entry in [postgresSchemaDdlProfilesNeedingPublicFallback]:
+  // profile is the one entry in [postgresSchemaDdlProfileExtensionFallbacks]:
   // its case only ever creates a table named "users" (which — confirmed —
   // still resolves to the ephemeral schema's own copy, correctly shadowing
-  // any "public.users" leftover, since the ephemeral schema is always first
-  // in search_path) and needs the CITEXT *type* specifically, which is
-  // only guaranteed reachable by also including "public" as a fallback.
+  // any leftover "users" table in whichever schema citext turns out to
+  // already live in, since the ephemeral schema is always first in
+  // search_path) and needs the CITEXT *type* specifically, which is only
+  // guaranteed reachable by adding citext's actual schema as a fallback.
   'schema_ddl_citext_users_v1': [
     'CREATE EXTENSION IF NOT EXISTS citext',
     'CREATE TABLE users ()',
   ],
 };
 
-/// Profile ids whose case needs "public" appended as a search_path
-/// fallback (after this run's own ephemeral schema) — see
-/// `schema_ddl_citext_users_v1`'s comment for why. Every other profile
-/// deliberately excludes "public" entirely, so a leftover table from an
-/// unrelated integration-test suite (e.g. the hand-written
-/// `postgres_test.dart` suite's own long-lived `public.users`) can never
-/// silently satisfy — or be mistaken for — a schema-DDL case's own
-/// prerequisite.
-const Set<String> postgresSchemaDdlProfilesNeedingPublicFallback = {
-  'schema_ddl_citext_users_v1',
+/// Profile ids whose case needs an extension-provided type/function to be
+/// reachable from search_path, mapped to the extension name to locate —
+/// see `schema_ddl_citext_users_v1`'s comment for why a hardcoded schema
+/// guess (e.g. always assuming "public") isn't enough: on a freshly
+/// created CI container citext is never installed anywhere until this
+/// profile's own `CREATE EXTENSION` runs (which puts it in `public`, since
+/// no schema is specified), so a hardcoded "public" fallback happened to
+/// always work there — but on a long-lived local or shared database,
+/// citext might already be installed in some OTHER schema entirely, and
+/// `CREATE EXTENSION IF NOT EXISTS` silently no-ops without making it
+/// visible from this run's isolated ephemeral schema. See
+/// `PostgresLiveAdapter.findExtensionSchema`, which is used to look up
+/// the extension's *actual* schema dynamically instead of guessing.
+///
+/// Every profile not listed here deliberately excludes any such fallback
+/// entirely, so a leftover table from an unrelated integration-test suite
+/// (e.g. the hand-written `postgres_test.dart` suite's own long-lived
+/// `public.users`) can never silently satisfy — or be mistaken for — a
+/// schema-DDL case's own prerequisite.
+const Map<String, String> postgresSchemaDdlProfileExtensionFallbacks = {
+  'schema_ddl_citext_users_v1': 'citext',
 };
 
 /// Database-level schema names some profiles above create via

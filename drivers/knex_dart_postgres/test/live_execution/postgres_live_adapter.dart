@@ -50,6 +50,24 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
   late final String schemaName;
   final _random = Random.secure();
 
+  /// Tags every schema this harness creates (both the per-run ephemeral
+  /// wrapper and, via [applySchemaDdlProfile], any named schema) via
+  /// `COMMENT ON SCHEMA`, checked before [cleanUpNamedSchemas] or
+  /// [_sweepStaleSchemas] ever drop anything.
+  ///
+  /// This is a real ownership proof, not a heuristic: the comment is set
+  /// in the SAME transaction that creates the schema (atomic — no window
+  /// for a foreign process to create a same-named/same-pattern schema in
+  /// between), so a schema without this exact marker is guaranteed to be
+  /// something this harness did not create, regardless of its name or
+  /// how old it looks. Fixes two real gaps found by review: (1) a foreign
+  /// process creating `billing`/`myschema`/`mySchema` *during* a run (the
+  /// pre-existing-schemas snapshot only protects against something that
+  /// existed *before* the run started); (2) `_sweepStaleSchemas` matching
+  /// purely on the `live_pg_%` naming pattern, which a foreign schema
+  /// coincidentally named e.g. `live_pg_0_import` would also match.
+  static const _harnessMarker = 'knex-dart-live-execution-harness-owned';
+
   /// Extra schemas appended to `search_path` after [schemaName], for the
   /// rare schema-DDL profile whose case needs to resolve something (e.g.
   /// an extension-provided type like `citext`) that isn't — and can't be
@@ -75,6 +93,31 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
     final suffix = _random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
     schemaName = 'live_pg_${DateTime.now().millisecondsSinceEpoch}_$suffix';
     await client.rawSql('CREATE SCHEMA "$schemaName"');
+    await client.rawSql(
+      'COMMENT ON SCHEMA "$schemaName" IS \'$_harnessMarker\'',
+    );
+  }
+
+  /// Finds which schema [extensionName] is actually installed in, if any.
+  ///
+  /// `CREATE EXTENSION IF NOT EXISTS` is a no-op if the extension is
+  /// installed ANYWHERE in the database — extensions are unique
+  /// per-database, not per-schema — so a case relying on an
+  /// extension-provided type/function being reachable from search_path
+  /// needs the schema it's ACTUALLY in, not a guessed default. A
+  /// hardcoded `public` fallback only works by coincidence — true on a
+  /// freshly-created CI container, not guaranteed on a long-lived local
+  /// or shared database where the extension might already be installed
+  /// somewhere else entirely.
+  Future<String?> findExtensionSchema(String extensionName) async {
+    final rows = await client.rawSql(
+      'select n.nspname from pg_extension e '
+      'join pg_namespace n on e.extnamespace = n.oid '
+      'where e.extname = \$1',
+      [extensionName],
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['nspname'] as String;
   }
 
   /// Applies one fixture profile's DDL then seed statements, in order,
@@ -143,34 +186,78 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
       for (final stmt in ddl) {
         await trx.rawSql(stmt);
       }
+      // Tag any named schema this profile's DDL just created, atomically
+      // in the same (committing) transaction as the CREATE SCHEMA itself
+      // — see _harnessMarker's doc comment for why this has to happen
+      // here, not retroactively at cleanup time, to be a real ownership
+      // proof rather than a guess. Only schemas absent at
+      // recordPreexistingNamedSchemas() time are candidates; anything
+      // pre-existing is left completely untouched, unconditionally.
+      for (final name in postgresSchemaDdlNamedSchemasToClean) {
+        if (_preexistingNamedSchemas.contains(name)) continue;
+        final rows = await trx.rawSql(
+          'select 1 from information_schema.schemata where schema_name = \$1',
+          [name],
+        );
+        if (rows.isEmpty) continue;
+        await trx.rawSql('COMMENT ON SCHEMA "$name" IS \'$_harnessMarker\'');
+      }
     });
   }
 
-  /// Drops whichever of [postgresSchemaDdlNamedSchemasToClean] now exist
-  /// but did NOT exist when [recordPreexistingNamedSchemas] was called (at
-  /// the start of this run) — i.e. only what this run itself created,
-  /// whether via [applySchemaDdlProfile]'s own prerequisite DDL or via the
-  /// case's own compiled action (some cases, e.g. schema/create-schema,
-  /// create/drop a named schema as their own test subject, not via a
-  /// prerequisite). Anything that already existed before this run started
-  /// is left completely alone, unconditionally — confirmed by reproducing
-  /// exactly the failure mode this guards against: a foreign
-  /// pre-existing "billing" schema (with real data in it) survived a case
-  /// whose own CREATE SCHEMA billing failed with 42P06 "already exists"
-  /// only after this fix; the naive "did setup succeed" flag it replaced
-  /// did not distinguish that case's cleanup from any other's and
-  /// destroyed the foreign schema anyway.
+  /// Drops whichever of [postgresSchemaDdlNamedSchemasToClean] now exist,
+  /// did NOT exist when [recordPreexistingNamedSchemas] was called (at the
+  /// start of this run), AND carry [_harnessMarker] — i.e. only what this
+  /// run itself created via [applySchemaDdlProfile] (the only path that
+  /// actually persists one of these names; a case's own compiled action
+  /// runs inside a rollback-only transaction and never survives past the
+  /// case itself, however it may attempt to mutate a named schema).
+  /// Anything that already existed before this run started, OR that
+  /// exists now but isn't marked as ours (a foreign process created it
+  /// during this run, which the pre-existing-schemas snapshot alone can't
+  /// detect — the snapshot only proves absence *before* the run started),
+  /// is left completely alone, unconditionally.
+  ///
+  /// Confirmed by reproducing exactly the failure mode this guards
+  /// against: a foreign pre-existing "billing" schema (with real data in
+  /// it) survived a case whose own CREATE SCHEMA billing failed with
+  /// 42P06 "already exists" only after the snapshot-based fix; the naive
+  /// "did setup succeed" flag it replaced did not distinguish that case's
+  /// cleanup from any other's and destroyed the foreign schema anyway.
   Future<void> cleanUpNamedSchemas() async {
     for (final name in postgresSchemaDdlNamedSchemasToClean) {
       if (_preexistingNamedSchemas.contains(name)) continue;
+      if (!await _isHarnessOwned(name)) continue;
       await client.rawSql('DROP SCHEMA IF EXISTS "$name" CASCADE');
     }
+  }
+
+  /// True if schema [name] exists and carries [_harnessMarker] — see its
+  /// doc comment. False (never drop) for anything missing the marker,
+  /// including a schema that's vanished since the caller last checked.
+  Future<bool> _isHarnessOwned(String name) async {
+    // obj_description(oid) (one-arg) is deprecated and ambiguous — OIDs
+    // are only unique per catalog, not globally — so pass the catalog
+    // name explicitly to look up the comment `COMMENT ON SCHEMA` stores.
+    final rows = await client.rawSql(
+      "select obj_description(oid, 'pg_namespace') as marker "
+      'from pg_namespace where nspname = \$1',
+      [name],
+    );
+    return rows.isNotEmpty && rows.first['marker'] == _harnessMarker;
   }
 
   /// Drops schemas from prior runs older than [maxAge] (default 6 hours) so
   /// keep-on-failure runs don't accumulate forever. A run kept for
   /// inspection has that long to be looked at before the next run sweeps
   /// it; this is a best-effort safety net, not a guarantee.
+  ///
+  /// Matching the `live_pg_%` naming pattern and an old-enough embedded
+  /// timestamp is NOT sufficient authority to drop something — a foreign
+  /// schema coincidentally named e.g. `live_pg_0_import` would match both
+  /// (parsing "0" as an ancient timestamp) with no relation to this
+  /// harness at all. [_isHarnessOwned] (the same atomic-tag-at-creation
+  /// check [cleanUpNamedSchemas] uses) is required in addition.
   Future<void> _sweepStaleSchemas({
     Duration maxAge = const Duration(hours: 6),
   }) async {
@@ -185,6 +272,7 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
       if (parts.length < 4) continue;
       final createdAtMs = int.tryParse(parts[2]);
       if (createdAtMs == null || createdAtMs >= cutoff) continue;
+      if (!await _isHarnessOwned(name)) continue;
       await client.rawSql('DROP SCHEMA IF EXISTS "$name" CASCADE');
     }
   }
