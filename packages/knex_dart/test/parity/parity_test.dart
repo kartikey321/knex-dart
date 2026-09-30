@@ -58,6 +58,8 @@ const Map<String, String> parityAllowlist = {
       '[ACCEPTED] see delete/limit-mysql::postgres (turso is sqlite-family).',
   'delete/limit-mysql::d1':
       '[ACCEPTED] see delete/limit-mysql::postgres (d1 is sqlite-family).',
+  'delete/limit-mysql::mssql':
+      '[ACCEPTED] see delete/limit-mysql::postgres.',
 
   // ── ACCEPTED: knex-dart refuses where knex.js silently drops ───────────────
   'upsert/merge::redshift':
@@ -201,6 +203,8 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/old-style-alias::d1':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/old-style-alias::mssql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-trim-spaces::postgres':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-trim-spaces::cockroachdb':
@@ -214,6 +218,8 @@ const Map<String, String> parityAllowlist = {
   'select/alias-trim-spaces::turso':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-trim-spaces::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-trim-spaces::mssql':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-case-insensitive::postgres':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
@@ -229,6 +235,8 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-case-insensitive::d1':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-case-insensitive::mssql':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-dotted::postgres':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-dotted::cockroachdb':
@@ -242,6 +250,8 @@ const Map<String, String> parityAllowlist = {
   'select/alias-dotted::turso':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
   'select/alias-dotted::d1':
+      '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
+  'select/alias-dotted::mssql':
       '[OPEN BUG] see select/old-style-alias::postgres (same client.alias() root cause).',
 
   // having/from-alias hits the same client.alias() uppercase-AS defect noted
@@ -269,6 +279,9 @@ const Map<String, String> parityAllowlist = {
   'having/from-alias::d1':
       '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
       'uppercase-AS issue (d1 is sqlite-family).',
+  'having/from-alias::mssql':
+      '[OPEN BUG] see having/from-alias::postgres — same client.alias() '
+      'uppercase-AS issue.',
 
   // ── OPEN BUG (out of scope for this pass): uppercase `AS`, but via
   // Ref.as() (src/ref.dart), NOT client.alias() (src/client/client.dart) —
@@ -297,6 +310,8 @@ const Map<String, String> parityAllowlist = {
   'ref/select-alias::d1':
       '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause, '
       'd1 is sqlite-family).',
+  'ref/select-alias::mssql':
+      '[OPEN BUG] see ref/select-alias::postgres (same Ref.as() root cause).',
 
   // ── OPEN BUG: whereJsonPath() has no CockroachDB implementation ────────────
   'json/where-path::cockroachdb':
@@ -315,6 +330,15 @@ const Map<String, String> parityAllowlist = {
       '(and wrong) whereBasic() fallback. Fix: add a CockroachDB branch '
       'to _whereJsonPath() in query_compiler.dart, then remove this '
       'entry.',
+  'json/where-path::mssql':
+      '[OPEN BUG] whereJsonPath() has no MSSQL implementation — knex-dart '
+      'throws StateError (\'whereJsonPath is not supported by mssql\') '
+      'instead of compiling. knex.js\'s mssql client compiles it via '
+      '`JSON_VALUE([col], @pN) op @pN`: `select * from [users] where '
+      'JSON_VALUE([address], @p0) > @p1 or JSON_VALUE([address], @p2) < '
+      '@p3`. Same class of gap as json/where-path::cockroachdb above — '
+      'needs a _whereJsonPath() branch for mssql in query_compiler.dart, '
+      'then remove this entry.',
 
   // ── ACCEPTED: mariadb RETURNING on UPDATE/CTE — knex.js's real mariadb
   // client version-gates `.returning()` on UPDATE for MariaDB <13.0 and
@@ -453,6 +477,229 @@ const Map<String, String> parityAllowlist = {
       'the fixture (not a display artifact). knex-dart correctly emits '
       'the ON clause content; matching knex.js here would mean '
       'deliberately emitting broken SQL.',
+
+  // ── OPEN BUG: MSSQL feature gaps surfaced by enabling mssql parity ─────────
+  // checking for the first time (previously excluded via _skipDialects).
+  // None of these are caused by the @pN placeholder change in this PR —
+  // they're pre-existing gaps that were simply never checked before mssql
+  // was reachable via the core harness. Grouped by root cause below; each
+  // group's first entry has the full explanation, siblings say "see X".
+
+  // G1: knex.js's mssql client appends `;select @@rowcount` after a
+  // non-RETURNING UPDATE/DELETE (SQL Server's driver doesn't surface an
+  // affected-row count any other way through this query shape). knex-dart
+  // doesn't append it — the compiled SQL is otherwise byte-identical in
+  // every case below. Fix: in SchemaCompiler/QueryCompiler's mssql UPDATE
+  // and DELETE paths, append `;select @@rowcount` unless .returning() was
+  // used, then remove these entries.
+  'update/set::mssql':
+      '[OPEN BUG] missing trailing `;select @@rowcount` — see the G1 note '
+      'above this block.',
+  'delete/where::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'update/increment::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'delete/all::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'clear/counters::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'update/two-cols::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'update/null-value::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'update/from-where-then-update::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'update/raw-value::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'cte/update-simple::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'cte/delete-simple::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+  'cte/delete-source::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, '
+      'G1 — here the suffix is missing inside the CTE body, right after '
+      'the DELETE, same root cause).',
+  'delete/join-single::mssql':
+      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, '
+      'G1 — the DELETE...JOIN syntax itself already compiles correctly).',
+  'delete/join-multi::mssql':
+      '[OPEN BUG] see delete/join-single::mssql (same missing '
+      '`;select @@rowcount`, G1).',
+  'delete/join-no-where::mssql':
+      '[OPEN BUG] see delete/join-single::mssql (same missing '
+      '`;select @@rowcount`, G1).',
+  'delete/join-oncallback-where::mssql':
+      '[OPEN BUG] see delete/join-single::mssql (same missing '
+      '`;select @@rowcount`, G1).',
+
+  // G2: `.returning()` needs an `OUTPUT inserted.*`/`OUTPUT deleted.*`
+  // clause on mssql (INSERT/UPDATE/DELETE) — knex-dart doesn't emit one at
+  // all, silently dropping the returning columns instead of either
+  // compiling OUTPUT or refusing. Fix: add OUTPUT-clause support to the
+  // mssql insert/update/delete compiler paths, then remove these entries.
+  'returning/insert::mssql':
+      '[OPEN BUG] missing `OUTPUT inserted.[col]` for .returning() on '
+      'INSERT — see the G2 note above this block.',
+  'dml/returning-multi-insert::mssql':
+      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
+  'dml/returning-update::mssql':
+      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, '
+      'G2 — `OUTPUT inserted.*` on UPDATE).',
+  'dml/returning-delete::mssql':
+      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, '
+      'G2 — `OUTPUT deleted.[col]` on DELETE).',
+  'insert/empty-object-returning::mssql':
+      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
+  'update/two-arg-returning::mssql':
+      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
+  'delete/two-arg-returning::mssql':
+      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
+  'cte/update-source::mssql':
+      '[OPEN BUG] combines two gaps: the inner CTE UPDATE is missing '
+      '`OUTPUT inserted.[group_id]` for its .returning() (G2, see '
+      'returning/insert::mssql) AND the outer UPDATE is missing the '
+      'trailing `;select @@rowcount` (G1, see update/set::mssql).',
+
+  // G3: a SELECT with `.limit(n)` and no `.offset()` should compile to
+  // `select top (n) ...` on mssql (matching knex.js); knex-dart always
+  // uses `OFFSET 0 ROWS FETCH NEXT n ROWS ONLY` regardless of whether an
+  // offset was given. Fix: in the mssql SELECT compiler, use TOP when
+  // there's a limit but no offset, then remove these entries.
+  'subquery/select-first-as::mssql':
+      '[OPEN BUG] limit-without-offset should compile to `top (n)`, not '
+      '`OFFSET 0 ROWS FETCH NEXT n ROWS ONLY` — see the G3 note above this '
+      'block.',
+  'union/order-limit-outer::mssql':
+      '[OPEN BUG] see subquery/select-first-as::mssql (same missing TOP(n) '
+      'for limit-without-offset, G3 — here on the outer SELECT wrapping a '
+      'UNION with ORDER BY).',
+
+  // G4: mssql's OFFSET/FETCH keywords should be lowercase (`offset ... '
+  // rows fetch next ... rows only`) to match knex.js; knex-dart emits them
+  // uppercase. SQL Server itself is case-insensitive to these keywords, so
+  // this is purely cosmetic (same class as the `AS`/`as` alias-casing bugs
+  // above) — but still a real byte-level divergence from knex.js. Fix:
+  // lowercase the OFFSET/FETCH keyword literals in the mssql SELECT
+  // compiler, then remove these entries.
+  'select/limit-offset::mssql':
+      '[OPEN BUG] uppercase `OFFSET`/`ROWS`/`FETCH`/`NEXT`/`ONLY` keywords '
+      '— see the G4 note above this block.',
+  'union/all-order-limit::mssql':
+      '[OPEN BUG] see select/limit-offset::mssql (same OFFSET/FETCH '
+      'keyword casing, G4).',
+
+  // G5: `.limit(n)` on an UPDATE should compile to `update top (n) ...`
+  // on mssql; knex-dart drops the limit entirely (no TOP, no error).
+  // update/orderby-limit also needs the trailing `ORDER BY` on the UPDATE,
+  // which knex-dart drops too. Both also carry the G1 missing
+  // `;select @@rowcount` gap. Fix: add UPDATE TOP(n) (and ORDER BY)
+  // support to the mssql UPDATE compiler, then remove these entries.
+  'update/limit-mysql::mssql':
+      '[OPEN BUG] `.limit()` on UPDATE should compile to `update top (n) '
+      '...`; knex-dart silently drops the limit. Also missing the G1 '
+      'trailing `;select @@rowcount` (see update/set::mssql). See the G5 '
+      'note above this block.',
+  'update/orderby-limit::mssql':
+      '[OPEN BUG] see update/limit-mysql::mssql (same missing UPDATE '
+      'TOP(n), G5) — also drops the trailing ORDER BY entirely, and is '
+      'missing the G1 `;select @@rowcount` suffix.',
+
+  // G6: `.update().join(...)` should compile to `update [t] set ... from
+  // [t] inner join ... on ... where ...` on mssql (T-SQL's UPDATE...FROM
+  // form); knex-dart drops the FROM/JOIN clause entirely, silently
+  // updating unconditionally instead of only the joined rows. Also
+  // carries the G1 missing `;select @@rowcount` gap. Fix: add
+  // UPDATE...FROM...JOIN support to the mssql UPDATE compiler, then
+  // remove these entries.
+  'update/join-mysql::mssql':
+      '[OPEN BUG] `.update().join()` should compile to `update ... from '
+      '... inner join ... on ... where ...`; knex-dart drops the FROM/JOIN '
+      'clause entirely. Also missing the G1 trailing `;select @@rowcount` '
+      '(see update/set::mssql). See the G6 note above this block.',
+  'update/join-mysql-qualified-col::mssql':
+      '[OPEN BUG] see update/join-mysql::mssql (same missing '
+      'UPDATE...FROM...JOIN, G6).',
+
+  // G7: SQL Server's T-SQL `WITH` clause has no `RECURSIVE` keyword at all
+  // (unlike Postgres/MySQL/SQLite) — a recursive CTE just uses plain
+  // `WITH`. knex-dart emits `with recursive` unconditionally for every
+  // dialect, which is actually invalid syntax on real SQL Server (T-SQL
+  // would reject "recursive" as a syntax error there), not just a cosmetic
+  // mismatch. Fix: in the CTE compiler, omit "recursive" for
+  // KnexDialect.mssql specifically, then remove this entry.
+  'cte/recursive-nested-chained::mssql':
+      '[OPEN BUG] knex-dart emits `with recursive` for mssql, which T-SQL '
+      'does not support as syntax (mssql\'s WITH has no RECURSIVE '
+      'keyword at all) — see the G7 note above this block.',
+
+  // G8: formatter.dart's OPERATOR_QUERY_MAP escapes the JSONB containment
+  // operators (`?`, `?|`, `?&`) as `\?`/`\?|`/`\?&` unconditionally,
+  // regardless of target dialect — needed for Postgres (where knex.js's
+  // own client does the same, which is why postgres/cockroachdb/redshift
+  // pass this case), but knex.js's mssql client does NOT escape them,
+  // since T-SQL has no `?`-as-placeholder convention to protect against.
+  // Not caused by this PR's @pN change (the escaping is dialect-agnostic,
+  // unrelated to placeholder style) — simply never checked for mssql
+  // before. Fix: make the escaping conditional on dialect (or at least
+  // exclude mssql) in formatter.dart, then remove these entries.
+  'jsonb/qmark-op::mssql':
+      '[OPEN BUG] literal `?` escaped as `\\?`; knex.js\'s mssql client '
+      'does not escape it — see the G8 note above this block.',
+  'jsonb/pipe-op::mssql':
+      '[OPEN BUG] see jsonb/qmark-op::mssql (same unconditional `?|` '
+      'escaping, G8).',
+  'jsonb/amp-op::mssql':
+      '[OPEN BUG] see jsonb/qmark-op::mssql (same unconditional `?&` '
+      'escaping, G8).',
+
+  // G11 (union/except/intersect .wrappedArray() variants — numbered to
+  // match this triage pass's original categorization): knex.js's mssql
+  // client wraps every branch of a wrapped-array union/unionAll/
+  // intersect/except in parens EXCEPT the first one; knex-dart wraps all
+  // branches including the first. Fix: in the mssql set-operation
+  // compiler, skip the parens on the first branch specifically, then
+  // remove these entries.
+  'union/wrapped-array::mssql':
+      '[OPEN BUG] first branch is parenthesized; knex.js\'s mssql client '
+      'only parenthesizes subsequent branches — see the G11 note above '
+      'this block.',
+  'unionAll/wrapped-array::mssql':
+      '[OPEN BUG] see union/wrapped-array::mssql (same first-branch '
+      'parens, G11).',
+  'intersect/wrapped-array::mssql':
+      '[OPEN BUG] see union/wrapped-array::mssql (same first-branch '
+      'parens, G11).',
+  'except/wrapped-array::mssql':
+      '[OPEN BUG] see union/wrapped-array::mssql (same first-branch '
+      'parens, G11).',
+
+  // G13: `.forUpdate()`/`.forShare()` on mssql require a table-hint
+  // (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attached to the FROM clause —
+  // structurally different from every other dialect's trailing `FOR
+  // UPDATE`/`FOR SHARE` clause, which is what knex-dart's shared lock
+  // compiler emits. knex-dart explicitly refuses (StateError) rather than
+  // emit the wrong trailing-clause form. Fix: add mssql-specific
+  // FROM-clause table-hint support to the lock compiler, then remove
+  // these entries.
+  'lock/for-update::mssql':
+      '[OPEN BUG] `.forUpdate()` needs a `WITH (UPDLOCK)` FROM-clause '
+      'table-hint on mssql, not a trailing clause — knex-dart refuses '
+      'rather than emit the wrong form. See the G13 note above this block.',
+  'lock/for-update-tables::mssql':
+      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
+      'support, G13).',
+  'lock/for-share::mssql':
+      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
+      'support, G13 — `WITH (HOLDLOCK)` for .forShare()).',
+  'lock/for-update-skip-locked::mssql':
+      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
+      'support, G13).',
+  'lock/for-update-no-wait::mssql':
+      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
+      'support, G13).',
+  'lock/for-share-skip-locked::mssql':
+      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
+      'support, G13 — `WITH (HOLDLOCK)` for .forShare()).',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].
