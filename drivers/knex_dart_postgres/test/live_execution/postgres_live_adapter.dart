@@ -79,8 +79,10 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
   /// compiled DDL runs under the same search_path setup did.
   List<String> extraSearchPathSchemas = const [];
 
-  String get _searchPath =>
-      ['"$schemaName"', ...extraSearchPathSchemas].join(', ');
+  String get _searchPath => [
+    '"$schemaName"',
+    ...extraSearchPathSchemas.map((s) => '"${s.replaceAll('"', '""')}"'),
+  ].join(', ');
 
   PostgresLiveAdapter(this.client);
 
@@ -92,10 +94,18 @@ class PostgresLiveAdapter implements LiveDriverAdapter {
     await _sweepStaleSchemas();
     final suffix = _random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0');
     schemaName = 'live_pg_${DateTime.now().millisecondsSinceEpoch}_$suffix';
-    await client.rawSql('CREATE SCHEMA "$schemaName"');
-    await client.rawSql(
-      'COMMENT ON SCHEMA "$schemaName" IS \'$_harnessMarker\'',
-    );
+    // CREATE SCHEMA and its ownership-marking COMMENT must land in the same
+    // transaction — two independent rawSql calls each lease their own
+    // connection (see applySchemaDdlProfile's doc comment), so a failure
+    // between them would leave this schema created but unmarked, which
+    // _sweepStaleSchemas (correctly) then refuses to ever clean up as a
+    // permanent leak instead of a foreign schema it's protecting.
+    await client.trx<void>((trx) async {
+      await trx.rawSql('CREATE SCHEMA "$schemaName"');
+      await trx.rawSql(
+        'COMMENT ON SCHEMA "$schemaName" IS \'$_harnessMarker\'',
+      );
+    });
   }
 
   /// Finds which schema [extensionName] is actually installed in, if any.
