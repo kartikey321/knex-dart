@@ -119,8 +119,15 @@ void main() {
       // `dart test --tags=postgres` does by default) must never propagate
       // out of a `finally` and abort the whole case loop mid-run, silently
       // skipping every case still queued behind it — best-effort only.
+      // Each cleanup call gets its own try/catch — if tearDownRun throws,
+      // cleanUpNamedSchemas must still run. Otherwise a named schema
+      // created by this run is left behind, and the *next* case's
+      // recordPreexistingNamedSchemas() sees it as pre-existing and skips
+      // cleaning it up too, cascading the leak forward.
       try {
         await adapter.tearDownRun(runSucceeded: cleanupSucceeded);
+      } catch (_) {}
+      try {
         await adapter.cleanUpNamedSchemas();
       } catch (_) {}
     }
