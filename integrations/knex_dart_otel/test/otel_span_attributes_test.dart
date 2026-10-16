@@ -94,8 +94,8 @@ void main() {
   group('span attributes', () {
     test('db.system.name equals ctx.dbSystem', () async {
       for (final dbSystem in ['postgresql', 'sqlite', 'mysql']) {
-        late APISpan capturedSpan;
-        final otel = interceptorCapturing((span) => capturedSpan = span);
+        late Span capturedSpan;
+        final otel = interceptorCapturing((span) => capturedSpan = span as Span);
 
         await otel.intercept<List<Map<String, dynamic>>>(
           _ctx(dbSystem: dbSystem),
@@ -108,8 +108,8 @@ void main() {
 
     test('db.operation.name equals ctx.operationName', () async {
       for (final operationName in ['SELECT', 'INSERT']) {
-        late APISpan capturedSpan;
-        final otel = interceptorCapturing((span) => capturedSpan = span);
+        late Span capturedSpan;
+        final otel = interceptorCapturing((span) => capturedSpan = span as Span);
 
         await otel.intercept<List<Map<String, dynamic>>>(
           _ctx(operationName: operationName),
@@ -124,17 +124,17 @@ void main() {
     });
 
     test('db.namespace set only when database is provided', () async {
-      late APISpan withDatabase;
+      late Span withDatabase;
       await interceptorCapturing(
-        (span) => withDatabase = span,
+        (span) => withDatabase = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(database: 'orders_db'),
         () async => [],
       );
 
-      late APISpan withoutDatabase;
+      late Span withoutDatabase;
       await interceptorCapturing(
-        (span) => withoutDatabase = span,
+        (span) => withoutDatabase = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(database: null),
         () async => [],
@@ -150,17 +150,17 @@ void main() {
     test(
       'db.collection.name set only when collectionName is provided',
       () async {
-        late APISpan withCollection;
+        late Span withCollection;
         await interceptorCapturing(
-          (span) => withCollection = span,
+          (span) => withCollection = span as Span,
         ).intercept<List<Map<String, dynamic>>>(
           _ctx(collectionName: 'users'),
           () async => [],
         );
 
-        late APISpan withoutCollection;
+        late Span withoutCollection;
         await interceptorCapturing(
-          (span) => withoutCollection = span,
+          (span) => withoutCollection = span as Span,
         ).intercept<List<Map<String, dynamic>>>(
           _ctx(collectionName: null),
           () async => [],
@@ -180,11 +180,11 @@ void main() {
     test(
       'db.query.text equals ctx.sql when captureQueryText is true',
       () async {
-        late APISpan capturedSpan;
+        late Span capturedSpan;
         final sql = 'select * from "users" where "id" = ?';
 
         await interceptorCapturing(
-          (span) => capturedSpan = span,
+          (span) => capturedSpan = span as Span,
         ).intercept<List<Map<String, dynamic>>>(_ctx(sql: sql), () async => []);
 
         expect(capturedSpan.attributes.getString('db.query.text'), sql);
@@ -192,13 +192,13 @@ void main() {
     );
 
     test('db.query.text absent when captureQueryText is false', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
       final otel = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
           captureQueryText: false,
-          requestHook: (span, _) => capturedSpan = span,
+          requestHook: (span, _) => capturedSpan = span as Span,
         ),
       );
 
@@ -210,7 +210,7 @@ void main() {
     test(
       'db.query.text truncated to maxQueryTextLength plus ellipsis',
       () async {
-        late APISpan capturedSpan;
+        late Span capturedSpan;
         const maxQueryTextLength = 12;
         final sql = 'select * from users where email = ? and active = ?';
         final otel = KnexOtelInterceptor(
@@ -218,7 +218,7 @@ void main() {
           operationDurationHistogram: histogram,
           options: KnexOtelOptions(
             maxQueryTextLength: maxQueryTextLength,
-            requestHook: (span, _) => capturedSpan = span,
+            requestHook: (span, _) => capturedSpan = span as Span,
           ),
         );
 
@@ -234,17 +234,17 @@ void main() {
     );
 
     test('server.address set only when serverAddress is non-null', () async {
-      late APISpan withAddress;
+      late Span withAddress;
       await interceptorCapturing(
-        (span) => withAddress = span,
+        (span) => withAddress = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(serverAddress: 'db.local'),
         () async => [],
       );
 
-      late APISpan withoutAddress;
+      late Span withoutAddress;
       await interceptorCapturing(
-        (span) => withoutAddress = span,
+        (span) => withoutAddress = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(serverAddress: null),
         () async => [],
@@ -258,17 +258,17 @@ void main() {
     });
 
     test('server.port set only when serverPort is non-null', () async {
-      late APISpan withPort;
+      late Span withPort;
       await interceptorCapturing(
-        (span) => withPort = span,
+        (span) => withPort = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(serverPort: 5433),
         () async => [],
       );
 
-      late APISpan withoutPort;
+      late Span withoutPort;
       await interceptorCapturing(
-        (span) => withoutPort = span,
+        (span) => withoutPort = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(serverPort: null),
         () async => [],
@@ -281,10 +281,10 @@ void main() {
 
   group('span lifecycle and status', () {
     test('span name equals ctx.querySummary', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
 
       await interceptorCapturing(
-        (span) => capturedSpan = span,
+        (span) => capturedSpan = span as Span,
       ).intercept<List<Map<String, dynamic>>>(
         _ctx(querySummary: 'SELECT active users'),
         () async => [],
@@ -294,21 +294,21 @@ void main() {
     });
 
     test('span status is Ok on successful query', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
 
       await interceptorCapturing(
-        (span) => capturedSpan = span,
+        (span) => capturedSpan = span as Span,
       ).intercept<List<Map<String, dynamic>>>(_ctx(), () async => []);
 
       expect(capturedSpan.status, SpanStatusCode.Ok);
     });
 
     test('span status is Error when query throws', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
 
       await expectLater(
         () => interceptorCapturing(
-          (span) => capturedSpan = span,
+          (span) => capturedSpan = span as Span,
         ).intercept<void>(_ctx(), () async => throw StateError('fail')),
         throwsA(isA<StateError>()),
       );
@@ -318,11 +318,11 @@ void main() {
 
     test('error.type attribute is exception runtimeType string', () async {
       for (final error in [StateError('fail'), ArgumentError('bad input')]) {
-        late APISpan capturedSpan;
+        late Span capturedSpan;
 
         await expectLater(
           () => interceptorCapturing(
-            (span) => capturedSpan = span,
+            (span) => capturedSpan = span as Span,
           ).intercept<void>(_ctx(), () async => throw error),
           throwsA(isA<Object>()),
         );
@@ -335,11 +335,11 @@ void main() {
     });
 
     test('spanEvents contains exception event on error', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
 
       await expectLater(
         () => interceptorCapturing(
-          (span) => capturedSpan = span,
+          (span) => capturedSpan = span as Span,
         ).intercept<void>(_ctx(), () async => throw StateError('fail')),
         throwsA(isA<StateError>()),
       );
@@ -351,10 +351,10 @@ void main() {
     });
 
     test('isEnded is true after intercept returns', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
 
       await interceptorCapturing(
-        (span) => capturedSpan = span,
+        (span) => capturedSpan = span as Span,
       ).intercept<List<Map<String, dynamic>>>(_ctx(), () async => []);
 
       expect(capturedSpan.isEnded, isTrue);
@@ -403,11 +403,11 @@ void main() {
 
   group('interceptStream', () {
     test('sets db.system.name and db.operation.name', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
       final otel = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (span, _) => capturedSpan = span),
+        options: KnexOtelOptions(requestHook: (span, _) => capturedSpan = span as Span),
       );
 
       await otel
@@ -422,13 +422,13 @@ void main() {
     });
 
     test('ends span when subscription is cancelled mid-stream', () async {
-      late APISpan capturedSpan;
+      late Span capturedSpan;
       var responseHookCalls = 0;
       final otel = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
-          requestHook: (span, _) => capturedSpan = span,
+          requestHook: (span, _) => capturedSpan = span as Span,
           responseHook: (_, _, result) {
             responseHookCalls++;
             expect(result.isError, isFalse);
