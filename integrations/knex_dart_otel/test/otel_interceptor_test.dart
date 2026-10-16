@@ -89,11 +89,11 @@ void main() {
 
   group('intercept() success path', () {
     test('span is ended after successful query', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       await i.intercept<List<Map<String, dynamic>>>(
         _ctx(),
@@ -106,11 +106,11 @@ void main() {
     });
 
     test('span name is querySummary', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       await i.intercept<List<Map<String, dynamic>>>(
         _ctx(querySummary: 'SELECT users'),
@@ -120,22 +120,22 @@ void main() {
     });
 
     test('span status is Ok on success', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       await i.intercept<List<Map<String, dynamic>>>(_ctx(), () async => []);
       expect(span!.status, SpanStatusCode.Ok);
     });
 
     test('OTel DB semconv attributes are set', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       await i.intercept<List<Map<String, dynamic>>>(
         _ctx(
@@ -160,13 +160,13 @@ void main() {
     });
 
     test('db.query.text not set when captureQueryText is false', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
           captureQueryText: false,
-          requestHook: (s, _) => span = s,
+          requestHook: (s, _) => span = s as Span,
         ),
       );
       await i.intercept<List<Map<String, dynamic>>>(_ctx(), () async => []);
@@ -174,13 +174,13 @@ void main() {
     });
 
     test('db.query.text truncated at maxQueryTextLength', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
           maxQueryTextLength: 10,
-          requestHook: (s, _) => span = s,
+          requestHook: (s, _) => span = s as Span,
         ),
       );
       await i.intercept<List<Map<String, dynamic>>>(
@@ -294,11 +294,11 @@ void main() {
     });
 
     test('span status is Error on exception', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       try {
         await i.intercept<List<Map<String, dynamic>>>(
@@ -310,11 +310,11 @@ void main() {
     });
 
     test('error.type attribute set on exception', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       try {
         await i.intercept<List<Map<String, dynamic>>>(
@@ -326,11 +326,11 @@ void main() {
     });
 
     test('span is ended on exception', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       try {
         await i.intercept<List<Map<String, dynamic>>>(
@@ -389,12 +389,12 @@ void main() {
     });
 
     test('responseHook throwing does not prevent span from ending', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
-          requestHook: (s, _) => span = s,
+          requestHook: (s, _) => span = s as Span,
           responseHook: (span, ctx, result) =>
               throw StateError('hook exploded'),
         ),
@@ -449,11 +449,11 @@ void main() {
 
   group('interceptStream()', () {
     test('span is ended when stream completes normally', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       await i
           .interceptStream<int>(_ctx(), () => Stream.fromIterable([1, 2, 3]))
@@ -463,11 +463,11 @@ void main() {
     });
 
     test('span is ended when stream errors', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       try {
         await i
@@ -483,12 +483,12 @@ void main() {
     });
 
     test('span is ended when subscription is cancelled', () async {
-      APISpan? span;
+      Span? span;
       final cancelled = Completer<void>();
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       late StreamSubscription<int> sub;
       sub = i
@@ -505,11 +505,11 @@ void main() {
     });
 
     test('no span created when stream is never subscribed', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
-        options: KnexOtelOptions(requestHook: (s, _) => span = s),
+        options: KnexOtelOptions(requestHook: (s, _) => span = s as Span),
       );
       // Create stream but never listen.
       // ignore: unused_local_variable
@@ -612,13 +612,13 @@ void main() {
 
   group('KnexOtelOptions validation', () {
     test('maxQueryTextLength = 0 is valid (captures nothing)', () async {
-      APISpan? span;
+      Span? span;
       final i = KnexOtelInterceptor(
         tracer: tracer,
         operationDurationHistogram: histogram,
         options: KnexOtelOptions(
           maxQueryTextLength: 0,
-          requestHook: (s, _) => span = s,
+          requestHook: (s, _) => span = s as Span,
         ),
       );
       await i.intercept<List<Map<String, dynamic>>>(
