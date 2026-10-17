@@ -26,6 +26,12 @@ Future<KnexMssql?> _tryConnect() async {
       password: _password,
     );
   } catch (e) {
+    // Surface the real cause (e.g. TLS certificate rejection) instead of a
+    // generic "not reachable" that would otherwise mask it — see
+    // https://github.com/kartikey321/knex-dart/pull/29 for the exact
+    // failure this masked (a self-signed-certificate rejection reported as
+    // "not reachable").
+    print('MSSQL connect failed: $e');
     return null;
   }
 }

@@ -9,7 +9,7 @@ Turso (libSQL) driver for [knex_dart](https://pub.dev/packages/knex_dart) over t
 
 ```yaml
 dependencies:
-  knex_dart_turso: ^0.1.0
+  knex_dart_turso: ^0.2.2
 ```
 
 ## Quick Start
