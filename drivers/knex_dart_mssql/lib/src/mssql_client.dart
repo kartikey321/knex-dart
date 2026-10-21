@@ -82,7 +82,14 @@ class MssqlClient {
     List<dynamic>? bindings,
   ]) => _executeRaw(sql, bindings ?? []);
 
-  Future<List<Map<String, dynamic>>> _run(QueryBuilder q) {
+  // Note: these three must stay `async` even though each has a single
+  // `return`/`await` — a bare (non-async) function that throws before its
+  // first `await` throws synchronously at the call site instead of via the
+  // returned Future, breaking callers that do
+  // `expectLater(client.rawSql(...), throwsA(...))` (the argument expression
+  // throws before expectLater ever runs). `async` makes Dart funnel every
+  // throw, sync or not, through the Future's error channel.
+  Future<List<Map<String, dynamic>>> _run(QueryBuilder q) async {
     if (_isClosed) throw StateError('MssqlClient is closed');
     final compiled = q.toSQL();
     return _executeCompiled(compiled.sql, compiled.bindings);
@@ -126,7 +133,7 @@ class MssqlClient {
   Future<List<Map<String, dynamic>>> _executeCompiled(
     String sql,
     List<dynamic> bindings,
-  ) {
+  ) async {
     if (_isClosed) throw StateError('MssqlClient is closed');
     final params = <String, Object?>{
       for (var i = 0; i < bindings.length; i++) 'p$i': bindings[i],
@@ -139,7 +146,7 @@ class MssqlClient {
   Future<List<Map<String, dynamic>>> _executeRaw(
     String sql,
     List<dynamic> bindings,
-  ) {
+  ) async {
     if (_isClosed) throw StateError('MssqlClient is closed');
 
     // With no bindings, send the SQL unchanged. Rewriting unconditionally
