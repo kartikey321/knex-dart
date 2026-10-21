@@ -478,80 +478,105 @@ const Map<String, String> parityAllowlist = {
       'the ON clause content; matching knex.js here would mean '
       'deliberately emitting broken SQL.',
 
-  // ── OPEN BUG: MSSQL feature gaps surfaced by enabling mssql parity ─────────
-  // checking for the first time (previously excluded via _skipDialects).
-  // None of these are caused by the @pN placeholder change in this PR —
-  // they're pre-existing gaps that were simply never checked before mssql
-  // was reachable via the core harness. Grouped by root cause below; each
-  // group's first entry has the full explanation, siblings say "see X".
+  // ── MSSQL divergences surfaced by enabling mssql parity checking ──────────
+  // (previously excluded via _skipDialects). None were caused by the @pN
+  // placeholder change that enabled them — they were pre-existing gaps that
+  // simply had never been checked. Eight root-cause groups have since been
+  // fixed in the compiler; what remains below is the one group deliberately
+  // NOT matched, plus the two cases where knex.js's own output is invalid
+  // T-SQL. Each group's first entry carries the full explanation; siblings
+  // say "see X".
 
-  // G1: knex.js's mssql client appends `;select @@rowcount` after a
-  // non-RETURNING UPDATE/DELETE (SQL Server's driver doesn't surface an
-  // affected-row count any other way through this query shape). knex-dart
-  // doesn't append it — the compiled SQL is otherwise byte-identical in
-  // every case below. Fix: in SchemaCompiler/QueryCompiler's mssql UPDATE
-  // and DELETE paths, append `;select @@rowcount` unless .returning() was
-  // used, then remove these entries.
+  // G1 — `;select @@rowcount`, deliberately not emitted.
+  //
+  // knex.js's mssql client appends `;select @@rowcount` to every
+  // non-RETURNING UPDATE/DELETE. That exists because `tedious` can't surface
+  // an affected-row count for this query shape, so knex smuggles one out via
+  // a second statement in the same batch. knex-dart's driver has no such
+  // limitation and three concrete reasons not to copy it:
+  //
+  //   1. The count is already there. The `mssql` package's QueryResult
+  //      carries `rowsAffected` (summed across result sets by
+  //      processQueryResponse()); MssqlClient._runQuery currently just
+  //      discards it. Appending a second statement to re-derive a number the
+  //      driver is already handed is pure duplication.
+  //
+  //   2. It would change the driver's return value. Of the two statements in
+  //      the batch, only `select @@rowcount` emits COLMETADATA, so it becomes
+  //      `sets.first` in processQueryResponse() — which is exactly what
+  //      _runQuery maps to its result. `db.update(qb)`/`db.delete(qb)` would
+  //      go from returning `[]` to returning `[{<unnamed>: n}]`, a breaking
+  //      change to the public contract of every mssql write. (The token
+  //      reader does drain both result sets, so there's no connection
+  //      desync — the shape is wrong, not the stream.)
+  //
+  //   3. In one case it isn't even valid SQL. cte/delete-source wants the
+  //      suffix *inside* a CTE body:
+  //        with [d] as (delete from [a] where [id] = @p0;select @@rowcount)
+  //        select * from [a]
+  //      A CTE body can hold neither a DELETE nor two statements. knex.js
+  //      emits this because its suffix logic doesn't know it's nested.
+  //
+  // So these stay divergent on purpose, same call as on/bare-string::mssql
+  // and update/orderby-limit::mssql below: knex-dart doesn't copy knex.js
+  // when the result would be wrong or unrunnable. If an affected-row count is
+  // ever wanted, the fix is to surface the `rowsAffected` the driver already
+  // receives, not to append a statement.
   'update/set::mssql':
-      '[OPEN BUG] missing trailing `;select @@rowcount` — see the G1 note '
-      'above this block.',
+      '[ACCEPTED] no trailing `;select @@rowcount` — see the G1 note above '
+      'this block.',
   'delete/where::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'update/increment::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'delete/all::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'clear/counters::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'update/two-cols::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'update/null-value::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'update/from-where-then-update::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'update/raw-value::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'cte/update-simple::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'cte/delete-simple::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, G1).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`).',
   'cte/delete-source::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, '
-      'G1 — here the suffix is missing inside the CTE body, right after '
-      'the DELETE, same root cause).',
+      '[ACCEPTED] see update/set::mssql (G1) — this is reason 3 in that note: '
+      'knex.js puts the suffix inside the CTE body, which is invalid T-SQL.',
   'delete/join-single::mssql':
-      '[OPEN BUG] see update/set::mssql (same missing `;select @@rowcount`, '
-      'G1 — the DELETE...JOIN syntax itself already compiles correctly).',
+      '[ACCEPTED] see update/set::mssql (G1 `;select @@rowcount`) — the '
+      'DELETE...JOIN syntax itself compiles correctly.',
   'delete/join-multi::mssql':
-      '[OPEN BUG] see delete/join-single::mssql (same missing '
-      '`;select @@rowcount`, G1).',
+      '[ACCEPTED] see delete/join-single::mssql (G1 `;select @@rowcount`).',
   'delete/join-no-where::mssql':
-      '[OPEN BUG] see delete/join-single::mssql (same missing '
-      '`;select @@rowcount`, G1).',
+      '[ACCEPTED] see delete/join-single::mssql (G1 `;select @@rowcount`).',
   'delete/join-oncallback-where::mssql':
-      '[OPEN BUG] see delete/join-single::mssql (same missing '
-      '`;select @@rowcount`, G1).',
+      '[ACCEPTED] see delete/join-single::mssql (G1 `;select @@rowcount`).',
 
   'cte/update-source::mssql':
-      '[OPEN BUG] the inner CTE UPDATE\'s `.returning()` now compiles to '
-      '`OUTPUT inserted.[group_id]` correctly (G2, fixed); the only '
-      'remaining difference is the outer UPDATE\'s missing trailing '
-      '`;select @@rowcount` — see update/set::mssql (G1).',
+      '[ACCEPTED] the inner CTE UPDATE\'s `.returning()` compiles to '
+      '`OUTPUT inserted.[group_id]` correctly; the only remaining difference '
+      'is the outer UPDATE\'s `;select @@rowcount` — see update/set::mssql '
+      '(G1).',
 
-  // G5/G6: `update top (n)` and T-SQL's UPDATE...FROM join form are both
-  // implemented and byte-correct against knex.js now (unit-tested in
-  // test/query/review_fixes_test.dart, since the ratchet below can't confirm
-  // a case that still diverges for an unrelated reason). These three entries
-  // survive only on the G1 `;select @@rowcount` residual — see the G1 note
-  // above.
+  // `update top (n)` and T-SQL's UPDATE...FROM join form are both implemented
+  // and byte-correct against knex.js (unit-tested in
+  // test/query/review_fixes_test.dart, since this ratchet can't confirm a
+  // case that still diverges for an unrelated reason). These three entries
+  // survive only on the deliberate G1 `;select @@rowcount` divergence.
   'update/limit-mysql::mssql':
-      '[OPEN BUG] `update top (n)` is correct now; only the G1 trailing '
-      '`;select @@rowcount` is missing — see update/set::mssql.',
+      '[ACCEPTED] `update top (n)` is correct; only the G1 '
+      '`;select @@rowcount` differs — see update/set::mssql.',
   'update/join-mysql::mssql':
-      '[OPEN BUG] the UPDATE...FROM join form is correct now; only the G1 '
-      'trailing `;select @@rowcount` is missing — see update/set::mssql.',
+      '[ACCEPTED] the UPDATE...FROM join form is correct; only the G1 '
+      '`;select @@rowcount` differs — see update/set::mssql.',
   'update/join-mysql-qualified-col::mssql':
-      '[OPEN BUG] see update/join-mysql::mssql (same G1 residual).',
+      '[ACCEPTED] see update/join-mysql::mssql (same G1 residual).',
 
   // The one case that still has a second, independent difference: knex.js
   // emits a trailing `order by` on the UPDATE, which T-SQL has no syntax for
