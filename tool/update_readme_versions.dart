@@ -8,7 +8,7 @@ import 'dart:io';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const _readmeFiles = [
+const _rootReadmeFiles = [
   'README.md',
   'packages/knex_dart/README.md',
 ];
@@ -28,6 +28,15 @@ const _packageDirs = [
   'drivers/knex_dart_snowflake',
   'integrations/knex_dart_otel',
 ];
+
+/// Every root README plus each package/driver's own README.md — so a
+/// package's self-install instructions (e.g. `drivers/knex_dart_mssql/README.md`)
+/// can't silently drift from its actual pubspec.yaml version. Deduplicated
+/// since `packages/knex_dart/README.md` appears in both lists.
+List<String> get _readmeFiles => {
+      ..._rootReadmeFiles,
+      for (final dir in _packageDirs) '$dir/README.md',
+    }.toList();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

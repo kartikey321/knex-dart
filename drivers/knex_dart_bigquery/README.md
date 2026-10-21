@@ -9,7 +9,7 @@ Google BigQuery driver for [knex_dart](https://pub.dev/packages/knex_dart) using
 
 ```yaml
 dependencies:
-  knex_dart_bigquery: ^0.1.0
+  knex_dart_bigquery: ^0.2.2
 ```
 
 ## Quick Start
