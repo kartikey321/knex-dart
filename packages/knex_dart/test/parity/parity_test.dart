@@ -538,38 +538,33 @@ const Map<String, String> parityAllowlist = {
       'remaining difference is the outer UPDATE\'s missing trailing '
       '`;select @@rowcount` — see update/set::mssql (G1).',
 
-  // G5: `.limit(n)` on an UPDATE should compile to `update top (n) ...`
-  // on mssql; knex-dart drops the limit entirely (no TOP, no error).
-  // update/orderby-limit also needs the trailing `ORDER BY` on the UPDATE,
-  // which knex-dart drops too. Both also carry the G1 missing
-  // `;select @@rowcount` gap. Fix: add UPDATE TOP(n) (and ORDER BY)
-  // support to the mssql UPDATE compiler, then remove these entries.
+  // G5/G6: `update top (n)` and T-SQL's UPDATE...FROM join form are both
+  // implemented and byte-correct against knex.js now (unit-tested in
+  // test/query/review_fixes_test.dart, since the ratchet below can't confirm
+  // a case that still diverges for an unrelated reason). These three entries
+  // survive only on the G1 `;select @@rowcount` residual — see the G1 note
+  // above.
   'update/limit-mysql::mssql':
-      '[OPEN BUG] `.limit()` on UPDATE should compile to `update top (n) '
-      '...`; knex-dart silently drops the limit. Also missing the G1 '
-      'trailing `;select @@rowcount` (see update/set::mssql). See the G5 '
-      'note above this block.',
-  'update/orderby-limit::mssql':
-      '[OPEN BUG] see update/limit-mysql::mssql (same missing UPDATE '
-      'TOP(n), G5) — also drops the trailing ORDER BY entirely, and is '
-      'missing the G1 `;select @@rowcount` suffix.',
-
-  // G6: `.update().join(...)` should compile to `update [t] set ... from
-  // [t] inner join ... on ... where ...` on mssql (T-SQL's UPDATE...FROM
-  // form); knex-dart drops the FROM/JOIN clause entirely, silently
-  // updating unconditionally instead of only the joined rows. Also
-  // carries the G1 missing `;select @@rowcount` gap. Fix: add
-  // UPDATE...FROM...JOIN support to the mssql UPDATE compiler, then
-  // remove these entries.
+      '[OPEN BUG] `update top (n)` is correct now; only the G1 trailing '
+      '`;select @@rowcount` is missing — see update/set::mssql.',
   'update/join-mysql::mssql':
-      '[OPEN BUG] `.update().join()` should compile to `update ... from '
-      '... inner join ... on ... where ...`; knex-dart drops the FROM/JOIN '
-      'clause entirely. Also missing the G1 trailing `;select @@rowcount` '
-      '(see update/set::mssql). See the G6 note above this block.',
+      '[OPEN BUG] the UPDATE...FROM join form is correct now; only the G1 '
+      'trailing `;select @@rowcount` is missing — see update/set::mssql.',
   'update/join-mysql-qualified-col::mssql':
-      '[OPEN BUG] see update/join-mysql::mssql (same missing '
-      'UPDATE...FROM...JOIN, G6).',
+      '[OPEN BUG] see update/join-mysql::mssql (same G1 residual).',
 
+  // The one case that still has a second, independent difference: knex.js
+  // emits a trailing `order by` on the UPDATE, which T-SQL has no syntax for
+  // at all (its UPDATE grammar is `UPDATE [TOP (n)] t SET ... [OUTPUT]
+  // [FROM] [WHERE]` — no ORDER BY). Matching knex.js byte-for-byte here would
+  // mean deliberately emitting a statement SQL Server rejects, same call as
+  // on/bare-string::mssql above. The `update top (n)` half IS emitted.
+  'update/orderby-limit::mssql':
+      '[ACCEPTED] knex.js appends `order by [foo] desc` to the UPDATE; T-SQL '
+      'has no ORDER BY on UPDATE, so emitting it would produce a statement '
+      'SQL Server rejects — same reasoning as on/bare-string::mssql. The '
+      '`update top (n)` prefix is emitted correctly (G5). Also carries the '
+      'G1 `;select @@rowcount` residual.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

@@ -782,4 +782,82 @@ void main() {
       expect(sql, isNot(contains('returning')));
     });
   });
+
+  group('MSSQL UPDATE: top(n) and the UPDATE...FROM join form', () {
+    final mssql = MockClient(driverName: 'mssql');
+
+    test('limit() on an UPDATE compiles to `update top (n)`', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .where('id', 5)
+          .update({'email': 'foo'})
+          .limit(1)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update top (\$1) "users" set "email" = \$2 where "id" = \$3',
+      );
+      // `top (n)` precedes the SET list in the text, so its binding must be
+      // emitted first — previously the limit was dropped entirely.
+      expect(sql.bindings, [1, 'foo', 5]);
+    });
+
+    test('join() on an UPDATE compiles to T-SQL UPDATE...FROM', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .join('orders', 'users.id', 'orders.user_id')
+          .where('users.id', 1)
+          .update({'email': 'foo'})
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "email" = \$1 from "users" inner join "orders" '
+        'on "users"."id" = "orders"."user_id" where "users"."id" = \$2',
+      );
+      expect(sql.bindings, ['foo', 1]);
+    });
+
+    test('UPDATE...FROM join ON bindings follow the SET bindings', () {
+      // Reverse of the MySQL case above: on mssql the FROM/JOIN comes *after*
+      // `set ...` in the text, so its bindings must come after SET's.
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .join(
+            'accounts',
+            (j) => j
+                .on('users.id', '=', 'accounts.user_id')
+                .onVal('accounts.status', '=', 'active'),
+          )
+          .update({'name': 'Bob'})
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "name" = \$1 from "users" inner join "accounts" '
+        'on "users"."id" = "accounts"."user_id" and "accounts"."status" = \$2',
+      );
+      expect(sql.bindings, ['Bob', 'active']);
+    });
+
+    test('OUTPUT precedes the FROM clause when both are present', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .join('orders', 'users.id', 'orders.user_id')
+          .update({'email': 'foo'})
+          .returning(['id'])
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "email" = \$1 output inserted."id" from "users" '
+        'inner join "orders" on "users"."id" = "orders"."user_id"',
+      );
+    });
+  });
 }

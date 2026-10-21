@@ -2201,6 +2201,21 @@ class QueryCompiler {
       parts.add(output);
     }
 
+    // mssql has no JOIN clause on UPDATE; T-SQL spells it as an UPDATE...FROM
+    // instead — `update [t] set ... from [t] inner join [o] on ... where ...`
+    // — where the FROM re-states the target table and the joins hang off it.
+    // Dropping the join (the previous behavior) didn't just change syntax: it
+    // turned a join-filtered update into an unconditional one. Compiled here,
+    // after the SET list and OUTPUT clause, so any ON-clause bindings land
+    // after SET's, matching the SQL text order (the reverse of MySQL, where
+    // the join precedes `set` — see _update()).
+    if (client.driverName == 'mssql') {
+      final joinSql = _join();
+      if (joinSql.isNotEmpty) {
+        parts.add('from ${formatter.wrap(single['table'])} $joinSql');
+      }
+    }
+
     final where = _where();
     if (where.isNotEmpty) {
       parts.add(where);
@@ -2240,6 +2255,15 @@ class QueryCompiler {
 
     final table = formatter.wrap(single['table']);
 
+    // mssql expresses `.limit(n)` on an UPDATE as a `top (n)` prefix:
+    // `update top (n) [t] set ...`. Compiled before the SET list below so its
+    // binding is emitted first, matching the SQL text order — knex.js's
+    // standardUpdate() calls top() ahead of its SET prep for the same reason.
+    // Empty for every other dialect; MySQL's trailing `limit` form is handled
+    // in _updateQuery() instead.
+    final top = _top();
+    final topClause = top.isEmpty ? '' : '$top ';
+
     // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
     // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
     // to match knex.js's mysql-querycompiler. Compiled BEFORE the SET list
@@ -2275,7 +2299,7 @@ class QueryCompiler {
       }
     }
 
-    return 'update $table$joinClause set ${updates.join(', ')}';
+    return 'update $topClause$table$joinClause set ${updates.join(', ')}';
   }
 
   /// Compile DELETE query
