@@ -564,6 +564,22 @@ const Map<String, String> parityAllowlist = {
       'is the outer UPDATE\'s `;select @@rowcount` — see update/set::mssql '
       '(G1).',
 
+  // A `top (n)` prefix bounds the select it prefixes, not a set operation
+  // built from it. knex.js emits `select top (n) ... union select ... order by
+  // ...`, which caps the FIRST BRANCH only: that branch silently loses rows
+  // while the other returns everything, and the ORDER BY then sorts whatever
+  // survived. `.limit()` on a union is meant to bound the union's result.
+  // knex-dart keeps the trailing `offset 0 rows fetch next n rows only` form,
+  // which applies after the ORDER BY to the whole set — the same form knex.js
+  // itself uses once an offset is present (see union/all-order-limit::mssql,
+  // which passes). Matching knex.js byte-for-byte here would mean shipping a
+  // silent wrong-results bug, so this follows the same call as
+  // on/bare-string::mssql. Flagged by Greptile on PR #34.
+  'union/order-limit-outer::mssql':
+      '[ACCEPTED] knex.js caps only the first union branch with `top (n)`; '
+      'knex-dart bounds the combined result with trailing OFFSET/FETCH — see '
+      'the note above this entry.',
+
   // `update top (n)` and T-SQL's UPDATE...FROM join form are both implemented
   // and byte-correct against knex.js (unit-tested in
   // test/query/review_fixes_test.dart, since this ratchet can't confirm a

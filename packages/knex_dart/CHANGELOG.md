@@ -49,6 +49,18 @@
   - Wrapped `union`/`unionAll`/`intersect`/`except` leave the base select
     unparenthesized, and the OFFSET/FETCH keywords are lowercase.
 
+  Three of these deliberately diverge from knex.js, because matching it
+  would emit a statement SQL Server rejects or silently return wrong rows:
+  - The lock hint attaches to the table (`from [t] with (UPDLOCK) inner join
+    ...`). knex.js orders its `lock` component after `join`, which trails the
+    hint off the end of an ON condition where T-SQL won't accept it.
+  - `.limit(n)` on a set operation keeps the trailing OFFSET/FETCH form. A
+    `top (n)` prefix — what knex.js emits — bounds only the first branch, so
+    one branch loses rows while the other returns everything.
+  - A qualified `.returning(['users.id'])` drops the table qualifier, since
+    `inserted`/`deleted` expose the target table's columns directly;
+    `inserted.[users].[id]` is two qualifiers for one column.
+
 ## 1.3.3
 
 - Deprecated `QueryBuilder.execute()` and `QueryBuilder.then`. Both were

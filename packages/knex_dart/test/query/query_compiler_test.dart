@@ -438,6 +438,64 @@ void main() {
       expect(sql.bindings, [10, 'active']);
     });
 
+    test('MSSQL limit(n).offset(0) takes the TOP form', () {
+      // knex.js's top() reads `noOffset = !offset`, so a zero offset counts
+      // as no offset at all and the limit becomes TOP. _offset() must then
+      // contribute nothing, or the statement would carry both forms.
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = QueryBuilder(mssql).table('users').limit(10).offset(0).toSQL();
+
+      expect(sql.sql, 'select top (\$1) * from "users"');
+      expect(sql.sql, isNot(contains('offset')));
+      expect(sql.bindings, [10]);
+    });
+
+    test('MSSQL limit(0) still emits top (0)', () {
+      // The other half of the same quirk: knex.js's `!limit && limit !== 0`
+      // keeps an explicit zero limit, so `top (0)` is emitted rather than the
+      // limit being dropped as falsy.
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = QueryBuilder(mssql).table('users').limit(0).toSQL();
+
+      expect(sql.sql, 'select top (\$1) * from "users"');
+      expect(sql.bindings, [0]);
+    });
+
+    test('MSSQL offset without a limit emits a bare offset clause', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = QueryBuilder(mssql).table('users').offset(20).toSQL();
+
+      expect(sql.sql, 'select * from "users" offset \$1 rows');
+      expect(sql.sql, isNot(contains('fetch next')));
+      expect(sql.bindings, [20]);
+    });
+
+    test('MSSQL limit on a union bounds the union, not its first branch', () {
+      // `select top (n) ... union select ...` caps only the first branch: it
+      // silently loses rows there while the other branch returns everything,
+      // and the ORDER BY then sorts whatever survived. The trailing
+      // OFFSET/FETCH form applies after the ORDER BY to the whole set, which
+      // is what `.limit()` on a union means. knex.js emits the TOP form here
+      // — see union/order-limit-outer::mssql in the parity ledger.
+      final mssql = MockClient(driverName: 'mssql');
+      final other = QueryBuilder(mssql).table('b').select(['id']);
+      final sql = QueryBuilder(mssql)
+          .table('a')
+          .select(['id'])
+          .union([other])
+          .orderBy('id')
+          .limit(10)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'select "id" from "a" union select "id" from "b" order by "id" asc '
+        'offset 0 rows fetch next \$1 rows only',
+      );
+      expect(sql.sql, isNot(contains('top (')));
+      expect(sql.bindings, [10]);
+    });
+
     test('MSSQL OFFSET + LIMIT uses OFFSET/FETCH with both params', () {
       final mssql = MockClient(driverName: 'mssql');
       final builder = QueryBuilder(

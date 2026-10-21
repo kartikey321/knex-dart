@@ -656,6 +656,24 @@ void main() {
       );
     });
 
+    test('MSSQL: the hint attaches to the table, ahead of any joins', () {
+      // A table hint is only legal directly after a table source. knex.js
+      // lists `lock` after `join`, which emits the hint trailing the ON
+      // condition — attached to nothing, and rejected by SQL Server.
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .join('orders', 'users.id', 'orders.user_id')
+            .forUpdate()
+            .toSQL()
+            .sql,
+        'select * from "users" with (UPDLOCK) inner join "orders" '
+        'on "users"."id" = "orders"."user_id"',
+      );
+    });
+
     test('MSSQL: skipLocked()/noWait() drop — no table-hint equivalent', () {
       final mssql = MockClient(driverName: 'mssql');
       expect(
@@ -697,6 +715,55 @@ void main() {
       );
       // Previously ['Bob', 'active'] — wrong slot for both placeholders.
       expect(sql.bindings, ['active', 'Bob']);
+    });
+  });
+
+  group('MSSQL dialect shapes with no trailing-clause equivalent', () {
+    final mssql = MockClient(driverName: 'mssql');
+
+    test('withRecursive() emits a plain `with` — T-SQL has no RECURSIVE', () {
+      final sql = mssql
+          .queryBuilder()
+          .withRecursive('t', mssql.queryBuilder().table('users'))
+          .table('t')
+          .toSQL()
+          .sql;
+
+      expect(sql, startsWith('with "t" as ('));
+      expect(sql, isNot(contains('recursive')));
+    });
+
+    test('a wrapped union leaves the base select unparenthesized', () {
+      final other = mssql.queryBuilder().table('users').where('id', 2);
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .where('id', 1)
+          .union([other], wrap: true)
+          .toSQL()
+          .sql;
+
+      expect(sql, startsWith('select * from "users" where "id" = \$1 union ('));
+    });
+
+    test('the jsonb ? escape is kept or dropped per placeholder style', () {
+      // The escape exists to protect a literal `?` from knex.js's
+      // `?`→placeholder pass, so it only belongs on dialects that actually
+      // use `?` as their placeholder.
+      expect(
+        mssql.queryBuilder().table('t').where('tags', '?', 'x').toSQL().sql,
+        'select * from "t" where "tags" ? \$1',
+      );
+      expect(
+        QueryBuilder(my).table('t').where('tags', '?', 'x').toSQL().sql,
+        r'select * from `t` where `tags` \? ?',
+      );
+      expect(
+        QueryBuilder(
+          SqliteMockClient(),
+        ).table('t').where('tags', '?', 'x').toSQL().sql,
+        contains(r'\?'),
+      );
     });
   });
 
@@ -768,6 +835,34 @@ void main() {
             .toSQL()
             .sql,
         'delete from "users" output deleted."id" where "id" = \$1',
+      );
+    });
+
+    test('a qualified returning column drops its table qualifier', () {
+      // `inserted`/`deleted` expose the target table's own columns, so a
+      // column there is addressed by name alone — keeping the caller's
+      // qualifier would emit `inserted."users"."id"`, two qualifiers for one
+      // column, which SQL Server rejects.
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({'email': 'a@b.com'})
+            .returning(['users.id'])
+            .toSQL()
+            .sql,
+        'insert into "users" ("email") output inserted."id" values (\$1)',
+      );
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .where('id', 1)
+            .delete()
+            .returning(['users.*'])
+            .toSQL()
+            .sql,
+        'delete from "users" output deleted.* where "id" = \$1',
       );
     });
 

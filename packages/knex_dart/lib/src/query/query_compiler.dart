@@ -240,19 +240,6 @@ class QueryCompiler {
       parts.add(joinSql);
     }
 
-    // mssql's lock hint is a FROM-clause table hint (`with (UPDLOCK)`), so it
-    // belongs here — right after the joins and before WHERE — not in the
-    // trailing position every other dialect's `for update`/`for share` clause
-    // takes. Same slot knex.js's mssql compiler gives it in its `components`
-    // list: [columns, join, lock, where, union, group, having, order, limit,
-    // offset].
-    if (client.driverName == 'mssql') {
-      final hintSql = _lock();
-      if (hintSql.isNotEmpty) {
-        parts.add(hintSql);
-      }
-    }
-
     // WHERE clause
     final whereSql = _where();
     if (whereSql.isNotEmpty) {
@@ -397,13 +384,30 @@ class QueryCompiler {
     final top = _top();
     final topClause = top.isEmpty ? '' : '$top ';
 
+    // mssql's row-lock hint attaches to the table reference it locks, so it
+    // is emitted here as part of the FROM clause rather than as a standalone
+    // clause elsewhere in the statement.
+    //
+    // This deliberately differs from knex.js, which lists `lock` as a
+    // component *after* `join` and so emits
+    //   `from [users] inner join [orders] on ... with (UPDLOCK)`
+    // for a joined locking read. T-SQL only accepts a table hint directly
+    // after a table source, so that form is a syntax error — the hint ends up
+    // trailing an ON condition, attached to nothing. Emitting it against the
+    // table instead keeps joined locking reads runnable, and is byte-identical
+    // to knex.js for the unjoined shape (nothing sits between the table and
+    // the hint there). No parity fixture covers join + lock, so this costs
+    // nothing in parity terms.
+    final lockHint = client.driverName == 'mssql' ? _lock() : '';
+    final lockSuffix = lockHint.isEmpty ? '' : ' $lockHint';
+
     // Get column statements
     final columnStmts = grouped['columns'] ?? grouped['select'];
 
     // No explicit columns = SELECT *
     if (columnStmts == null || columnStmts.isEmpty) {
       if (tableName.isNotEmpty) {
-        return 'select $topClause* from $tableName';
+        return 'select $topClause* from $tableName$lockSuffix';
       }
       return 'select $topClause*';
     }
@@ -531,7 +535,7 @@ class QueryCompiler {
         : (hasDistinct ? 'distinct ' : '');
 
     if (tableName.isNotEmpty) {
-      return 'select $distinctClause$topClause$columnList from $tableName';
+      return 'select $distinctClause$topClause$columnList from $tableName$lockSuffix';
     }
 
     return 'select $distinctClause$topClause$columnList';
@@ -553,6 +557,21 @@ class QueryCompiler {
     final offset = single['offset'];
     if (limit == null) return '';
     if (offset != null && !(offset is num && offset == 0)) return '';
+
+    // A `top (n)` prefix binds to the select it prefixes, not to a set
+    // operation built from it: `select top (n) ... union select ...` caps only
+    // the first branch and leaves the combined result unbounded, so one branch
+    // silently loses rows while the other returns everything. `.limit()` on a
+    // union is meant to bound the union's result, which is what the trailing
+    // OFFSET/FETCH form does — it applies after the ORDER BY, to the whole
+    // set.
+    //
+    // knex.js emits the TOP form here regardless; see the
+    // `union/order-limit-outer::mssql` allowlist entry, which records this as
+    // a deliberate divergence rather than following byte parity into a silent
+    // wrong-results bug.
+    final unions = grouped['union'];
+    if (unions != null && unions.isNotEmpty) return '';
 
     return 'top (${client.parameter(limit, bindings)})';
   }
@@ -1357,12 +1376,25 @@ class QueryCompiler {
     final limit = single['limit'];
     if (limit == null) return '';
 
-    // mssql has no trailing `limit` clause: a limit without an offset becomes
-    // the `top (n)` select-list prefix (see [_top]), and a limit *with* an
-    // offset is emitted by [_offset] as the `fetch next` half of
-    // OFFSET/FETCH. Either way nothing is contributed here — matching
-    // knex.js's mssql limit(), which likewise always returns ''.
-    if (client.driverName == 'mssql') return '';
+    // mssql normally has no trailing `limit` clause: a limit without an offset
+    // becomes the `top (n)` select-list prefix (see [_top]), and a limit *with*
+    // an offset is emitted by [_offset] as the `fetch next` half of
+    // OFFSET/FETCH. knex.js's mssql limit() likewise always returns ''.
+    //
+    // The exception is a limit on a set operation, where [_top] declines to
+    // emit TOP because a prefix on the first branch wouldn't bound the
+    // combined result. Here the OFFSET/FETCH form is the only one that caps
+    // the union's own output, so emit it even though no offset was asked for
+    // (`offset 0 rows` is the required no-op prefix for a bare `fetch next`).
+    if (client.driverName == 'mssql') {
+      final unions = grouped['union'];
+      final onUnion = unions != null && unions.isNotEmpty;
+      if (onUnion && single['offset'] == null) {
+        return 'offset 0 rows fetch next '
+            '${client.parameter(limit, bindings)} rows only';
+      }
+      return '';
+    }
 
     // Add limit value to bindings and get placeholder
     return 'limit ${client.parameter(limit, bindings)}';
@@ -2175,10 +2207,29 @@ class QueryCompiler {
 
     final prefix = verb == 'delete' ? 'deleted.' : 'inserted.';
     final columns = (returningCols as List<String>)
-        .map((c) => '$prefix${formatter.wrap(c)}')
+        .map((c) => '$prefix${formatter.wrap(_unqualify(c))}')
         .join(', ');
 
     return 'output $columns';
+  }
+
+  /// Strip a table qualifier from a `.returning()` column for mssql's OUTPUT
+  /// clause: `users.id` → `id`, `users.*` → `*`, `id` → `id`.
+  ///
+  /// `inserted`/`deleted` are pseudo-tables exposing exactly the target
+  /// table's columns, so a column there is addressed by name alone. Keeping
+  /// the caller's qualifier would produce `inserted.[users].[id]`, which SQL
+  /// Server rejects — two qualifiers for one column. knex.js has the same bug
+  /// (its `columnizeWithPrefix` concatenates the prefix onto the fully
+  /// wrapped column), and no parity fixture exercises a qualified
+  /// `.returning()`, so correcting it here costs nothing in parity terms.
+  ///
+  /// Only a leading table qualifier is dropped; anything without a dot is
+  /// returned untouched, so aliases and plain columns are unaffected.
+  String _unqualify(String column) {
+    final lastDot = column.lastIndexOf('.');
+    if (lastDot == -1) return column;
+    return column.substring(lastDot + 1);
   }
 
   /// Compile UPDATE query
