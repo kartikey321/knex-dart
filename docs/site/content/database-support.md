@@ -15,7 +15,7 @@ Each database is a separate driver package. Install only what you need.
 | MySQL | [`knex_dart_mysql`](https://pub.dev/packages/knex_dart_mysql) | TCP | Pooled, savepoints |
 | SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | FFI / WASM | File + in-memory, savepoints, watch(), web storage modes |
 | DuckDB | [`knex_dart_duckdb`](https://pub.dev/packages/knex_dart_duckdb) | FFI / WASM | OLAP, native + browser |
-| SQL Server | [`knex_dart_mssql`](https://pub.dev/packages/knex_dart_mssql) | FreeTDS | Windows/Linux/macOS |
+| SQL Server | [`knex_dart_mssql`](https://pub.dev/packages/knex_dart_mssql) | TDS | Pure Dart, no native dependency |
 | Google BigQuery | [`knex_dart_bigquery`](https://pub.dev/packages/knex_dart_bigquery) | HTTP | REST API |
 | Snowflake | [`knex_dart_snowflake`](https://pub.dev/packages/knex_dart_snowflake) | HTTP | REST API |
 | Turso (libSQL) | [`knex_dart_turso`](https://pub.dev/packages/knex_dart_turso) | HTTP | libSQL wire protocol |
