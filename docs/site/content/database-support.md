@@ -245,8 +245,11 @@ await db.close();
 - `TOP N` for LIMIT
 - `RETURNING`-equivalent via `OUTPUT` clause
 
-> **No system dependency:** the driver is pure Dart ([`mssql`](https://pub.dev/packages/mssql),
-> TDS 7.4/8.0) — no native library to install.
+> **No system dependency:** the driver is pure Dart ([`mssql`](https://pub.dev/packages/mssql))
+> — no native library to install. It speaks TDS 7.4 with the standard
+> `encrypt` boolean this wrapper exposes; the underlying package also
+> supports strict TDS 8.0 encryption (`MssqlEncryptMode.strict`), but
+> `KnexMssql.connect()` does not yet expose a way to request it.
 >
 > **TLS defaults:** `KnexMssql.connect()` defaults to `encrypt: true,
 > trustServerCertificate: true` — TLS on, server certificate not validated,
