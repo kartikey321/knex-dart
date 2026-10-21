@@ -6,11 +6,12 @@ enum KnexDialect { postgres, mysql, sqlite, mariadb,
 /// SQL features whose support varies by dialect in knex_dart.
 enum SqlCapability {
   // ── Already supported ────────────────────────────────────────────────────
-  /// `RETURNING` clause — PostgreSQL, plus SQLite-family (sqlite/turso/d1,
-  /// SQLite >=3.35) on INSERT/UPDATE. Not MySQL. SQLite's DELETE-specific
-  /// exception (no RETURNING there despite supporting it elsewhere) isn't
-  /// expressible as a single per-dialect flag — see the carve-out in
-  /// QueryCompiler._deleteQuery.
+  /// Returning rows from a DML statement — PostgreSQL's `RETURNING`, plus
+  /// SQLite-family (sqlite/turso/d1, SQLite >=3.35) on INSERT/UPDATE, plus
+  /// MSSQL, which spells it `OUTPUT inserted.*`/`OUTPUT deleted.*`. Not
+  /// MySQL. SQLite's DELETE-specific exception (no RETURNING there despite
+  /// supporting it elsewhere) isn't expressible as a single per-dialect flag
+  /// — see the carve-out in QueryCompiler._deleteQuery.
   returning,
 
   /// `FULL OUTER JOIN` — PostgreSQL only (MySQL/SQLite don't support it).
@@ -158,9 +159,13 @@ const Map<KnexDialect, Set<SqlCapability>> dialectCapabilities = {
     SqlCapability.json,
     SqlCapability.intersectExcept,
   },
-  // MSSQL (SQL Server): No RETURNING (uses OUTPUT instead), supports CTEs,
-  // window functions, FULL OUTER JOIN, INTERSECT/EXCEPT, JSON functions.
+  // MSSQL (SQL Server): returning is spelled `OUTPUT inserted.*`/`OUTPUT
+  // deleted.*` rather than a trailing RETURNING clause, but `.returning()`
+  // does work and does return the rows — see QueryCompiler._outputClause.
+  // Also supports CTEs, window functions, FULL OUTER JOIN, INTERSECT/EXCEPT
+  // and JSON functions.
   KnexDialect.mssql: {
+    SqlCapability.returning,
     SqlCapability.fullOuterJoin,
     SqlCapability.cte,
     SqlCapability.windowFunctions,

@@ -699,4 +699,87 @@ void main() {
       expect(sql.bindings, ['active', 'Bob']);
     });
   });
+
+  group('MSSQL returning() compiles to a mid-statement OUTPUT clause', () {
+    final mssql = MockClient(driverName: 'mssql');
+
+    test('INSERT: OUTPUT sits between the column list and values', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({'email': 'a@b.com'})
+            .returning(['id'])
+            .toSQL()
+            .sql,
+        'insert into "users" ("email") output inserted."id" values (\$1)',
+      );
+    });
+
+    test('INSERT: multiple returning columns each carry the prefix', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({'email': 'a@b.com'})
+            .returning(['id', 'email'])
+            .toSQL()
+            .sql,
+        'insert into "users" ("email") output inserted."id", inserted."email" '
+        'values (\$1)',
+      );
+    });
+
+    test('INSERT: OUTPUT precedes `default values` on an empty row', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({})
+            .returning(['id'])
+            .toSQL()
+            .sql,
+        'insert into "users" output inserted."id" default values',
+      );
+    });
+
+    test('UPDATE: OUTPUT sits between the SET list and WHERE', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .where('id', 1)
+            .update({'name': 'Bob'})
+            .returning(['*'])
+            .toSQL()
+            .sql,
+        'update "users" set "name" = \$1 output inserted.* where "id" = \$2',
+      );
+    });
+
+    test('DELETE: OUTPUT uses the deleted. pre-image prefix, before WHERE', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .where('id', 1)
+            .delete()
+            .returning(['id'])
+            .toSQL()
+            .sql,
+        'delete from "users" output deleted."id" where "id" = \$1',
+      );
+    });
+
+    test('no trailing RETURNING clause is emitted alongside OUTPUT', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .insert({'email': 'a@b.com'})
+          .returning(['id'])
+          .toSQL()
+          .sql;
+      expect(sql, isNot(contains('returning')));
+    });
+  });
 }

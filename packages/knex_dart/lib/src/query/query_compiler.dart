@@ -1880,6 +1880,12 @@ class QueryCompiler {
     final emptyInsertValue = _isMySqlLikeDriver
         ? '() values ()'
         : 'default values';
+    // mssql's OUTPUT clause sits between the column list and `values` (or
+    // `default values`), so it has to be interpolated into each shape below
+    // rather than appended by _insertQuery(). Empty for every other dialect,
+    // which use a trailing RETURNING clause instead.
+    final output = _outputClause('insert');
+    final outputClause = output.isEmpty ? '' : '$output ';
 
     // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
     // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
@@ -1897,7 +1903,7 @@ class QueryCompiler {
           .toList();
     } else if (insertValue is Map) {
       if (insertValue.isEmpty) {
-        return '$keyword $table $emptyInsertValue';
+        return '$keyword $table $outputClause$emptyInsertValue';
       }
       rows = [Map<String, dynamic>.from(insertValue)];
     } else {
@@ -1927,7 +1933,7 @@ class QueryCompiler {
       // ambiguous — DEFAULT VALUES can't be repeated per-row — so knex.js
       // drops it as a no-op, same as `insert([])`.
       if (rows.length == 1) {
-        return '$keyword $table $emptyInsertValue';
+        return '$keyword $table $outputClause$emptyInsertValue';
       }
       return '';
     }
@@ -1974,7 +1980,7 @@ class QueryCompiler {
       valuesClauses.add('(${rowBindings.join(', ')})');
     }
 
-    return '$keyword $table ($columnsSql) values ${valuesClauses.join(', ')}';
+    return '$keyword $table ($columnsSql) ${outputClause}values ${valuesClauses.join(', ')}';
   }
 
   /// Compile ON CONFLICT / ON DUPLICATE KEY UPDATE / INSERT IGNORE clause.
@@ -2122,6 +2128,12 @@ class QueryCompiler {
       return '';
     }
 
+    // mssql returns rows via a mid-statement OUTPUT clause instead of a
+    // trailing one, so the DML compilers place it themselves via
+    // [_outputClause] — nothing to append here. Guarded before the capability
+    // check below because mssql *does* carry SqlCapability.returning.
+    if (client.driverName == 'mssql') return '';
+
     if (!_supports(SqlCapability.returning)) {
       // Mirrors knex.js: dialects without RETURNING support (mysql,
       // redshift, ...) log a warning and silently drop the clause rather
@@ -2140,6 +2152,35 @@ class QueryCompiler {
     return 'returning $columns';
   }
 
+  /// Compile mssql's `OUTPUT` clause — T-SQL's equivalent of `RETURNING`.
+  ///
+  /// Unlike RETURNING this is not a trailing clause: it sits after the column
+  /// list on INSERT, after the SET list on UPDATE, and after the target table
+  /// on DELETE, so each DML compiler positions it rather than appending it.
+  /// Columns are prefixed per [verb]: the post-image pseudo-table `inserted.`
+  /// for INSERT/UPDATE, the pre-image `deleted.` for DELETE (mirroring
+  /// knex.js's `_returning()` + `columnizeWithPrefix`).
+  ///
+  /// Returns the clause without surrounding whitespace, or `''` when the
+  /// dialect isn't mssql or no `.returning()` columns were requested.
+  String _outputClause(String verb) {
+    if (client.driverName != 'mssql') return '';
+
+    final returningCols = single['returning'];
+    if (returningCols == null ||
+        returningCols is! List ||
+        returningCols.isEmpty) {
+      return '';
+    }
+
+    final prefix = verb == 'delete' ? 'deleted.' : 'inserted.';
+    final columns = (returningCols as List<String>)
+        .map((c) => '$prefix${formatter.wrap(c)}')
+        .join(', ');
+
+    return 'output $columns';
+  }
+
   /// Compile UPDATE query
   ///
   String _updateQuery() {
@@ -2152,6 +2193,13 @@ class QueryCompiler {
     }
 
     parts.add(_update());
+
+    // mssql: `update [t] set ... output inserted.[col] where ...` — the
+    // OUTPUT clause goes between the SET list and WHERE.
+    final output = _outputClause('update');
+    if (output.isNotEmpty) {
+      parts.add(output);
+    }
 
     final where = _where();
     if (where.isNotEmpty) {
@@ -2263,6 +2311,11 @@ class QueryCompiler {
 
     if (!hasJoins) {
       parts.add(_delete());
+      // mssql: `delete from [t] output deleted.[col] where ...`.
+      final output = _outputClause('delete');
+      if (output.isNotEmpty) {
+        parts.add(output);
+      }
       final where = _where();
       if (where.isNotEmpty) {
         parts.add(where);
@@ -2291,10 +2344,17 @@ class QueryCompiler {
       }
     } else {
       final table = formatter.wrap(single['table']);
+      // mssql puts OUTPUT before the `from` when a join is present (it can't
+      // follow the joined table reference) — knex.js does the same, calling it
+      // out in a comment on its standardDelete(). Compiled before the join so
+      // the clause order below reads in SQL text order; it carries no
+      // bindings of its own, so this can't disturb the numbering.
+      final output = _outputClause('delete');
+      final outputClause = output.isEmpty ? '' : '$output ';
       // Text order here is `<join> where ...`, so compile the join first —
       // its bindings must precede WHERE's, matching the SQL text.
       final joinSql = _join();
-      parts.add('delete $table from $table $joinSql');
+      parts.add('delete $table ${outputClause}from $table $joinSql');
       final where = _where();
       if (where.isNotEmpty) {
         parts.add(where);

@@ -532,33 +532,11 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see delete/join-single::mssql (same missing '
       '`;select @@rowcount`, G1).',
 
-  // G2: `.returning()` needs an `OUTPUT inserted.*`/`OUTPUT deleted.*`
-  // clause on mssql (INSERT/UPDATE/DELETE) — knex-dart doesn't emit one at
-  // all, silently dropping the returning columns instead of either
-  // compiling OUTPUT or refusing. Fix: add OUTPUT-clause support to the
-  // mssql insert/update/delete compiler paths, then remove these entries.
-  'returning/insert::mssql':
-      '[OPEN BUG] missing `OUTPUT inserted.[col]` for .returning() on '
-      'INSERT — see the G2 note above this block.',
-  'dml/returning-multi-insert::mssql':
-      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
-  'dml/returning-update::mssql':
-      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, '
-      'G2 — `OUTPUT inserted.*` on UPDATE).',
-  'dml/returning-delete::mssql':
-      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, '
-      'G2 — `OUTPUT deleted.[col]` on DELETE).',
-  'insert/empty-object-returning::mssql':
-      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
-  'update/two-arg-returning::mssql':
-      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
-  'delete/two-arg-returning::mssql':
-      '[OPEN BUG] see returning/insert::mssql (same missing OUTPUT clause, G2).',
   'cte/update-source::mssql':
-      '[OPEN BUG] combines two gaps: the inner CTE UPDATE is missing '
-      '`OUTPUT inserted.[group_id]` for its .returning() (G2, see '
-      'returning/insert::mssql) AND the outer UPDATE is missing the '
-      'trailing `;select @@rowcount` (G1, see update/set::mssql).',
+      '[OPEN BUG] the inner CTE UPDATE\'s `.returning()` now compiles to '
+      '`OUTPUT inserted.[group_id]` correctly (G2, fixed); the only '
+      'remaining difference is the outer UPDATE\'s missing trailing '
+      '`;select @@rowcount` — see update/set::mssql (G1).',
 
   // G5: `.limit(n)` on an UPDATE should compile to `update top (n) ...`
   // on mssql; knex-dart drops the limit entirely (no TOP, no error).
