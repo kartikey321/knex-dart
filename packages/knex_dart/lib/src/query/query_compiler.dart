@@ -368,15 +368,24 @@ class QueryCompiler {
   /// Compile columns clause (SELECT ... FROM ...)
   ///
   String _columns() {
+    // Compiled FIRST, before any column or table compilation: on mssql the
+    // limit is expressed as a `top (n)` prefix inside the select list, so its
+    // binding has to precede every other binding in the statement. Compiling
+    // it later and splicing the text in front would leave the placeholder
+    // numbering out of step with the SQL text (matches knex.js, whose
+    // mssql columns() also calls top() before anything else).
+    final top = _top();
+    final topClause = top.isEmpty ? '' : '$top ';
+
     // Get column statements
     final columnStmts = grouped['columns'] ?? grouped['select'];
 
     // No explicit columns = SELECT *
     if (columnStmts == null || columnStmts.isEmpty) {
       if (tableName.isNotEmpty) {
-        return 'select * from $tableName';
+        return 'select $topClause* from $tableName';
       }
-      return 'select *';
+      return 'select $topClause*';
     }
 
     // Check for DISTINCT flag and collect columns
@@ -502,10 +511,30 @@ class QueryCompiler {
         : (hasDistinct ? 'distinct ' : '');
 
     if (tableName.isNotEmpty) {
-      return 'select $distinctClause$columnList from $tableName';
+      return 'select $distinctClause$topClause$columnList from $tableName';
     }
 
-    return 'select $distinctClause$columnList';
+    return 'select $distinctClause$topClause$columnList';
+  }
+
+  /// Compile mssql's `top (n)` select-list prefix, which is how T-SQL
+  /// expresses a limit that has no accompanying offset.
+  ///
+  /// Mirrors knex.js's `top()`
+  /// (lib/dialects/mssql/query/mssql-querycompiler.js) exactly, including its
+  /// two JS-truthiness quirks: an explicit `limit(0)` still emits `top (0)`,
+  /// and `offset(0)` counts as "no offset" (so `.limit(n).offset(0)` takes
+  /// the TOP form, not OFFSET/FETCH). Empty for every other dialect, which
+  /// use a trailing `limit`/OFFSET-FETCH clause instead.
+  String _top() {
+    if (client.driverName != 'mssql') return '';
+
+    final limit = single['limit'];
+    final offset = single['offset'];
+    if (limit == null) return '';
+    if (offset != null && !(offset is num && offset == 0)) return '';
+
+    return 'top (${client.parameter(limit, bindings)})';
   }
 
   /// Compile WHERE clause
@@ -1308,13 +1337,12 @@ class QueryCompiler {
     final limit = single['limit'];
     if (limit == null) return '';
 
-    if (client.driverName == 'mssql') {
-      final offset = single['offset'];
-      if (offset == null) {
-        return 'offset 0 rows fetch next ${client.parameter(limit, bindings)} rows only';
-      }
-      return '';
-    }
+    // mssql has no trailing `limit` clause: a limit without an offset becomes
+    // the `top (n)` select-list prefix (see [_top]), and a limit *with* an
+    // offset is emitted by [_offset] as the `fetch next` half of
+    // OFFSET/FETCH. Either way nothing is contributed here — matching
+    // knex.js's mssql limit(), which likewise always returns ''.
+    if (client.driverName == 'mssql') return '';
 
     // Add limit value to bindings and get placeholder
     return 'limit ${client.parameter(limit, bindings)}';
@@ -1329,11 +1357,14 @@ class QueryCompiler {
     if (offset == null) return '';
 
     if (client.driverName == 'mssql') {
+      // offset(0) is "no offset" here, same as knex.js's falsy check — the
+      // limit (if any) has already been emitted as `top (n)` by [_top].
+      if (offset is num && offset == 0) return '';
+
       final limit = single['limit'];
-      if (limit == null) {
-        return 'offset ${client.parameter(offset, bindings)} rows';
-      }
-      return 'offset ${client.parameter(offset, bindings)} rows fetch next ${client.parameter(limit, bindings)} rows only';
+      final offsetSql = 'offset ${client.parameter(offset, bindings)} rows';
+      if (limit == null) return offsetSql;
+      return '$offsetSql fetch next ${client.parameter(limit, bindings)} rows only';
     }
 
     // Add offset value to bindings and get placeholder

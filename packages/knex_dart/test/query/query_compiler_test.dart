@@ -408,7 +408,7 @@ void main() {
       expect(sql.bindings, [10, 20]);
     });
 
-    test('MSSQL LIMIT only uses OFFSET/FETCH', () {
+    test('MSSQL LIMIT without OFFSET uses TOP', () {
       final mssql = MockClient(driverName: 'mssql');
       final builder = QueryBuilder(
         mssql,
@@ -417,9 +417,25 @@ void main() {
 
       expect(
         sql.sql,
-        'select * from "users" order by "id" asc offset 0 rows fetch next \$1 rows only',
+        'select top (\$1) * from "users" order by "id" asc',
       );
       expect(sql.bindings, [10]);
+    });
+
+    test('MSSQL TOP binding precedes WHERE bindings', () {
+      // `top (n)` sits in the select list, ahead of the WHERE text, so its
+      // binding has to be emitted first or the placeholders desync.
+      final mssql = MockClient(driverName: 'mssql');
+      final builder = QueryBuilder(
+        mssql,
+      ).table('users').where('status', 'active').limit(10);
+      final sql = builder.toSQL();
+
+      expect(
+        sql.sql,
+        'select top (\$1) * from "users" where "status" = \$2',
+      );
+      expect(sql.bindings, [10, 'active']);
     });
 
     test('MSSQL OFFSET + LIMIT uses OFFSET/FETCH with both params', () {

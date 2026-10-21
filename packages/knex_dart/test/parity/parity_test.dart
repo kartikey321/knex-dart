@@ -560,20 +560,6 @@ const Map<String, String> parityAllowlist = {
       'returning/insert::mssql) AND the outer UPDATE is missing the '
       'trailing `;select @@rowcount` (G1, see update/set::mssql).',
 
-  // G3: a SELECT with `.limit(n)` and no `.offset()` should compile to
-  // `select top (n) ...` on mssql (matching knex.js); knex-dart always
-  // uses `OFFSET 0 ROWS FETCH NEXT n ROWS ONLY` regardless of whether an
-  // offset was given. Fix: in the mssql SELECT compiler, use TOP when
-  // there's a limit but no offset, then remove these entries.
-  'subquery/select-first-as::mssql':
-      '[OPEN BUG] limit-without-offset should compile to `top (n)`, not '
-      '`OFFSET 0 ROWS FETCH NEXT n ROWS ONLY` — see the G3 note above this '
-      'block.',
-  'union/order-limit-outer::mssql':
-      '[OPEN BUG] see subquery/select-first-as::mssql (same missing TOP(n) '
-      'for limit-without-offset, G3 — here on the outer SELECT wrapping a '
-      'UNION with ORDER BY).',
-
   // G5: `.limit(n)` on an UPDATE should compile to `update top (n) ...`
   // on mssql; knex-dart drops the limit entirely (no TOP, no error).
   // update/orderby-limit also needs the trailing `ORDER BY` on the UPDATE,
