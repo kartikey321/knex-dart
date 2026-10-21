@@ -240,6 +240,19 @@ class QueryCompiler {
       parts.add(joinSql);
     }
 
+    // mssql's lock hint is a FROM-clause table hint (`with (UPDLOCK)`), so it
+    // belongs here — right after the joins and before WHERE — not in the
+    // trailing position every other dialect's `for update`/`for share` clause
+    // takes. Same slot knex.js's mssql compiler gives it in its `components`
+    // list: [columns, join, lock, where, union, group, having, order, limit,
+    // offset].
+    if (client.driverName == 'mssql') {
+      final hintSql = _lock();
+      if (hintSql.isNotEmpty) {
+        parts.add(hintSql);
+      }
+    }
+
     // WHERE clause
     final whereSql = _where();
     if (whereSql.isNotEmpty) {
@@ -305,16 +318,23 @@ class QueryCompiler {
       parts.add(offsetSql);
     }
 
-    // Lock clause (FOR UPDATE / FOR SHARE / ...)
-    final lockSql = _lock();
-    if (lockSql.isNotEmpty) {
-      parts.add(lockSql);
-    }
+    // Lock clause (FOR UPDATE / FOR SHARE / ...) — already emitted above as a
+    // FROM-clause table hint on mssql.
+    if (client.driverName != 'mssql') {
+      final lockSql = _lock();
+      if (lockSql.isNotEmpty) {
+        parts.add(lockSql);
+      }
 
-    // Lock wait mode (SKIP LOCKED / NOWAIT)
-    final waitModeSql = _waitMode();
-    if (waitModeSql.isNotEmpty) {
-      parts.add(waitModeSql);
+      // Lock wait mode (SKIP LOCKED / NOWAIT). mssql has no equivalent — a
+      // table hint can't express "skip locked"/"nowait", and knex.js's mssql
+      // compiler has no waitMode component at all, so `.forUpdate()
+      // .skipLocked()` there compiles to a plain `with (UPDLOCK)` with the
+      // wait mode silently dropped.
+      final waitModeSql = _waitMode();
+      if (waitModeSql.isNotEmpty) {
+        parts.add(waitModeSql);
+      }
     }
 
     return parts.join(' ');
@@ -1391,21 +1411,30 @@ class QueryCompiler {
       return '';
     }
 
-    // MSSQL doesn't have a trailing `FOR UPDATE`/`FOR SHARE` clause at
-    // all — its lock hints (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attach
-    // directly to the table reference in the FROM clause instead, a
-    // different position in the SQL text this trailing-clause-shaped
-    // method can't produce. Emitting the generic postgres-style text here
-    // would be silently wrong T-SQL (MSSQL doesn't recognize a bare `for
-    // update` as a lock hint the way postgres does). Refuse loudly instead
-    // — a real fix needs the FROM-clause compiler to know about pending
-    // lock hints, not a one-line change here.
+    // MSSQL has no trailing `FOR UPDATE`/`FOR SHARE` clause at all — it
+    // expresses row locking as a table hint on the FROM clause, which is why
+    // _select() emits this right after the joins rather than at the end.
+    // knex.js's forUpdate()/forShare() produce exactly these two literals;
+    // neither takes a table list (`.forUpdate('users')`'s argument is
+    // ignored, since a hint already applies to the table it's attached to),
+    // and the two Postgres-only modes have no T-SQL equivalent at all.
     if (client.driverName == 'mssql') {
-      throw StateError(
-        '.$lock() on MSSQL requires a table-hint (WITH (UPDLOCK)/WITH '
-        '(HOLDLOCK)) attached to the FROM clause, not a trailing clause — '
-        'not currently supported by knex-dart',
-      );
+      switch (lock) {
+        case 'forUpdate':
+          return 'with (UPDLOCK)';
+        case 'forShare':
+          return 'with (HOLDLOCK)';
+        case 'forNoKeyUpdate':
+          throw StateError(
+            '.forNoKeyUpdate() is currently only supported on PostgreSQL',
+          );
+        case 'forKeyShare':
+          throw StateError(
+            '.forKeyShare() is currently only supported on PostgreSQL',
+          );
+        default:
+          return '';
+      }
     }
 
     // Use the family-aware helper so mariadb (and any future mysql-family

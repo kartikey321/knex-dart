@@ -592,33 +592,6 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see update/join-mysql::mssql (same missing '
       'UPDATE...FROM...JOIN, G6).',
 
-  // G13: `.forUpdate()`/`.forShare()` on mssql require a table-hint
-  // (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attached to the FROM clause —
-  // structurally different from every other dialect's trailing `FOR
-  // UPDATE`/`FOR SHARE` clause, which is what knex-dart's shared lock
-  // compiler emits. knex-dart explicitly refuses (StateError) rather than
-  // emit the wrong trailing-clause form. Fix: add mssql-specific
-  // FROM-clause table-hint support to the lock compiler, then remove
-  // these entries.
-  'lock/for-update::mssql':
-      '[OPEN BUG] `.forUpdate()` needs a `WITH (UPDLOCK)` FROM-clause '
-      'table-hint on mssql, not a trailing clause — knex-dart refuses '
-      'rather than emit the wrong form. See the G13 note above this block.',
-  'lock/for-update-tables::mssql':
-      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
-      'support, G13).',
-  'lock/for-share::mssql':
-      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
-      'support, G13 — `WITH (HOLDLOCK)` for .forShare()).',
-  'lock/for-update-skip-locked::mssql':
-      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
-      'support, G13).',
-  'lock/for-update-no-wait::mssql':
-      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
-      'support, G13).',
-  'lock/for-share-skip-locked::mssql':
-      '[OPEN BUG] see lock/for-update::mssql (same missing table-hint '
-      'support, G13 — `WITH (HOLDLOCK)` for .forShare()).',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

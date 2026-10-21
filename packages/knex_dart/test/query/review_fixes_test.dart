@@ -636,10 +636,46 @@ void main() {
       expect(sql.sql, 'select * from "t"');
     });
 
-    test('MSSQL: forUpdate()/forShare() throw rather than emit wrong SQL', () {
+    test('MSSQL: forUpdate()/forShare() emit FROM-clause table hints', () {
       final mssql = MockClient(driverName: 'mssql');
       expect(
-        () => mssql.queryBuilder().table('t').forUpdate().toSQL(),
+        mssql.queryBuilder().table('t').forUpdate().toSQL().sql,
+        'select * from "t" with (UPDLOCK)',
+      );
+      expect(
+        mssql.queryBuilder().table('t').forShare().toSQL().sql,
+        'select * from "t" with (HOLDLOCK)',
+      );
+    });
+
+    test('MSSQL: the table hint precedes WHERE, not the trailing position', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        mssql.queryBuilder().table('t').where('id', 1).forUpdate().toSQL().sql,
+        'select * from "t" with (UPDLOCK) where "id" = \$1',
+      );
+    });
+
+    test('MSSQL: skipLocked()/noWait() drop — no table-hint equivalent', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        mssql.queryBuilder().table('t').forUpdate().skipLocked().toSQL().sql,
+        'select * from "t" with (UPDLOCK)',
+      );
+      expect(
+        mssql.queryBuilder().table('t').forUpdate().noWait().toSQL().sql,
+        'select * from "t" with (UPDLOCK)',
+      );
+    });
+
+    test('MSSQL: the Postgres-only lock modes still refuse', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        () => mssql.queryBuilder().table('t').forNoKeyUpdate().toSQL(),
+        throwsStateError,
+      );
+      expect(
+        () => mssql.queryBuilder().table('t').forKeyShare().toSQL(),
         throwsStateError,
       );
     });
