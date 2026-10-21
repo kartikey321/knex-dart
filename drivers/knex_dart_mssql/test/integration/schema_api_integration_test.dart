@@ -74,7 +74,7 @@ class _MssqlLiveSchemaClient extends Client {
       value == '*' ? value : '[${value.replaceAll(']', ']]')}]';
 
   @override
-  String parameterPlaceholder(int index) => '?';
+  String parameterPlaceholder(int index) => '@p${index - 1}';
 
   @override
   String formatValue(value) => value.toString();

@@ -9,7 +9,7 @@ Microsoft SQL Server driver for [knex_dart](https://pub.dev/packages/knex_dart) 
 
 ```yaml
 dependencies:
-  knex_dart_mssql: ^0.3.0
+  knex_dart_mssql: ^0.3.1
 ```
 
 ## Quick Start

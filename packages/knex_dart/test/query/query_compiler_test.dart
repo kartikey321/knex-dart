@@ -2236,7 +2236,7 @@ void main() {
         'redshift':
             'select * from "users" inner join "orders" on json_extract_path_text("users"."meta", \$1) = json_extract_path_text("orders"."meta", \$2)',
         'mssql':
-            'select * from [users] inner join [orders] on JSON_VALUE([users].[meta], ?) = JSON_VALUE([orders].[meta], ?)',
+            'select * from [users] inner join [orders] on JSON_VALUE([users].[meta], @p0) = JSON_VALUE([orders].[meta], @p1)',
         'turso':
             'select * from "users" inner join "orders" on json_extract("users"."meta", ?) = json_extract("orders"."meta", ?)',
       };

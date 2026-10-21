@@ -1,6 +1,6 @@
 name: knex_dart_mssql
 description: Microsoft SQL Server driver for knex_dart — execute queries against SQL Server via the pure-Dart mssql package (TDS 7.4/8.0, no native dependencies).
-version: 0.3.0
+version: 0.3.1
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues

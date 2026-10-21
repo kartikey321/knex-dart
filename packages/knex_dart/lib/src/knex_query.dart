@@ -177,6 +177,12 @@ class _DialectClient extends Client {
       case KnexDialect.redshift:
       case KnexDialect.duckdb:
         return '\$$index';
+      case KnexDialect.mssql:
+        // [index] is 1-based (see Client.parameter: bindings.add(value);
+        // return parameterPlaceholder(bindings.length)), but knex.js's
+        // mssql client numbers placeholders 0-based (@p0, @p1, ...) —
+        // shift by one to match exactly.
+        return '@p${index - 1}';
       default:
         return '?';
     }

@@ -563,7 +563,9 @@ void main() {
           .toSQL();
       expect(compiled.sql, contains('[users]'));
       expect(compiled.sql, contains('[name]'));
-      expect(compiled.sql, contains('?'));
+      // mssql compiles numbered `@p0`/`@p1`/… placeholders, not `?` — see
+      // the knex_dart CHANGELOG 1.3.4 entry.
+      expect(compiled.sql, contains('@p0'));
       expect(compiled.bindings, ['admin']);
     });
 

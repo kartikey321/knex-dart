@@ -74,16 +74,25 @@ class MssqlClient {
   /// Execute a raw SQL string with optional positional [bindings].
   ///
   /// Positional `?` placeholders are rewritten to `@p1`, `@p2`, … before
-  /// sending to SQL Server.
+  /// sending to SQL Server. (This differs from [_run]'s compiled path,
+  /// where the query compiler already emits `@p0`/`@p1`/… directly — see
+  /// [_executeCompiled].)
   Future<List<Map<String, dynamic>>> raw(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _execute(sql, bindings ?? []);
+  ]) => _executeRaw(sql, bindings ?? []);
 
-  Future<List<Map<String, dynamic>>> _run(QueryBuilder q) {
+  // Note: these three must stay `async` even though each has a single
+  // `return`/`await` — a bare (non-async) function that throws before its
+  // first `await` throws synchronously at the call site instead of via the
+  // returned Future, breaking callers that do
+  // `expectLater(client.rawSql(...), throwsA(...))` (the argument expression
+  // throws before expectLater ever runs). `async` makes Dart funnel every
+  // throw, sync or not, through the Future's error channel.
+  Future<List<Map<String, dynamic>>> _run(QueryBuilder q) async {
     if (_isClosed) throw StateError('MssqlClient is closed');
     final compiled = q.toSQL();
-    return _execute(compiled.sql, compiled.bindings);
+    return _executeCompiled(compiled.sql, compiled.bindings);
   }
 
   // ─── Transaction support ──────────────────────────────────────────────────
@@ -117,7 +126,24 @@ class MssqlClient {
 
   // ─── Internal execution ───────────────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> _execute(
+  /// Executes SQL compiled by the query builder, which already contains
+  /// `@p0`/`@p1`/… placeholders (see `Client.parameterPlaceholder` for
+  /// [KnexDialect.mssql]) — [bindings] map onto them positionally, no
+  /// rewriting needed.
+  Future<List<Map<String, dynamic>>> _executeCompiled(
+    String sql,
+    List<dynamic> bindings,
+  ) async {
+    if (_isClosed) throw StateError('MssqlClient is closed');
+    final params = <String, Object?>{
+      for (var i = 0; i < bindings.length; i++) 'p$i': bindings[i],
+    };
+    return _runQuery(sql, params);
+  }
+
+  /// Executes user-supplied raw SQL using knex.js's universal `?` binding
+  /// convention — rewritten to `@p1`/`@p2`/… before sending to SQL Server.
+  Future<List<Map<String, dynamic>>> _executeRaw(
     String sql,
     List<dynamic> bindings,
   ) async {
@@ -130,7 +156,14 @@ class MssqlClient {
     final (rewritten, params) = bindings.isEmpty
         ? (sql, const <String, Object?>{})
         : _rewriteParams(sql, bindings);
-    final result = await _conn.query(rewritten, params);
+    return _runQuery(rewritten, params);
+  }
+
+  Future<List<Map<String, dynamic>>> _runQuery(
+    String sql,
+    Map<String, Object?> params,
+  ) async {
+    final result = await _conn.query(sql, params);
     return [
       for (final row in result.rows)
         {
@@ -179,11 +212,11 @@ class MssqlTrxClient {
   Future<List<Map<String, dynamic>>> raw(
     String sql, [
     List<dynamic>? bindings,
-  ]) => _client._execute(sql, bindings ?? []);
+  ]) => _client._executeRaw(sql, bindings ?? []);
 
   Future<List<Map<String, dynamic>>> _run(QueryBuilder q) {
     final compiled = q.toSQL();
-    return _client._execute(compiled.sql, compiled.bindings);
+    return _client._executeCompiled(compiled.sql, compiled.bindings);
   }
 
   /// Run [callback] inside a savepoint on this already-open transaction.
