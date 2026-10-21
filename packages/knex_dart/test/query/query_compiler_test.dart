@@ -417,7 +417,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select * from "users" order by "id" asc OFFSET 0 ROWS FETCH NEXT \$1 ROWS ONLY',
+        'select * from "users" order by "id" asc offset 0 rows fetch next \$1 rows only',
       );
       expect(sql.bindings, [10]);
     });
@@ -431,7 +431,7 @@ void main() {
 
       expect(
         sql.sql,
-        'select * from "users" order by "id" asc OFFSET \$1 ROWS FETCH NEXT \$2 ROWS ONLY',
+        'select * from "users" order by "id" asc offset \$1 rows fetch next \$2 rows only',
       );
       expect(sql.bindings, [20, 10]);
     });

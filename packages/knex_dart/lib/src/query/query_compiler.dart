@@ -1305,7 +1305,7 @@ class QueryCompiler {
     if (client.driverName == 'mssql') {
       final offset = single['offset'];
       if (offset == null) {
-        return 'OFFSET 0 ROWS FETCH NEXT ${client.parameter(limit, bindings)} ROWS ONLY';
+        return 'offset 0 rows fetch next ${client.parameter(limit, bindings)} rows only';
       }
       return '';
     }
@@ -1325,9 +1325,9 @@ class QueryCompiler {
     if (client.driverName == 'mssql') {
       final limit = single['limit'];
       if (limit == null) {
-        return 'OFFSET ${client.parameter(offset, bindings)} ROWS';
+        return 'offset ${client.parameter(offset, bindings)} rows';
       }
-      return 'OFFSET ${client.parameter(offset, bindings)} ROWS FETCH NEXT ${client.parameter(limit, bindings)} ROWS ONLY';
+      return 'offset ${client.parameter(offset, bindings)} rows fetch next ${client.parameter(limit, bindings)} rows only';
     }
 
     // Add offset value to bindings and get placeholder

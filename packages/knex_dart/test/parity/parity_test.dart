@@ -574,20 +574,6 @@ const Map<String, String> parityAllowlist = {
       'for limit-without-offset, G3 — here on the outer SELECT wrapping a '
       'UNION with ORDER BY).',
 
-  // G4: mssql's OFFSET/FETCH keywords should be lowercase (`offset ... '
-  // rows fetch next ... rows only`) to match knex.js; knex-dart emits them
-  // uppercase. SQL Server itself is case-insensitive to these keywords, so
-  // this is purely cosmetic (same class as the `AS`/`as` alias-casing bugs
-  // above) — but still a real byte-level divergence from knex.js. Fix:
-  // lowercase the OFFSET/FETCH keyword literals in the mssql SELECT
-  // compiler, then remove these entries.
-  'select/limit-offset::mssql':
-      '[OPEN BUG] uppercase `OFFSET`/`ROWS`/`FETCH`/`NEXT`/`ONLY` keywords '
-      '— see the G4 note above this block.',
-  'union/all-order-limit::mssql':
-      '[OPEN BUG] see select/limit-offset::mssql (same OFFSET/FETCH '
-      'keyword casing, G4).',
-
   // G5: `.limit(n)` on an UPDATE should compile to `update top (n) ...`
   // on mssql; knex-dart drops the limit entirely (no TOP, no error).
   // update/orderby-limit also needs the trailing `ORDER BY` on the UPDATE,
