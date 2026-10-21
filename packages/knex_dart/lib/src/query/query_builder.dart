@@ -96,12 +96,44 @@ class QueryBuilder {
   }
 
   /// Execute the query
+  ///
+  /// Never implemented — always throws `UnimplementedError`, unconditionally,
+  /// regardless of driver.
+  ///
+  /// On most drivers (Postgres, MySQL, DuckDB, MSSQL, Turso, BigQuery, D1,
+  /// Snowflake), a `QueryBuilder` returned by `db('table')` /
+  /// `db.queryBuilder()` is bound to a dialect-only client used purely for
+  /// SQL compilation, not the driver's real executing client — so even a
+  /// naive `_client.rawQuery(...)`-based implementation would not work
+  /// there. SQLite is the one exception — its `QueryBuilder` is bound to
+  /// the real executing `SQLiteClient` — but a generic implementation would
+  /// still bypass the wrapper's `KnexInterceptorPipeline` (OTel, logging,
+  /// custom interceptors) that `db.select(qb)` etc. route through, so it
+  /// isn't a uniform fix across drivers either way.
+  ///
+  /// Use the driver wrapper's own execution methods instead, e.g.
+  /// `db.select(qb)` / `db.insert(qb)` / `db.update(qb)` / `db.delete(qb)`,
+  /// or `db.execute(qb)` for a method-agnostic dispatch.
+  @Deprecated(
+    'QueryBuilder.execute()/then were never implemented (always throw '
+    'UnimplementedError) and will be removed in a future major version. Use '
+    'the driver wrapper\'s execution methods instead, e.g. db.select(qb) / '
+    'db.insert(qb) / db.update(qb) / db.delete(qb), or db.execute(qb).',
+  )
   Future<List<Map<String, dynamic>>> execute() async {
-    // Stub - will be implemented in Week 2
     throw UnimplementedError('QueryBuilder.execute() not yet implemented');
   }
 
   /// Alias for execute
+  ///
+  /// Never implemented — see [execute].
+  @Deprecated(
+    'QueryBuilder.execute()/then were never implemented (always throw '
+    'UnimplementedError) and will be removed in a future major version. Use '
+    'the driver wrapper\'s execution methods instead, e.g. db.select(qb) / '
+    'db.insert(qb) / db.update(qb) / db.delete(qb), or db.execute(qb).',
+  )
+  // ignore: deprecated_member_use_from_same_package
   Future<List<Map<String, dynamic>>> get then => execute();
 
   bool _isSelectQuery() {

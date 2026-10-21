@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:postgres/postgres.dart';
 import 'package:knex_dart/knex_dart.dart';
 
@@ -9,16 +11,64 @@ class PostgresClient {
   final Pool<void> _pool;
   bool _isClosed = false;
 
-  /// Pinned transaction session, set only while [runInTransaction] is active.
+  /// Zone key under which [runInTransaction] pins the active [_PinnedSession].
+  ///
+  /// A plain instance field cannot distinguish "the same logical transaction
+  /// calling back into itself" from "a completely unrelated concurrent
+  /// caller" — both just see a non-null field. Storing the session as a
+  /// [Zone] value instead means each top-level [runInTransaction] call forks
+  /// its own zone: a genuine nested call (made from within [action]'s own
+  /// async call graph) inherits that zone and correctly reuses the session,
+  /// while a concurrent, unrelated call runs in a sibling zone that never
+  /// sees it — so it correctly acquires its own connection and transaction
+  /// instead of silently sharing (and corrupting) someone else's.
+  ///
+  /// **Must be a per-instance key, not a shared constant**: a `static`/const
+  /// key would make one [PostgresClient]'s pinned session visible to every
+  /// *other* [PostgresClient] instance whose code happens to run nested
+  /// inside the same zone (e.g. a callback that reaches into a second
+  /// client) — routing that second client's queries onto the first
+  /// client's connection. A fresh [Object] per instance rules that out:
+  /// `Zone` value lookups key on identity, so no other instance's key can
+  /// ever match this one's.
+  final Object _txSessionZoneKey = Object();
+
+  /// Pinned transaction session for the currently executing zone, set only
+  /// while [runInTransaction] is active on this call chain.
   ///
   /// When non-null, [rawSql] and [_run] route queries through this session
   /// instead of acquiring a new pool connection — ensuring all statements
   /// inside the migration step land on the same physical connection.
   ///
-  /// Dart's single-threaded event loop makes this field safe for sequential
-  /// callers (e.g., the Migrator). Concurrent transactions should use [trx]
-  /// instead, which scopes the session to the callback closure.
-  TxSession? _txSession;
+  /// See [_txSessionZoneKey] for why this is zone-scoped rather than a plain
+  /// field: that's what makes concurrent [runInTransaction] calls on the same
+  /// client instance safe, not just sequential ones. Fully concurrent
+  /// transaction use can also reach for [trx], which scopes the session to
+  /// the callback closure explicitly.
+  ///
+  /// Throws [StateError] if the pinned session's [runInTransaction] call has
+  /// already completed — this happens if [action] leaks an un-awaited
+  /// callback (a detached `Future`, a `Timer`, a stream listener) that
+  /// outlives [action] itself and later tries to run a query. That callback
+  /// still runs inside the forked zone (zone values are retained by
+  /// anything scheduled from within it, not just [action]'s own direct
+  /// execution), so without this check it would silently reuse a session
+  /// whose connection may already be back in the pool — the throw makes
+  /// that a loud, immediate failure instead.
+  TxSession? get _txSession {
+    final pinned = Zone.current[_txSessionZoneKey] as _PinnedSession?;
+    if (pinned == null) return null;
+    if (pinned.completed) {
+      throw StateError(
+        'PostgresClient: attempted to use a transaction session after its '
+        'runInTransaction() call already completed. This happens when '
+        '`action` leaves an un-awaited Future/Timer/stream listener running '
+        'that later executes a query — await all work started inside '
+        'runInTransaction() before it returns.',
+      );
+    }
+    return pinned.session;
+  }
 
   PostgresClient._(this._pool);
 
@@ -174,12 +224,18 @@ class PostgresClient {
   /// Run [action] inside a Postgres transaction, pinning one pool connection.
   ///
   /// Acquires a single connection, opens a transaction via [Connection.runTx],
-  /// and sets [_txSession] for the duration of [action]. Any [rawSql] or query
-  /// call made inside [action] is automatically routed to that pinned session.
+  /// and pins [_txSession] (via a forked [Zone], see [_txSessionZoneKey]) for
+  /// the duration of [action]. Any [rawSql] or query call made inside
+  /// [action] — including through further `await`s — is automatically
+  /// routed to that pinned session.
   ///
-  /// **Reentrancy guard**: if [_txSession] is already set (i.e., this is called
-  /// from within an active [runInTransaction] scope), [action] is run directly
-  /// without opening a new transaction — preventing nested `BEGIN` errors.
+  /// **Reentrancy guard**: if [_txSession] is already set *on this call
+  /// chain* (i.e., [action] itself calls back into [runInTransaction]),
+  /// the nested call runs directly without opening a new transaction —
+  /// preventing nested `BEGIN` errors. A concurrent, unrelated
+  /// [runInTransaction] call on the same [PostgresClient] runs in a sibling
+  /// zone and correctly opens its own independent transaction instead of
+  /// colliding with this one.
   ///
   /// This is the correct hook for the knex-dart Migrator when
   /// `MigrationConfig.disableTransactions` is `false`. The migrator's internal
@@ -187,27 +243,26 @@ class PostgresClient {
   /// the same session as the migration SQL itself.
   Future<T> runInTransaction<T>(Future<T> Function() action) {
     if (_txSession != null) {
-      // Already pinned — run directly to avoid nested BEGIN.
+      // Already pinned on this call chain — run directly to avoid nested BEGIN.
       return action();
     }
     return _pool.withConnection(
-      (conn) => conn.runTx(
-        (session) => _withPinnedSession(session, action),
-      ),
+      (conn) => conn.runTx((session) async {
+        final pinned = _PinnedSession(session);
+        try {
+          return await runZoned(
+            action,
+            zoneValues: {_txSessionZoneKey: pinned},
+          );
+        } finally {
+          // Marks the session unusable for anything that outlived `action`
+          // (a leaked Future/Timer/stream listener) — see _txSession's doc
+          // comment. Without this, such a caller would silently reuse a
+          // session whose connection may already be back in the pool.
+          pinned.completed = true;
+        }
+      }),
     );
-  }
-
-  /// Sets [_txSession] for the duration of [action], then clears it.
-  Future<T> _withPinnedSession<T>(
-    TxSession session,
-    Future<T> Function() action,
-  ) async {
-    _txSession = session;
-    try {
-      return await action();
-    } finally {
-      _txSession = null;
-    }
   }
 
   /// Run [callback] inside a Postgres transaction.
@@ -235,6 +290,18 @@ class PostgresClient {
       ),
     );
   }
+}
+
+/// Wraps a [TxSession] pinned via [PostgresClient.runInTransaction] with a
+/// liveness flag, so a callback that outlives its [PostgresClient._run]
+/// (a leaked `Future`/`Timer`/stream listener) fails loudly instead of
+/// silently reusing a session whose connection may already be back in the
+/// pool. See [PostgresClient._txSession]'s doc comment.
+class _PinnedSession {
+  final TxSession session;
+  bool completed = false;
+
+  _PinnedSession(this.session);
 }
 
 /// Low-level transaction-scoped Postgres session executor.

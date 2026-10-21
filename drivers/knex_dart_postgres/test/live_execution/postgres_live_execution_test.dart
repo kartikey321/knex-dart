@@ -59,7 +59,16 @@ void main() {
   });
 
   test('every fixture-linked case executes without error', () async {
-    final links = fixtureLinksByDialect['postgres']!;
+    // Excludes schema/* ids — those are the schema-DDL corpus, covered by
+    // postgres_schema_live_execution_test.dart's own per-case-schema run
+    // (a shared run-level schema like this one can't satisfy DDL cases that
+    // need opposite starting states for the same table/column/constraint
+    // name — see postgres_schema_ddl_profiles.dart).
+    final links = Map.fromEntries(
+      fixtureLinksByDialect['postgres']!.entries.where(
+        (e) => !e.key.startsWith('schema/'),
+      ),
+    );
     final failures = <String>[];
 
     for (final entry in links.entries) {
@@ -79,24 +88,21 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
-  test(
-    'isolation held: every fixture profile\'s row counts are unchanged '
-    'after running every linked case (proves every case rolled back '
-    'cleanly, including inserts/updates/deletes)',
-    () async {
-      for (final profileEntry in _expectedCounts.entries) {
-        for (final tableEntry in profileEntry.value.entries) {
-          final counts = await client.rawSql(
-            'select count(*) as n from '
-            '"${adapter.schemaName}"."${tableEntry.key}"',
-          );
-          expect(
-            counts.single['n'],
-            tableEntry.value,
-            reason: '${profileEntry.key}.${tableEntry.key}',
-          );
-        }
+  test('isolation held: every fixture profile\'s row counts are unchanged '
+      'after running every linked case (proves every case rolled back '
+      'cleanly, including inserts/updates/deletes)', () async {
+    for (final profileEntry in _expectedCounts.entries) {
+      for (final tableEntry in profileEntry.value.entries) {
+        final counts = await client.rawSql(
+          'select count(*) as n from '
+          '"${adapter.schemaName}"."${tableEntry.key}"',
+        );
+        expect(
+          counts.single['n'],
+          tableEntry.value,
+          reason: '${profileEntry.key}.${tableEntry.key}',
+        );
       }
-    },
-  );
+    }
+  });
 }

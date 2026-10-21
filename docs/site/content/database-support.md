@@ -15,7 +15,7 @@ Each database is a separate driver package. Install only what you need.
 | MySQL | [`knex_dart_mysql`](https://pub.dev/packages/knex_dart_mysql) | TCP | Pooled, savepoints |
 | SQLite | [`knex_dart_sqlite`](https://pub.dev/packages/knex_dart_sqlite) | FFI / WASM | File + in-memory, savepoints, watch(), web storage modes |
 | DuckDB | [`knex_dart_duckdb`](https://pub.dev/packages/knex_dart_duckdb) | FFI / WASM | OLAP, native + browser |
-| SQL Server | [`knex_dart_mssql`](https://pub.dev/packages/knex_dart_mssql) | FreeTDS | Windows/Linux/macOS |
+| SQL Server | [`knex_dart_mssql`](https://pub.dev/packages/knex_dart_mssql) | TDS | Pure Dart, no native dependency |
 | Google BigQuery | [`knex_dart_bigquery`](https://pub.dev/packages/knex_dart_bigquery) | HTTP | REST API |
 | Snowflake | [`knex_dart_snowflake`](https://pub.dev/packages/knex_dart_snowflake) | HTTP | REST API |
 | Turso (libSQL) | [`knex_dart_turso`](https://pub.dev/packages/knex_dart_turso) | HTTP | libSQL wire protocol |
@@ -245,8 +245,11 @@ await db.close();
 - `TOP N` for LIMIT
 - `RETURNING`-equivalent via `OUTPUT` clause
 
-> **No system dependency:** the driver is pure Dart ([`mssql`](https://pub.dev/packages/mssql),
-> TDS 7.4/8.0) — no native library to install.
+> **No system dependency:** the driver is pure Dart ([`mssql`](https://pub.dev/packages/mssql))
+> — no native library to install. It speaks TDS 7.4 with the standard
+> `encrypt` boolean this wrapper exposes; the underlying package also
+> supports strict TDS 8.0 encryption (`MssqlEncryptMode.strict`), but
+> `KnexMssql.connect()` does not yet expose a way to request it.
 >
 > **TLS defaults:** `KnexMssql.connect()` defaults to `encrypt: true,
 > trustServerCertificate: true` — TLS on, server certificate not validated,
