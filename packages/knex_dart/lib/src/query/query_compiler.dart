@@ -269,7 +269,13 @@ class QueryCompiler {
       // against real knex.js 3.3.0 for the `union/wrapped-array` parity
       // case — see the allowlist/failure history for this batch.
       final unions = grouped['union'];
+      // ...except on mssql: knex.js's mssql compiler overrides select()
+      // wholesale (lib/dialects/mssql/query/mssql-querycompiler.js) and that
+      // override never implements the base QueryCompiler's wrapMainQuery
+      // step, so its output leaves the base select bare and parenthesizes
+      // only the subsequent legs.
       final wrapBase =
+          client.driverName != 'mssql' &&
           unions is List &&
           (unions as List).any((u) => (u['wrap'] as bool? ?? false));
       if (wrapBase) {

@@ -626,27 +626,6 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see jsonb/qmark-op::mssql (same unconditional `?&` '
       'escaping, G8).',
 
-  // G11 (union/except/intersect .wrappedArray() variants — numbered to
-  // match this triage pass's original categorization): knex.js's mssql
-  // client wraps every branch of a wrapped-array union/unionAll/
-  // intersect/except in parens EXCEPT the first one; knex-dart wraps all
-  // branches including the first. Fix: in the mssql set-operation
-  // compiler, skip the parens on the first branch specifically, then
-  // remove these entries.
-  'union/wrapped-array::mssql':
-      '[OPEN BUG] first branch is parenthesized; knex.js\'s mssql client '
-      'only parenthesizes subsequent branches — see the G11 note above '
-      'this block.',
-  'unionAll/wrapped-array::mssql':
-      '[OPEN BUG] see union/wrapped-array::mssql (same first-branch '
-      'parens, G11).',
-  'intersect/wrapped-array::mssql':
-      '[OPEN BUG] see union/wrapped-array::mssql (same first-branch '
-      'parens, G11).',
-  'except/wrapped-array::mssql':
-      '[OPEN BUG] see union/wrapped-array::mssql (same first-branch '
-      'parens, G11).',
-
   // G13: `.forUpdate()`/`.forShare()` on mssql require a table-hint
   // (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attached to the FROM clause —
   // structurally different from every other dialect's trailing `FOR
