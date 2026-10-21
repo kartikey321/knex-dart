@@ -1703,7 +1703,16 @@ class QueryCompiler {
     if (ctes.isEmpty) return '';
 
     // with [recursive] cte1, cte2, ...
-    final prefix = isRecursive ? 'with recursive' : 'with';
+    //
+    // T-SQL has no RECURSIVE keyword at all — SQL Server doesn't
+    // syntactically distinguish recursive from non-recursive CTEs, and
+    // `with recursive` is a hard syntax error there. knex.js handles this by
+    // temporarily clearing every statement's `recursive` flag in its mssql
+    // compiler's with() override; the effect is the same as suppressing the
+    // keyword here.
+    final prefix = isRecursive && client.driverName != 'mssql'
+        ? 'with recursive'
+        : 'with';
     return '$prefix ${ctes.join(', ')}';
   }
 

@@ -606,18 +606,6 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see update/join-mysql::mssql (same missing '
       'UPDATE...FROM...JOIN, G6).',
 
-  // G7: SQL Server's T-SQL `WITH` clause has no `RECURSIVE` keyword at all
-  // (unlike Postgres/MySQL/SQLite) — a recursive CTE just uses plain
-  // `WITH`. knex-dart emits `with recursive` unconditionally for every
-  // dialect, which is actually invalid syntax on real SQL Server (T-SQL
-  // would reject "recursive" as a syntax error there), not just a cosmetic
-  // mismatch. Fix: in the CTE compiler, omit "recursive" for
-  // KnexDialect.mssql specifically, then remove this entry.
-  'cte/recursive-nested-chained::mssql':
-      '[OPEN BUG] knex-dart emits `with recursive` for mssql, which T-SQL '
-      'does not support as syntax (mssql\'s WITH has no RECURSIVE '
-      'keyword at all) — see the G7 note above this block.',
-
   // G8: formatter.dart's OPERATOR_QUERY_MAP escapes the JSONB containment
   // operators (`?`, `?|`, `?&`) as `\?`/`\?|`/`\?&` unconditionally,
   // regardless of target dialect — needed for Postgres (where knex.js's
