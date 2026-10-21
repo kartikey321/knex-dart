@@ -606,26 +606,6 @@ const Map<String, String> parityAllowlist = {
       '[OPEN BUG] see update/join-mysql::mssql (same missing '
       'UPDATE...FROM...JOIN, G6).',
 
-  // G8: formatter.dart's OPERATOR_QUERY_MAP escapes the JSONB containment
-  // operators (`?`, `?|`, `?&`) as `\?`/`\?|`/`\?&` unconditionally,
-  // regardless of target dialect — needed for Postgres (where knex.js's
-  // own client does the same, which is why postgres/cockroachdb/redshift
-  // pass this case), but knex.js's mssql client does NOT escape them,
-  // since T-SQL has no `?`-as-placeholder convention to protect against.
-  // Not caused by this PR's @pN change (the escaping is dialect-agnostic,
-  // unrelated to placeholder style) — simply never checked for mssql
-  // before. Fix: make the escaping conditional on dialect (or at least
-  // exclude mssql) in formatter.dart, then remove these entries.
-  'jsonb/qmark-op::mssql':
-      '[OPEN BUG] literal `?` escaped as `\\?`; knex.js\'s mssql client '
-      'does not escape it — see the G8 note above this block.',
-  'jsonb/pipe-op::mssql':
-      '[OPEN BUG] see jsonb/qmark-op::mssql (same unconditional `?|` '
-      'escaping, G8).',
-  'jsonb/amp-op::mssql':
-      '[OPEN BUG] see jsonb/qmark-op::mssql (same unconditional `?&` '
-      'escaping, G8).',
-
   // G13: `.forUpdate()`/`.forShare()` on mssql require a table-hint
   // (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attached to the FROM clause —
   // structurally different from every other dialect's trailing `FOR
