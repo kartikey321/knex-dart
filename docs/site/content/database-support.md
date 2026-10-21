@@ -240,10 +240,13 @@ await db.close();
 ```
 
 **SQL Server-specific features:**
-- `@p1, @p2, ...` named placeholders
+- `@p0, @p1, ...` named placeholders
 - Square-bracket identifier quoting (`[column]`)
-- `TOP N` for LIMIT
-- `RETURNING`-equivalent via `OUTPUT` clause
+- `top (n)` for a limit with no offset; `offset ... rows fetch next ... rows only` when both are given
+- `.returning()` compiles to `OUTPUT inserted.*` / `OUTPUT deleted.*`
+- `.forUpdate()` / `.forShare()` compile to the `with (UPDLOCK)` / `with (HOLDLOCK)` table hints; `.skipLocked()` / `.noWait()` have no T-SQL equivalent and are dropped
+- `.limit()` on an UPDATE compiles to `update top (n)`; `.join()` on an UPDATE compiles to T-SQL's `UPDATE ... FROM ... JOIN` form
+- CTEs use a plain `WITH` — T-SQL has no `RECURSIVE` keyword
 
 > **No system dependency:** the driver is pure Dart ([`mssql`](https://pub.dev/packages/mssql))
 > — no native library to install. It speaks TDS 7.4 with the standard

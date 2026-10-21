@@ -20,6 +20,34 @@
   mssql queries with bindings changes shape (placeholder text and parameter
   passing), which downstream code inspecting compiled SQL text directly
   should account for.
+- MSSQL: closed eight compile-parity gaps that the same sweep surfaced. Two
+  were silently producing wrong results rather than merely divergent SQL:
+  `.update().join(...)` dropped the join entirely, turning a join-filtered
+  UPDATE into an unconditional one that wrote to every row of the table; and
+  `.returning()` dropped its columns with only a log line, so callers got
+  nothing back. Two more were emitting SQL that SQL Server rejects outright:
+  recursive CTEs carried a `RECURSIVE` keyword T-SQL has no grammar for, and
+  `.forUpdate()`/`.forShare()` refused to compile at all. In detail:
+  - `.returning()` now compiles to `OUTPUT inserted.*`/`OUTPUT deleted.*`,
+    positioned per verb (after the column list on INSERT, after SET on
+    UPDATE, after the target table on DELETE). `KnexDialect.mssql` gained
+    `SqlCapability.returning` accordingly, so `dialect_unsupported_returning`
+    no longer warns on correct code.
+  - `.forUpdate()`/`.forShare()` compile to the `with (UPDLOCK)`/`with
+    (HOLDLOCK)` FROM-clause table hints instead of throwing.
+    `.skipLocked()`/`.noWait()` have no table-hint equivalent and are
+    dropped, and `.forNoKeyUpdate()`/`.forKeyShare()` still refuse — all
+    three matching knex.js.
+  - `.limit(n)` without an offset compiles to `select top (n)`, and `.limit()`
+    on an UPDATE to `update top (n)` (previously dropped outright).
+  - `.update().join(...)` compiles to T-SQL's `UPDATE ... FROM ... JOIN`.
+  - Recursive CTEs emit a plain `WITH`; T-SQL doesn't distinguish recursive
+    from non-recursive CTEs and rejects the keyword.
+  - The jsonb key-existence operators (`?`, `?|`, `?&`) are no longer
+    backslash-escaped. The escape is now keyed off whether a dialect actually
+    uses `?` as its placeholder, rather than a hardcoded Postgres-family list.
+  - Wrapped `union`/`unionAll`/`intersect`/`except` leave the base select
+    unparenthesized, and the OFFSET/FETCH keywords are lowercase.
 
 ## 1.3.3
 
