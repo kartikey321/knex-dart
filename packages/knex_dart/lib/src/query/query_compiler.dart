@@ -269,7 +269,13 @@ class QueryCompiler {
       // against real knex.js 3.3.0 for the `union/wrapped-array` parity
       // case — see the allowlist/failure history for this batch.
       final unions = grouped['union'];
+      // ...except on mssql: knex.js's mssql compiler overrides select()
+      // wholesale (lib/dialects/mssql/query/mssql-querycompiler.js) and that
+      // override never implements the base QueryCompiler's wrapMainQuery
+      // step, so its output leaves the base select bare and parenthesizes
+      // only the subsequent legs.
       final wrapBase =
+          client.driverName != 'mssql' &&
           unions is List &&
           (unions as List).any((u) => (u['wrap'] as bool? ?? false));
       if (wrapBase) {
@@ -299,16 +305,23 @@ class QueryCompiler {
       parts.add(offsetSql);
     }
 
-    // Lock clause (FOR UPDATE / FOR SHARE / ...)
-    final lockSql = _lock();
-    if (lockSql.isNotEmpty) {
-      parts.add(lockSql);
-    }
+    // Lock clause (FOR UPDATE / FOR SHARE / ...) — already emitted above as a
+    // FROM-clause table hint on mssql.
+    if (client.driverName != 'mssql') {
+      final lockSql = _lock();
+      if (lockSql.isNotEmpty) {
+        parts.add(lockSql);
+      }
 
-    // Lock wait mode (SKIP LOCKED / NOWAIT)
-    final waitModeSql = _waitMode();
-    if (waitModeSql.isNotEmpty) {
-      parts.add(waitModeSql);
+      // Lock wait mode (SKIP LOCKED / NOWAIT). mssql has no equivalent — a
+      // table hint can't express "skip locked"/"nowait", and knex.js's mssql
+      // compiler has no waitMode component at all, so `.forUpdate()
+      // .skipLocked()` there compiles to a plain `with (UPDLOCK)` with the
+      // wait mode silently dropped.
+      final waitModeSql = _waitMode();
+      if (waitModeSql.isNotEmpty) {
+        parts.add(waitModeSql);
+      }
     }
 
     return parts.join(' ');
@@ -362,15 +375,41 @@ class QueryCompiler {
   /// Compile columns clause (SELECT ... FROM ...)
   ///
   String _columns() {
+    // Compiled FIRST, before any column or table compilation: on mssql the
+    // limit is expressed as a `top (n)` prefix inside the select list, so its
+    // binding has to precede every other binding in the statement. Compiling
+    // it later and splicing the text in front would leave the placeholder
+    // numbering out of step with the SQL text (matches knex.js, whose
+    // mssql columns() also calls top() before anything else).
+    final top = _top();
+    final topClause = top.isEmpty ? '' : '$top ';
+
+    // mssql's row-lock hint attaches to the table reference it locks, so it
+    // is emitted here as part of the FROM clause rather than as a standalone
+    // clause elsewhere in the statement.
+    //
+    // This deliberately differs from knex.js, which lists `lock` as a
+    // component *after* `join` and so emits
+    //   `from [users] inner join [orders] on ... with (UPDLOCK)`
+    // for a joined locking read. T-SQL only accepts a table hint directly
+    // after a table source, so that form is a syntax error — the hint ends up
+    // trailing an ON condition, attached to nothing. Emitting it against the
+    // table instead keeps joined locking reads runnable, and is byte-identical
+    // to knex.js for the unjoined shape (nothing sits between the table and
+    // the hint there). No parity fixture covers join + lock, so this costs
+    // nothing in parity terms.
+    final lockHint = client.driverName == 'mssql' ? _lock() : '';
+    final lockSuffix = lockHint.isEmpty ? '' : ' $lockHint';
+
     // Get column statements
     final columnStmts = grouped['columns'] ?? grouped['select'];
 
     // No explicit columns = SELECT *
     if (columnStmts == null || columnStmts.isEmpty) {
       if (tableName.isNotEmpty) {
-        return 'select * from $tableName';
+        return 'select $topClause* from $tableName$lockSuffix';
       }
-      return 'select *';
+      return 'select $topClause*';
     }
 
     // Check for DISTINCT flag and collect columns
@@ -496,10 +535,66 @@ class QueryCompiler {
         : (hasDistinct ? 'distinct ' : '');
 
     if (tableName.isNotEmpty) {
-      return 'select $distinctClause$columnList from $tableName';
+      return 'select $distinctClause$topClause$columnList from $tableName$lockSuffix';
     }
 
-    return 'select $distinctClause$columnList';
+    return 'select $distinctClause$topClause$columnList';
+  }
+
+  /// Compile mssql's `top (n)` select-list prefix, which is how T-SQL
+  /// expresses a limit that has no accompanying offset.
+  ///
+  /// Mirrors knex.js's `top()`
+  /// (lib/dialects/mssql/query/mssql-querycompiler.js) exactly, including its
+  /// two JS-truthiness quirks: an explicit `limit(0)` still emits `top (0)`,
+  /// and `offset(0)` counts as "no offset" (so `.limit(n).offset(0)` takes
+  /// the TOP form, not OFFSET/FETCH). Empty for every other dialect, which
+  /// use a trailing `limit`/OFFSET-FETCH clause instead.
+  String _top() {
+    if (client.driverName != 'mssql') return '';
+
+    final limit = single['limit'];
+    if (limit == null) return '';
+    if (!_mssqlNoOffset) return '';
+
+    // A `top (n)` prefix binds to the select it prefixes, not to a set
+    // operation built from it: `select top (n) ... union select ...` caps only
+    // the first branch and leaves the combined result unbounded, so one branch
+    // silently loses rows while the other returns everything. `.limit()` on a
+    // union is meant to bound the union's result, which is what the trailing
+    // OFFSET/FETCH form does — it applies after the ORDER BY, to the whole
+    // set.
+    //
+    // knex.js emits the TOP form here regardless; see the
+    // `union/order-limit-outer::mssql` allowlist entry, which records this as
+    // a deliberate divergence rather than following byte parity into a silent
+    // wrong-results bug.
+    if (_hasUnions) return '';
+
+    return 'top (${client.parameter(limit, bindings)})';
+  }
+
+  /// Whether `.offset()` counts as absent for mssql's TOP-vs-OFFSET/FETCH
+  /// decision.
+  ///
+  /// Mirrors knex.js's `noOffset = !this.single.offset`, where a zero offset
+  /// is falsy and so reads as "no offset at all". Shared by [_top], [_limit]
+  /// and [_offset] deliberately: when each kept its own copy of this
+  /// predicate they drifted, and a union with `.limit(n).offset(0)` fell
+  /// through every branch — TOP declined because of the union, OFFSET
+  /// declined because the offset was zero, and the union fallback in [_limit]
+  /// only recognized a null offset — leaving the query with no row bound at
+  /// all and the limit silently dropped.
+  bool get _mssqlNoOffset {
+    final offset = single['offset'];
+    return offset == null || (offset is num && offset == 0);
+  }
+
+  /// Whether this query has any set-operation legs (union/unionAll/intersect/
+  /// except).
+  bool get _hasUnions {
+    final unions = grouped['union'];
+    return unions != null && unions.isNotEmpty;
   }
 
   /// Compile WHERE clause
@@ -1302,10 +1397,20 @@ class QueryCompiler {
     final limit = single['limit'];
     if (limit == null) return '';
 
+    // mssql normally has no trailing `limit` clause: a limit without an offset
+    // becomes the `top (n)` select-list prefix (see [_top]), and a limit *with*
+    // an offset is emitted by [_offset] as the `fetch next` half of
+    // OFFSET/FETCH. knex.js's mssql limit() likewise always returns ''.
+    //
+    // The exception is a limit on a set operation, where [_top] declines to
+    // emit TOP because a prefix on the first branch wouldn't bound the
+    // combined result. Here the OFFSET/FETCH form is the only one that caps
+    // the union's own output, so emit it even though no offset was asked for
+    // (`offset 0 rows` is the required no-op prefix for a bare `fetch next`).
     if (client.driverName == 'mssql') {
-      final offset = single['offset'];
-      if (offset == null) {
-        return 'OFFSET 0 ROWS FETCH NEXT ${client.parameter(limit, bindings)} ROWS ONLY';
+      if (_hasUnions && _mssqlNoOffset) {
+        return 'offset 0 rows fetch next '
+            '${client.parameter(limit, bindings)} rows only';
       }
       return '';
     }
@@ -1323,11 +1428,15 @@ class QueryCompiler {
     if (offset == null) return '';
 
     if (client.driverName == 'mssql') {
+      // A zero offset reads as "no offset" (see [_mssqlNoOffset]) — the limit,
+      // if any, has already been emitted as `top (n)` by [_top] or as the
+      // union fallback by [_limit].
+      if (_mssqlNoOffset) return '';
+
       final limit = single['limit'];
-      if (limit == null) {
-        return 'OFFSET ${client.parameter(offset, bindings)} ROWS';
-      }
-      return 'OFFSET ${client.parameter(offset, bindings)} ROWS FETCH NEXT ${client.parameter(limit, bindings)} ROWS ONLY';
+      final offsetSql = 'offset ${client.parameter(offset, bindings)} rows';
+      if (limit == null) return offsetSql;
+      return '$offsetSql fetch next ${client.parameter(limit, bindings)} rows only';
     }
 
     // Add offset value to bindings and get placeholder
@@ -1354,21 +1463,30 @@ class QueryCompiler {
       return '';
     }
 
-    // MSSQL doesn't have a trailing `FOR UPDATE`/`FOR SHARE` clause at
-    // all — its lock hints (`WITH (UPDLOCK)`/`WITH (HOLDLOCK)`) attach
-    // directly to the table reference in the FROM clause instead, a
-    // different position in the SQL text this trailing-clause-shaped
-    // method can't produce. Emitting the generic postgres-style text here
-    // would be silently wrong T-SQL (MSSQL doesn't recognize a bare `for
-    // update` as a lock hint the way postgres does). Refuse loudly instead
-    // — a real fix needs the FROM-clause compiler to know about pending
-    // lock hints, not a one-line change here.
+    // MSSQL has no trailing `FOR UPDATE`/`FOR SHARE` clause at all — it
+    // expresses row locking as a table hint on the FROM clause, which is why
+    // _select() emits this right after the joins rather than at the end.
+    // knex.js's forUpdate()/forShare() produce exactly these two literals;
+    // neither takes a table list (`.forUpdate('users')`'s argument is
+    // ignored, since a hint already applies to the table it's attached to),
+    // and the two Postgres-only modes have no T-SQL equivalent at all.
     if (client.driverName == 'mssql') {
-      throw StateError(
-        '.$lock() on MSSQL requires a table-hint (WITH (UPDLOCK)/WITH '
-        '(HOLDLOCK)) attached to the FROM clause, not a trailing clause — '
-        'not currently supported by knex-dart',
-      );
+      switch (lock) {
+        case 'forUpdate':
+          return 'with (UPDLOCK)';
+        case 'forShare':
+          return 'with (HOLDLOCK)';
+        case 'forNoKeyUpdate':
+          throw StateError(
+            '.forNoKeyUpdate() is currently only supported on PostgreSQL',
+          );
+        case 'forKeyShare':
+          throw StateError(
+            '.forKeyShare() is currently only supported on PostgreSQL',
+          );
+        default:
+          return '';
+      }
     }
 
     // Use the family-aware helper so mariadb (and any future mysql-family
@@ -1703,7 +1821,16 @@ class QueryCompiler {
     if (ctes.isEmpty) return '';
 
     // with [recursive] cte1, cte2, ...
-    final prefix = isRecursive ? 'with recursive' : 'with';
+    //
+    // T-SQL has no RECURSIVE keyword at all — SQL Server doesn't
+    // syntactically distinguish recursive from non-recursive CTEs, and
+    // `with recursive` is a hard syntax error there. knex.js handles this by
+    // temporarily clearing every statement's `recursive` flag in its mssql
+    // compiler's with() override; the effect is the same as suppressing the
+    // keyword here.
+    final prefix = isRecursive && client.driverName != 'mssql'
+        ? 'with recursive'
+        : 'with';
     return '$prefix ${ctes.join(', ')}';
   }
 
@@ -1805,6 +1932,12 @@ class QueryCompiler {
     final emptyInsertValue = _isMySqlLikeDriver
         ? '() values ()'
         : 'default values';
+    // mssql's OUTPUT clause sits between the column list and `values` (or
+    // `default values`), so it has to be interpolated into each shape below
+    // rather than appended by _insertQuery(). Empty for every other dialect,
+    // which use a trailing RETURNING clause instead.
+    final output = _outputClause('insert');
+    final outputClause = output.isEmpty ? '' : '$output ';
 
     // Normalize to list of maps. Rows may arrive as `Map<dynamic, dynamic>`
     // (e.g. a bare `{}` literal inside a `List` in Dart infers that type, not
@@ -1822,7 +1955,7 @@ class QueryCompiler {
           .toList();
     } else if (insertValue is Map) {
       if (insertValue.isEmpty) {
-        return '$keyword $table $emptyInsertValue';
+        return '$keyword $table $outputClause$emptyInsertValue';
       }
       rows = [Map<String, dynamic>.from(insertValue)];
     } else {
@@ -1852,7 +1985,7 @@ class QueryCompiler {
       // ambiguous — DEFAULT VALUES can't be repeated per-row — so knex.js
       // drops it as a no-op, same as `insert([])`.
       if (rows.length == 1) {
-        return '$keyword $table $emptyInsertValue';
+        return '$keyword $table $outputClause$emptyInsertValue';
       }
       return '';
     }
@@ -1899,7 +2032,7 @@ class QueryCompiler {
       valuesClauses.add('(${rowBindings.join(', ')})');
     }
 
-    return '$keyword $table ($columnsSql) values ${valuesClauses.join(', ')}';
+    return '$keyword $table ($columnsSql) ${outputClause}values ${valuesClauses.join(', ')}';
   }
 
   /// Compile ON CONFLICT / ON DUPLICATE KEY UPDATE / INSERT IGNORE clause.
@@ -2047,6 +2180,12 @@ class QueryCompiler {
       return '';
     }
 
+    // mssql returns rows via a mid-statement OUTPUT clause instead of a
+    // trailing one, so the DML compilers place it themselves via
+    // [_outputClause] — nothing to append here. Guarded before the capability
+    // check below because mssql *does* carry SqlCapability.returning.
+    if (client.driverName == 'mssql') return '';
+
     if (!_supports(SqlCapability.returning)) {
       // Mirrors knex.js: dialects without RETURNING support (mysql,
       // redshift, ...) log a warning and silently drop the clause rather
@@ -2065,6 +2204,71 @@ class QueryCompiler {
     return 'returning $columns';
   }
 
+  /// Compile mssql's `OUTPUT` clause — T-SQL's equivalent of `RETURNING`.
+  ///
+  /// Unlike RETURNING this is not a trailing clause: it sits after the column
+  /// list on INSERT, after the SET list on UPDATE, and after the target table
+  /// on DELETE, so each DML compiler positions it rather than appending it.
+  /// Columns are prefixed per [verb]: the post-image pseudo-table `inserted.`
+  /// for INSERT/UPDATE, the pre-image `deleted.` for DELETE (mirroring
+  /// knex.js's `_returning()` + `columnizeWithPrefix`).
+  ///
+  /// Returns the clause without surrounding whitespace, or `''` when the
+  /// dialect isn't mssql or no `.returning()` columns were requested.
+  String _outputClause(String verb) {
+    if (client.driverName != 'mssql') return '';
+
+    final returningCols = single['returning'];
+    if (returningCols == null ||
+        returningCols is! List ||
+        returningCols.isEmpty) {
+      return '';
+    }
+
+    final prefix = verb == 'delete' ? 'deleted.' : 'inserted.';
+    final columns = (returningCols as List<String>)
+        .map((c) => '$prefix${formatter.wrap(_unqualify(c))}')
+        .join(', ');
+
+    return 'output $columns';
+  }
+
+  /// Strip a table qualifier from a `.returning()` column for mssql's OUTPUT
+  /// clause: `users.id` → `id`, `users.*` → `*`, `id` → `id`.
+  ///
+  /// `inserted`/`deleted` are pseudo-tables exposing exactly the target
+  /// table's columns, so a column there is addressed by name alone. Keeping
+  /// the caller's qualifier would produce `inserted.[users].[id]`, which SQL
+  /// Server rejects — two qualifiers for one column. knex.js has the same bug
+  /// (its `columnizeWithPrefix` concatenates the prefix onto the fully
+  /// wrapped column), and no parity fixture exercises a qualified
+  /// `.returning()`, so correcting it here costs nothing in parity terms.
+  ///
+  /// An ` as <alias>` suffix is split off before the qualifier is removed and
+  /// reattached afterwards, because an alias may itself contain a dot
+  /// (`id as result.key`) — scanning the whole string for the last dot would
+  /// take that one for a table qualifier and discard the source column *and*
+  /// the alias along with it. Only the source column's qualifier is dropped;
+  /// the alias is passed through untouched for the formatter to wrap.
+  String _unqualify(String column) {
+    // Matches _wrapTableIdentifier's alias detection, so ` AS `/` as ` and
+    // any other casing are all recognized.
+    final asIndex = column.toLowerCase().indexOf(' as ');
+    if (asIndex == -1) return _stripTableQualifier(column);
+
+    final source = column.substring(0, asIndex);
+    final aliasSuffix = column.substring(asIndex); // ' as <alias>'
+    return '${_stripTableQualifier(source)}$aliasSuffix';
+  }
+
+  /// Drop everything up to and including the last `.` — `users.id` → `id`.
+  /// Returns [column] unchanged when it carries no qualifier.
+  String _stripTableQualifier(String column) {
+    final lastDot = column.lastIndexOf('.');
+    if (lastDot == -1) return column;
+    return column.substring(lastDot + 1);
+  }
+
   /// Compile UPDATE query
   ///
   String _updateQuery() {
@@ -2077,6 +2281,28 @@ class QueryCompiler {
     }
 
     parts.add(_update());
+
+    // mssql: `update [t] set ... output inserted.[col] where ...` — the
+    // OUTPUT clause goes between the SET list and WHERE.
+    final output = _outputClause('update');
+    if (output.isNotEmpty) {
+      parts.add(output);
+    }
+
+    // mssql has no JOIN clause on UPDATE; T-SQL spells it as an UPDATE...FROM
+    // instead — `update [t] set ... from [t] inner join [o] on ... where ...`
+    // — where the FROM re-states the target table and the joins hang off it.
+    // Dropping the join (the previous behavior) didn't just change syntax: it
+    // turned a join-filtered update into an unconditional one. Compiled here,
+    // after the SET list and OUTPUT clause, so any ON-clause bindings land
+    // after SET's, matching the SQL text order (the reverse of MySQL, where
+    // the join precedes `set` — see _update()).
+    if (client.driverName == 'mssql') {
+      final joinSql = _join();
+      if (joinSql.isNotEmpty) {
+        parts.add('from ${formatter.wrap(single['table'])} $joinSql');
+      }
+    }
 
     final where = _where();
     if (where.isNotEmpty) {
@@ -2117,6 +2343,15 @@ class QueryCompiler {
 
     final table = formatter.wrap(single['table']);
 
+    // mssql expresses `.limit(n)` on an UPDATE as a `top (n)` prefix:
+    // `update top (n) [t] set ...`. Compiled before the SET list below so its
+    // binding is emitted first, matching the SQL text order — knex.js's
+    // standardUpdate() calls top() ahead of its SET prep for the same reason.
+    // Empty for every other dialect; MySQL's trailing `limit` form is handled
+    // in _updateQuery() instead.
+    final top = _top();
+    final topClause = top.isEmpty ? '' : '$top ';
+
     // MySQL-only extension: `UPDATE table INNER JOIN other ON ... SET ...`.
     // Standard SQL has no JOIN clause on UPDATE, so this is gated to MySQL
     // to match knex.js's mysql-querycompiler. Compiled BEFORE the SET list
@@ -2152,7 +2387,7 @@ class QueryCompiler {
       }
     }
 
-    return 'update $table$joinClause set ${updates.join(', ')}';
+    return 'update $topClause$table$joinClause set ${updates.join(', ')}';
   }
 
   /// Compile DELETE query
@@ -2188,6 +2423,11 @@ class QueryCompiler {
 
     if (!hasJoins) {
       parts.add(_delete());
+      // mssql: `delete from [t] output deleted.[col] where ...`.
+      final output = _outputClause('delete');
+      if (output.isNotEmpty) {
+        parts.add(output);
+      }
       final where = _where();
       if (where.isNotEmpty) {
         parts.add(where);
@@ -2216,10 +2456,17 @@ class QueryCompiler {
       }
     } else {
       final table = formatter.wrap(single['table']);
+      // mssql puts OUTPUT before the `from` when a join is present (it can't
+      // follow the joined table reference) — knex.js does the same, calling it
+      // out in a comment on its standardDelete(). Compiled before the join so
+      // the clause order below reads in SQL text order; it carries no
+      // bindings of its own, so this can't disturb the numbering.
+      final output = _outputClause('delete');
+      final outputClause = output.isEmpty ? '' : '$output ';
       // Text order here is `<join> where ...`, so compile the join first —
       // its bindings must precede WHERE's, matching the SQL text.
       final joinSql = _join();
-      parts.add('delete $table from $table $joinSql');
+      parts.add('delete $table ${outputClause}from $table $joinSql');
       final where = _where();
       if (where.isNotEmpty) {
         parts.add(where);
