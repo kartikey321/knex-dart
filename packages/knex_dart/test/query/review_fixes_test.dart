@@ -866,6 +866,29 @@ void main() {
       );
     });
 
+    test('an aliased returning column keeps both column and alias', () {
+      // The qualifier strip must split the alias off first: a dot inside the
+      // alias would otherwise be taken for a table qualifier, discarding the
+      // source column and the alias with it.
+      String outputOf(String col) => mssql
+          .queryBuilder()
+          .table('users')
+          .insert({'email': 'a@b.com'})
+          .returning([col])
+          .toSQL()
+          .sql;
+
+      expect(outputOf('id as k'), contains('output inserted."id" AS "k"'));
+      expect(
+        outputOf('id as result.key'),
+        contains('output inserted."id" AS "result.key"'),
+      );
+      expect(
+        outputOf('users.id as k'),
+        contains('output inserted."id" AS "k"'),
+      );
+    });
+
     test('no trailing RETURNING clause is emitted alongside OUTPUT', () {
       final sql = mssql
           .queryBuilder()

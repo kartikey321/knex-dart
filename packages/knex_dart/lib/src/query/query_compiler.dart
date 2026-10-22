@@ -2224,9 +2224,26 @@ class QueryCompiler {
   /// wrapped column), and no parity fixture exercises a qualified
   /// `.returning()`, so correcting it here costs nothing in parity terms.
   ///
-  /// Only a leading table qualifier is dropped; anything without a dot is
-  /// returned untouched, so aliases and plain columns are unaffected.
+  /// An ` as <alias>` suffix is split off before the qualifier is removed and
+  /// reattached afterwards, because an alias may itself contain a dot
+  /// (`id as result.key`) — scanning the whole string for the last dot would
+  /// take that one for a table qualifier and discard the source column *and*
+  /// the alias along with it. Only the source column's qualifier is dropped;
+  /// the alias is passed through untouched for the formatter to wrap.
   String _unqualify(String column) {
+    // Matches _wrapTableIdentifier's alias detection, so ` AS `/` as ` and
+    // any other casing are all recognized.
+    final asIndex = column.toLowerCase().indexOf(' as ');
+    if (asIndex == -1) return _stripTableQualifier(column);
+
+    final source = column.substring(0, asIndex);
+    final aliasSuffix = column.substring(asIndex); // ' as <alias>'
+    return '${_stripTableQualifier(source)}$aliasSuffix';
+  }
+
+  /// Drop everything up to and including the last `.` — `users.id` → `id`.
+  /// Returns [column] unchanged when it carries no qualifier.
+  String _stripTableQualifier(String column) {
     final lastDot = column.lastIndexOf('.');
     if (lastDot == -1) return column;
     return column.substring(lastDot + 1);
