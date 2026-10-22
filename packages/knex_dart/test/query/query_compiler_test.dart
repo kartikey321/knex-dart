@@ -496,6 +496,31 @@ void main() {
       expect(sql.bindings, [10]);
     });
 
+    test('MSSQL union limit still applies with an explicit offset(0)', () {
+      // A zero offset has to read as "no offset" in all three of _top(),
+      // _limit() and _offset(), or the limit falls through every branch: TOP
+      // declines because of the union, OFFSET declines because the offset is
+      // zero, and the union fallback misses it — leaving the query unbounded
+      // with the limit silently dropped.
+      final mssql = MockClient(driverName: 'mssql');
+      final other = QueryBuilder(mssql).table('b').select(['id']);
+      final sql = QueryBuilder(mssql)
+          .table('a')
+          .select(['id'])
+          .union([other])
+          .orderBy('id')
+          .limit(10)
+          .offset(0)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'select "id" from "a" union select "id" from "b" order by "id" asc '
+        'offset 0 rows fetch next \$1 rows only',
+      );
+      expect(sql.bindings, [10]);
+    });
+
     test('MSSQL OFFSET + LIMIT uses OFFSET/FETCH with both params', () {
       final mssql = MockClient(driverName: 'mssql');
       final builder = QueryBuilder(

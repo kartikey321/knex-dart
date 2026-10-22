@@ -554,9 +554,8 @@ class QueryCompiler {
     if (client.driverName != 'mssql') return '';
 
     final limit = single['limit'];
-    final offset = single['offset'];
     if (limit == null) return '';
-    if (offset != null && !(offset is num && offset == 0)) return '';
+    if (!_mssqlNoOffset) return '';
 
     // A `top (n)` prefix binds to the select it prefixes, not to a set
     // operation built from it: `select top (n) ... union select ...` caps only
@@ -570,10 +569,32 @@ class QueryCompiler {
     // `union/order-limit-outer::mssql` allowlist entry, which records this as
     // a deliberate divergence rather than following byte parity into a silent
     // wrong-results bug.
-    final unions = grouped['union'];
-    if (unions != null && unions.isNotEmpty) return '';
+    if (_hasUnions) return '';
 
     return 'top (${client.parameter(limit, bindings)})';
+  }
+
+  /// Whether `.offset()` counts as absent for mssql's TOP-vs-OFFSET/FETCH
+  /// decision.
+  ///
+  /// Mirrors knex.js's `noOffset = !this.single.offset`, where a zero offset
+  /// is falsy and so reads as "no offset at all". Shared by [_top], [_limit]
+  /// and [_offset] deliberately: when each kept its own copy of this
+  /// predicate they drifted, and a union with `.limit(n).offset(0)` fell
+  /// through every branch — TOP declined because of the union, OFFSET
+  /// declined because the offset was zero, and the union fallback in [_limit]
+  /// only recognized a null offset — leaving the query with no row bound at
+  /// all and the limit silently dropped.
+  bool get _mssqlNoOffset {
+    final offset = single['offset'];
+    return offset == null || (offset is num && offset == 0);
+  }
+
+  /// Whether this query has any set-operation legs (union/unionAll/intersect/
+  /// except).
+  bool get _hasUnions {
+    final unions = grouped['union'];
+    return unions != null && unions.isNotEmpty;
   }
 
   /// Compile WHERE clause
@@ -1387,9 +1408,7 @@ class QueryCompiler {
     // the union's own output, so emit it even though no offset was asked for
     // (`offset 0 rows` is the required no-op prefix for a bare `fetch next`).
     if (client.driverName == 'mssql') {
-      final unions = grouped['union'];
-      final onUnion = unions != null && unions.isNotEmpty;
-      if (onUnion && single['offset'] == null) {
+      if (_hasUnions && _mssqlNoOffset) {
         return 'offset 0 rows fetch next '
             '${client.parameter(limit, bindings)} rows only';
       }
@@ -1409,9 +1428,10 @@ class QueryCompiler {
     if (offset == null) return '';
 
     if (client.driverName == 'mssql') {
-      // offset(0) is "no offset" here, same as knex.js's falsy check — the
-      // limit (if any) has already been emitted as `top (n)` by [_top].
-      if (offset is num && offset == 0) return '';
+      // A zero offset reads as "no offset" (see [_mssqlNoOffset]) — the limit,
+      // if any, has already been emitted as `top (n)` by [_top] or as the
+      // union fallback by [_limit].
+      if (_mssqlNoOffset) return '';
 
       final limit = single['limit'];
       final offsetSql = 'offset ${client.parameter(offset, bindings)} rows';
