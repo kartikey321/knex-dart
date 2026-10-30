@@ -243,6 +243,7 @@ await db.close();
 - `@p0, @p1, ...` named placeholders
 - Square-bracket identifier quoting (`[column]`)
 - `top (n)` for a limit with no offset; `offset ... rows fetch next ... rows only` when both are given
+- An `.offset()` with no `.orderBy()` gets the ordinal sort `order by 1`. T-SQL makes OFFSET/FETCH a tail of the ORDER BY clause, so the unsorted form is a syntax error; paginating without a sort returns an arbitrary page regardless
 - `.returning()` compiles to `OUTPUT inserted.*` / `OUTPUT deleted.*`
 - `.forUpdate()` / `.forShare()` compile to the `with (UPDLOCK)` / `with (HOLDLOCK)` table hints; `.skipLocked()` / `.noWait()` have no T-SQL equivalent and are dropped
 - `.limit()` on an UPDATE compiles to `update top (n)`; `.join()` on an UPDATE compiles to T-SQL's `UPDATE ... FROM ... JOIN` form

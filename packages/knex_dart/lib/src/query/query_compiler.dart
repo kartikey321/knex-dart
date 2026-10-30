@@ -606,6 +606,29 @@ class QueryCompiler {
     return unions != null && unions.isNotEmpty;
   }
 
+  /// The inert sort T-SQL needs in front of `OFFSET`/`FETCH`, or `''` when the
+  /// caller already supplied an `ORDER BY`.
+  ///
+  /// SQL Server defines OFFSET/FETCH as a *tail of the ORDER BY clause*, not a
+  /// clause of its own, so `offset n rows` with no sort is a syntax error. The
+  /// server confirms both halves of this (see the mssql driver's live
+  /// `pagination` tests): it rejects the unsorted form, and it rejects the
+  /// usual inert key `(select null)` on a set operation with error 104,
+  /// because there every ORDER BY item must also appear in the select list.
+  ///
+  /// The ordinal `1` satisfies both rules at once — it names the first output
+  /// column by position, so it is a select-list item by construction and works
+  /// even for `select *`. Trailing space included so callers can interpolate
+  /// it directly.
+  ///
+  /// This imposes a sort the caller never asked for. That is unavoidable:
+  /// T-SQL offers no way to bound rows without one, and the rows returned by
+  /// an unordered bound would be arbitrary regardless.
+  String get _mssqlInertSort {
+    final orders = grouped['order'];
+    return (orders == null || orders.isEmpty) ? 'order by 1 ' : '';
+  }
+
   /// Compile WHERE clause
   ///
   ///
@@ -1436,9 +1459,7 @@ class QueryCompiler {
         // This does impose a sort the caller didn't ask for, which is
         // unavoidable: T-SQL has no way to bound a set operation without one,
         // and the row set returned by an unordered bound is arbitrary anyway.
-        final orders = grouped['order'];
-        final sort = (orders == null || orders.isEmpty) ? 'order by 1 ' : '';
-        return '${sort}offset 0 rows fetch next '
+        return '${_mssqlInertSort}offset 0 rows fetch next '
             '${client.parameter(limit, bindings)} rows only';
       }
       return '';
@@ -1463,7 +1484,15 @@ class QueryCompiler {
       if (_mssqlNoOffset) return '';
 
       final limit = single['limit'];
-      final offsetSql = 'offset ${client.parameter(offset, bindings)} rows';
+
+      // Same T-SQL rule as the union fallback above, and the reason this
+      // diverges from knex.js: knex.js emits `offset ? rows [fetch next ?
+      // rows only]` with no sort when the caller supplied none
+      // (mssql-querycompiler.js `offset()`), which SQL Server rejects
+      // outright. Matching it byte-for-byte would mean matching unrunnable
+      // SQL, so `select/limit-offset::mssql` is an accepted divergence.
+      final offsetSql =
+          '${_mssqlInertSort}offset ${client.parameter(offset, bindings)} rows';
       if (limit == null) return offsetSql;
       return '$offsetSql fetch next ${client.parameter(limit, bindings)} rows only';
     }

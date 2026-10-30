@@ -606,6 +606,41 @@ const Map<String, String> parityAllowlist = {
       'SQL Server rejects — same reasoning as on/bare-string::mssql. The '
       '`update top (n)` prefix is emitted correctly (G5). Also carries the '
       'G1 `;select @@rowcount` residual.',
+
+  // ── ACCEPTED: knex.js emits OFFSET/FETCH with no sort, which cannot run ────
+  //
+  // This case USED to pass. It was removed from this ledger and then added
+  // back, because byte-for-byte agreement with knex.js turned out to be
+  // agreement on a statement SQL Server refuses to execute.
+  //
+  // knex.js's mssql `offset()` (mssql-querycompiler.js) emits
+  //   offset ? rows fetch next ? rows only
+  // with no ORDER BY whenever the caller supplied none. But T-SQL defines
+  // OFFSET/FETCH as a *tail of the ORDER BY clause* rather than a clause in
+  // its own right, so that form is a syntax error — the server never gets as
+  // far as paginating anything.
+  //
+  // That was settled against a real server rather than by reading the
+  // grammar, and it took two attempts to settle honestly: the first live test
+  // passed on *any* exception, so a dropped connection would have satisfied
+  // it just as well. The test is now differential — the identical query WITH
+  // an ORDER BY must succeed, and the failure must carry a server-assigned
+  // error number — and it is that version which confirms the rejection
+  // (drivers/knex_dart_mssql/test/integration/mssql_test.dart, the
+  // `pagination (TOP / OFFSET-FETCH)` group).
+  //
+  // So knex-dart supplies the ordinal `order by 1` when no sort was given,
+  // the same inert sort already used to bound a set operation, and declines
+  // to copy knex.js here. Same call as on/bare-string::mssql and
+  // update/orderby-limit::mssql: parity is the default, not the rule, and it
+  // loses to runnable SQL. Paginating without an ORDER BY returns an
+  // arbitrary page anyway, so the imposed sort costs the caller nothing they
+  // could have relied on.
+  'select/limit-offset::mssql':
+      '[ACCEPTED] knex.js emits `offset ? rows fetch next ? rows only` with no '
+      'ORDER BY; T-SQL makes OFFSET/FETCH a tail of the ORDER BY clause, so '
+      'that is a syntax error on a real server. knex-dart prefixes the '
+      'ordinal `order by 1` — see the note above this entry.',
 };
 
 /// Dialects the core harness cannot drive via [KnexQuery.forClient].

@@ -461,13 +461,87 @@ void main() {
       expect(sql.bindings, [0]);
     });
 
-    test('MSSQL offset without a limit emits a bare offset clause', () {
+    test('MSSQL offset without a limit emits an offset clause and no FETCH',
+        () {
       final mssql = MockClient(driverName: 'mssql');
       final sql = QueryBuilder(mssql).table('users').offset(20).toSQL();
 
-      expect(sql.sql, 'select * from "users" offset \$1 rows');
+      // `order by 1` is the inert sort T-SQL requires in front of OFFSET —
+      // see the OFFSET/ORDER BY tests below.
+      expect(sql.sql, 'select * from "users" order by 1 offset \$1 rows');
       expect(sql.sql, isNot(contains('fetch next')));
       expect(sql.bindings, [20]);
+    });
+
+    test('MSSQL OFFSET/FETCH gets an inert sort when the caller gave none', () {
+      // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, not a
+      // clause of its own, so `offset n rows` with no sort is a syntax error.
+      // knex.js emits exactly that (mssql-querycompiler.js `offset()`), which
+      // is why `select/limit-offset::mssql` is an ACCEPTED divergence rather
+      // than a parity match — confirmed against a real server by the mssql
+      // driver's live `pagination` tests.
+      final mssql = MockClient(driverName: 'mssql');
+      final sql =
+          QueryBuilder(mssql).table('users').limit(10).offset(5).toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" order by 1 offset \$1 rows '
+        'fetch next \$2 rows only',
+      );
+      // Text position must match bind position: the sort is a literal ordinal
+      // and contributes no placeholder, so offset stays first.
+      expect(sql.bindings, [5, 10]);
+    });
+
+    test('MSSQL does not add the inert sort when the caller supplied one', () {
+      final mssql = MockClient(driverName: 'mssql');
+      final sql = QueryBuilder(mssql)
+          .table('users')
+          .orderBy('id')
+          .limit(10)
+          .offset(5)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'select * from "users" order by "id" asc offset \$1 rows '
+        'fetch next \$2 rows only',
+      );
+      expect(sql.sql, isNot(contains('order by 1')));
+      expect(sql.bindings, [5, 10]);
+    });
+
+    test('MSSQL inert sort is an ordinal, never the (select null) form', () {
+      // On a set operation SQL Server additionally requires every ORDER BY
+      // item to appear in the select list and rejects `(select null)` with
+      // error 104. The ordinal satisfies both rules, so one form covers the
+      // plain and the set-operation cases alike.
+      final mssql = MockClient(driverName: 'mssql');
+      final other = QueryBuilder(mssql).table('b').select(['id']);
+
+      final plain = QueryBuilder(mssql).table('users').offset(5).toSQL();
+      final union = QueryBuilder(mssql)
+          .table('a')
+          .select(['id'])
+          .union([other])
+          .limit(2)
+          .offset(1)
+          .toSQL();
+
+      for (final sql in [plain.sql, union.sql]) {
+        expect(sql, contains('order by 1 offset'));
+        expect(sql, isNot(contains('select null')));
+      }
+      // A union with a real offset needs the sort too — the union fallback in
+      // _limit() only covers the zero-offset case, so this shape reaches
+      // _offset() instead and would otherwise go out unsorted.
+      expect(
+        union.sql,
+        'select "id" from "a" union select "id" from "b" '
+        'order by 1 offset \$1 rows fetch next \$2 rows only',
+      );
+      expect(union.bindings, [1, 2]);
     });
 
     test('MSSQL limit on a union bounds the union, not its first branch', () {

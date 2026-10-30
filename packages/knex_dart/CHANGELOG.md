@@ -49,7 +49,7 @@
   - Wrapped `union`/`unionAll`/`intersect`/`except` leave the base select
     unparenthesized, and the OFFSET/FETCH keywords are lowercase.
 
-  Three of these deliberately diverge from knex.js, because matching it
+  Four of these deliberately diverge from knex.js, because matching it
   would emit a statement SQL Server rejects or silently return wrong rows:
   - The lock hint attaches to the table (`from [t] with (UPDLOCK) inner join
     ...`). knex.js orders its `lock` component after `join`, which trails the
@@ -60,6 +60,14 @@
   - A qualified `.returning(['users.id'])` drops the table qualifier, since
     `inserted`/`deleted` expose the target table's columns directly;
     `inserted.[users].[id]` is two qualifiers for one column.
+  - `.offset()` without an `.orderBy()` gets the ordinal sort `order by 1`.
+    T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause rather than a
+    clause in its own right, so the unsorted form knex.js emits is a syntax
+    error — confirmed against a real SQL Server, not inferred from the
+    grammar. `.toSQL()` output for mssql queries using `.offset()` without an
+    explicit sort therefore gains an `order by 1` prefix on the clause.
+    Pagination without an ORDER BY returns an arbitrary page in any case, so
+    the imposed sort removes nothing a caller could have relied on.
 
 ## 1.3.3
 

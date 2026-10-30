@@ -401,62 +401,53 @@ void main() {
       expect(rows.map((r) => r['name']), ['A', 'B']);
     });
 
-    test('OFFSET-FETCH with no .orderBy() — pins the server\'s verdict',
-        () async {
+    test('the server rejects raw OFFSET/FETCH with no ORDER BY', () async {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
-      // knex.js's mssql client emits `offset ? rows fetch next ? rows only`
-      // with no ORDER BY whenever the caller supplied none, and knex-dart
-      // matches it byte-for-byte (the passing `select/limit-offset::mssql`
-      // parity case). If T-SQL really does require an ORDER BY there, that
-      // shape is unrunnable and the parity match deserves revisiting. Settle
-      // it with the server instead of by argument.
+      // Pins a property of T-SQL itself, so it goes through raw SQL rather
+      // than the builder. It used to run through the builder, which made it
+      // depend on the compiler emitting the broken form — and the compiler no
+      // longer does (it supplies `order by 1`), so that version would now be
+      // testing nothing. Raw SQL keeps the server as the subject.
       //
-      // Written as a differential pair so that the ORDER BY is the only thing
-      // under test. The control runs the identical builder WITH a sort and
-      // must succeed — that is what rules out a connection drop, a missing
-      // `users` table or any other incidental failure being mistaken for the
-      // grammar verdict.
-      final control = await db!.select(
-        db!
-            .queryBuilder()
-            .from('users')
-            .select(['name'])
-            .orderBy('name')
-            .offset(1)
-            .limit(2),
+      // Differential, so the ORDER BY is the only variable: the control is the
+      // identical statement WITH a sort and must succeed. That is what rules
+      // out a dropped connection or a missing `users` table being mistaken for
+      // the grammar verdict.
+      final control = await db!.rawSql(
+        'select name from users order by name offset 1 rows fetch next 2 rows only',
       );
       // Fixture is A..E, so skipping one and taking two is exactly B, C.
       expect(
         control.map((r) => r['name']),
         ['B', 'C'],
-        reason: 'control query (same shape, WITH order by) must succeed — '
-            'otherwise the negative case below proves nothing about ORDER BY',
+        reason: 'control (same statement, WITH order by) must succeed — '
+            'otherwise the negative case proves nothing about ORDER BY',
       );
 
-      // `errorCode` is the server's own error number, parsed off the TDS
-      // ERROR token. Every client-side throw site in package:mssql leaves it
-      // at its default 0 (pool closed, acquire timeout, TLS refusal), so
-      // requiring it to be non-zero is what distinguishes "the server parsed
-      // this and rejected it" from "we never got a usable connection".
-      // The exact error number is not asserted because it has not been
-      // observed yet — SQL Server documents 153 for `FETCH` without `OFFSET`,
-      // which is a different statement, and the number for this shape is
-      // unconfirmed. Logging it here is what makes pinning it a verified
-      // change rather than a guess; once a run reports it, this becomes an
-      // equality assertion and the print goes away.
+      // Logged so the exact error number can be pinned from an observed run
+      // rather than guessed. SQL Server documents 153 for `FETCH` without
+      // `OFFSET`, which is a different statement; the number for this shape is
+      // unconfirmed, and asserting a guessed constant in the one test whose
+      // job is to record what the server really does would defeat the test.
       try {
-        await db!.select(
-          db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
+        await db!.rawSql(
+          'select name from users offset 1 rows fetch next 2 rows only',
         );
       } on MssqlException catch (e) {
         print('OFFSET-without-ORDER-BY verdict: code=${e.errorCode} '
             'severity=${e.severity} message=${e.message}');
       }
 
+      // `errorCode` is the server's own number, parsed off the TDS ERROR
+      // token. Every client-side throw site in package:mssql leaves it at its
+      // default 0 (pool closed, acquire timeout, TLS refusal), so requiring it
+      // to be non-zero separates "the server parsed this and rejected it" from
+      // "we never had a usable connection". `throwsA` rejects any other
+      // exception type outright.
       await expectLater(
-        db!.select(
-          db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
+        db!.rawSql(
+          'select name from users offset 1 rows fetch next 2 rows only',
         ),
         throwsA(
           isA<MssqlException>().having(
@@ -466,11 +457,29 @@ void main() {
           ),
         ),
         reason:
-            'SQL Server ACCEPTED OFFSET/FETCH without an ORDER BY. The '
-            'grammar concern behind the union inert-sort is then narrower '
-            'than assumed and `select/limit-offset::mssql` needs no '
-            'revisiting — invert this expectation and update the note.',
+            'SQL Server ACCEPTED OFFSET/FETCH without an ORDER BY. The inert '
+            'sort the compiler adds is then unnecessary, and '
+            '`select/limit-offset::mssql` can go back to matching knex.js — '
+            'invert this expectation and update the parity ledger note.',
       );
+    });
+
+    test('.offset().limit() with no .orderBy() runs — the inert sort works',
+        () async {
+      if (skipReason != null) return markTestSkipped(skipReason!);
+
+      // The other half of the test above. knex.js emits this shape without a
+      // sort and SQL Server refuses it; knex-dart prefixes `order by 1`, which
+      // is why `select/limit-offset::mssql` is an ACCEPTED divergence. This is
+      // what proves the divergence actually buys a runnable statement — the
+      // parity ledger's claim is only as good as this assertion.
+      final rows = await db!.select(
+        db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
+      );
+
+      // `order by 1` sorts ascending by the only output column, so skipping
+      // one of A..E and taking two is deterministically B, C.
+      expect(rows.map((r) => r['name']), ['B', 'C']);
     });
   });
 
