@@ -358,6 +358,57 @@ void main() {
       expect(rows, hasLength(2));
       expect(rows.first['name'], 'C'); // skipped A, B
     });
+
+    test('a union with .limit() and no .orderBy() runs on the server',
+        () async {
+      if (skipReason != null) return markTestSkipped(skipReason!);
+
+      // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, so the
+      // compiler supplies `order by (select null)` when a bounded set
+      // operation carries no sort of its own. Asserted against a real server
+      // rather than against a reading of the grammar: without the inert sort
+      // this statement would be a syntax error, so this test is what proves
+      // the emitted form actually runs.
+      final other = db!.queryBuilder().from('users').select(['name']);
+      final rows = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['name'])
+            .union([other])
+            .limit(2),
+      );
+      expect(rows, hasLength(2));
+    });
+
+    test('OFFSET-FETCH with no .orderBy() — pins the server\'s verdict',
+        () async {
+      if (skipReason != null) return markTestSkipped(skipReason!);
+
+      // knex.js's mssql client emits `offset ? rows fetch next ? rows only`
+      // with no ORDER BY whenever the caller supplied none, and knex-dart
+      // matches it byte-for-byte (the passing `select/limit-offset::mssql`
+      // parity case). If T-SQL really does require an ORDER BY there, that
+      // shape is unrunnable and the parity match deserves revisiting. Settle
+      // it with the server instead of by argument.
+      Object? error;
+      try {
+        await db!.select(
+          db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(
+        error,
+        isNotNull,
+        reason:
+            'SQL Server ACCEPTED OFFSET/FETCH without an ORDER BY. The '
+            'grammar concern behind the union inert-sort is then narrower '
+            'than assumed and `select/limit-offset::mssql` needs no '
+            'revisiting — invert this expectation and update the note.',
+      );
+    });
   });
 
   group('MssqlClient — GROUP BY / HAVING', () {

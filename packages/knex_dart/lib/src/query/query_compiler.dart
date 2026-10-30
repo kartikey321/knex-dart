@@ -381,7 +381,24 @@ class QueryCompiler {
     // it later and splicing the text in front would leave the placeholder
     // numbering out of step with the SQL text (matches knex.js, whose
     // mssql columns() also calls top() before anything else).
-    final top = _top();
+    //
+    // Suppressed for a set operation: a `top (n)` prefix bounds the select it
+    // prefixes, not the union built from it, so `select top (n) ... union
+    // select ...` caps only the first branch — that branch silently loses
+    // rows while the other returns everything. `.limit()` on a union is meant
+    // to bound the union's result, which is what [_limit]'s trailing
+    // OFFSET/FETCH fallback does (it applies after the ORDER BY, to the whole
+    // set). knex.js emits the TOP form regardless; see the
+    // `union/order-limit-outer::mssql` allowlist entry, which records that as
+    // a deliberate divergence rather than following byte parity into a silent
+    // wrong-results bug.
+    //
+    // Deliberately checked HERE and not inside [_top]: an UPDATE reaches
+    // _top() through [_update] and must keep its prefix even when the builder
+    // also carries union legs, because `update top (n)` is the only way to
+    // bound a T-SQL UPDATE — suppressing it there dropped the row cap and let
+    // the statement write every row matching WHERE.
+    final top = _hasUnions ? '' : _top();
     final topClause = top.isEmpty ? '' : '$top ';
 
     // mssql's row-lock hint attaches to the table reference it locks, so it
@@ -550,26 +567,18 @@ class QueryCompiler {
   /// and `offset(0)` counts as "no offset" (so `.limit(n).offset(0)` takes
   /// the TOP form, not OFFSET/FETCH). Empty for every other dialect, which
   /// use a trailing `limit`/OFFSET-FETCH clause instead.
+  ///
+  /// Used by both the SELECT path ([_columns]) and the UPDATE path
+  /// ([_update]). The SELECT path additionally suppresses it for set
+  /// operations — see the comment at that call site — but an UPDATE always
+  /// takes the prefix, since `update top (n)` is the only form that bounds a
+  /// T-SQL UPDATE at all.
   String _top() {
     if (client.driverName != 'mssql') return '';
 
     final limit = single['limit'];
     if (limit == null) return '';
     if (!_mssqlNoOffset) return '';
-
-    // A `top (n)` prefix binds to the select it prefixes, not to a set
-    // operation built from it: `select top (n) ... union select ...` caps only
-    // the first branch and leaves the combined result unbounded, so one branch
-    // silently loses rows while the other returns everything. `.limit()` on a
-    // union is meant to bound the union's result, which is what the trailing
-    // OFFSET/FETCH form does — it applies after the ORDER BY, to the whole
-    // set.
-    //
-    // knex.js emits the TOP form here regardless; see the
-    // `union/order-limit-outer::mssql` allowlist entry, which records this as
-    // a deliberate divergence rather than following byte parity into a silent
-    // wrong-results bug.
-    if (_hasUnions) return '';
 
     return 'top (${client.parameter(limit, bindings)})';
   }
@@ -1409,7 +1418,17 @@ class QueryCompiler {
     // (`offset 0 rows` is the required no-op prefix for a bare `fetch next`).
     if (client.driverName == 'mssql') {
       if (_hasUnions && _mssqlNoOffset) {
-        return 'offset 0 rows fetch next '
+        // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, so it
+        // can't stand on its own. A union with `.limit()` but no `.orderBy()`
+        // would otherwise emit a bare `offset ... fetch next ...` that SQL
+        // Server rejects outright. `(select null)` is the standard inert sort
+        // key for exactly this situation — it keeps the row bound expressible
+        // without imposing an order the caller didn't ask for.
+        final orders = grouped['order'];
+        final sort = (orders == null || orders.isEmpty)
+            ? 'order by (select null) '
+            : '';
+        return '${sort}offset 0 rows fetch next '
             '${client.parameter(limit, bindings)} rows only';
       }
       return '';

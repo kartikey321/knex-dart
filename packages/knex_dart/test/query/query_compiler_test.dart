@@ -521,6 +521,48 @@ void main() {
       expect(sql.bindings, [10]);
     });
 
+    test('MSSQL union limit with no orderBy supplies an inert sort', () {
+      // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, so a
+      // bare `offset ... fetch next ...` is a syntax error. `(select null)`
+      // is the standard inert sort key for this situation.
+      final mssql = MockClient(driverName: 'mssql');
+      final other = QueryBuilder(mssql).table('b').select(['id']);
+      final sql = QueryBuilder(mssql)
+          .table('a')
+          .select(['id'])
+          .union([other])
+          .limit(10)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'select "id" from "a" union select "id" from "b" '
+        'order by (select null) offset 0 rows fetch next \$1 rows only',
+      );
+      expect(sql.bindings, [10]);
+    });
+
+    test('MSSQL UPDATE keeps top (n) even when the builder has union legs', () {
+      // The union suppression belongs to the SELECT path only: `update top
+      // (n)` is the sole way to bound a T-SQL UPDATE, so dropping it here
+      // left the statement free to write every row matching WHERE.
+      final mssql = MockClient(driverName: 'mssql');
+      final other = QueryBuilder(mssql).table('b').select(['id']);
+      final sql = QueryBuilder(mssql)
+          .table('users')
+          .union([other])
+          .where('x', 1)
+          .update({'n': 'a'})
+          .limit(5)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update top (\$1) "users" set "n" = \$2 where "x" = \$3',
+      );
+      expect(sql.bindings, [5, 'a', 1]);
+    });
+
     test('MSSQL OFFSET + LIMIT uses OFFSET/FETCH with both params', () {
       final mssql = MockClient(driverName: 'mssql');
       final builder = QueryBuilder(
