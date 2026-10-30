@@ -18,9 +18,9 @@
 /// await db.close();
 /// ```
 ///
-/// Requires FreeTDS to be installed:
-///   - macOS:  `brew install freetds`
-///   - Ubuntu: `sudo apt-get install -y freetds-dev libct4`
+/// Pure Dart — no native library or system dependency to install. Works
+/// anywhere a Dart `Socket`/`SecureSocket` does, speaking TDS over
+/// [`mssql`](https://pub.dev/packages/mssql).
 library;
 
 export 'src/mssql_client.dart';
