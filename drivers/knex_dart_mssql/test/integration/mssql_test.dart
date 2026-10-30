@@ -425,26 +425,33 @@ void main() {
             'otherwise the negative case proves nothing about ORDER BY',
       );
 
-      // Logged so the exact error number can be pinned from an observed run
-      // rather than guessed. SQL Server documents 153 for `FETCH` without
-      // `OFFSET`, which is a different statement; the number for this shape is
-      // unconfirmed, and asserting a guessed constant in the one test whose
-      // job is to record what the server really does would defeat the test.
-      try {
-        await db!.rawSql(
-          'select name from users offset 1 rows fetch next 2 rows only',
-        );
-      } on MssqlException catch (e) {
-        print('OFFSET-without-ORDER-BY verdict: code=${e.errorCode} '
-            'severity=${e.severity} message=${e.message}');
-      }
-
+      // 153 is the number SQL Server 2022 actually returned, read off a CI
+      // run rather than reasoned about:
+      //
+      //   code=153  Invalid usage of the option next in the FETCH statement.
+      //
+      // Observed for the *parameterized* form of this statement (`offset @p0
+      // rows fetch next @p1 rows only`, sent with bindings) rather than the
+      // literal form asserted here, which goes out unchanged on a different
+      // send path. The server parses the same statement either way, so the
+      // number is expected to hold — but it is an expectation until a run
+      // with this test in it says so, which is what the `reason` below is
+      // written to make actionable.
+      //
+      // Worth recording that the obvious guess was wrong. OFFSET appearing
+      // outside an ORDER BY looks like a parse error, which would be 102
+      // ("Incorrect syntax near ..."), and the one documented reference to
+      // 153 describes FETCH *without* OFFSET — a different statement from
+      // this one. Both pointed away from the right answer, so an asserted
+      // constant here would have been wrong in a test whose entire purpose is
+      // to record what the server really does.
+      //
       // `errorCode` is the server's own number, parsed off the TDS ERROR
       // token. Every client-side throw site in package:mssql leaves it at its
-      // default 0 (pool closed, acquire timeout, TLS refusal), so requiring it
-      // to be non-zero separates "the server parsed this and rejected it" from
-      // "we never had a usable connection". `throwsA` rejects any other
-      // exception type outright.
+      // default 0 (pool closed, acquire timeout, TLS refusal), so an exact
+      // non-zero number also separates "the server parsed this and rejected
+      // it" from "we never had a usable connection". `throwsA` rejects any
+      // other exception type outright.
       await expectLater(
         db!.rawSql(
           'select name from users offset 1 rows fetch next 2 rows only',
@@ -453,14 +460,17 @@ void main() {
           isA<MssqlException>().having(
             (e) => e.errorCode,
             'errorCode',
-            isNot(0),
+            153,
           ),
         ),
         reason:
-            'SQL Server ACCEPTED OFFSET/FETCH without an ORDER BY. The inert '
-            'sort the compiler adds is then unnecessary, and '
-            '`select/limit-offset::mssql` can go back to matching knex.js — '
-            'invert this expectation and update the parity ledger note.',
+            'Either SQL Server ACCEPTED OFFSET/FETCH without an ORDER BY — in '
+            'which case the inert sort the compiler adds is unnecessary and '
+            '`select/limit-offset::mssql` can go back to matching knex.js, so '
+            'invert this expectation and update the parity ledger note — or '
+            'it still rejects the statement but under a different error '
+            'number than 153, which is only a matter of re-pinning the '
+            'number from the run output.',
       );
     });
 
