@@ -3,6 +3,9 @@ library;
 
 import 'package:universal_io/io.dart';
 import 'package:knex_dart_mssql/knex_dart_mssql.dart';
+// For MssqlException, which carries the server's own error number. The driver
+// barrel does not re-export it, so the negative OFFSET test reaches for it here.
+import 'package:mssql/mssql.dart' show MssqlException;
 import 'package:test/test.dart';
 
 // ─── Connection config from environment ──────────────────────────────────────
@@ -364,11 +367,16 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, so the
-      // compiler supplies `order by (select null)` when a bounded set
-      // operation carries no sort of its own. Asserted against a real server
-      // rather than against a reading of the grammar: without the inert sort
-      // this statement would be a syntax error, so this test is what proves
-      // the emitted form actually runs.
+      // compiler supplies an inert sort when a bounded set operation carries
+      // no sort of its own. That sort is the ordinal `order by 1`, not the
+      // usual `(select null)`: a set operation additionally requires every
+      // ORDER BY item to appear in the select list, and SQL Server rejects
+      // the expression form with error 104. An ordinal names an output column
+      // by position, so it satisfies both rules even for `select *`.
+      //
+      // Asserted against a real server rather than against a reading of the
+      // grammar: without the inert sort this statement would be a syntax
+      // error, so this test is what proves the emitted form actually runs.
       final other = db!.queryBuilder().from('users').select(['name']);
       final rows = await db!.select(
         db!
@@ -391,17 +399,45 @@ void main() {
       // parity case). If T-SQL really does require an ORDER BY there, that
       // shape is unrunnable and the parity match deserves revisiting. Settle
       // it with the server instead of by argument.
-      Object? error;
-      try {
-        await db!.select(
-          db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
-        );
-      } catch (e) {
-        error = e;
-      }
+      //
+      // Written as a differential pair so that the ORDER BY is the only thing
+      // under test. The control runs the identical builder WITH a sort and
+      // must succeed — that is what rules out a connection drop, a missing
+      // `users` table or any other incidental failure being mistaken for the
+      // grammar verdict.
+      final control = await db!.select(
+        db!
+            .queryBuilder()
+            .from('users')
+            .select(['name'])
+            .orderBy('name')
+            .offset(1)
+            .limit(2),
+      );
+      // Fixture is A..E, so skipping one and taking two is exactly B, C.
       expect(
-        error,
-        isNotNull,
+        control.map((r) => r['name']),
+        ['B', 'C'],
+        reason: 'control query (same shape, WITH order by) must succeed — '
+            'otherwise the negative case below proves nothing about ORDER BY',
+      );
+
+      // `errorCode` is the server's own error number, parsed off the TDS
+      // ERROR token. Every client-side throw site in package:mssql leaves it
+      // at its default 0 (pool closed, acquire timeout, TLS refusal), so
+      // requiring it to be non-zero is what distinguishes "the server parsed
+      // this and rejected it" from "we never got a usable connection".
+      await expectLater(
+        db!.select(
+          db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
+        ),
+        throwsA(
+          isA<MssqlException>().having(
+            (e) => e.errorCode,
+            'errorCode',
+            isNot(0),
+          ),
+        ),
         reason:
             'SQL Server ACCEPTED OFFSET/FETCH without an ORDER BY. The '
             'grammar concern behind the union inert-sort is then narrower '
