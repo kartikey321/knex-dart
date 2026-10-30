@@ -20,6 +20,54 @@
   mssql queries with bindings changes shape (placeholder text and parameter
   passing), which downstream code inspecting compiled SQL text directly
   should account for.
+- MSSQL: closed eight compile-parity gaps that the same sweep surfaced. Two
+  were silently producing wrong results rather than merely divergent SQL:
+  `.update().join(...)` dropped the join entirely, turning a join-filtered
+  UPDATE into an unconditional one that wrote to every row of the table; and
+  `.returning()` dropped its columns with only a log line, so callers got
+  nothing back. Two more were emitting SQL that SQL Server rejects outright:
+  recursive CTEs carried a `RECURSIVE` keyword T-SQL has no grammar for, and
+  `.forUpdate()`/`.forShare()` refused to compile at all. In detail:
+  - `.returning()` now compiles to `OUTPUT inserted.*`/`OUTPUT deleted.*`,
+    positioned per verb (after the column list on INSERT, after SET on
+    UPDATE, after the target table on DELETE). `KnexDialect.mssql` gained
+    `SqlCapability.returning` accordingly, so `dialect_unsupported_returning`
+    no longer warns on correct code.
+  - `.forUpdate()`/`.forShare()` compile to the `with (UPDLOCK)`/`with
+    (HOLDLOCK)` FROM-clause table hints instead of throwing.
+    `.skipLocked()`/`.noWait()` have no table-hint equivalent and are
+    dropped, and `.forNoKeyUpdate()`/`.forKeyShare()` still refuse — all
+    three matching knex.js.
+  - `.limit(n)` without an offset compiles to `select top (n)`, and `.limit()`
+    on an UPDATE to `update top (n)` (previously dropped outright).
+  - `.update().join(...)` compiles to T-SQL's `UPDATE ... FROM ... JOIN`.
+  - Recursive CTEs emit a plain `WITH`; T-SQL doesn't distinguish recursive
+    from non-recursive CTEs and rejects the keyword.
+  - The jsonb key-existence operators (`?`, `?|`, `?&`) are no longer
+    backslash-escaped. The escape is now keyed off whether a dialect actually
+    uses `?` as its placeholder, rather than a hardcoded Postgres-family list.
+  - Wrapped `union`/`unionAll`/`intersect`/`except` leave the base select
+    unparenthesized, and the OFFSET/FETCH keywords are lowercase.
+
+  Four of these deliberately diverge from knex.js, because matching it
+  would emit a statement SQL Server rejects or silently return wrong rows:
+  - The lock hint attaches to the table (`from [t] with (UPDLOCK) inner join
+    ...`). knex.js orders its `lock` component after `join`, which trails the
+    hint off the end of an ON condition where T-SQL won't accept it.
+  - `.limit(n)` on a set operation keeps the trailing OFFSET/FETCH form. A
+    `top (n)` prefix — what knex.js emits — bounds only the first branch, so
+    one branch loses rows while the other returns everything.
+  - A qualified `.returning(['users.id'])` drops the table qualifier, since
+    `inserted`/`deleted` expose the target table's columns directly;
+    `inserted.[users].[id]` is two qualifiers for one column.
+  - `.offset()` without an `.orderBy()` gets the ordinal sort `order by 1`.
+    T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause rather than a
+    clause in its own right, so the unsorted form knex.js emits is a syntax
+    error — confirmed against a real SQL Server, not inferred from the
+    grammar. `.toSQL()` output for mssql queries using `.offset()` without an
+    explicit sort therefore gains an `order by 1` prefix on the clause.
+    Pagination without an ORDER BY returns an arbitrary page in any case, so
+    the imposed sort removes nothing a caller could have relied on.
 
 ## 1.3.3
 

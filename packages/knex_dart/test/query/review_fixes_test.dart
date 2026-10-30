@@ -636,10 +636,64 @@ void main() {
       expect(sql.sql, 'select * from "t"');
     });
 
-    test('MSSQL: forUpdate()/forShare() throw rather than emit wrong SQL', () {
+    test('MSSQL: forUpdate()/forShare() emit FROM-clause table hints', () {
       final mssql = MockClient(driverName: 'mssql');
       expect(
-        () => mssql.queryBuilder().table('t').forUpdate().toSQL(),
+        mssql.queryBuilder().table('t').forUpdate().toSQL().sql,
+        'select * from "t" with (UPDLOCK)',
+      );
+      expect(
+        mssql.queryBuilder().table('t').forShare().toSQL().sql,
+        'select * from "t" with (HOLDLOCK)',
+      );
+    });
+
+    test('MSSQL: the table hint precedes WHERE, not the trailing position', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        mssql.queryBuilder().table('t').where('id', 1).forUpdate().toSQL().sql,
+        'select * from "t" with (UPDLOCK) where "id" = \$1',
+      );
+    });
+
+    test('MSSQL: the hint attaches to the table, ahead of any joins', () {
+      // A table hint is only legal directly after a table source. knex.js
+      // lists `lock` after `join`, which emits the hint trailing the ON
+      // condition — attached to nothing, and rejected by SQL Server.
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .join('orders', 'users.id', 'orders.user_id')
+            .forUpdate()
+            .toSQL()
+            .sql,
+        'select * from "users" with (UPDLOCK) inner join "orders" '
+        'on "users"."id" = "orders"."user_id"',
+      );
+    });
+
+    test('MSSQL: skipLocked()/noWait() drop — no table-hint equivalent', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        mssql.queryBuilder().table('t').forUpdate().skipLocked().toSQL().sql,
+        'select * from "t" with (UPDLOCK)',
+      );
+      expect(
+        mssql.queryBuilder().table('t').forUpdate().noWait().toSQL().sql,
+        'select * from "t" with (UPDLOCK)',
+      );
+    });
+
+    test('MSSQL: the Postgres-only lock modes still refuse', () {
+      final mssql = MockClient(driverName: 'mssql');
+      expect(
+        () => mssql.queryBuilder().table('t').forNoKeyUpdate().toSQL(),
+        throwsStateError,
+      );
+      expect(
+        () => mssql.queryBuilder().table('t').forKeyShare().toSQL(),
         throwsStateError,
       );
     });
@@ -661,6 +715,267 @@ void main() {
       );
       // Previously ['Bob', 'active'] — wrong slot for both placeholders.
       expect(sql.bindings, ['active', 'Bob']);
+    });
+  });
+
+  group('MSSQL dialect shapes with no trailing-clause equivalent', () {
+    final mssql = MockClient(driverName: 'mssql');
+
+    test('withRecursive() emits a plain `with` — T-SQL has no RECURSIVE', () {
+      final sql = mssql
+          .queryBuilder()
+          .withRecursive('t', mssql.queryBuilder().table('users'))
+          .table('t')
+          .toSQL()
+          .sql;
+
+      expect(sql, startsWith('with "t" as ('));
+      expect(sql, isNot(contains('recursive')));
+    });
+
+    test('a wrapped union leaves the base select unparenthesized', () {
+      final other = mssql.queryBuilder().table('users').where('id', 2);
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .where('id', 1)
+          .union([other], wrap: true)
+          .toSQL()
+          .sql;
+
+      expect(sql, startsWith('select * from "users" where "id" = \$1 union ('));
+    });
+
+    test('the jsonb ? escape is kept or dropped per placeholder style', () {
+      // The escape exists to protect a literal `?` from knex.js's
+      // `?`→placeholder pass, so it only belongs on dialects that actually
+      // use `?` as their placeholder.
+      expect(
+        mssql.queryBuilder().table('t').where('tags', '?', 'x').toSQL().sql,
+        'select * from "t" where "tags" ? \$1',
+      );
+      expect(
+        QueryBuilder(my).table('t').where('tags', '?', 'x').toSQL().sql,
+        r'select * from `t` where `tags` \? ?',
+      );
+      expect(
+        QueryBuilder(
+          SqliteMockClient(),
+        ).table('t').where('tags', '?', 'x').toSQL().sql,
+        contains(r'\?'),
+      );
+    });
+  });
+
+  group('MSSQL returning() compiles to a mid-statement OUTPUT clause', () {
+    final mssql = MockClient(driverName: 'mssql');
+
+    test('INSERT: OUTPUT sits between the column list and values', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({'email': 'a@b.com'})
+            .returning(['id'])
+            .toSQL()
+            .sql,
+        'insert into "users" ("email") output inserted."id" values (\$1)',
+      );
+    });
+
+    test('INSERT: multiple returning columns each carry the prefix', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({'email': 'a@b.com'})
+            .returning(['id', 'email'])
+            .toSQL()
+            .sql,
+        'insert into "users" ("email") output inserted."id", inserted."email" '
+        'values (\$1)',
+      );
+    });
+
+    test('INSERT: OUTPUT precedes `default values` on an empty row', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({})
+            .returning(['id'])
+            .toSQL()
+            .sql,
+        'insert into "users" output inserted."id" default values',
+      );
+    });
+
+    test('UPDATE: OUTPUT sits between the SET list and WHERE', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .where('id', 1)
+            .update({'name': 'Bob'})
+            .returning(['*'])
+            .toSQL()
+            .sql,
+        'update "users" set "name" = \$1 output inserted.* where "id" = \$2',
+      );
+    });
+
+    test('DELETE: OUTPUT uses the deleted. pre-image prefix, before WHERE', () {
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .where('id', 1)
+            .delete()
+            .returning(['id'])
+            .toSQL()
+            .sql,
+        'delete from "users" output deleted."id" where "id" = \$1',
+      );
+    });
+
+    test('a qualified returning column drops its table qualifier', () {
+      // `inserted`/`deleted` expose the target table's own columns, so a
+      // column there is addressed by name alone — keeping the caller's
+      // qualifier would emit `inserted."users"."id"`, two qualifiers for one
+      // column, which SQL Server rejects.
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .insert({'email': 'a@b.com'})
+            .returning(['users.id'])
+            .toSQL()
+            .sql,
+        'insert into "users" ("email") output inserted."id" values (\$1)',
+      );
+      expect(
+        mssql
+            .queryBuilder()
+            .table('users')
+            .where('id', 1)
+            .delete()
+            .returning(['users.*'])
+            .toSQL()
+            .sql,
+        'delete from "users" output deleted.* where "id" = \$1',
+      );
+    });
+
+    test('an aliased returning column keeps both column and alias', () {
+      // The qualifier strip must split the alias off first: a dot inside the
+      // alias would otherwise be taken for a table qualifier, discarding the
+      // source column and the alias with it.
+      String outputOf(String col) => mssql
+          .queryBuilder()
+          .table('users')
+          .insert({'email': 'a@b.com'})
+          .returning([col])
+          .toSQL()
+          .sql;
+
+      expect(outputOf('id as k'), contains('output inserted."id" AS "k"'));
+      expect(
+        outputOf('id as result.key'),
+        contains('output inserted."id" AS "result.key"'),
+      );
+      expect(
+        outputOf('users.id as k'),
+        contains('output inserted."id" AS "k"'),
+      );
+    });
+
+    test('no trailing RETURNING clause is emitted alongside OUTPUT', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .insert({'email': 'a@b.com'})
+          .returning(['id'])
+          .toSQL()
+          .sql;
+      expect(sql, isNot(contains('returning')));
+    });
+  });
+
+  group('MSSQL UPDATE: top(n) and the UPDATE...FROM join form', () {
+    final mssql = MockClient(driverName: 'mssql');
+
+    test('limit() on an UPDATE compiles to `update top (n)`', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .where('id', 5)
+          .update({'email': 'foo'})
+          .limit(1)
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update top (\$1) "users" set "email" = \$2 where "id" = \$3',
+      );
+      // `top (n)` precedes the SET list in the text, so its binding must be
+      // emitted first — previously the limit was dropped entirely.
+      expect(sql.bindings, [1, 'foo', 5]);
+    });
+
+    test('join() on an UPDATE compiles to T-SQL UPDATE...FROM', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .join('orders', 'users.id', 'orders.user_id')
+          .where('users.id', 1)
+          .update({'email': 'foo'})
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "email" = \$1 from "users" inner join "orders" '
+        'on "users"."id" = "orders"."user_id" where "users"."id" = \$2',
+      );
+      expect(sql.bindings, ['foo', 1]);
+    });
+
+    test('UPDATE...FROM join ON bindings follow the SET bindings', () {
+      // Reverse of the MySQL case above: on mssql the FROM/JOIN comes *after*
+      // `set ...` in the text, so its bindings must come after SET's.
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .join(
+            'accounts',
+            (j) => j
+                .on('users.id', '=', 'accounts.user_id')
+                .onVal('accounts.status', '=', 'active'),
+          )
+          .update({'name': 'Bob'})
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "name" = \$1 from "users" inner join "accounts" '
+        'on "users"."id" = "accounts"."user_id" and "accounts"."status" = \$2',
+      );
+      expect(sql.bindings, ['Bob', 'active']);
+    });
+
+    test('OUTPUT precedes the FROM clause when both are present', () {
+      final sql = mssql
+          .queryBuilder()
+          .table('users')
+          .join('orders', 'users.id', 'orders.user_id')
+          .update({'email': 'foo'})
+          .returning(['id'])
+          .toSQL();
+
+      expect(
+        sql.sql,
+        'update "users" set "email" = \$1 output inserted."id" from "users" '
+        'inner join "orders" on "users"."id" = "orders"."user_id"',
+      );
     });
   });
 }

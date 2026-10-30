@@ -148,22 +148,21 @@ class Formatter {
       throw Exception('The operator "$value" is not permitted');
     }
     // The jsonb key-existence operators (`?`, `?|`, `?&`) are stored escaped
-    // (`\?`) because knex.js runs a `?`→`$N` positioning pass that would
-    // otherwise mistake them for placeholders, and it strips the backslash for
-    // Postgres. knex-dart emits `$N` directly for Postgres-family dialects, so
-    // the escape is pure cruft there and leaks a literal backslash — strip it
-    // (matches knex.js). MySQL/SQLite keep the escape, also matching knex.js.
-    if (op.startsWith(r'\?')) {
-      const pgFamily = {
-        'pg',
-        'postgres',
-        'postgresql',
-        'cockroachdb',
-        'redshift',
-      };
-      if (pgFamily.contains(client.driverName)) {
-        return op.substring(1); // drop the leading backslash
-      }
+    // (`\?`) because knex.js runs a `?`→placeholder positioning pass that
+    // would otherwise mistake them for placeholders. That pass strips the
+    // backslash again for every dialect whose placeholders aren't `?` in the
+    // first place (`$N` for the Postgres family, `@pN` for mssql), and leaves
+    // it in for the `?`-placeholder dialects (mysql/mariadb/sqlite/turso/d1) —
+    // verified against knex.js 3.3.0 across all nine dialects via the
+    // `jsonb/qmark-op` parity fixture.
+    //
+    // knex-dart emits the final placeholder form directly instead of running
+    // a positioning pass, so for the non-`?` dialects the escape is pure
+    // cruft that leaks a literal backslash into the SQL. Keyed off the
+    // dialect's own placeholder rather than a hardcoded dialect list, so a
+    // future numbered-placeholder dialect gets this right for free.
+    if (op.startsWith(r'\?') && client.parameterPlaceholder(1) != '?') {
+      return op.substring(1); // drop the leading backslash
     }
     return op;
   }

@@ -154,7 +154,28 @@ jobs:
 
       - name: Install DuckDB (macOS)
         if: runner.os == 'macOS'
-        run: brew install duckdb
+        # Pinned to DUCKDB_VERSION like Linux and Windows, rather than
+        # `brew install duckdb`. Homebrew tracks whatever DuckDB is current, so
+        # this job silently ran a different native library from the rest of the
+        # matrix — and from the `dart_duckdb` bindings, which are themselves
+        # versioned 1.4.4. With DuckDB 2.0.0 rolling out through Homebrew, two
+        # runs four minutes apart pulled 2.0.0 and 1.5.6, so a green or red
+        # result came down to which bottle the runner happened to get.
+        # 1.4.4/1.5.0/1.5.6 all pass; 2.0.0 fails on nested-transaction
+        # semantics (an inner savepoint rollback discards the outer
+        # transaction too), which is tracked separately — pinning here only
+        # stops the version roulette, it does not address 2.x support.
+        run: |
+          curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors \
+            "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/libduckdb-osx-universal.zip" \
+            -o /tmp/libduckdb.zip
+          unzip -o /tmp/libduckdb.zip libduckdb.dylib -d /tmp/duckdb-lib
+          # knex_dart_duckdb's _configureMacOS() probes /opt/homebrew/lib
+          # first, then /usr/local/lib; install to both so the pinned build is
+          # picked up on either an Apple Silicon or an Intel runner.
+          sudo mkdir -p /opt/homebrew/lib /usr/local/lib
+          sudo cp /tmp/duckdb-lib/libduckdb.dylib /opt/homebrew/lib/libduckdb.dylib
+          sudo cp /tmp/duckdb-lib/libduckdb.dylib /usr/local/lib/libduckdb.dylib
 
       - name: Install DuckDB (Windows)
         if: runner.os == 'Windows'
@@ -462,7 +483,6 @@ jobs:
   test-mssql:
     name: Test SQL Server (Linux/Docker)
     needs: analyze
-    continue-on-error: true
     runs-on: ubuntu-latest
     services:
       mssql:
