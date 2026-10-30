@@ -521,10 +521,12 @@ void main() {
       expect(sql.bindings, [10]);
     });
 
-    test('MSSQL union limit with no orderBy supplies an inert sort', () {
-      // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, so a
-      // bare `offset ... fetch next ...` is a syntax error. `(select null)`
-      // is the standard inert sort key for this situation.
+    test('MSSQL union limit with no orderBy supplies an ordinal sort', () {
+      // OFFSET/FETCH is a tail of the ORDER BY clause, so a bare
+      // `offset ... fetch next ...` is rejected. On a set operation every
+      // ORDER BY item must also appear in the select list, which rules out
+      // the usual `(select null)` inert key — the ordinal `1` names the
+      // first output column by position and satisfies both rules.
       final mssql = MockClient(driverName: 'mssql');
       final other = QueryBuilder(mssql).table('b').select(['id']);
       final sql = QueryBuilder(mssql)
@@ -537,7 +539,7 @@ void main() {
       expect(
         sql.sql,
         'select "id" from "a" union select "id" from "b" '
-        'order by (select null) offset 0 rows fetch next \$1 rows only',
+        'order by 1 offset 0 rows fetch next \$1 rows only',
       );
       expect(sql.bindings, [10]);
     });

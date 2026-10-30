@@ -1419,15 +1419,25 @@ class QueryCompiler {
     if (client.driverName == 'mssql') {
       if (_hasUnions && _mssqlNoOffset) {
         // T-SQL defines OFFSET/FETCH as a tail of the ORDER BY clause, so it
-        // can't stand on its own. A union with `.limit()` but no `.orderBy()`
-        // would otherwise emit a bare `offset ... fetch next ...` that SQL
-        // Server rejects outright. `(select null)` is the standard inert sort
-        // key for exactly this situation — it keeps the row bound expressible
-        // without imposing an order the caller didn't ask for.
+        // can't stand on its own: a union with `.limit()` but no `.orderBy()`
+        // would emit a bare `offset ... fetch next ...` that SQL Server
+        // rejects (verified live — see the integration test in
+        // drivers/knex_dart_mssql/test/integration/mssql_test.dart).
+        //
+        // The usual inert sort key `(select null)` is NOT usable here: on a
+        // set operation SQL Server additionally requires every ORDER BY item
+        // to appear in the select list, and rejects an expression with
+        // "ORDER BY items must appear in the select list if the statement
+        // contains a UNION, INTERSECT or EXCEPT operator." The ordinal `1`
+        // satisfies both rules — it names the first output column by
+        // position, so it is a select-list item by construction and works
+        // even for `select *`.
+        //
+        // This does impose a sort the caller didn't ask for, which is
+        // unavoidable: T-SQL has no way to bound a set operation without one,
+        // and the row set returned by an unordered bound is arbitrary anyway.
         final orders = grouped['order'];
-        final sort = (orders == null || orders.isEmpty)
-            ? 'order by (select null) '
-            : '';
+        final sort = (orders == null || orders.isEmpty) ? 'order by 1 ' : '';
         return '${sort}offset 0 rows fetch next '
             '${client.parameter(limit, bindings)} rows only';
       }
