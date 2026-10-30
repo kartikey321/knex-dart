@@ -2300,7 +2300,9 @@ class QueryCompiler {
     if (client.driverName == 'mssql') {
       final joinSql = _join();
       if (joinSql.isNotEmpty) {
-        parts.add('from ${formatter.wrap(single['table'])} $joinSql');
+        // Reuses the text _update() already emitted rather than recompiling
+        // the table expression — see [_updateTableText].
+        parts.add('from $_updateTableText $joinSql');
       }
     }
 
@@ -2331,6 +2333,21 @@ class QueryCompiler {
     return parts.join(' ');
   }
 
+  /// The table text [_update] emitted, so mssql's `UPDATE ... FROM` clause in
+  /// [_updateQuery] can name the identical table without compiling the table
+  /// expression a second time.
+  ///
+  /// Recompiling it is a latent desync: a bound `Raw` table
+  /// (`.from(client.raw('tbl(?)', [v]))`) is one expression carrying
+  /// bindings, so compiling it twice risks appending those bindings twice and
+  /// shifting every placeholder after them. Today `formatter.wrap()` drops a
+  /// Raw table's bindings on the UPDATE/DELETE paths entirely rather than
+  /// appending them — a separate pre-existing bug, and the reason the
+  /// duplicate text happens to be harmless right now (SELECT is unaffected:
+  /// it goes through the [tableName] getter, which inlines the Raw properly).
+  /// Reusing the text keeps the FROM correct by construction either way.
+  late String _updateTableText;
+
   /// Compile UPDATE statement
   ///
   String _update() {
@@ -2341,7 +2358,7 @@ class QueryCompiler {
       throw ArgumentError('Empty .update() call detected!');
     }
 
-    final table = formatter.wrap(single['table']);
+    final table = _updateTableText = formatter.wrap(single['table']);
 
     // mssql expresses `.limit(n)` on an UPDATE as a `top (n)` prefix:
     // `update top (n) [t] set ...`. Compiled before the SET list below so its
