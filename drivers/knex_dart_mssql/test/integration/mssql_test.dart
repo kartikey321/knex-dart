@@ -377,16 +377,28 @@ void main() {
       // Asserted against a real server rather than against a reading of the
       // grammar: without the inert sort this statement would be a syntax
       // error, so this test is what proves the emitted form actually runs.
-      final other = db!.queryBuilder().from('users').select(['name']);
+      // Each operand is filtered to a different fixture row, so a compiler
+      // that dropped an operand — or bound `top (n)`/`fetch next n` to one
+      // branch instead of the combined result — would change the row set
+      // rather than still returning two rows. Both regressions have actually
+      // happened in this file's history, which is why the assertion names
+      // the rows instead of counting them.
+      //
+      // The order is deterministic despite no .orderBy(): the inert sort the
+      // compiler supplies is `order by 1`, i.e. ascending by the only output
+      // column, so A precedes B.
+      final other =
+          db!.queryBuilder().from('users').where('name', '=', 'A').select(['name']);
       final rows = await db!.select(
         db!
             .queryBuilder()
             .from('users')
+            .where('name', '=', 'B')
             .select(['name'])
             .union([other])
             .limit(2),
       );
-      expect(rows, hasLength(2));
+      expect(rows.map((r) => r['name']), ['A', 'B']);
     });
 
     test('OFFSET-FETCH with no .orderBy() — pins the server\'s verdict',
@@ -427,6 +439,21 @@ void main() {
       // at its default 0 (pool closed, acquire timeout, TLS refusal), so
       // requiring it to be non-zero is what distinguishes "the server parsed
       // this and rejected it" from "we never got a usable connection".
+      // The exact error number is not asserted because it has not been
+      // observed yet — SQL Server documents 153 for `FETCH` without `OFFSET`,
+      // which is a different statement, and the number for this shape is
+      // unconfirmed. Logging it here is what makes pinning it a verified
+      // change rather than a guess; once a run reports it, this becomes an
+      // equality assertion and the print goes away.
+      try {
+        await db!.select(
+          db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
+        );
+      } on MssqlException catch (e) {
+        print('OFFSET-without-ORDER-BY verdict: code=${e.errorCode} '
+            'severity=${e.severity} message=${e.message}');
+      }
+
       await expectLater(
         db!.select(
           db!.queryBuilder().from('users').select(['name']).offset(1).limit(2),
