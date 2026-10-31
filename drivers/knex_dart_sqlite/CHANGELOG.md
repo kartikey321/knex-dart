@@ -17,13 +17,28 @@ rest until each user widened their constraint by hand.
   which already sends them one at a time — every `schemaBuilder` operation
   emits single statements, so schema code is unaffected.
 
-- **Web: the default `storageMode` is now `auto`, not `memory`.** Calling
+- **Web: the default `storageMode` is now `indexedDb`, not `memory`.** Calling
   `KnexSQLite.connect(filename: 'app.db')` on web with no `webStorageMode`
   returned an in-memory database that looked persistent and discarded
   everything on close — the same silent non-persistence as the OPFS bug fixed
   in 0.4.2, reached by omission rather than by a broken path. A filename is a
-  request for storage that outlives the page, so the default now resolves to
-  `auto`: OPFS where available, then IndexedDB, then memory.
+  request for storage that outlives the page, so the default now persists.
+
+  `indexedDb` rather than `auto`, despite `auto` preferring the faster OPFS
+  backend: `auto` falls back on *any* OPFS failure, and OPFS holds exclusive
+  `FileSystemSyncAccessHandle`s. A second connection to the same name while
+  the first still holds them doesn't fail — it quietly lands on IndexedDB
+  instead, so two connections read and write two different stores, each
+  believing it has the database, with writes from one invisible to the other
+  and to later OPFS reopens. That is the same class of silent divergence this
+  release removes elsewhere, so it does not belong on the default path.
+  IndexedDB persists, works on a page as well as in a worker (OPFS requires a
+  dedicated worker), and has no exclusive-handle contention, so one name
+  always resolves to one store.
+
+  `auto` and `opfs` remain available explicitly for callers who want OPFS and
+  can guarantee a single connection. The explicit `opfs` mode never falls
+  back, so contention surfaces as an error rather than as a second store.
 
   `:memory:` still means in-memory, matching the native driver. Pass
   `webStorageMode: 'memory'` explicitly to keep the old behavior for a named

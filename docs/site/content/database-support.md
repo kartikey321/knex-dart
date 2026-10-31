@@ -161,11 +161,16 @@ await webDb.close();
 `webStorageMode` is web-only. Passing it to the native sqlite3 driver throws
 `UnsupportedError`.
 
-On web, omitting `webStorageMode` resolves to `auto` (OPFS, then IndexedDB,
-then memory) for any filename other than `:memory:`. Before 0.5.0 it defaulted
-to `memory`, which handed back a database that looked persistent and discarded
-everything on close. Pass `webStorageMode: 'memory'` explicitly if that is what
-you want.
+On web, omitting `webStorageMode` resolves to `indexedDb` for any filename
+other than `:memory:`. Before 0.5.0 it defaulted to `memory`, which handed back
+a database that looked persistent and discarded everything on close.
+
+The default is not `auto`: `auto` falls back on any OPFS failure, and OPFS holds
+exclusive file handles, so a second connection to the same name quietly lands on
+IndexedDB and reads a different store than the first — with no error. Use
+`webStorageMode: 'opfs'` if you want OPFS and can guarantee a single
+connection; it never falls back, so contention raises instead. Pass
+`webStorageMode: 'memory'` for the old behavior.
 
 `rawSql()` takes exactly one statement. Passing several separated by `;` throws
 `ArgumentError` — SQLite compiles only the first, so before 0.5.0 that one ran,

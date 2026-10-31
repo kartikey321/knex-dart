@@ -103,15 +103,31 @@ class SQLiteClient extends Client {
   /// outlives the page, so defaulting it to [SQLiteWebStorageMode.memory]
   /// handed back one that discarded everything — the same silent
   /// non-persistence as the OPFS bug fixed in 0.4.2, reached by omission
-  /// rather than by a broken path. [SQLiteWebStorageMode.auto] prefers OPFS,
-  /// falls back to IndexedDB and only then to memory, so a named database
-  /// persists wherever the browser allows it.
+  /// rather than by a broken path.
+  ///
+  /// The default is [SQLiteWebStorageMode.indexedDb] rather than
+  /// [SQLiteWebStorageMode.auto], even though `auto` would prefer the faster
+  /// OPFS backend. `auto` falls back on *any* OPFS failure, and OPFS holds
+  /// exclusive `FileSystemSyncAccessHandle`s: a second connection to the same
+  /// name while the first still holds them does not fail, it quietly lands on
+  /// IndexedDB instead. Two connections then read and write two different
+  /// stores, each believing it has the database — no error, and writes from
+  /// one invisible to the other and to later OPFS reopens. That is the same
+  /// silent-divergence failure this release exists to remove, so it is not
+  /// something to put on the default path.
+  ///
+  /// IndexedDB persists, works both on a page and in a worker (OPFS needs a
+  /// dedicated worker), and has no exclusive-handle contention, so one name
+  /// always resolves to one store. `auto` and `opfs` remain available
+  /// explicitly for callers who want OPFS and can guarantee a single
+  /// connection; the explicit `opfs` mode never falls back, so contention
+  /// surfaces as an error there rather than as a second store.
   ///
   /// `:memory:` keeps meaning in-memory, matching the native driver.
   static SQLiteWebStorageMode _defaultStorageModeFor(String filename) =>
       filename == ':memory:'
       ? SQLiteWebStorageMode.memory
-      : SQLiteWebStorageMode.auto;
+      : SQLiteWebStorageMode.indexedDb;
 
   static SQLiteWebStorageMode _parseStorageMode(
     Object? value,

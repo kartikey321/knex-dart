@@ -48,6 +48,13 @@ void main() {
         } on Object {
           // ignore
         }
+        // The default-mode test stores in IndexedDB, so OPFS cleanup alone
+        // would leak a store into the next run.
+        try {
+          await harness.call('deleteIndexedDb', {'filename': name});
+        } on Object {
+          // ignore
+        }
       }
       created.clear();
       await harness.dispose();

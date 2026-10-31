@@ -100,10 +100,19 @@ one call each, or through `executeSchema()`, which already does that.
 
 ### Default web storage mode
 
-Omitting `webStorageMode` resolves to `auto` — OPFS, then IndexedDB, then
-memory — for any filename other than `:memory:`. Before 0.5.0 the default was
-`memory`, so a named database looked persistent and lost everything on close.
-Pass `webStorageMode: 'memory'` explicitly for the old behavior.
+Omitting `webStorageMode` resolves to `indexedDb` for any filename other than
+`:memory:`. Before 0.5.0 the default was `memory`, so a named database looked
+persistent and lost everything on close.
+
+Not `auto`, even though it would prefer the faster OPFS backend: `auto` falls
+back on any OPFS failure, and OPFS holds exclusive file handles, so a second
+connection to the same name quietly lands on IndexedDB and ends up reading a
+different store than the first — silently. IndexedDB persists, works on a page
+as well as in a worker, and has no such contention.
+
+Use `webStorageMode: 'opfs'` if you want OPFS and can guarantee one connection;
+it never falls back, so contention raises an error instead. Pass
+`webStorageMode: 'memory'` for the pre-0.5.0 behavior.
 
 ### OPFS persistence
 
