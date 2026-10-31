@@ -18,7 +18,15 @@ class SQLiteClient extends Client {
   // transactions must not interleave. We queue only the outermost scopes;
   // nested transactions within the same logical flow still use savepoints.
   Future<void> _transactionQueue = Future<void>.value();
-  static final Object _transactionZoneKey = Object();
+  /// Marks "a transaction of **this** client is already on the stack".
+  ///
+  /// Per-instance, not static: a static key is shared by every client, so
+  /// client B's top-level `trx()` called inside client A's transaction saw
+  /// A's marker, concluded it was nested, skipped its own serialization queue
+  /// and issued SAVEPOINT/RELEASE without ever having run BEGIN. Mirrors
+  /// `PostgresClient._txSessionZoneKey`, made per-instance for the same
+  /// reason.
+  final Object _transactionZoneKey = Object();
 
   /// Per-level update buffers. One entry is pushed per BEGIN/SAVEPOINT and
   /// popped on COMMIT/ROLLBACK. Events are forwarded to [_updateController]
@@ -29,12 +37,32 @@ class SQLiteClient extends Client {
   late final StreamController<SqliteUpdate> _updateController;
   StreamSubscription<SqliteUpdate>? _updatesSub;
 
-  /// Prepared statement cache keyed by SQL string.
+  /// Prepared statement cache keyed by SQL string, most-recently-used last.
   ///
   /// Avoids repeated `sqlite3_prepare` calls for identical SQL, which is the
   /// dominant cost for short repeated queries (SELECT/INSERT/UPDATE/DELETE).
   /// Statements are disposed when [close] is called.
+  ///
+  /// Bounded by [_stmtCacheLimit]. Unbounded, it grew for the whole lifetime
+  /// of the client: SQL assembled per request — an `IN` list whose length
+  /// varies with its arguments, a predicate built from user input — yields a
+  /// distinct key every time, so neither the map nor the native statements
+  /// behind it ever stopped accumulating.
   final Map<String, PreparedStatement> _stmtCache = {};
+
+  /// How many prepared statements are currently cached.
+  ///
+  /// Exposed because the bound on [_stmtCache] is otherwise unobservable: a
+  /// test could only assert that results stay correct, which an unbounded
+  /// cache does equally well. Reading this is what lets a test fail when the
+  /// cache grows without limit.
+  int get cachedStatementCount => _stmtCache.length;
+
+  /// How many prepared statements [_stmtCache] keeps alive.
+  ///
+  /// Eviction relies on Dart maps iterating in insertion order: a cache hit
+  /// re-inserts its key, so the first key is always the least recently used.
+  static const int _stmtCacheLimit = 128;
 
   SQLiteClient._(this._filename, KnexConfig config) : super(config);
 
@@ -299,7 +327,9 @@ class SQLiteClient extends Client {
     }
   }
 
-  static var _spCount = 0;
+  // Per-instance for the same reason as [_transactionZoneKey]: a shared
+  // counter let two clients mint savepoint names from one sequence.
+  var _spCount = 0;
   String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 
   /// Executes raw SQL with positional [bindings].
@@ -319,25 +349,28 @@ class SQLiteClient extends Client {
     dynamic connection,
     String sql,
     List<dynamic> bindings,
-  ) {
-    final stmt = _db.prepare(sql);
-    final cursor = stmt.selectCursor(bindings.cast<Object?>());
-
-    Iterable<Map<String, dynamic>> rows() sync* {
-      try {
-        while (cursor.moveNext()) {
-          final row = cursor.current;
-          yield Map<String, dynamic>.fromIterables(
-            row.keys,
-            row.values.cast<dynamic>(),
-          );
-        }
-      } finally {
-        stmt.close();
+  ) async* {
+    // `async*`, not `Stream.fromIterable` over a `sync*` generator. Cancelling
+    // a stream backed by a sync generator abandons its iterator without
+    // running the generator's `finally`, so the statement was never closed and
+    // its cursor kept a read lock on the table — a later `DROP TABLE` then
+    // failed with "database table is locked" (SqliteException 6). An async
+    // generator is terminated on cancel and does run `finally`, which is also
+    // why the web client has always been correct here.
+    if (_isClosed) throw StateError('SQLiteClient is closed');
+    final stmt = _db.prepare(sql, checkNoTail: true);
+    try {
+      final cursor = stmt.selectCursor(bindings.cast<Object?>());
+      while (cursor.moveNext()) {
+        final row = cursor.current;
+        yield Map<String, dynamic>.fromIterables(
+          row.keys,
+          row.values.cast<dynamic>(),
+        );
       }
+    } finally {
+      stmt.close();
     }
-
-    return Stream.fromIterable(rows());
   }
 
   @override
@@ -367,17 +400,34 @@ class SQLiteClient extends Client {
     try {
       if (_isClosed) throw StateError('SQLiteClient is closed');
       final params = bindings ?? [];
-      final stmt = _stmtCache.putIfAbsent(sql, () => _db.prepare(sql));
-      final upperSql = sql.trimLeft().toUpperCase();
-      if (upperSql.startsWith('SELECT') ||
-          upperSql.startsWith('PRAGMA') ||
-          upperSql.contains('RETURNING')) {
-        final result = stmt.select(params);
-        return Future.value(_mapResults(result));
-      } else {
-        stmt.execute(params);
-        return Future.value([]);
+      // `checkNoTail` makes a second statement an error instead of silently
+      // dropping it: `prepare` compiles only the first statement, so
+      // `rawSql('CREATE TABLE a (...); CREATE TABLE b (...)')` used to create
+      // `a`, ignore `b`, and report success.
+      //
+      // Removed and re-inserted so a hit moves to the most-recently-used end;
+      // see [_stmtCache]. Safe to evict here because select() below runs to
+      // completion before this method returns, so no cached statement is ever
+      // mid-iteration (streamQuery prepares its own, uncached).
+      var stmt = _stmtCache.remove(sql);
+      if (stmt == null) {
+        stmt = _db.prepare(sql, checkNoTail: true);
+        while (_stmtCache.length >= _stmtCacheLimit) {
+          _stmtCache.remove(_stmtCache.keys.first)?.close();
+        }
       }
+      _stmtCache[sql] = stmt;
+      // select() is right for EVERY statement kind: it runs the statement and
+      // returns whatever result columns the statement declares — rows for
+      // SELECT, `WITH ... SELECT`, a PRAGMA read and `RETURNING`; an empty set
+      // for DDL and DML, whose side effects still apply (verified against
+      // sqlite3 for DDL, INSERT, UPDATE, DELETE and `PRAGMA x = y`).
+      //
+      // Choosing the branch by inspecting the SQL text, as this did before,
+      // cannot be made correct: `with ... select` starts with neither SELECT
+      // nor PRAGMA, so it took the no-rows branch and returned [] for a query
+      // that had rows — including through the typed `.withQuery()` API.
+      return Future.value(_mapResults(stmt.select(params)));
     } catch (e, st) {
       return Future.error(e, st);
     }

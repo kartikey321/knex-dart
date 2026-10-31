@@ -50,7 +50,7 @@ Add the driver for your database — it pulls in `knex_dart` automatically:
 dependencies:
   knex_dart_postgres: ^0.3.3   # PostgreSQL
   # knex_dart_mysql: ^0.3.3    # MySQL
-  # knex_dart_sqlite: ^0.4.1   # SQLite
+  # knex_dart_sqlite: ^0.5.0   # SQLite
   # knex_dart_duckdb: ^0.2.1   # DuckDB (OLAP / browser WASM)
 ```
 
