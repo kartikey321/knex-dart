@@ -87,6 +87,19 @@ Future<Object?> _dispatch(String action, Map<String, dynamic> params) async {
     case 'ping':
       return 'pong';
 
+    case 'opfsReopenPersists':
+      return _opfsReopenPersists(
+        params['filename'] as String,
+        params['wasmUri'] as String,
+      );
+
+    case 'opfsNamesIsolated':
+      return _opfsNamesIsolated(
+        params['filename'] as String,
+        params['filenameB'] as String,
+        params['wasmUri'] as String,
+      );
+
     case 'opfsWriteCloseDelete':
       return _opfsWriteCloseDelete(
         params['filename'] as String,
@@ -147,6 +160,67 @@ SQLiteClient _client(String filename, String storageMode, String wasmUri) {
     ),
   );
 }
+
+/// Writes a row, closes, reopens the SAME named database and reads it back.
+///
+/// Before the fix this came back empty. The driver opened
+/// `sqlite.open(_filename)`, but `SimpleOpfsFileSystem` persists only
+/// `/database` and `/database-journal` and silently serves every other path
+/// from an in-memory overlay — so the CREATE and INSERT both succeeded and
+/// were discarded on close. Issue #35.
+Future<Map<String, dynamic>> _opfsReopenPersists(
+  String filename,
+  String wasmUri,
+) async {
+  var client = _client(filename, 'opfs', wasmUri);
+  await client.initialize();
+  await client.rawQuery('CREATE TABLE probe (value TEXT)', const []);
+  await client.rawQuery('INSERT INTO probe (value) VALUES (?)', ['persisted']);
+  await client.close();
+
+  client = _client(filename, 'opfs', wasmUri);
+  await client.initialize();
+  final rows = await client.rawQuery('SELECT value FROM probe', const []);
+  await client.close();
+
+  return {'values': _values(rows)};
+}
+
+/// Two differently-named OPFS databases must not see each other's rows.
+///
+/// The fix opens the fixed path `/database` for every name, so the isolation
+/// now rests entirely on `loadFromStorage(name)` giving each name its own
+/// OPFS directory. That is worth asserting rather than assuming.
+Future<Map<String, dynamic>> _opfsNamesIsolated(
+  String filename,
+  String filenameB,
+  String wasmUri,
+) async {
+  Future<void> seed(String name, String value) async {
+    final client = _client(name, 'opfs', wasmUri);
+    await client.initialize();
+    await client.rawQuery('CREATE TABLE probe (value TEXT)', const []);
+    await client.rawQuery('INSERT INTO probe (value) VALUES (?)', [value]);
+    await client.close();
+  }
+
+  Future<List<String>> read(String name) async {
+    final client = _client(name, 'opfs', wasmUri);
+    await client.initialize();
+    final rows = await client.rawQuery('SELECT value FROM probe', const []);
+    await client.close();
+    return _values(rows);
+  }
+
+  await seed(filename, 'first');
+  await seed(filenameB, 'second');
+  return {'first': await read(filename), 'second': await read(filenameB)};
+}
+
+List<String> _values(Object? rows) => [
+  for (final row in (rows as List).cast<Map<String, dynamic>>())
+    row['value'] as String,
+];
 
 Future<Map<String, dynamic>> _opfsWriteCloseDelete(
   String filename,

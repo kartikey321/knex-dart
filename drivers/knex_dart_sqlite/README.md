@@ -89,6 +89,14 @@ await db.close();
 `webStorageMode` is only supported on web/WASM. On native SQLite, passing it to
 `connect()` throws `UnsupportedError`.
 
+
+### OPFS persistence
+
+Each named database opened with `webStorageMode: 'opfs'` lives in its own OPFS
+directory, stored at the fixed path `SimpleOpfsFileSystem` persists. Before
+0.4.2 a named OPFS database took writes and lost them on close, with no error —
+upgrade if you depended on OPFS persistence.
+
 ## Documentation
 
 - Docs home: https://docs.knex.mahawarkartikey.in/

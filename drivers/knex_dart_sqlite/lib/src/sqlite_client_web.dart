@@ -33,7 +33,9 @@ class SQLiteClient extends Client {
   // transactions must not interleave. We queue only the outermost scopes;
   // nested transactions within the same logical flow still use savepoints.
   Future<void> _transactionQueue = Future<void>.value();
-  static final Object _transactionZoneKey = Object();
+  /// Per-instance, not static — see the native client's equivalent field for
+  /// the cross-client transaction interference a shared key caused.
+  final Object _transactionZoneKey = Object();
 
   Future<void>? _initialization;
   final List<List<SqliteUpdate>> _txUpdateStack = [];
@@ -151,7 +153,7 @@ class SQLiteClient extends Client {
     CommonDatabase? opened;
     try {
       sqlite.registerVirtualFileSystem(fileSystem, makeDefault: true);
-      opened = sqlite.open(_filename);
+      opened = sqlite.open(_databasePathFor(fileSystem));
       if (_isClosed) {
         opened.close();
         await _closeFileSystem();
@@ -165,6 +167,24 @@ class SQLiteClient extends Client {
       rethrow;
     }
   }
+
+  /// The sqlite3 path to open on [fs].
+  ///
+  /// [SimpleOpfsFileSystem] persists exactly two paths, `/database` and
+  /// `/database-journal`, and its `xOpen` falls through to an
+  /// [InMemoryFileSystem] for anything else — silently, so writes to any other
+  /// path succeed and then vanish when the client closes. Opening [_filename]
+  /// there meant a named OPFS database never persisted at all.
+  ///
+  /// Databases stay separated by the OPFS *directory*, which
+  /// `loadFromStorage(_filename)` already keys by name, so each name still
+  /// gets its own store; only the path inside that directory is fixed.
+  ///
+  /// Keyed off the filesystem actually created rather than [_storageMode] so
+  /// that `auto` mode is covered whenever it selects OPFS. The other two
+  /// backends address files by name and are left alone.
+  String _databasePathFor(VirtualFileSystem fs) =>
+      fs is SimpleOpfsFileSystem ? '/database' : _filename;
 
   /// Releases the resources held by [_fileSystem], if any.
   ///
@@ -450,7 +470,7 @@ class SQLiteClient extends Client {
     await Future<void>.microtask(() {});
   }
 
-  static var _spCount = 0;
+  var _spCount = 0;
   String _savepointId() => 'sp_${(++_spCount).toRadixString(36)}';
 
   /// Executes raw SQL with positional [bindings].
@@ -518,18 +538,11 @@ class SQLiteClient extends Client {
     final db = await _ensureDb();
     final params = bindings ?? [];
 
+    // See the native client's _execute for why this neither inspects the SQL
+    // text nor uses the execute() branch.
     final stmt = db.prepare(sql);
     try {
-      final upperSql = sql.trimLeft().toUpperCase();
-      if (upperSql.startsWith('SELECT') ||
-          upperSql.startsWith('PRAGMA') ||
-          upperSql.contains('RETURNING')) {
-        final result = stmt.select(params);
-        return _mapResults(result);
-      } else {
-        stmt.execute(params);
-        return [];
-      }
+      return _mapResults(stmt.select(params));
     } finally {
       stmt.close();
     }

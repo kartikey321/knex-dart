@@ -161,6 +161,12 @@ await webDb.close();
 `webStorageMode` is web-only. Passing it to the native sqlite3 driver throws
 `UnsupportedError`.
 
+
+The `opfs` storage mode keeps each named database in its own OPFS directory and
+stores it at the fixed path `SimpleOpfsFileSystem` persists. Before
+`knex_dart_sqlite` 0.4.2 a named OPFS database accepted writes and lost them on
+close; if you relied on OPFS persistence, upgrade.
+
 ---
 
 ## DuckDB
