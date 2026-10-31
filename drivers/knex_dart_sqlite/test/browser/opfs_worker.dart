@@ -87,6 +87,13 @@ Future<Object?> _dispatch(String action, Map<String, dynamic> params) async {
     case 'ping':
       return 'pong';
 
+    case 'opfsContentionProbe':
+      return _opfsContentionProbe(
+        params['filename'] as String,
+        params['secondMode'] as String,
+        params['wasmUri'] as String,
+      );
+
     case 'defaultModePersists':
       return _defaultModePersists(
         params['filename'] as String,
@@ -165,6 +172,45 @@ SQLiteClient _client(String filename, String storageMode, String wasmUri) {
       },
     ),
   );
+}
+
+/// Holds one OPFS connection open and reports what a second one does.
+///
+/// OPFS sync access handles are exclusive, so the second open cannot share the
+/// file. With [secondMode] `'opfs'` it has always failed. With `'auto'` it used
+/// to *succeed* by silently falling back to IndexedDB — landing on a different
+/// store than the connection that already holds the database, with writes on
+/// each side invisible to the other. Reports rather than asserts so the test
+/// can check both the outcome and the error wording it depends on.
+Future<Map<String, dynamic>> _opfsContentionProbe(
+  String filename,
+  String secondMode,
+  String wasmUri,
+) async {
+  final first = _client(filename, 'opfs', wasmUri);
+  await first.initialize();
+  await first.rawQuery('CREATE TABLE probe (v INTEGER)', const []);
+  try {
+    final second = _client(filename, secondMode, wasmUri);
+    try {
+      await second.initialize();
+      return {'threw': false, 'note': 'second OPFS open SUCCEEDED'};
+    } catch (e) {
+      return {
+        'threw': true,
+        'runtimeType': e.runtimeType.toString(),
+        'toString': e.toString(),
+      };
+    } finally {
+      try {
+        await second.close();
+      } on Object {
+        // ignore
+      }
+    }
+  } finally {
+    await first.close();
+  }
 }
 
 /// Opens with **no** `storageMode` at all, writes, closes, reopens, reads back.

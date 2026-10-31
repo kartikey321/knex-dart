@@ -165,12 +165,12 @@ On web, omitting `webStorageMode` resolves to `indexedDb` for any filename
 other than `:memory:`. Before 0.5.0 it defaulted to `memory`, which handed back
 a database that looked persistent and discarded everything on close.
 
-The default is not `auto`: `auto` falls back on any OPFS failure, and OPFS holds
-exclusive file handles, so a second connection to the same name quietly lands on
-IndexedDB and reads a different store than the first — with no error. Use
-`webStorageMode: 'opfs'` if you want OPFS and can guarantee a single
-connection; it never falls back, so contention raises instead. Pass
-`webStorageMode: 'memory'` for the old behavior.
+The default is not `auto` because `auto` prefers OPFS, and OPFS needs a
+dedicated worker — on a page it would always fall back anyway. Choose `opfs` or
+`auto` explicitly to use it. Neither silently switches store when the database
+is already open elsewhere: `opfs` never falls back, and as of 0.5.0 `auto`
+falls back only when OPFS is unusable in that context and propagates a lock
+conflict instead. Pass `webStorageMode: 'memory'` for the old behavior.
 
 `rawSql()` takes exactly one statement. Passing several separated by `;` throws
 `ArgumentError` — SQLite compiles only the first, so before 0.5.0 that one ran,

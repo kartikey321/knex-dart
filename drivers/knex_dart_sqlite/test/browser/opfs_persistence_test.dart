@@ -98,6 +98,53 @@ void main() {
       expect(harness.uncaughtWorkerErrors, isEmpty);
     });
 
+    test('auto mode surfaces OPFS contention instead of switching store',
+        () async {
+      // The hazard this guards: OPFS handles are exclusive, and `auto` used to
+      // catch *every* OPFS failure and fall back. A second connection to a
+      // database another connection already holds would therefore succeed on
+      // IndexedDB — a different store — so both sides would read and write
+      // their own copy with nothing raised. Silent divergence.
+      final name = _uniqueName('contention-auto');
+      created.add(name);
+
+      final result = await harness.callOk('opfsContentionProbe', {
+        'filename': name,
+        'secondMode': 'auto',
+      }) as Map<Object?, Object?>;
+
+      expect(
+        result['threw'],
+        isTrue,
+        reason: 'a second connection must fail rather than quietly land on '
+            'another backend; `false` here means the database just split in '
+            'two with no error',
+      );
+      expect(
+        result['toString'],
+        contains('NoModificationAllowedError'),
+        reason: 'the fallback is skipped by recognising this error name, so '
+            'if the browser stops using it the guard silently stops working',
+      );
+      expect(harness.uncaughtWorkerErrors, isEmpty);
+    });
+
+    test('explicit opfs mode also surfaces contention', () async {
+      // Sanity companion to the above: the explicit mode never had a fallback,
+      // so it should have been failing all along. Asserted so a future change
+      // to _createFileSystem cannot quietly add one.
+      final name = _uniqueName('contention-opfs');
+      created.add(name);
+
+      final result = await harness.callOk('opfsContentionProbe', {
+        'filename': name,
+        'secondMode': 'opfs',
+      }) as Map<Object?, Object?>;
+
+      expect(result['threw'], isTrue);
+      expect(result['toString'], contains('NoModificationAllowedError'));
+    });
+
     test('two differently-named databases stay isolated', () async {
       // Every name now opens the same fixed sqlite path, so isolation rests
       // on each name getting its own OPFS directory. Assert it.

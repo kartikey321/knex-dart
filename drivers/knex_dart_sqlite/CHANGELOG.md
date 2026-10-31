@@ -36,13 +36,36 @@ rest until each user widened their constraint by hand.
   dedicated worker), and has no exclusive-handle contention, so one name
   always resolves to one store.
 
-  `auto` and `opfs` remain available explicitly for callers who want OPFS and
-  can guarantee a single connection. The explicit `opfs` mode never falls
-  back, so contention surfaces as an error rather than as a second store.
+  `auto` and `opfs` remain available explicitly. The explicit `opfs` mode never
+  falls back, and `auto` no longer falls back on contention either — see the
+  next entry.
 
   `:memory:` still means in-memory, matching the native driver. Pass
   `webStorageMode: 'memory'` explicitly to keep the old behavior for a named
   database.
+
+- **Web: `auto` mode no longer silently switches backends when OPFS is already
+  in use.** OPFS sync access handles are exclusive, and `auto` caught every
+  OPFS failure before falling back, so a second connection to a database
+  another connection already held did not fail — it succeeded on IndexedDB. A
+  *different store*. Both sides then read and wrote their own copy of the
+  database, each invisible to the other and to any later OPFS reopen, with
+  nothing raised anywhere.
+
+  `auto` now distinguishes "OPFS is unusable in this context" — which still
+  falls back to IndexedDB, then memory, and is the common case on a page's main
+  thread where `createSyncAccessHandle` is worker-only — from "OPFS is held by
+  someone else", which now propagates. The lock conflict is recognised by the
+  `NoModificationAllowedError` the File System standard requires when a lock
+  cannot be taken; the wording was read off a real Chrome run rather than
+  assumed, and a worker test holds one connection open and asserts the second
+  raises instead of landing elsewhere.
+
+  Caveat worth knowing: the thrown value arrives as an opaque `JSObject`, so
+  this is a match on a DOM error *name* in the message text, verified against
+  Chrome. A browser that reports lock contention differently would still fall
+  back and could still diverge. This narrows the failure rather than removing
+  it on every engine.
 
 ## 0.4.2
 

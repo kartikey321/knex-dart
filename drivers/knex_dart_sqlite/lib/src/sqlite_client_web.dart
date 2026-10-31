@@ -268,10 +268,46 @@ class SQLiteClient extends Client {
     };
   }
 
+  /// Whether [error] is OPFS refusing the lock because another connection
+  /// already holds it, rather than OPFS being unusable in this context.
+  ///
+  /// The distinction is what makes [_createAutoFileSystem] safe. OPFS sync
+  /// access handles are exclusive, so falling back on contention does not
+  /// degrade gracefully — it puts this connection on a *different store* than
+  /// the one that already has the database. Both then read and write happily,
+  /// each invisible to the other and to any later OPFS reopen, with nothing
+  /// raised anywhere.
+  ///
+  /// Matched on the error text because the thrown value arrives as an opaque
+  /// `JSObject`; there is no Dart type to catch. The wording was observed in
+  /// Chrome rather than assumed (see the `opfsContentionProbe` worker action):
+  ///
+  ///     NoModificationAllowedError: Failed to execute
+  ///     'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles
+  ///     cannot be created if there is another open Access Handle or Writable
+  ///     stream associated with the same file.
+  ///
+  /// `NoModificationAllowedError` is the error the File System standard
+  /// requires when a lock cannot be taken, so it should hold wherever OPFS
+  /// works at all. It is still a string match against one browser's rendering
+  /// of a DOM error name: a browser that reports contention some other way
+  /// would fall through to the fallback below and could still diverge. This
+  /// narrows the window rather than closing it everywhere.
+  static bool _isOpfsLockContention(Object error) =>
+      error.toString().contains('NoModificationAllowedError');
+
   Future<VirtualFileSystem> _createAutoFileSystem() async {
     try {
       return await SimpleOpfsFileSystem.loadFromStorage(_filename);
-    } on Object {
+    } on Object catch (error) {
+      // Not every OPFS failure means "OPFS is unavailable here". A second
+      // connection to the same database hits an exclusive-handle conflict, and
+      // falling back then is what silently splits the data — see
+      // [_isOpfsLockContention]. Surface it instead.
+      if (_isOpfsLockContention(error)) rethrow;
+
+      // Genuinely unusable here — most often because this is a page's main
+      // thread and `createSyncAccessHandle` is dedicated-worker only.
       try {
         return await IndexedDbFileSystem.open(dbName: _filename);
       } on Object {

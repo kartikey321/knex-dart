@@ -110,8 +110,10 @@ connection to the same name quietly lands on IndexedDB and ends up reading a
 different store than the first — silently. IndexedDB persists, works on a page
 as well as in a worker, and has no such contention.
 
-Use `webStorageMode: 'opfs'` if you want OPFS and can guarantee one connection;
-it never falls back, so contention raises an error instead. Pass
+Use `webStorageMode: 'opfs'` or `'auto'` if you want OPFS. Neither silently
+switches store when the database is already open elsewhere: `opfs` never falls
+back at all, and as of 0.5.0 `auto` falls back only when OPFS is genuinely
+unusable in that context, propagating a lock conflict instead. Pass
 `webStorageMode: 'memory'` for the pre-0.5.0 behavior.
 
 ### OPFS persistence
