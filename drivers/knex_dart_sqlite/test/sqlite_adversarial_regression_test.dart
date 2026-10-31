@@ -90,6 +90,36 @@ void main() {
     });
   });
 
+  group('a second statement is an error, not a silent drop', () {
+    late KnexSQLite db;
+
+    setUp(() async => db = await KnexSQLite.connect(filename: ':memory:'));
+    tearDown(() => db.close());
+
+    test('two statements in one call are rejected', () async {
+      // `prepare` compiles only the first statement, so this used to create
+      // m1, ignore m2 and report success.
+      await expectLater(
+        db.rawSql('CREATE TABLE m1 (x INTEGER); CREATE TABLE m2 (y INTEGER);'),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      final tables = await db.rawSql(
+        "SELECT name FROM sqlite_master WHERE name IN ('m1','m2')",
+      );
+      expect(
+        tables,
+        isEmpty,
+        reason: 'the rejected call must not have applied half of itself',
+      );
+    });
+
+    test('an ordinary trailing semicolon is still accepted', () async {
+      await db.rawSql('CREATE TABLE ok (x INTEGER);');
+      expect(await db.rawSql('SELECT x FROM ok;   '), isEmpty);
+    });
+  });
+
   group('transaction state is per client, not global', () {
     test('one client\'s transaction does not make another think it is nested',
         () async {

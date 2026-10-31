@@ -90,6 +90,21 @@ await db.close();
 `connect()` throws `UnsupportedError`.
 
 
+### Raw SQL takes one statement
+
+`rawSql()` / `rawQuery()` accept exactly one statement. Several separated by
+`;` throw `ArgumentError`: SQLite compiles only the first, so before 0.5.0 the
+remainder was silently discarded and the call still reported success. A
+trailing semicolon on a single statement is fine. Send multiple statements with
+one call each, or through `executeSchema()`, which already does that.
+
+### Default web storage mode
+
+Omitting `webStorageMode` resolves to `auto` — OPFS, then IndexedDB, then
+memory — for any filename other than `:memory:`. Before 0.5.0 the default was
+`memory`, so a named database looked persistent and lost everything on close.
+Pass `webStorageMode: 'memory'` explicitly for the old behavior.
+
 ### OPFS persistence
 
 Each named database opened with `webStorageMode: 'opfs'` lives in its own OPFS

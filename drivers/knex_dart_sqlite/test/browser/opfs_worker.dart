@@ -87,6 +87,12 @@ Future<Object?> _dispatch(String action, Map<String, dynamic> params) async {
     case 'ping':
       return 'pong';
 
+    case 'defaultModePersists':
+      return _defaultModePersists(
+        params['filename'] as String,
+        params['wasmUri'] as String,
+      );
+
     case 'opfsReopenPersists':
       return _opfsReopenPersists(
         params['filename'] as String,
@@ -159,6 +165,38 @@ SQLiteClient _client(String filename, String storageMode, String wasmUri) {
       },
     ),
   );
+}
+
+/// Opens with **no** `storageMode` at all, writes, closes, reopens, reads back.
+///
+/// The default used to be `memory`, so `connect(filename: 'app.db')` on web
+/// handed back a database that looked persistent and discarded everything on
+/// close — the same silent non-persistence as the OPFS bug, reached by
+/// omission rather than by a broken path. The default is now `auto` for any
+/// filename other than `:memory:`.
+Future<Map<String, dynamic>> _defaultModePersists(
+  String filename,
+  String wasmUri,
+) async {
+  SQLiteClient open() => SQLiteClient.fromConfig(
+    KnexConfig(
+      client: 'sqlite3',
+      connection: {'filename': filename, 'wasmUri': wasmUri},
+    ),
+  );
+
+  var client = open();
+  await client.initialize();
+  await client.rawQuery('CREATE TABLE probe (value TEXT)', const []);
+  await client.rawQuery('INSERT INTO probe (value) VALUES (?)', ['default']);
+  await client.close();
+
+  client = open();
+  await client.initialize();
+  final rows = await client.rawQuery('SELECT value FROM probe', const []);
+  await client.close();
+
+  return {'values': _values(rows)};
 }
 
 /// Writes a row, closes, reopens the SAME named database and reads it back.

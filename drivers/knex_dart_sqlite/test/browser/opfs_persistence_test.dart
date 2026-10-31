@@ -71,6 +71,26 @@ void main() {
       expect(harness.uncaughtWorkerErrors, isEmpty);
     });
 
+    test('a database opened with no storageMode persists', () async {
+      // Omitting webStorageMode used to mean `memory`: the write succeeded and
+      // was gone on the next open, with nothing to indicate the database was
+      // never persistent. The default is now `auto`.
+      final name = _uniqueName('default-mode');
+      created.add(name);
+
+      final result =
+          await harness.callOk('defaultModePersists', {'filename': name})
+              as Map<Object?, Object?>;
+
+      expect(
+        result['values'],
+        ['default'],
+        reason: 'an empty list means the default storage mode is still giving '
+            'a non-persistent database for a named file',
+      );
+      expect(harness.uncaughtWorkerErrors, isEmpty);
+    });
+
     test('two differently-named databases stay isolated', () async {
       // Every name now opens the same fixed sqlite path, so isolation rests
       // on each name getting its own OPFS directory. Assert it.

@@ -1,3 +1,34 @@
+## 0.5.0
+
+Two breaking changes, split out of the six fixes in 0.4.2 so those — all
+non-breaking — reach everyone pinned at `^0.4.x` without waiting on a
+constraint bump. Under pub's 0.x rules a minor bump is not picked up by
+`^0.4.x`, so bundling these would have withheld the OPFS data-loss fix and the
+rest until each user widened their constraint by hand.
+
+- **`rawSql()` / `rawQuery()` now reject more than one statement.** SQLite
+  compiles only the first statement of a string, so
+  `rawSql('CREATE TABLE a (...); CREATE TABLE b (...)')` created `a`, discarded
+  `b` and reported success. Passing several statements throws `ArgumentError`
+  rather than applying part of the input silently.
+
+  A trailing semicolon on a single statement is still accepted. For several
+  statements, call `rawSql()` once per statement, or use `executeSchema()`,
+  which already sends them one at a time — every `schemaBuilder` operation
+  emits single statements, so schema code is unaffected.
+
+- **Web: the default `storageMode` is now `auto`, not `memory`.** Calling
+  `KnexSQLite.connect(filename: 'app.db')` on web with no `webStorageMode`
+  returned an in-memory database that looked persistent and discarded
+  everything on close — the same silent non-persistence as the OPFS bug fixed
+  in 0.4.2, reached by omission rather than by a broken path. A filename is a
+  request for storage that outlives the page, so the default now resolves to
+  `auto`: OPFS where available, then IndexedDB, then memory.
+
+  `:memory:` still means in-memory, matching the native driver. Pass
+  `webStorageMode: 'memory'` explicitly to keep the old behavior for a named
+  database.
+
 ## 0.4.2
 
 Six bugs found by an adversarial review of this driver. All six failed

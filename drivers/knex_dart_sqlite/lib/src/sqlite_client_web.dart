@@ -64,12 +64,15 @@ class SQLiteClient extends Client {
       String s => (
         filename: s,
         wasmUri: _defaultWasmUri,
-        storageMode: SQLiteWebStorageMode.memory,
+        storageMode: _defaultStorageModeFor(s),
       ),
       Map m when m['filename'] is String => (
         filename: m['filename'] as String,
         wasmUri: _parseWasmUri(m['wasmUri']),
-        storageMode: _parseStorageMode(m['storageMode']),
+        storageMode: _parseStorageMode(
+          m['storageMode'],
+          m['filename'] as String,
+        ),
       ),
       _ => throw ArgumentError(
         'SQLite config.connection must be a filename String '
@@ -94,8 +97,27 @@ class SQLiteClient extends Client {
     );
   }
 
-  static SQLiteWebStorageMode _parseStorageMode(Object? value) {
-    if (value == null) return SQLiteWebStorageMode.memory;
+  /// The storage mode to use when the caller named none.
+  ///
+  /// A filename other than `:memory:` is a request for a database that
+  /// outlives the page, so defaulting it to [SQLiteWebStorageMode.memory]
+  /// handed back one that discarded everything — the same silent
+  /// non-persistence as the OPFS bug fixed in 0.4.2, reached by omission
+  /// rather than by a broken path. [SQLiteWebStorageMode.auto] prefers OPFS,
+  /// falls back to IndexedDB and only then to memory, so a named database
+  /// persists wherever the browser allows it.
+  ///
+  /// `:memory:` keeps meaning in-memory, matching the native driver.
+  static SQLiteWebStorageMode _defaultStorageModeFor(String filename) =>
+      filename == ':memory:'
+      ? SQLiteWebStorageMode.memory
+      : SQLiteWebStorageMode.auto;
+
+  static SQLiteWebStorageMode _parseStorageMode(
+    Object? value,
+    String filename,
+  ) {
+    if (value == null) return _defaultStorageModeFor(filename);
     if (value is SQLiteWebStorageMode) return value;
     if (value is! String) {
       throw ArgumentError(
@@ -117,19 +139,12 @@ class SQLiteClient extends Client {
     required String filename,
     String? webStorageMode,
   }) async {
+    final mode = _parseStorageMode(webStorageMode, filename);
     final config = KnexConfig(
       client: 'sqlite3',
-      connection: {
-        'filename': filename,
-        'storageMode': webStorageMode ?? SQLiteWebStorageMode.memory.name,
-      },
+      connection: {'filename': filename, 'storageMode': mode.name},
     );
-    final client = SQLiteClient._(
-      filename,
-      _defaultWasmUri,
-      _parseStorageMode(webStorageMode),
-      config,
-    );
+    final client = SQLiteClient._(filename, _defaultWasmUri, mode, config);
     await client.initialize();
     return client;
   }
@@ -539,8 +554,9 @@ class SQLiteClient extends Client {
     final params = bindings ?? [];
 
     // See the native client's _execute for why this neither inspects the SQL
-    // text nor uses the execute() branch.
-    final stmt = db.prepare(sql);
+    // text nor uses the execute() branch, and why a trailing statement is an
+    // error rather than a silent drop.
+    final stmt = db.prepare(sql, checkNoTail: true);
     try {
       return _mapResults(stmt.select(params));
     } finally {

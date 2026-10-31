@@ -350,7 +350,7 @@ class SQLiteClient extends Client {
     // generator is terminated on cancel and does run `finally`, which is also
     // why the web client has always been correct here.
     if (_isClosed) throw StateError('SQLiteClient is closed');
-    final stmt = _db.prepare(sql);
+    final stmt = _db.prepare(sql, checkNoTail: true);
     try {
       final cursor = stmt.selectCursor(bindings.cast<Object?>());
       while (cursor.moveNext()) {
@@ -392,13 +392,18 @@ class SQLiteClient extends Client {
     try {
       if (_isClosed) throw StateError('SQLiteClient is closed');
       final params = bindings ?? [];
+      // `checkNoTail` makes a second statement an error instead of silently
+      // dropping it: `prepare` compiles only the first statement, so
+      // `rawSql('CREATE TABLE a (...); CREATE TABLE b (...)')` used to create
+      // `a`, ignore `b`, and report success.
+      //
       // Removed and re-inserted so a hit moves to the most-recently-used end;
       // see [_stmtCache]. Safe to evict here because select() below runs to
       // completion before this method returns, so no cached statement is ever
       // mid-iteration (streamQuery prepares its own, uncached).
       var stmt = _stmtCache.remove(sql);
       if (stmt == null) {
-        stmt = _db.prepare(sql);
+        stmt = _db.prepare(sql, checkNoTail: true);
         while (_stmtCache.length >= _stmtCacheLimit) {
           _stmtCache.remove(_stmtCache.keys.first)?.close();
         }
