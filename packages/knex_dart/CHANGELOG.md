@@ -1,4 +1,62 @@
-## 1.3.4
+## 1.4.0
+
+Supersedes the unreleased 1.3.2, 1.3.3 and 1.3.4 entries, which were written
+but never tagged or published — 1.3.1 is the last release, so everything below
+lands on top of it in one go.
+
+### Fixed: MSSQL `.update()` with `.join()` wrote every row in the table
+
+Compiling a join-filtered UPDATE for mssql dropped the join entirely, leaving
+an unconditional `UPDATE` with no `FROM` and no `WHERE`:
+
+```dart
+db.table('users').join('orders', 'users.id', 'orders.user_id')
+  .update({'active': false});
+// emitted: update [users] set [active] = @p0      <- every row
+```
+
+In a join-filtered update the join *is* the filter, so removing it left nothing
+to constrain the statement. It compiled to valid SQL, executed successfully and
+reported no error; the only signal was an affected-row count nobody checks on
+an update. The join clause was gated on a MySQL-family check — correct for
+Postgres and SQLite, which genuinely have no `JOIN` on `UPDATE` and where
+knex.js also drops it — but mssql was swept into the same branch even though
+T-SQL expresses it as `UPDATE ... FROM ... JOIN`, which knex.js's own mssql
+compiler emits. It now compiles to that form.
+
+This was never a working feature that regressed: mssql `.update().join()` had
+never emitted a join. It is listed first because of the consequence, not
+because of a regression.
+
+### Known limitation: `Migrator.latest()` takes no lock
+
+Two overlapping `latest()` calls against the same tracking table can both read
+the same "pending" snapshot and each run the same migration's `up()`, applying
+its DDL/DML twice. `KnexMigrationLockException` exists but is never thrown.
+This is a design gap rather than a new bug — it is documented on `latest()` and
+pinned by a test — but it affects anyone running migrations from more than one
+instance at boot, so it belongs here rather than only in a doc comment.
+
+### Deprecated
+
+- `QueryBuilder.execute()` and `QueryBuilder.then`. Both were never
+  implemented — they throw `UnimplementedError` unconditionally on every
+  driver. On most drivers the `QueryBuilder` returned by `db('table')` /
+  `db.queryBuilder()` is bound to a dialect-only client used purely for SQL
+  compilation, not the driver's executing client (SQLite is the exception,
+  though fixing it there would still bypass the wrapper's interceptor
+  pipeline). Use the driver wrapper's own methods instead: `db.select(qb)` /
+  `db.insert(qb)` / `db.update(qb)` / `db.delete(qb)`, or `db.execute(qb)` for
+  method-agnostic dispatch.
+- `Client.transaction()`, `Transaction` and `TransactionConfig`. This
+  explicit-transaction-object API was never implemented either — every driver
+  override throws `UnimplementedError` — and will be removed in a future major
+  version. Use the callback API instead, e.g. `KnexPostgres.trx((trx) async {
+  ... })`, or `Client.runInTransaction()`.
+
+Both are deprecation-only: no behavior changed.
+
+### MSSQL compile parity
 
 - MSSQL query compilation now emits `@p0`, `@p1`, … numbered parameter
   placeholders, matching knex.js's mssql client exactly, instead of the
@@ -68,28 +126,6 @@
     explicit sort therefore gains an `order by 1` prefix on the clause.
     Pagination without an ORDER BY returns an arbitrary page in any case, so
     the imposed sort removes nothing a caller could have relied on.
-
-## 1.3.3
-
-- Deprecated `QueryBuilder.execute()` and `QueryBuilder.then`. Both were
-  never implemented — always throw `UnimplementedError` unconditionally, on
-  every driver. On most drivers, a `QueryBuilder` returned by `db('table')`
-  / `db.queryBuilder()` is bound to a dialect-only client used purely for
-  SQL compilation, not the driver's real executing client (SQLite is the
-  one exception, though a fix there would still bypass the wrapper's
-  interceptor pipeline). Use the driver wrapper's own execution methods
-  instead, e.g. `db.select(qb)` / `db.insert(qb)` / `db.update(qb)` /
-  `db.delete(qb)`, or `db.execute(qb)` for method-agnostic dispatch. No
-  behavior change; this is a deprecation-only release.
-
-## 1.3.2
-
-- Deprecated `Client.transaction()`, `Transaction`, and `TransactionConfig`.
-  This explicit-transaction-object API was never implemented — every driver
-  override throws `UnimplementedError` — and will be removed in a future
-  major version. Use the callback-style transaction API instead, e.g.
-  `KnexPostgres.trx((trx) async { ... })`, or `Client.runInTransaction()`.
-  No behavior change; this is a deprecation-only release.
 
 ## 1.3.1
 

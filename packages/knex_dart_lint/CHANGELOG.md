@@ -1,3 +1,17 @@
+## 0.3.2
+
+- Fixed: every dialect-aware rule silently skipped code written as
+  `KnexQuery.forDialect(KnexDialect.mssql)`. The resolver behind
+  `forDialect(...)` was a hand-written switch that listed ten of the eleven
+  `KnexDialect` values and omitted `mssql`, so it returned `null` and each rule
+  took its "dialect unknown, say nothing" path. No warning, no hint that the
+  file was going unchecked — the lints simply did not apply to MSSQL code.
+  The argument is an enum member name, so it is now matched against
+  `KnexDialect.values` instead of a switch, which cannot drift as dialects are
+  added. A test iterates the enum and asserts every value resolves, so the next
+  dialect added without updating the resolver fails CI rather than quietly
+  disabling the rules for it.
+
 ## 0.3.1
 
 - Migrated the plugin from the archived `custom_lint_builder` to

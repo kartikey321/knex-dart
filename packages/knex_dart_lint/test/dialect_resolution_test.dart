@@ -6,6 +6,36 @@ import 'package:knex_dart_lint/src/dialect_resolution.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('every KnexDialect resolves from KnexQuery.forDialect', () {
+    // Guards against the drift that let `mssql` go unresolved: the resolver
+    // was a hand-written switch listing ten of the eleven dialects, so
+    // `forDialect(KnexDialect.mssql)` returned null and every dialect-aware
+    // rule skipped that code silently. Iterating the enum here means adding a
+    // dialect without teaching the resolver fails this test rather than
+    // quietly disabling the lints for it.
+    for (final dialect in KnexDialect.values) {
+      // The resolver tracks the dialect through the variable a builder came
+      // from, so the query has to be rooted in one.
+      final unit = _parse('''
+import 'package:knex_dart/knex_dart.dart';
+void f() {
+  final db = KnexQuery.forDialect(KnexDialect.${dialect.name});
+  db.queryBuilder().from('t').select(['*']);
+}
+''');
+      final node = _findInvocation(unit, 'select');
+      final info = resolveDialectForInvocation(node);
+
+      expect(
+        info.dialect,
+        dialect,
+        reason: 'forDialect(KnexDialect.${dialect.name}) must resolve to it; '
+            'null means the dialect-aware rules silently skip this code',
+      );
+      expect(info.isHighConfidence, isTrue, reason: dialect.name);
+    }
+  });
+
   test('infers postgres from KnexPostgres.connect', () {
     final unit = _parse(r'''
 import 'package:knex_dart_postgres/knex_dart_postgres.dart';

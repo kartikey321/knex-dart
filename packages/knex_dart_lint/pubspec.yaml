@@ -1,6 +1,6 @@
 name: knex_dart_lint
 description: Optional analyzer plugin for dialect-aware Knex Dart capability checks.
-version: 0.3.1
+version: 0.3.2
 repository: https://github.com/kartikey321/knex-dart
 homepage: https://github.com/kartikey321/knex-dart
 issue_tracker: https://github.com/kartikey321/knex-dart/issues

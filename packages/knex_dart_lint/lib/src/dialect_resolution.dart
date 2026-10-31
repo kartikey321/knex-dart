@@ -235,30 +235,18 @@ KnexDialect? _resolveFromForDialectArg(MethodInvocation node) {
   }
   if (enumValue == null) return null;
 
-  switch (enumValue) {
-    case 'postgres':
-      return KnexDialect.postgres;
-    case 'mysql':
-      return KnexDialect.mysql;
-    case 'sqlite':
-      return KnexDialect.sqlite;
-    case 'mariadb':
-      return KnexDialect.mariadb;
-    case 'redshift':
-      return KnexDialect.redshift;
-    case 'turso':
-      return KnexDialect.turso;
-    case 'd1':
-      return KnexDialect.d1;
-    case 'duckdb':
-      return KnexDialect.duckdb;
-    case 'snowflake':
-      return KnexDialect.snowflake;
-    case 'bigquery':
-      return KnexDialect.bigquery;
-    default:
-      return null;
+  // Matched by name against [KnexDialect.values] rather than a hand-written
+  // switch. The switch had drifted: it listed every dialect except `mssql`, so
+  // `KnexQuery.forDialect(KnexDialect.mssql)` resolved to null and every
+  // dialect-aware rule silently skipped that code — no warning, no hint that
+  // the file was going unchecked. The argument here *is* an enum member name,
+  // so a lookup over the enum is exact and cannot drift when a dialect is
+  // added. (Contrast [dialectFromDriverName], which maps driver-string
+  // aliases like `pg`/`crdb` and so genuinely needs a switch.)
+  for (final dialect in KnexDialect.values) {
+    if (dialect.name == enumValue) return dialect;
   }
+  return null;
 }
 
 /// Extract dialect from `KnexQuery.forClient('pg')`.

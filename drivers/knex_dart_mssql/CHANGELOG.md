@@ -1,7 +1,15 @@
+## 0.3.2
+
+- Requires `knex_dart` ^1.4.0. The driver stopped rewriting `?` into `@pN` in
+  0.3.1 because core now emits `@pN` directly, but the constraint still allowed
+  ^1.3.0 — which resolves to the published 1.3.1, where core emits `?` and
+  nothing rewrites them. Every parameterized query would have failed. The
+  constraint now matches what the driver actually needs.
+
 ## 0.3.1
 
 - Compiled QueryBuilder SQL now arrives with `@p0`/`@p1`/… placeholders
-  already in place (see `knex_dart` 1.3.3), so `MssqlClient`'s internal
+  already in place (see `knex_dart` 1.4.0), so `MssqlClient`'s internal
   execution path no longer rewrites them — the `?`-to-`@pN` rewriter is now
   used only for user-supplied raw SQL via `raw()`/`rawSql()`, which keeps
   its existing, documented `?`-based convention unchanged.

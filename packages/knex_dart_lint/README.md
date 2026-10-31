@@ -35,7 +35,7 @@ cannot be enabled from a nested analysis options file):
 
 ```yaml
 plugins:
-  knex_dart_lint: ^0.3.1
+  knex_dart_lint: ^0.3.2
 ```
 
 While developing against a local checkout, use a path instead:
