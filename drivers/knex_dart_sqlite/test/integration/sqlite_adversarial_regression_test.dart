@@ -191,28 +191,40 @@ void main() {
   });
 
   group('the prepared-statement cache is bounded', () {
-    test('results stay correct once eviction starts', () async {
-      // The cache is capped at 128 entries and evicts least-recently-used.
-      // Distinct SQL beyond the cap must evict and re-prepare transparently —
-      // this fails loudly if an evicted statement is reused after close().
-      final db = await KnexSQLite.connect(filename: ':memory:');
-      addTearDown(db.close);
-      await db.rawSql('CREATE TABLE t (v INTEGER)');
-      await db.rawSql('INSERT INTO t VALUES (1)');
+    test('it stops growing and keeps returning correct rows', () async {
+      // Uses SQLiteClient directly because the bound is only observable
+      // through `cachedStatementCount`; asserting correct rows alone would
+      // pass against the old unbounded cache just as well, which is exactly
+      // what made the growth invisible.
+      final client = await SQLiteClient.connect(filename: ':memory:');
+      addTearDown(client.close);
+      await client.rawQuery('CREATE TABLE t (v INTEGER)', const []);
+      await client.rawQuery('INSERT INTO t VALUES (1)', const []);
 
       // 200 distinct statements, comfortably past the 128 cap.
       for (var i = 0; i < 200; i++) {
-        final rows = await db.rawSql('SELECT v + $i AS shifted FROM t');
+        final rows = await client.rawQuery(
+          'SELECT v + $i AS shifted FROM t',
+          const [],
+        );
         expect(rows, [
           {'shifted': 1 + i},
         ]);
       }
 
-      // Re-run the very first one, long since evicted: it must be re-prepared
-      // and still correct rather than reusing a closed statement.
-      expect(await db.rawSql('SELECT v + 0 AS shifted FROM t'), [
+      expect(
+        client.cachedStatementCount,
+        lessThanOrEqualTo(128),
+        reason: 'the cache must evict rather than grow with distinct SQL; '
+            'an unbounded cache would sit at 200 here',
+      );
+
+      // Re-run the very first statement, long since evicted: it has to be
+      // re-prepared and still correct, not reused after close().
+      expect(await client.rawQuery('SELECT v + 0 AS shifted FROM t', const []), [
         {'shifted': 1},
       ]);
+      expect(client.cachedStatementCount, lessThanOrEqualTo(128));
     });
   });
 

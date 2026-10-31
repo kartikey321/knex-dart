@@ -342,6 +342,11 @@ class SQLiteClient extends Client {
     }
   }
 
+  /// Always `0`: this client prepares a statement per call and keeps no
+  /// cache, so there is nothing to bound. Present so the public surface
+  /// matches the native client, which is exported under the same name.
+  int get cachedStatementCount => 0;
+
   /// Whether the connection is closed.
   bool get isClosed => _isClosed;
 

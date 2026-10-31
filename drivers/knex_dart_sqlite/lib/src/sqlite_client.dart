@@ -50,6 +50,14 @@ class SQLiteClient extends Client {
   /// behind it ever stopped accumulating.
   final Map<String, PreparedStatement> _stmtCache = {};
 
+  /// How many prepared statements are currently cached.
+  ///
+  /// Exposed because the bound on [_stmtCache] is otherwise unobservable: a
+  /// test could only assert that results stay correct, which an unbounded
+  /// cache does equally well. Reading this is what lets a test fail when the
+  /// cache grows without limit.
+  int get cachedStatementCount => _stmtCache.length;
+
   /// How many prepared statements [_stmtCache] keeps alive.
   ///
   /// Eviction relies on Dart maps iterating in insertion order: a cache hit
