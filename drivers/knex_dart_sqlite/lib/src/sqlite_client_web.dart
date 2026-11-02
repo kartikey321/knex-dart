@@ -470,10 +470,20 @@ class SQLiteClient extends Client {
     if (parent != null) {
       final previousSibling = parent.lastChild;
       final base = previousSibling.then((_) => _runInNewScope(callback));
-      // Internal chain: swallow errors so one failed sibling does not block
-      // every later one. The future returned to the caller keeps its error.
+
+      // Internal chain: the signal for when the next sibling may start, with
+      // errors swallowed so one failed sibling does not block every later one.
       parent.lastChild = base.then((_) {}, onError: (_) {});
-      return base;
+
+      // External chain, deliberately a *separate* future rather than `base`.
+      // The line above attaches an error handler to `base`, which marks its
+      // error handled — so returning `base` itself made an unawaited failing
+      // nested transaction fail silently instead of reporting an unhandled
+      // async error. Handing the caller its own derived future restores that:
+      // ignore it and Dart still complains. knex.js splits the two chains for
+      // exactly this reason (`_promise` vs `_lastChild`,
+      // lib/execution/transaction.js:82-92).
+      return base.then((value) => value);
     }
 
     // Top level: queue behind other top-level transactions on this client,

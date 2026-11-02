@@ -303,6 +303,35 @@ void main() {
       ]);
     });
 
+    test('an unawaited failing nested transaction is still reported', () async {
+      // The sibling chain has to attach an error handler to each child so one
+      // failure does not stall the rest. Handing that same future back to the
+      // caller made its error count as handled, so a nested transaction nobody
+      // awaited failed completely silently. The caller now gets its own
+      // derived future, which Dart still reports if ignored — the reason
+      // knex.js keeps `_promise` separate from `_lastChild`.
+      final reported = <Object>[];
+      await runZonedGuarded(() async {
+        final inner = await KnexSQLite.connect(filename: ':memory:');
+        await inner.rawSql('CREATE TABLE z (v INTEGER)');
+        await inner.trx((t) async {
+          // Deliberately not awaited.
+          // ignore: unawaited_futures
+          t.trx((a) async => throw StateError('orphan failure'));
+          await inner.rawSql('INSERT INTO z VALUES (1)');
+        });
+        // Let the orphan settle and its error reach the zone handler.
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        await inner.close();
+      }, (error, stack) => reported.add(error));
+
+      expect(
+        reported.map((e) => e.toString()),
+        contains(contains('orphan failure')),
+        reason: 'an unawaited nested transaction that throws must not vanish',
+      );
+    });
+
     test('a rolled-back nested transaction still discards only its own rows',
         () async {
       // Serialization must not blur the savepoint boundaries it protects.
