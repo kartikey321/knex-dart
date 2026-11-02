@@ -18,7 +18,7 @@ class SQLiteClient extends Client {
   // transactions must not interleave. We queue only the outermost scopes;
   // nested transactions within the same logical flow still use savepoints.
   Future<void> _transactionQueue = Future<void>.value();
-  /// Identifies the enclosing transaction scope of **this** client.
+  /// Marks "a transaction of **this** client is already on the stack".
   ///
   /// Per-instance, not static: a static key is shared by every client, so
   /// client B's top-level `trx()` called inside client A's transaction saw
@@ -49,14 +49,6 @@ class SQLiteClient extends Client {
   /// distinct key every time, so neither the map nor the native statements
   /// behind it ever stopped accumulating.
   final Map<String, PreparedStatement> _stmtCache = {};
-
-  /// How many prepared statements are currently cached.
-  ///
-  /// Exposed because the bound on [_stmtCache] is otherwise unobservable: a
-  /// test could only assert that results stay correct, which an unbounded
-  /// cache does equally well. Reading this is what lets a test fail when the
-  /// cache grows without limit.
-  int get cachedStatementCount => _stmtCache.length;
 
   /// How many prepared statements [_stmtCache] keeps alive.
   ///
@@ -243,58 +235,24 @@ class SQLiteClient extends Client {
   }
 
   /// Executes [callback] in a transaction/savepoint scope.
-  Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) {
-    final parent = Zone.current[_transactionZoneKey] as _TxScope?;
-
-    // Nested: queue behind this scope's previous child. Without this, two
-    // nested transactions started concurrently under one parent interleave
-    // their SAVEPOINT/RELEASE pairs, and because SQLite savepoints form a
-    // stack, releasing the outer one discards the inner — surfacing as
-    // "no such savepoint".
-    if (parent != null) {
-      final previousSibling = parent.lastChild;
-      final base = previousSibling.then((_) => _runInNewScope(callback));
-
-      // Internal chain: the signal for when the next sibling may start, with
-      // errors swallowed so one failed sibling does not block every later one.
-      parent.lastChild = base.then((_) {}, onError: (_) {});
-
-      // External chain, deliberately a *separate* future rather than `base`.
-      // The line above attaches an error handler to `base`, which marks its
-      // error handled — so returning `base` itself made an unawaited failing
-      // nested transaction fail silently instead of reporting an unhandled
-      // async error. Handing the caller its own derived future restores that:
-      // ignore it and Dart still complains. knex.js splits the two chains for
-      // exactly this reason (`_promise` vs `_lastChild`,
-      // lib/execution/transaction.js:82-92).
-      return base.then((value) => value);
+  Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
+    if (Zone.current[_transactionZoneKey] == true) {
+      return _runTransactionScope(callback);
     }
 
-    // Top level: queue behind other top-level transactions on this client,
-    // which shares a single connection.
     final completer = Completer<T>();
     _transactionQueue = _transactionQueue.catchError((_) {}).then((_) async {
       try {
-        completer.complete(await _runInNewScope(callback));
+        final result = await runZoned(
+          () => _runTransactionScope(callback),
+          zoneValues: {_transactionZoneKey: true},
+        );
+        completer.complete(result);
       } catch (e, st) {
         completer.completeError(e, st);
       }
     });
     return completer.future;
-  }
-
-  /// Runs [callback] in a fresh [_TxScope].
-  ///
-  /// Each nesting level gets its own scope so that a transaction's children
-  /// chain against each other, not against its siblings — the parentage that
-  /// keeps the chain from waiting on itself.
-  Future<T> _runInNewScope<T>(
-    Future<T> Function(SQLiteClient trx) callback,
-  ) {
-    return runZoned(
-      () => _runTransactionScope(callback),
-      zoneValues: {_transactionZoneKey: _TxScope()},
-    );
   }
 
   Future<T> _runTransactionScope<T>(
@@ -392,7 +350,7 @@ class SQLiteClient extends Client {
     // generator is terminated on cancel and does run `finally`, which is also
     // why the web client has always been correct here.
     if (_isClosed) throw StateError('SQLiteClient is closed');
-    final stmt = _db.prepare(sql, checkNoTail: true);
+    final stmt = _db.prepare(sql);
     try {
       final cursor = stmt.selectCursor(bindings.cast<Object?>());
       while (cursor.moveNext()) {
@@ -434,18 +392,13 @@ class SQLiteClient extends Client {
     try {
       if (_isClosed) throw StateError('SQLiteClient is closed');
       final params = bindings ?? [];
-      // `checkNoTail` makes a second statement an error instead of silently
-      // dropping it: `prepare` compiles only the first statement, so
-      // `rawSql('CREATE TABLE a (...); CREATE TABLE b (...)')` used to create
-      // `a`, ignore `b`, and report success.
-      //
       // Removed and re-inserted so a hit moves to the most-recently-used end;
       // see [_stmtCache]. Safe to evict here because select() below runs to
       // completion before this method returns, so no cached statement is ever
       // mid-iteration (streamQuery prepares its own, uncached).
       var stmt = _stmtCache.remove(sql);
       if (stmt == null) {
-        stmt = _db.prepare(sql, checkNoTail: true);
+        stmt = _db.prepare(sql);
         while (_stmtCache.length >= _stmtCacheLimit) {
           _stmtCache.remove(_stmtCache.keys.first)?.close();
         }
@@ -511,19 +464,4 @@ class SQLiteClient extends Client {
   /// This is useful for embedding SQL snippets into QueryBuilder chains.
   @override
   Raw raw(String sql, [dynamic bindings]) => super.raw(sql, bindings);
-}
-
-/// One transaction scope's chain of child transactions.
-///
-/// Mirrors knex.js's `Transaction._lastChild` (lib/execution/transaction.js): a
-/// nested transaction awaits its parent's [lastChild] before starting and then
-/// becomes the new tail, so siblings under one parent run strictly in sequence
-/// rather than interleaving.
-///
-/// Held per scope rather than per client so that independent transaction trees
-/// do not block each other, and so a transaction started inside another's body
-/// chains against *that* transaction's children — whose chain is fresh — rather
-/// than waiting on the sibling chain it is itself part of.
-class _TxScope {
-  Future<void> lastChild = Future<void>.value();
 }

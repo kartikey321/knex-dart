@@ -9,7 +9,7 @@ SQLite driver for [knex_dart](https://pub.dev/packages/knex_dart) — execute qu
 
 ```yaml
 dependencies:
-  knex_dart_sqlite: ^0.5.0
+  knex_dart_sqlite: ^0.4.2
 ```
 
 ## Usage
@@ -89,62 +89,6 @@ await db.close();
 `webStorageMode` is only supported on web/WASM. On native SQLite, passing it to
 `connect()` throws `UnsupportedError`.
 
-
-### Raw SQL takes one statement
-
-`rawSql()` / `rawQuery()` accept exactly one statement. Several separated by
-`;` throw `ArgumentError`: SQLite compiles only the first, so before 0.5.0 the
-remainder was silently discarded and the call still reported success. A
-trailing semicolon on a single statement is fine. Send multiple statements with
-one call each, or through `executeSchema()`, which already does that.
-
-### Default web storage mode
-
-Omitting `webStorageMode` resolves to `indexedDb` for any filename other than
-`:memory:`. Before 0.5.0 the default was `memory`, so a named database looked
-persistent and lost everything on close.
-
-Not `auto`, even though it would prefer the faster OPFS backend: `auto` falls
-back on any OPFS failure, and OPFS holds exclusive file handles, so a second
-connection to the same name quietly lands on IndexedDB and ends up reading a
-different store than the first — silently. IndexedDB persists, works on a page
-as well as in a worker, and has no such contention.
-
-Use `webStorageMode: 'opfs'` or `'auto'` if you want OPFS, with one caveat
-below. `opfs` never falls back, so it always uses the OPFS store or raises. As
-of 0.5.0 `auto` propagates an OPFS *lock conflict* instead of falling back, so
-two dedicated workers cannot end up on different stores.
-
-**`auto` is still unsafe for a database shared between a page and a worker.** A
-page cannot take an OPFS sync access handle at all — that API is
-dedicated-worker only — so `auto` on a page falls back to IndexedDB. If a
-worker holds the same name open in OPFS, the two contexts then read and write
-different stores and nothing is raised. This is not lock contention, so it
-cannot be detected the way 0.5.0 detects that; it is inherent to `auto`
-resolving per context. Use `webStorageMode: 'indexedDb'` when a page and a
-worker must share one database.
-
-Pass `webStorageMode: 'memory'` for the pre-0.5.0 behavior.
-
-### One writer per database name
-
-Neither web backend is safe for more than one connection to the same database
-name, and the driver cannot make it safe.
-
-OPFS enforces single access: the second connection cannot take the file handles
-and fails (loudly, as of 0.5.0). IndexedDB does not enforce it at all — its
-`xLock` delegates to a per-connection in-memory mirror, and `sqlite3` documents
-that "no guarantees on durability can be made... file changes are written at
-some point after the database is changed". Two connections on one name
-therefore interleave asynchronous block write-back into a single store, which
-is corruption rather than divergence, and silent.
-
-So a single writer per name is a precondition of web persistence. Where several
-contexts need the same database, elect one owner — a Web Lock held over a
-dedicated worker, with other contexts proxying to it, is the established
-pattern — and note that OPFS additionally requires that owner to be a
-*dedicated* worker, never a page or a shared worker. Where contexts only need
-their own scratch space, give each its own name, or use `memory`.
 
 ### OPFS persistence
 

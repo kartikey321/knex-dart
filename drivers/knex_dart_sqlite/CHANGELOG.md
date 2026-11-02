@@ -1,127 +1,3 @@
-## 0.5.0
-
-Two breaking changes, split out of the six fixes in 0.4.2 so those — all
-non-breaking — reach everyone pinned at `^0.4.x` without waiting on a
-constraint bump. Under pub's 0.x rules a minor bump is not picked up by
-`^0.4.x`, so bundling these would have withheld the OPFS data-loss fix and the
-rest until each user widened their constraint by hand.
-
-- **`rawSql()` / `rawQuery()` now reject more than one statement.** SQLite
-  compiles only the first statement of a string, so
-  `rawSql('CREATE TABLE a (...); CREATE TABLE b (...)')` created `a`, discarded
-  `b` and reported success. Passing several statements throws `ArgumentError`
-  rather than applying part of the input silently.
-
-  A trailing semicolon on a single statement is still accepted. For several
-  statements, call `rawSql()` once per statement, or use `executeSchema()`,
-  which already sends them one at a time — every `schemaBuilder` operation
-  emits single statements, so schema code is unaffected.
-
-- **Web: the default `storageMode` is now `indexedDb`, not `memory`.** Calling
-  `KnexSQLite.connect(filename: 'app.db')` on web with no `webStorageMode`
-  returned an in-memory database that looked persistent and discarded
-  everything on close — the same silent non-persistence as the OPFS bug fixed
-  in 0.4.2, reached by omission rather than by a broken path. A filename is a
-  request for storage that outlives the page, so the default now persists.
-
-  `indexedDb` rather than `auto`, despite `auto` preferring the faster OPFS
-  backend: `auto` falls back on *any* OPFS failure, and OPFS holds exclusive
-  `FileSystemSyncAccessHandle`s. A second connection to the same name while
-  the first still holds them doesn't fail — it quietly lands on IndexedDB
-  instead, so two connections read and write two different stores, each
-  believing it has the database. That is the same class of silent divergence
-  this release removes elsewhere, so it does not belong on the default path.
-  IndexedDB persists and works on a page as well as in a worker, where OPFS
-  requires a dedicated worker.
-
-  **Neither backend is safe for more than one connection to the same database
-  name, and this release does not change that.** OPFS at least enforces it:
-  the second connection cannot take the handles. IndexedDB does not enforce it
-  at all — its `xLock` delegates to a per-connection in-memory mirror
-  (`sqlite3`'s `indexed_db.dart`), and the class documents that "no guarantees
-  on durability can be made... file changes are written at some point after
-  the database is changed". Two connections on one name therefore interleave
-  asynchronous block write-back into a single store, which is corruption
-  rather than divergence, and silent either way. Earlier wording here said
-  IndexedDB "has no exclusive-handle contention, so one name always resolves
-  to one store" — true, and precisely the hazard: one store, two
-  uncoordinated writers.
-
-  So treat a single writer per database name as a precondition of web
-  persistence, not something the driver provides. Where several contexts need
-  one database, elect a single owner (a Web Lock over a dedicated worker is
-  the established pattern) and proxy to it; where they only need their own
-  scratch space, give each its own name or use `memory`.
-
-  `auto` and `opfs` remain available explicitly. The explicit `opfs` mode never
-  falls back, and `auto` no longer falls back on contention either — see the
-  next entry.
-
-  `:memory:` still means in-memory, matching the native driver. Pass
-  `webStorageMode: 'memory'` explicitly to keep the old behavior for a named
-  database.
-
-- **Web: `auto` mode no longer silently switches backends on an OPFS lock
-  conflict.** OPFS sync access handles are exclusive, and `auto` caught every
-  OPFS failure before falling back, so a second connection to a database
-  another connection already held did not fail — it succeeded on IndexedDB. A
-  *different store*. Both sides then read and wrote their own copy of the
-  database, each invisible to the other and to any later OPFS reopen, with
-  nothing raised anywhere.
-
-  `auto` now distinguishes "OPFS is unusable in this context" — which still
-  falls back to IndexedDB, then memory, and is the common case on a page's main
-  thread where `createSyncAccessHandle` is worker-only — from "OPFS is held by
-  someone else", which now propagates. The lock conflict is recognised by the
-  `NoModificationAllowedError` the File System standard requires when a lock
-  cannot be taken; the wording was read off a real Chrome run rather than
-  assumed, and a worker test holds one connection open and asserts the second
-  raises instead of landing elsewhere.
-
-  Two limitations worth knowing, neither removed by this change:
-
-  The thrown value arrives as an opaque `JSObject`, so this is a match on a DOM
-  error *name* in the message text, verified against Chrome. A browser that
-  reports lock contention differently would still fall back and could still
-  diverge.
-
-  More importantly, `auto` remains unsafe for a database shared between a page
-  and a dedicated worker. A page cannot take an OPFS sync access handle at all
-  — the API is worker-only — so `auto` on a page falls back to IndexedDB even
-  while a worker holds the same name open in OPFS, leaving two stores and no
-  error. That is not a lock conflict and cannot be detected as one; it follows
-  from `auto` resolving per execution context. Use `indexedDb` when a page and
-  a worker share one database.
-
-- **Concurrent nested transactions failed with `no such savepoint`.** Only
-  outermost scopes were serialized, so two nested transactions started together
-  under one parent interleaved their `SAVEPOINT`/`RELEASE` pairs — and because
-  SQLite savepoints form a stack, releasing the outer one discarded the inner.
-  `db.trx((t) => Future.wait([t.trx(...), t.trx(...)]))` threw.
-
-  Nested transactions now queue behind their parent's previous child, which is
-  how knex.js has always handled it (`Transaction._lastChild`,
-  `lib/execution/transaction.js`). Each scope keeps the tail of its own
-  children's chain; a nested transaction awaits that tail and then becomes it,
-  so siblings run in sequence. The chain they queue on swallows errors, so one
-  rolled-back sibling does not stall the rest, while the future handed to the
-  caller keeps its error — the same two-chain split knex.js uses.
-
-  Chaining is per scope rather than per client, so independent transaction
-  trees do not block each other, and a transaction started inside another's
-  body queues against *that* transaction's children (a fresh chain) rather
-  than the sibling chain it is itself part of. An earlier note here claimed
-  serializing this risked deadlocking a nested transaction that awaits
-  another; that was wrong — correct parentage is what prevents it, and the
-  Zone supplies it.
-
-- **New: `SQLiteClient.cachedStatementCount`.** Exposes how many prepared
-  statements the native client currently caches, because the cache's bound is
-  otherwise unobservable from outside — a test could only assert that results
-  stay correct, which an unbounded cache does equally well. The web client
-  reports `0`; it keeps no cache, and the two are exported under the same name,
-  so their surfaces have to match.
-
 ## 0.4.2
 
 Six bugs found by an adversarial review of this driver. All six failed
@@ -177,6 +53,14 @@ by a regression test confirmed to fail before the fix.
   built from user input — produced a new key every time, and neither the map
   nor the native statements behind it ever stopped growing. Now capped at 128
   entries, evicting least-recently-used and closing what it evicts.
+
+Known limitation, unchanged and pre-existing: concurrent *nested* transactions
+on a single client (`db.trx((t) => Future.wait([t.trx(...), t.trx(...)]))`)
+still fail with `no such savepoint`. Only outermost scopes are serialized, and
+SQLite savepoints form a stack, so interleaved nested scopes release each
+other's. Serializing the nested branch risks deadlocking a nested transaction
+that awaits another, so it is left alone here rather than changed under a bug
+fix.
 
 ## 0.4.1
 

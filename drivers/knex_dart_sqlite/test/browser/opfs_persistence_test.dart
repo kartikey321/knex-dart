@@ -48,13 +48,6 @@ void main() {
         } on Object {
           // ignore
         }
-        // The default-mode test stores in IndexedDB, so OPFS cleanup alone
-        // would leak a store into the next run.
-        try {
-          await harness.call('deleteIndexedDb', {'filename': name});
-        } on Object {
-          // ignore
-        }
       }
       created.clear();
       await harness.dispose();
@@ -76,73 +69,6 @@ void main() {
             'close, because the opened sqlite path was not /database',
       );
       expect(harness.uncaughtWorkerErrors, isEmpty);
-    });
-
-    test('a database opened with no storageMode persists', () async {
-      // Omitting webStorageMode used to mean `memory`: the write succeeded and
-      // was gone on the next open, with nothing to indicate the database was
-      // never persistent. The default is now `auto`.
-      final name = _uniqueName('default-mode');
-      created.add(name);
-
-      final result =
-          await harness.callOk('defaultModePersists', {'filename': name})
-              as Map<Object?, Object?>;
-
-      expect(
-        result['values'],
-        ['default'],
-        reason: 'an empty list means the default storage mode is still giving '
-            'a non-persistent database for a named file',
-      );
-      expect(harness.uncaughtWorkerErrors, isEmpty);
-    });
-
-    test('auto mode surfaces OPFS contention instead of switching store',
-        () async {
-      // The hazard this guards: OPFS handles are exclusive, and `auto` used to
-      // catch *every* OPFS failure and fall back. A second connection to a
-      // database another connection already holds would therefore succeed on
-      // IndexedDB — a different store — so both sides would read and write
-      // their own copy with nothing raised. Silent divergence.
-      final name = _uniqueName('contention-auto');
-      created.add(name);
-
-      final result = await harness.callOk('opfsContentionProbe', {
-        'filename': name,
-        'secondMode': 'auto',
-      }) as Map<Object?, Object?>;
-
-      expect(
-        result['threw'],
-        isTrue,
-        reason: 'a second connection must fail rather than quietly land on '
-            'another backend; `false` here means the database just split in '
-            'two with no error',
-      );
-      expect(
-        result['toString'],
-        contains('NoModificationAllowedError'),
-        reason: 'the fallback is skipped by recognising this error name, so '
-            'if the browser stops using it the guard silently stops working',
-      );
-      expect(harness.uncaughtWorkerErrors, isEmpty);
-    });
-
-    test('explicit opfs mode also surfaces contention', () async {
-      // Sanity companion to the above: the explicit mode never had a fallback,
-      // so it should have been failing all along. Asserted so a future change
-      // to _createFileSystem cannot quietly add one.
-      final name = _uniqueName('contention-opfs');
-      created.add(name);
-
-      final result = await harness.callOk('opfsContentionProbe', {
-        'filename': name,
-        'secondMode': 'opfs',
-      }) as Map<Object?, Object?>;
-
-      expect(result['threw'], isTrue);
-      expect(result['toString'], contains('NoModificationAllowedError'));
     });
 
     test('two differently-named databases stay isolated', () async {

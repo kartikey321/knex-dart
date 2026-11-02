@@ -34,8 +34,7 @@ class SQLiteClient extends Client {
   // nested transactions within the same logical flow still use savepoints.
   Future<void> _transactionQueue = Future<void>.value();
   /// Per-instance, not static — see the native client's equivalent field for
-  /// the cross-client transaction interference a shared key caused. The value
-  /// is a [_TxScope], so nested transactions can chain on their parent.
+  /// the cross-client transaction interference a shared key caused.
   final Object _transactionZoneKey = Object();
 
   Future<void>? _initialization;
@@ -65,15 +64,12 @@ class SQLiteClient extends Client {
       String s => (
         filename: s,
         wasmUri: _defaultWasmUri,
-        storageMode: _defaultStorageModeFor(s),
+        storageMode: SQLiteWebStorageMode.memory,
       ),
       Map m when m['filename'] is String => (
         filename: m['filename'] as String,
         wasmUri: _parseWasmUri(m['wasmUri']),
-        storageMode: _parseStorageMode(
-          m['storageMode'],
-          m['filename'] as String,
-        ),
+        storageMode: _parseStorageMode(m['storageMode']),
       ),
       _ => throw ArgumentError(
         'SQLite config.connection must be a filename String '
@@ -98,43 +94,8 @@ class SQLiteClient extends Client {
     );
   }
 
-  /// The storage mode to use when the caller named none.
-  ///
-  /// A filename other than `:memory:` is a request for a database that
-  /// outlives the page, so defaulting it to [SQLiteWebStorageMode.memory]
-  /// handed back one that discarded everything — the same silent
-  /// non-persistence as the OPFS bug fixed in 0.4.2, reached by omission
-  /// rather than by a broken path.
-  ///
-  /// The default is [SQLiteWebStorageMode.indexedDb] rather than
-  /// [SQLiteWebStorageMode.auto], even though `auto` would prefer the faster
-  /// OPFS backend. `auto` falls back on *any* OPFS failure, and OPFS holds
-  /// exclusive `FileSystemSyncAccessHandle`s: a second connection to the same
-  /// name while the first still holds them does not fail, it quietly lands on
-  /// IndexedDB instead. Two connections then read and write two different
-  /// stores, each believing it has the database — no error, and writes from
-  /// one invisible to the other and to later OPFS reopens. That is the same
-  /// silent-divergence failure this release exists to remove, so it is not
-  /// something to put on the default path.
-  ///
-  /// IndexedDB persists, works both on a page and in a worker (OPFS needs a
-  /// dedicated worker), and has no exclusive-handle contention, so one name
-  /// always resolves to one store. `auto` and `opfs` remain available
-  /// explicitly for callers who want OPFS and can guarantee a single
-  /// connection; the explicit `opfs` mode never falls back, so contention
-  /// surfaces as an error there rather than as a second store.
-  ///
-  /// `:memory:` keeps meaning in-memory, matching the native driver.
-  static SQLiteWebStorageMode _defaultStorageModeFor(String filename) =>
-      filename == ':memory:'
-      ? SQLiteWebStorageMode.memory
-      : SQLiteWebStorageMode.indexedDb;
-
-  static SQLiteWebStorageMode _parseStorageMode(
-    Object? value,
-    String filename,
-  ) {
-    if (value == null) return _defaultStorageModeFor(filename);
+  static SQLiteWebStorageMode _parseStorageMode(Object? value) {
+    if (value == null) return SQLiteWebStorageMode.memory;
     if (value is SQLiteWebStorageMode) return value;
     if (value is! String) {
       throw ArgumentError(
@@ -156,12 +117,19 @@ class SQLiteClient extends Client {
     required String filename,
     String? webStorageMode,
   }) async {
-    final mode = _parseStorageMode(webStorageMode, filename);
     final config = KnexConfig(
       client: 'sqlite3',
-      connection: {'filename': filename, 'storageMode': mode.name},
+      connection: {
+        'filename': filename,
+        'storageMode': webStorageMode ?? SQLiteWebStorageMode.memory.name,
+      },
     );
-    final client = SQLiteClient._(filename, _defaultWasmUri, mode, config);
+    final client = SQLiteClient._(
+      filename,
+      _defaultWasmUri,
+      _parseStorageMode(webStorageMode),
+      config,
+    );
     await client.initialize();
     return client;
   }
@@ -269,46 +237,10 @@ class SQLiteClient extends Client {
     };
   }
 
-  /// Whether [error] is OPFS refusing the lock because another connection
-  /// already holds it, rather than OPFS being unusable in this context.
-  ///
-  /// The distinction is what makes [_createAutoFileSystem] safe. OPFS sync
-  /// access handles are exclusive, so falling back on contention does not
-  /// degrade gracefully — it puts this connection on a *different store* than
-  /// the one that already has the database. Both then read and write happily,
-  /// each invisible to the other and to any later OPFS reopen, with nothing
-  /// raised anywhere.
-  ///
-  /// Matched on the error text because the thrown value arrives as an opaque
-  /// `JSObject`; there is no Dart type to catch. The wording was observed in
-  /// Chrome rather than assumed (see the `opfsContentionProbe` worker action):
-  ///
-  ///     NoModificationAllowedError: Failed to execute
-  ///     'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles
-  ///     cannot be created if there is another open Access Handle or Writable
-  ///     stream associated with the same file.
-  ///
-  /// `NoModificationAllowedError` is the error the File System standard
-  /// requires when a lock cannot be taken, so it should hold wherever OPFS
-  /// works at all. It is still a string match against one browser's rendering
-  /// of a DOM error name: a browser that reports contention some other way
-  /// would fall through to the fallback below and could still diverge. This
-  /// narrows the window rather than closing it everywhere.
-  static bool _isOpfsLockContention(Object error) =>
-      error.toString().contains('NoModificationAllowedError');
-
   Future<VirtualFileSystem> _createAutoFileSystem() async {
     try {
       return await SimpleOpfsFileSystem.loadFromStorage(_filename);
-    } on Object catch (error) {
-      // Not every OPFS failure means "OPFS is unavailable here". A second
-      // connection to the same database hits an exclusive-handle conflict, and
-      // falling back then is what silently splits the data — see
-      // [_isOpfsLockContention]. Surface it instead.
-      if (_isOpfsLockContention(error)) rethrow;
-
-      // Genuinely unusable here — most often because this is a page's main
-      // thread and `createSyncAccessHandle` is dedicated-worker only.
+    } on Object {
       try {
         return await IndexedDbFileSystem.open(dbName: _filename);
       } on Object {
@@ -395,11 +327,6 @@ class SQLiteClient extends Client {
     }
   }
 
-  /// Always `0`: this client prepares a statement per call and keeps no
-  /// cache, so there is nothing to bound. Present so the public surface
-  /// matches the native client, which is exported under the same name.
-  int get cachedStatementCount => 0;
-
   /// Whether the connection is closed.
   bool get isClosed => _isClosed;
 
@@ -459,58 +386,24 @@ class SQLiteClient extends Client {
   }
 
   /// Executes [callback] in a transaction/savepoint scope.
-  Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) {
-    final parent = Zone.current[_transactionZoneKey] as _TxScope?;
-
-    // Nested: queue behind this scope's previous child. Without this, two
-    // nested transactions started concurrently under one parent interleave
-    // their SAVEPOINT/RELEASE pairs, and because SQLite savepoints form a
-    // stack, releasing the outer one discards the inner — surfacing as
-    // "no such savepoint".
-    if (parent != null) {
-      final previousSibling = parent.lastChild;
-      final base = previousSibling.then((_) => _runInNewScope(callback));
-
-      // Internal chain: the signal for when the next sibling may start, with
-      // errors swallowed so one failed sibling does not block every later one.
-      parent.lastChild = base.then((_) {}, onError: (_) {});
-
-      // External chain, deliberately a *separate* future rather than `base`.
-      // The line above attaches an error handler to `base`, which marks its
-      // error handled — so returning `base` itself made an unawaited failing
-      // nested transaction fail silently instead of reporting an unhandled
-      // async error. Handing the caller its own derived future restores that:
-      // ignore it and Dart still complains. knex.js splits the two chains for
-      // exactly this reason (`_promise` vs `_lastChild`,
-      // lib/execution/transaction.js:82-92).
-      return base.then((value) => value);
+  Future<T> trx<T>(Future<T> Function(SQLiteClient trx) callback) async {
+    if (Zone.current[_transactionZoneKey] == true) {
+      return _runTransactionScope(callback);
     }
 
-    // Top level: queue behind other top-level transactions on this client,
-    // which shares a single connection.
     final completer = Completer<T>();
     _transactionQueue = _transactionQueue.catchError((_) {}).then((_) async {
       try {
-        completer.complete(await _runInNewScope(callback));
+        final result = await runZoned(
+          () => _runTransactionScope(callback),
+          zoneValues: {_transactionZoneKey: true},
+        );
+        completer.complete(result);
       } catch (e, st) {
         completer.completeError(e, st);
       }
     });
     return completer.future;
-  }
-
-  /// Runs [callback] in a fresh [_TxScope].
-  ///
-  /// Each nesting level gets its own scope so that a transaction's children
-  /// chain against each other, not against its siblings — the parentage that
-  /// keeps the chain from waiting on itself.
-  Future<T> _runInNewScope<T>(
-    Future<T> Function(SQLiteClient trx) callback,
-  ) {
-    return runZoned(
-      () => _runTransactionScope(callback),
-      zoneValues: {_transactionZoneKey: _TxScope()},
-    );
   }
 
   Future<T> _runTransactionScope<T>(
@@ -646,9 +539,8 @@ class SQLiteClient extends Client {
     final params = bindings ?? [];
 
     // See the native client's _execute for why this neither inspects the SQL
-    // text nor uses the execute() branch, and why a trailing statement is an
-    // error rather than a silent drop.
-    final stmt = db.prepare(sql, checkNoTail: true);
+    // text nor uses the execute() branch.
+    final stmt = db.prepare(sql);
     try {
       return _mapResults(stmt.select(params));
     } finally {
@@ -691,19 +583,4 @@ class SQLiteClient extends Client {
   /// This is useful for embedding SQL snippets into QueryBuilder chains.
   @override
   Raw raw(String sql, [dynamic bindings]) => super.raw(sql, bindings);
-}
-
-/// One transaction scope's chain of child transactions.
-///
-/// Mirrors knex.js's `Transaction._lastChild` (lib/execution/transaction.js): a
-/// nested transaction awaits its parent's [lastChild] before starting and then
-/// becomes the new tail, so siblings under one parent run strictly in sequence
-/// rather than interleaving.
-///
-/// Held per scope rather than per client so that independent transaction trees
-/// do not block each other, and so a transaction started inside another's body
-/// chains against *that* transaction's children — whose chain is fresh — rather
-/// than waiting on the sibling chain it is itself part of.
-class _TxScope {
-  Future<void> lastChild = Future<void>.value();
 }
