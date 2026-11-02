@@ -844,6 +844,16 @@ jobs:
           content = re.sub(r'^resolution:\s*workspace\s*\n', '', content, flags=re.MULTILINE)
           # Strip dependency_overrides — pub.dev ignores these; test without them
           content = re.sub(r'\ndependency_overrides:(\n  [^\n]+)+', '', content)
+          # Strip dev_dependencies entirely. This check only verifies that
+          # lib/ compiles against the lowest declared *runtime* bound
+          # (`dart analyze lib/`, mirroring pana) — dev_dependencies are
+          # irrelevant to that and are never resolved by a consumer. Several
+          # packages (knex_dart, knex_dart_sqlite, knex_dart_postgres) carry
+          # a path dev_dependency on knex_dart_live_test, which only exists
+          # inside the workspace; copied out to this temp dir it cannot
+          # resolve at all, and `dart pub downgrade` fails before ever
+          # reaching the check this step exists to run.
+          content = re.sub(r'\ndev_dependencies:(\n  [^\n]+)+', '', content)
           open(path, 'w').write(content)
           print("Cleaned pubspec.yaml for downgrade test")
           PYEOF

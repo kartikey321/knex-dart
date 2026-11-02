@@ -20,7 +20,7 @@ dependencies:
   logging: ^1.2.0
   meta: ^1.18.0
   collection: ^1.18.0
-  knex_dart_capabilities: ^0.3.0
+  knex_dart_capabilities: ^0.3.2
   universal_io: ^2.2.2
 
 dev_dependencies:
