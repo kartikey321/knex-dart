@@ -255,7 +255,19 @@ class KnexSQLite with WatchableClient {
         maxCount: maxPendingWrites,
       );
 
-      sub = updateStream.listen((_) => emit());
+      sub = updateStream.listen(
+        (_) => emit(),
+        // The update stream completes when the client closes. Without
+        // forwarding that, this controller stayed open forever: `await for`
+        // over watch() never returned and the subscription was never
+        // released.
+        onDone: () {
+          if (!controller.isClosed) controller.close();
+        },
+        onError: (Object e, StackTrace st) {
+          if (!cancelled && !controller.isClosed) controller.addError(e, st);
+        },
+      );
     };
 
     controller.onCancel = () async {
