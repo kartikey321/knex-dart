@@ -8,7 +8,13 @@
 /// fake connections lives in `test/pool/pool_concurrency_test.dart`; this
 /// test proves the same property end-to-end against a real server, where a
 /// leaked connection is observable as an extra server-side thread.
-@Tags(['mysql'])
+///
+/// Tagged `serial` as well as `mysql`: the assertion below compares the set of
+/// connections belonging to this test's user before and after the race, and a
+/// connection opened by one of the other integration files mid-window would
+/// look exactly like a leak. CI runs this tag in its own `-j1` step so nothing
+/// else is talking to the server while it measures.
+@Tags(['mysql', 'serial'])
 library;
 
 import 'dart:async';
@@ -33,16 +39,27 @@ Future<MySQLClient> _connect() => MySQLClient.connect(
   poolConfig: const PoolConfig(min: 0, max: 2),
 );
 
-/// The server's **global** `Threads_connected`.
+/// The ids of the connections this test's MySQL user currently holds.
 ///
-/// Not scoped to this test: it counts every connection to the MySQL server,
-/// including the ones belonging to the other five integration files this job
-/// runs concurrently against the same server. That is why the assertion below
-/// bounds this value from above rather than requiring equality — see the
-/// comment there.
-Future<int> _threadsConnected(MySQLClient monitor) async {
-  final rows = await monitor.raw("SHOW STATUS LIKE 'Threads_connected'");
-  return int.parse(rows.single['Value'].toString());
+/// Identities, not a count. A count cannot answer the question this test asks:
+/// `Threads_connected` is global, so unrelated connections closing moves it
+/// down and unrelated connections opening moves it up, and neither has
+/// anything to do with whether *the victim's* connection leaked. Comparing
+/// counts therefore fails on innocent behaviour in one direction and, worse,
+/// passes while leaking in the other — a baseline of 5 that drops to 3 because
+/// three other connections closed hides a leaked fourth.
+///
+/// A set difference cannot be masked that way: a connection that leaked is an
+/// id present afterwards that was not present before, however many unrelated
+/// ids disappeared in the meantime.
+Future<Set<int>> _connectionIds(MySQLClient monitor) async {
+  final rows = await monitor.raw(
+    'SELECT ID, USER FROM information_schema.PROCESSLIST',
+  );
+  return {
+    for (final row in rows)
+      if (row['USER'].toString() == _user) int.parse(row['ID'].toString()),
+  };
 }
 
 void main() {
@@ -68,8 +85,8 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       // The monitor is warm (it just ran SELECT 1), so its own connection is
-      // already counted in the baseline.
-      final baseline = await _threadsConnected(monitor!);
+      // already in this set.
+      final before = await _connectionIds(monitor!);
 
       final victim = await _connect(); // min: 0 => no connection yet
       // raw() runs synchronously up to `await _pool.acquire()`, which starts
@@ -84,29 +101,20 @@ void main() {
 
       // The create() finished after close() returned. It must have been
       // destroyed by the pool. Destruction is asynchronous, so poll briefly
-      // for the server to report the thread gone.
-      //
-      // Bounded from above, not compared for equality. `Threads_connected` is
-      // a global server counter and the other integration files in this job
-      // run concurrently against the same server, so the count can legitimately
-      // *fall* below the baseline when one of them finishes and closes its
-      // pool. Requiring equality failed on exactly that — `Expected: <5>,
-      // Actual: <1>` — reporting a leak when connections had merely gone away.
-      // The leak this test exists to catch can only push the count *up*, so an
-      // upper bound is both sufficient and immune to unrelated disconnects.
-      var threads = await _threadsConnected(monitor!);
+      // for the id to disappear.
+      var leaked = (await _connectionIds(monitor!)).difference(before);
       final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (threads > baseline && DateTime.now().isBefore(deadline)) {
+      while (leaked.isNotEmpty && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
-        threads = await _threadsConnected(monitor!);
+        leaked = (await _connectionIds(monitor!)).difference(before);
       }
 
       expect(
-        threads,
-        lessThanOrEqualTo(baseline),
+        leaked,
+        isEmpty,
         reason:
             'a connection created while close() was in flight was handed out '
-            'instead of destroyed, leaking a server-side thread',
+            'instead of destroyed, leaving a server-side thread behind',
       );
     });
   });

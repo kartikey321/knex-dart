@@ -461,7 +461,14 @@ jobs:
             < test/integration/sql/mysql_seed.sql
       - name: Run MySQL tests
         working-directory: drivers/knex_dart_mysql
-        run: dart test --tags=mysql && dart test test/pool test/mocks
+        # The `serial` tag runs in its own -j1 step. mysql_pool_close_race_test
+        # compares the set of its user's server-side connections before and
+        # after a race, so a connection opened by another file mid-window is
+        # indistinguishable from the leak it is looking for.
+        run: |
+          dart test --tags=mysql --exclude-tags=serial
+          dart test --tags=serial -j1
+          dart test test/pool test/mocks
         env:
           MYSQL_HOST: localhost
           MYSQL_PORT: 3306
