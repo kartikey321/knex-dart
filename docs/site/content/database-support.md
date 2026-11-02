@@ -161,6 +161,48 @@ await webDb.close();
 `webStorageMode` is web-only. Passing it to the native sqlite3 driver throws
 `UnsupportedError`.
 
+On web, omitting `webStorageMode` resolves to `indexedDb` for any filename
+other than `:memory:`. Before 0.5.0 it defaulted to `memory`, which handed back
+a database that looked persistent and discarded everything on close.
+
+The default is not `auto` because `auto` prefers OPFS, and OPFS needs a
+dedicated worker — on a page it would always fall back anyway. Choose `opfs` or
+`auto` explicitly to use it. `opfs` never falls back, so it always uses the
+OPFS store or raises; as of 0.5.0 `auto` propagates an OPFS *lock conflict*
+rather than falling back, so two dedicated workers cannot land on different
+stores.
+
+`auto` is still unsafe for a database shared between a page and a worker: a
+page cannot take an OPFS sync access handle (the API is dedicated-worker only),
+so `auto` there falls back to IndexedDB while a worker keeps the same name open
+in OPFS — two stores, no error. That is not lock contention and cannot be
+detected as such; it follows from `auto` resolving per context. Use
+`webStorageMode: 'indexedDb'` when a page and a worker share one database.
+Pass `webStorageMode: 'memory'` for the old behavior.
+
+Neither web backend is safe for more than one connection to the same database
+name, and the driver cannot make it so. OPFS enforces single access — the
+second connection cannot take the handles and fails. IndexedDB enforces
+nothing: its lock is per-connection and in-memory, and `sqlite3` documents that
+it offers "no guarantees on durability", writing blocks back asynchronously, so
+two connections on one name interleave writes into a single store. That is
+corruption rather than divergence, and it is silent. Treat one writer per name
+as a precondition: elect a single owner (a Web Lock over a dedicated worker,
+with other contexts proxying to it) where a database must be shared, and give
+each context its own name, or `memory`, where it must not be.
+
+`rawSql()` takes exactly one statement. Passing several separated by `;` throws
+`ArgumentError` — SQLite compiles only the first, so before 0.5.0 that one ran,
+the rest were discarded and the call reported success. A trailing semicolon on a
+single statement is fine. For several statements, call `rawSql()` once per
+statement, or use `executeSchema()`, which already sends them one at a time.
+
+
+The `opfs` storage mode keeps each named database in its own OPFS directory and
+stores it at the fixed path `SimpleOpfsFileSystem` persists. Before
+`knex_dart_sqlite` 0.4.2 a named OPFS database accepted writes and lost them on
+close; if you relied on OPFS persistence, upgrade.
+
 ---
 
 ## DuckDB
