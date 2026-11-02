@@ -228,6 +228,102 @@ void main() {
     });
   });
 
+  group('nested transactions are serialized per parent', () {
+    late KnexSQLite db;
+
+    setUp(() async {
+      db = await KnexSQLite.connect(filename: ':memory:');
+      await db.rawSql('CREATE TABLE z (v INTEGER)');
+    });
+
+    tearDown(() => db.close());
+
+    test('concurrent nested transactions both commit', () async {
+      // Only outermost scopes used to be serialized, so two nested
+      // transactions started together interleaved their SAVEPOINT/RELEASE
+      // pairs. SQLite savepoints are a stack, so releasing the outer one
+      // discarded the inner and the call failed with "no such savepoint".
+      // Siblings now chain, matching knex.js's Transaction._lastChild.
+      await db.trx((t) async {
+        await Future.wait([
+          t.trx((a) async => a.rawSql('INSERT INTO z VALUES (1)')),
+          t.trx((b) async => b.rawSql('INSERT INTO z VALUES (2)')),
+        ]);
+      });
+
+      expect(await db.rawSql('SELECT v FROM z ORDER BY v'), [
+        {'v': 1},
+        {'v': 2},
+      ]);
+    });
+
+    test('a failing sibling does not block the ones queued behind it',
+        () async {
+      // The chain the siblings queue on swallows errors on purpose; only the
+      // future handed to the caller keeps them. Without that, one rolled-back
+      // sibling would stall every later sibling under the same parent.
+      Future<void> insert(KnexSQLiteTransaction t, int v) async {
+        await t.trx((c) => c.rawSql('INSERT INTO z VALUES ($v)'));
+      }
+
+      await db.trx((t) async {
+        await Future.wait([
+          insert(t, 3),
+          t.trx((b) async => throw StateError('sibling fails')).then(
+            (_) {},
+            onError: (Object _) {},
+          ),
+          insert(t, 4),
+        ]);
+      });
+
+      expect(await db.rawSql('SELECT v FROM z ORDER BY v'), [
+        {'v': 3},
+        {'v': 4},
+      ]);
+    });
+
+    test('grandchildren chain against each other, not against their uncles',
+        () async {
+      // Each level gets a fresh scope, so a transaction's children queue on it
+      // rather than on the chain it is itself a member of — which is what
+      // keeps a nested transaction from waiting on itself.
+      await db.trx((t) async {
+        await t.trx((a) async {
+          await Future.wait([
+            a.trx((x) async => x.rawSql('INSERT INTO z VALUES (5)')),
+            a.trx((y) async => y.rawSql('INSERT INTO z VALUES (6)')),
+          ]);
+        });
+      });
+
+      expect(await db.rawSql('SELECT v FROM z ORDER BY v'), [
+        {'v': 5},
+        {'v': 6},
+      ]);
+    });
+
+    test('a rolled-back nested transaction still discards only its own rows',
+        () async {
+      // Serialization must not blur the savepoint boundaries it protects.
+      await db.trx((t) async {
+        await t.rawSql('INSERT INTO z VALUES (7)');
+        try {
+          await t.trx((a) async {
+            await a.rawSql('INSERT INTO z VALUES (8)');
+            throw StateError('rollback me');
+          });
+        } on StateError {
+          // expected
+        }
+      });
+
+      expect(await db.rawSql('SELECT v FROM z ORDER BY v'), [
+        {'v': 7},
+      ]);
+    });
+  });
+
   group('watch() ends when the database closes', () {
     test('the stream completes instead of hanging', () async {
       // listen() had no onDone, so the controller stayed open after the

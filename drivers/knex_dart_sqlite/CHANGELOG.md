@@ -132,13 +132,27 @@ by a regression test confirmed to fail before the fix.
   nor the native statements behind it ever stopped growing. Now capped at 128
   entries, evicting least-recently-used and closing what it evicts.
 
-Known limitation, unchanged and pre-existing: concurrent *nested* transactions
-on a single client (`db.trx((t) => Future.wait([t.trx(...), t.trx(...)]))`)
-still fail with `no such savepoint`. Only outermost scopes are serialized, and
-SQLite savepoints form a stack, so interleaved nested scopes release each
-other's. Serializing the nested branch risks deadlocking a nested transaction
-that awaits another, so it is left alone here rather than changed under a bug
-fix.
+- **Concurrent nested transactions failed with `no such savepoint`.** Only
+  outermost scopes were serialized, so two nested transactions started together
+  under one parent interleaved their `SAVEPOINT`/`RELEASE` pairs — and because
+  SQLite savepoints form a stack, releasing the outer one discarded the inner.
+  `db.trx((t) => Future.wait([t.trx(...), t.trx(...)]))` threw.
+
+  Nested transactions now queue behind their parent's previous child, which is
+  how knex.js has always handled it (`Transaction._lastChild`,
+  `lib/execution/transaction.js`). Each scope keeps the tail of its own
+  children's chain; a nested transaction awaits that tail and then becomes it,
+  so siblings run in sequence. The chain they queue on swallows errors, so one
+  rolled-back sibling does not stall the rest, while the future handed to the
+  caller keeps its error — the same two-chain split knex.js uses.
+
+  Chaining is per scope rather than per client, so independent transaction
+  trees do not block each other, and a transaction started inside another's
+  body queues against *that* transaction's children (a fresh chain) rather
+  than the sibling chain it is itself part of. An earlier note here claimed
+  serializing this risked deadlocking a nested transaction that awaits
+  another; that was wrong — correct parentage is what prevents it, and the
+  Zone supplies it.
 
 ## 0.4.1
 
