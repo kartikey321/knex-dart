@@ -33,6 +33,13 @@ Future<MySQLClient> _connect() => MySQLClient.connect(
   poolConfig: const PoolConfig(min: 0, max: 2),
 );
 
+/// The server's **global** `Threads_connected`.
+///
+/// Not scoped to this test: it counts every connection to the MySQL server,
+/// including the ones belonging to the other five integration files this job
+/// runs concurrently against the same server. That is why the assertion below
+/// bounds this value from above rather than requiring equality — see the
+/// comment there.
 Future<int> _threadsConnected(MySQLClient monitor) async {
   final rows = await monitor.raw("SHOW STATUS LIKE 'Threads_connected'");
   return int.parse(rows.single['Value'].toString());
@@ -78,16 +85,25 @@ void main() {
       // The create() finished after close() returned. It must have been
       // destroyed by the pool. Destruction is asynchronous, so poll briefly
       // for the server to report the thread gone.
+      //
+      // Bounded from above, not compared for equality. `Threads_connected` is
+      // a global server counter and the other integration files in this job
+      // run concurrently against the same server, so the count can legitimately
+      // *fall* below the baseline when one of them finishes and closes its
+      // pool. Requiring equality failed on exactly that — `Expected: <5>,
+      // Actual: <1>` — reporting a leak when connections had merely gone away.
+      // The leak this test exists to catch can only push the count *up*, so an
+      // upper bound is both sufficient and immune to unrelated disconnects.
       var threads = await _threadsConnected(monitor!);
       final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (threads != baseline && DateTime.now().isBefore(deadline)) {
+      while (threads > baseline && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
         threads = await _threadsConnected(monitor!);
       }
 
       expect(
         threads,
-        baseline,
+        lessThanOrEqualTo(baseline),
         reason:
             'a connection created while close() was in flight was handed out '
             'instead of destroyed, leaking a server-side thread',
