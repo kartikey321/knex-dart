@@ -44,8 +44,8 @@ rest until each user widened their constraint by hand.
   `webStorageMode: 'memory'` explicitly to keep the old behavior for a named
   database.
 
-- **Web: `auto` mode no longer silently switches backends when OPFS is already
-  in use.** OPFS sync access handles are exclusive, and `auto` caught every
+- **Web: `auto` mode no longer silently switches backends on an OPFS lock
+  conflict.** OPFS sync access handles are exclusive, and `auto` caught every
   OPFS failure before falling back, so a second connection to a database
   another connection already held did not fail — it succeeded on IndexedDB. A
   *different store*. Both sides then read and wrote their own copy of the
@@ -61,11 +61,20 @@ rest until each user widened their constraint by hand.
   assumed, and a worker test holds one connection open and asserts the second
   raises instead of landing elsewhere.
 
-  Caveat worth knowing: the thrown value arrives as an opaque `JSObject`, so
-  this is a match on a DOM error *name* in the message text, verified against
-  Chrome. A browser that reports lock contention differently would still fall
-  back and could still diverge. This narrows the failure rather than removing
-  it on every engine.
+  Two limitations worth knowing, neither removed by this change:
+
+  The thrown value arrives as an opaque `JSObject`, so this is a match on a DOM
+  error *name* in the message text, verified against Chrome. A browser that
+  reports lock contention differently would still fall back and could still
+  diverge.
+
+  More importantly, `auto` remains unsafe for a database shared between a page
+  and a dedicated worker. A page cannot take an OPFS sync access handle at all
+  — the API is worker-only — so `auto` on a page falls back to IndexedDB even
+  while a worker holds the same name open in OPFS, leaving two stores and no
+  error. That is not a lock conflict and cannot be detected as one; it follows
+  from `auto` resolving per execution context. Use `indexedDb` when a page and
+  a worker share one database.
 
 ## 0.4.2
 

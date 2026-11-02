@@ -188,9 +188,12 @@ Future<Map<String, dynamic>> _opfsContentionProbe(
   String wasmUri,
 ) async {
   final first = _client(filename, 'opfs', wasmUri);
-  await first.initialize();
-  await first.rawQuery('CREATE TABLE probe (v INTEGER)', const []);
   try {
+    // Inside the try: if initialize() or the CREATE throws, `first` may already
+    // hold OPFS sync handles, and leaving them open makes the test's
+    // deleteOpfsStorage teardown fail and strands the database in storage.
+    await first.initialize();
+    await first.rawQuery('CREATE TABLE probe (v INTEGER)', const []);
     final second = _client(filename, secondMode, wasmUri);
     try {
       await second.initialize();

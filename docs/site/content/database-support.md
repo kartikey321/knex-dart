@@ -167,10 +167,18 @@ a database that looked persistent and discarded everything on close.
 
 The default is not `auto` because `auto` prefers OPFS, and OPFS needs a
 dedicated worker — on a page it would always fall back anyway. Choose `opfs` or
-`auto` explicitly to use it. Neither silently switches store when the database
-is already open elsewhere: `opfs` never falls back, and as of 0.5.0 `auto`
-falls back only when OPFS is unusable in that context and propagates a lock
-conflict instead. Pass `webStorageMode: 'memory'` for the old behavior.
+`auto` explicitly to use it. `opfs` never falls back, so it always uses the
+OPFS store or raises; as of 0.5.0 `auto` propagates an OPFS *lock conflict*
+rather than falling back, so two dedicated workers cannot land on different
+stores.
+
+`auto` is still unsafe for a database shared between a page and a worker: a
+page cannot take an OPFS sync access handle (the API is dedicated-worker only),
+so `auto` there falls back to IndexedDB while a worker keeps the same name open
+in OPFS — two stores, no error. That is not lock contention and cannot be
+detected as such; it follows from `auto` resolving per context. Use
+`webStorageMode: 'indexedDb'` when a page and a worker share one database.
+Pass `webStorageMode: 'memory'` for the old behavior.
 
 `rawSql()` takes exactly one statement. Passing several separated by `;` throws
 `ArgumentError` — SQLite compiles only the first, so before 0.5.0 that one ran,

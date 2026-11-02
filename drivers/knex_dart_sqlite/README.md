@@ -110,11 +110,21 @@ connection to the same name quietly lands on IndexedDB and ends up reading a
 different store than the first — silently. IndexedDB persists, works on a page
 as well as in a worker, and has no such contention.
 
-Use `webStorageMode: 'opfs'` or `'auto'` if you want OPFS. Neither silently
-switches store when the database is already open elsewhere: `opfs` never falls
-back at all, and as of 0.5.0 `auto` falls back only when OPFS is genuinely
-unusable in that context, propagating a lock conflict instead. Pass
-`webStorageMode: 'memory'` for the pre-0.5.0 behavior.
+Use `webStorageMode: 'opfs'` or `'auto'` if you want OPFS, with one caveat
+below. `opfs` never falls back, so it always uses the OPFS store or raises. As
+of 0.5.0 `auto` propagates an OPFS *lock conflict* instead of falling back, so
+two dedicated workers cannot end up on different stores.
+
+**`auto` is still unsafe for a database shared between a page and a worker.** A
+page cannot take an OPFS sync access handle at all — that API is
+dedicated-worker only — so `auto` on a page falls back to IndexedDB. If a
+worker holds the same name open in OPFS, the two contexts then read and write
+different stores and nothing is raised. This is not lock contention, so it
+cannot be detected the way 0.5.0 detects that; it is inherent to `auto`
+resolving per context. Use `webStorageMode: 'indexedDb'` when a page and a
+worker must share one database.
+
+Pass `webStorageMode: 'memory'` for the pre-0.5.0 behavior.
 
 ### OPFS persistence
 
