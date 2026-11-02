@@ -58,8 +58,8 @@ For SQL generation only (no live connection):
 
 ```yaml
 dependencies:
-  knex_dart: ^1.3.4
-  knex_dart_capabilities: ^0.3.1
+  knex_dart: ^1.4.0
+  knex_dart_capabilities: ^0.3.2
 ```
 
 ## Quick Start
@@ -367,7 +367,7 @@ await db.migrate.fromSqlDir('./migrations').latest();
 ```yaml
 dev_dependencies:
   custom_lint: ^0.8.1
-  knex_dart_lint: ^0.3.1
+  knex_dart_lint: ^0.3.2
 ```
 
 ```yaml

@@ -459,6 +459,16 @@ jobs:
             < test/integration/sql/mysql_schema.sql
           mysql -h 127.0.0.1 -u knex -pknex knex_test \
             < test/integration/sql/mysql_seed.sql
+          # A dedicated, unprivileged account for
+          # mysql_pool_close_race_test.dart. It is granted no PROCESS
+          # privilege, so the server itself restricts its view of
+          # information_schema.PROCESSLIST to its own connections — which is
+          # what lets that test tell a leaked connection apart from the five
+          # other integration files sharing this server. See issue #38 for why
+          # a count on the shared server (Threads_connected) could not do
+          # this.
+          mysql -h 127.0.0.1 -u root -proot \
+            -e "CREATE USER 'knex_race'@'%' IDENTIFIED WITH mysql_native_password BY 'knex_race'; GRANT ALL PRIVILEGES ON knex_test.* TO 'knex_race'@'%'; FLUSH PRIVILEGES;"
       - name: Run MySQL tests
         working-directory: drivers/knex_dart_mysql
         run: dart test --tags=mysql && dart test test/pool test/mocks
@@ -468,6 +478,8 @@ jobs:
           MYSQL_DATABASE: knex_test
           MYSQL_USER: knex
           MYSQL_PASSWORD: knex
+          MYSQL_RACE_USER: knex_race
+          MYSQL_RACE_PASSWORD: knex_race
       - name: Run MySQL doc snippets
         run: dart run tool/check_doc_snippets.dart --mode=run --scope=mysql
         env:

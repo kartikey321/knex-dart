@@ -20,22 +20,53 @@ import 'package:universal_io/io.dart';
 
 String get _host => Platform.environment['MYSQL_HOST'] ?? 'localhost';
 int get _port => int.parse(Platform.environment['MYSQL_PORT'] ?? '3306');
-String get _user => Platform.environment['MYSQL_USER'] ?? 'test';
-String get _password => Platform.environment['MYSQL_PASSWORD'] ?? 'test';
 String get _database => Platform.environment['MYSQL_DATABASE'] ?? 'knex_test';
+
+/// A MySQL account used by **this file only**.
+///
+/// The whole measurement depends on it. MySQL shows a user without the
+/// `PROCESS` privilege only their *own* threads in
+/// `information_schema.PROCESSLIST`, so connecting as an account nobody else
+/// uses makes the server itself scope the view to this test. Without that,
+/// there is no way to tell this test's connections apart from the five other
+/// integration files sharing the server, and no assertion on the numbers can
+/// be made to work — see the history in issue #38.
+///
+/// Deliberately not defaulted to [_user]: falling back to the shared account
+/// would leave the test running with a measurement that cannot distinguish a
+/// leak from unrelated traffic, which is how it was flaky in the first place.
+/// Unset means skip.
+String? get _raceUser => Platform.environment['MYSQL_RACE_USER'];
+String get _racePassword =>
+    Platform.environment['MYSQL_RACE_PASSWORD'] ?? 'knex_race';
 
 Future<MySQLClient> _connect() => MySQLClient.connect(
   host: _host,
   port: _port,
-  user: _user,
-  password: _password,
+  user: _raceUser!,
+  password: _racePassword,
   database: _database,
   poolConfig: const PoolConfig(min: 0, max: 2),
 );
 
-Future<int> _threadsConnected(MySQLClient monitor) async {
-  final rows = await monitor.raw("SHOW STATUS LIKE 'Threads_connected'");
-  return int.parse(rows.single['Value'].toString());
+/// The ids of the connections held by [_raceUser], newest state each call.
+///
+/// Identities rather than a count, because a count cannot answer the question:
+/// a leak and an unrelated disconnect move a global counter in opposite
+/// directions, so no threshold on it distinguishes them. A leaked connection
+/// is an id present afterwards that was not present before.
+///
+/// The `USER` filter is belt-and-braces — the server already restricts this
+/// view to [_raceUser]'s own threads, since the account is granted no
+/// `PROCESS` privilege.
+Future<Set<int>> _connectionIds(MySQLClient monitor) async {
+  final rows = await monitor.raw(
+    'SELECT ID, USER FROM information_schema.PROCESSLIST',
+  );
+  return {
+    for (final row in rows)
+      if (row['USER'].toString() == _raceUser) int.parse(row['ID'].toString()),
+  };
 }
 
 void main() {
@@ -44,6 +75,13 @@ void main() {
     String? skipReason;
 
     setUpAll(() async {
+      if (_raceUser == null) {
+        skipReason =
+            'MYSQL_RACE_USER is not set. This test needs a MySQL account used '
+            'by nothing else so the server scopes PROCESSLIST to it; see the '
+            'note on _raceUser. Provision it as CI does, or skip.';
+        return;
+      }
       try {
         monitor = await _connect();
         await monitor!.raw('SELECT 1');
@@ -61,8 +99,8 @@ void main() {
       if (skipReason != null) return markTestSkipped(skipReason!);
 
       // The monitor is warm (it just ran SELECT 1), so its own connection is
-      // already counted in the baseline.
-      final baseline = await _threadsConnected(monitor!);
+      // already in this set.
+      final before = await _connectionIds(monitor!);
 
       final victim = await _connect(); // min: 0 => no connection yet
       // raw() runs synchronously up to `await _pool.acquire()`, which starts
@@ -77,20 +115,20 @@ void main() {
 
       // The create() finished after close() returned. It must have been
       // destroyed by the pool. Destruction is asynchronous, so poll briefly
-      // for the server to report the thread gone.
-      var threads = await _threadsConnected(monitor!);
+      // for the id to disappear.
+      var leaked = (await _connectionIds(monitor!)).difference(before);
       final deadline = DateTime.now().add(const Duration(seconds: 5));
-      while (threads != baseline && DateTime.now().isBefore(deadline)) {
+      while (leaked.isNotEmpty && DateTime.now().isBefore(deadline)) {
         await Future<void>.delayed(const Duration(milliseconds: 100));
-        threads = await _threadsConnected(monitor!);
+        leaked = (await _connectionIds(monitor!)).difference(before);
       }
 
       expect(
-        threads,
-        baseline,
+        leaked,
+        isEmpty,
         reason:
             'a connection created while close() was in flight was handed out '
-            'instead of destroyed, leaking a server-side thread',
+            'instead of destroyed, leaving a server-side thread behind',
       );
     });
   });
