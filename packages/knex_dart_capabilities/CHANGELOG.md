@@ -3,7 +3,7 @@
 - `SqlCapability.returning` is now set for `sqlite`, `turso`, `d1` and `mssql`,
   not just `postgres`. SQLite >= 3.35 supports `RETURNING` on INSERT/UPDATE
   (and turso/d1 inherit it), and MSSQL expresses the same thing as
-  `OUTPUT inserted.*` / `OUTPUT deleted.*`, which `knex_dart` 1.3.4+ compiles.
+  `OUTPUT inserted.*` / `OUTPUT deleted.*`, which `knex_dart` 1.4.0+ compiles.
   Previously `dialect_unsupported_returning` warned on correct code for all
   four.
 

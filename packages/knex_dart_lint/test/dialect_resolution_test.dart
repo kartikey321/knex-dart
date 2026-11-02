@@ -6,6 +6,47 @@ import 'package:knex_dart_lint/src/dialect_resolution.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('a field whose name matches a dialect is not mistaken for one', () {
+    // Only the trailing identifier used to be read, so any expression ending
+    // in a dialect name was taken for that dialect. A field called `mssql`
+    // holding a Postgres value resolved to MSSQL, and the dialect-aware rules
+    // then reported Postgres code against SQL Server.
+    final unit = _parse(r'''
+import 'package:knex_dart/knex_dart.dart';
+class Config { final mssql = KnexDialect.postgres; }
+void f(Config config) {
+  final db = KnexQuery.forDialect(config.mssql);
+  db.queryBuilder().from('t').select(['*']);
+}
+''');
+
+    final info = resolveDialectForInvocation(_findInvocation(unit, 'select'));
+
+    expect(
+      info.dialect,
+      isNot(KnexDialect.mssql),
+      reason: 'the qualifier is `config`, not `KnexDialect`, so the name must '
+          'not be trusted — reporting MSSQL here would flag valid Postgres '
+          'code against the wrong dialect',
+    );
+  });
+
+  test('a prefixed import of KnexDialect still resolves', () {
+    // `knex.KnexDialect.mssql` is a PropertyAccess rather than a
+    // PrefixedIdentifier, so the qualifier check has to look through the
+    // target instead of rejecting it.
+    final unit = _parse(r'''
+import 'package:knex_dart/knex_dart.dart' as knex;
+void f() {
+  final db = knex.KnexQuery.forDialect(knex.KnexDialect.mssql);
+  db.queryBuilder().from('t').select(['*']);
+}
+''');
+
+    final info = resolveDialectForInvocation(_findInvocation(unit, 'select'));
+    expect(info.dialect, KnexDialect.mssql);
+  });
+
   test('every KnexDialect resolves from KnexQuery.forDialect', () {
     // Guards against the drift that let `mssql` go unresolved: the resolver
     // was a hand-written switch listing ten of the eleven dialects, so

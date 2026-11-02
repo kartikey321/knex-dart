@@ -3,7 +3,10 @@
 - Requires `knex_dart` ^1.4.0. The driver stopped rewriting `?` into `@pN` in
   0.3.1 because core now emits `@pN` directly, but the constraint still allowed
   ^1.3.0 — which resolves to the published 1.3.1, where core emits `?` and
-  nothing rewrites them. Every parameterized query would have failed. The
+  nothing rewrites them. Every query compiled by the QueryBuilder would have
+  failed on its bindings. `rawSql()` / `executeRaw()` were unaffected — they
+  carry user-supplied SQL through `_executeRaw`, which does its own `?`-to-`@pN`
+  rewriting in the driver and never relies on core's placeholder style. The
   constraint now matches what the driver actually needs.
 
 ## 0.3.1

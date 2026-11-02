@@ -226,14 +226,32 @@ KnexDialect? _resolveFromForDialectArg(MethodInvocation node) {
   if (args.isEmpty) return null;
 
   final arg = args.first;
-  // KnexDialect.postgres  →  PrefixedIdentifier or PropertyAccess
+
+  // `KnexDialect.postgres` arrives as a PrefixedIdentifier; written through a
+  // prefixed import, `knex.KnexDialect.postgres` arrives as a PropertyAccess
+  // whose target carries the enum name.
+  //
+  // The qualifier has to be checked, not just the trailing name. Reading only
+  // the trailing identifier means any expression ending in a dialect name is
+  // taken for that dialect — a field called `mssql` holding a Postgres value
+  // resolved to MSSQL, after which the dialect-aware rules reported Postgres
+  // code against SQL Server (`.onConflict(...).merge()` flagged as
+  // unsupported, for instance).
   String? enumValue;
+  String? qualifier;
   if (arg is PrefixedIdentifier) {
     enumValue = arg.identifier.name; // e.g. 'postgres'
+    qualifier = arg.prefix.name;
   } else if (arg is PropertyAccess) {
     enumValue = arg.propertyName.name;
+    final target = arg.target;
+    qualifier = switch (target) {
+      PrefixedIdentifier() => target.identifier.name, // knex.KnexDialect
+      SimpleIdentifier() => target.name, // KnexDialect
+      _ => null,
+    };
   }
-  if (enumValue == null) return null;
+  if (enumValue == null || qualifier != 'KnexDialect') return null;
 
   // Matched by name against [KnexDialect.values] rather than a hand-written
   // switch. The switch had drifted: it listed every dialect except `mssql`, so

@@ -10,7 +10,7 @@ Compiling a join-filtered UPDATE for mssql dropped the join entirely, leaving
 an unconditional `UPDATE` with no `FROM` and no `WHERE`:
 
 ```dart
-db.table('users').join('orders', 'users.id', 'orders.user_id')
+db('users').join('orders', 'users.id', 'orders.user_id')
   .update({'active': false});
 // emitted: update [users] set [active] = @p0      <- every row
 ```
