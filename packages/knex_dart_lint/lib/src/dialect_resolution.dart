@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:knex_dart_capabilities/knex_dart_capabilities.dart';
 
 enum DialectConfidence { high, unknown }
@@ -191,21 +192,24 @@ KnexDialect? _resolveDialectFromExpression(Expression expression) {
   }
 
   if (value is InstanceCreationExpression) {
-    return _resolveFromConstructorCall(value);
+    return _resolveFromInstanceCreation(value);
   }
 
   if (value is MethodInvocation) {
     final methodName = value.methodName.name;
     final target = value.target;
 
-    // KnexQuery.forDialect(KnexDialect.xxx)
+    // KnexQuery.forDialect(KnexDialect.xxx) and KnexQuery.forClient('pg') are
+    // declared `factory`, so a resolved tree reaches them as an
+    // InstanceCreationExpression below, never as a MethodInvocation — this
+    // branch is unreachable in practice and kept only in case a future
+    // refactor turns either into a genuine static method, matching
+    // _dialectFromNamedConstructor's defensive duplication just below.
     if (methodName == 'forDialect') {
-      return _resolveFromForDialectArg(value);
+      return _resolveFromForDialectArg(value.argumentList);
     }
-
-    // KnexQuery.forClient('pg') / KnexQuery.forClient('mysql2') etc.
     if (methodName == 'forClient') {
-      return _resolveFromForClientArg(value);
+      return _resolveFromForClientArg(value.argumentList);
     }
 
     // KnexPostgres.connect(...) / KnexMySQL.connect(...) / KnexSQLite.connect(...)
@@ -221,8 +225,8 @@ KnexDialect? _resolveDialectFromExpression(Expression expression) {
 }
 
 /// Extract dialect from `KnexQuery.forDialect(KnexDialect.xxx)`.
-KnexDialect? _resolveFromForDialectArg(MethodInvocation node) {
-  final args = node.argumentList.arguments;
+KnexDialect? _resolveFromForDialectArg(ArgumentList argumentList) {
+  final args = argumentList.arguments;
   if (args.isEmpty) return null;
 
   final arg = args.first;
@@ -238,20 +242,34 @@ KnexDialect? _resolveFromForDialectArg(MethodInvocation node) {
   // code against SQL Server (`.onConflict(...).merge()` flagged as
   // unsupported, for instance).
   String? enumValue;
-  String? qualifier;
+  Element? qualifierElement;
   if (arg is PrefixedIdentifier) {
     enumValue = arg.identifier.name; // e.g. 'postgres'
-    qualifier = arg.prefix.name;
+    qualifierElement = arg.prefix.element;
   } else if (arg is PropertyAccess) {
     enumValue = arg.propertyName.name;
     final target = arg.target;
-    qualifier = switch (target) {
-      PrefixedIdentifier() => target.identifier.name, // knex.KnexDialect
-      SimpleIdentifier() => target.name, // KnexDialect
+    qualifierElement = switch (target) {
+      PrefixedIdentifier() => target.identifier.element, // knex.KnexDialect
+      SimpleIdentifier() => target.element, // KnexDialect
       _ => null,
     };
   }
-  if (enumValue == null || qualifier != 'KnexDialect') return null;
+  if (enumValue == null) return null;
+
+  // The qualifier's *name* was checked here before — `qualifier != 'KnexDialect'`
+  // — which is exactly the bug this whole function exists to avoid repeating.
+  // A name match cannot tell the real enum apart from anything else sharing its
+  // name: `config.KnexDialect.mssql`, where `config.KnexDialect` is a getter
+  // returning some unrelated value whose own `.mssql` field holds
+  // `KnexDialect.postgres`, named-matched as MSSQL under the old check.
+  // Resolving the qualifier's *element* distinguishes them — the real
+  // reference resolves to an `EnumElement` named `KnexDialect`; the spoof
+  // above resolves to a `GetterElement` on `_FakeNs`/`config` instead (checked
+  // directly: EnumElementImpl vs GetterElementImpl).
+  if (qualifierElement is! EnumElement || qualifierElement.name != 'KnexDialect') {
+    return null;
+  }
 
   // Matched by name against [KnexDialect.values] rather than a hand-written
   // switch. The switch had drifted: it listed every dialect except `mssql`, so
@@ -268,8 +286,8 @@ KnexDialect? _resolveFromForDialectArg(MethodInvocation node) {
 }
 
 /// Extract dialect from `KnexQuery.forClient('pg')`.
-KnexDialect? _resolveFromForClientArg(MethodInvocation node) {
-  final args = node.argumentList.arguments;
+KnexDialect? _resolveFromForClientArg(ArgumentList argumentList) {
+  final args = argumentList.arguments;
   if (args.isEmpty) return null;
   final arg = args.first;
   if (arg is! StringLiteral) return null;
@@ -319,6 +337,28 @@ KnexDialect? _dialectFromNamedConstructor(
 
 /// Resolve dialect from `InstanceCreationExpression` constructor calls.
 /// e.g. `KnexTurso(...)`, `KnexD1(...)`, `KnexSnowflake(...)`, etc.
+/// Dispatches an `InstanceCreationExpression` — this is the real shape of
+/// `KnexQuery.forDialect(...)` / `KnexQuery.forClient(...)`, since both are
+/// declared `factory`. A `ClassName.namedCtor(args)` call is syntactically
+/// identical to a static method call, so a merely-*parsed* (not resolved)
+/// tree cannot distinguish them and always produces a MethodInvocation —
+/// which is exactly why this branch went untested: every existing test built
+/// its AST with `parseString`, which can never exercise this path, so
+/// forDialect/forClient resolution silently never fired outside the tests.
+KnexDialect? _resolveFromInstanceCreation(InstanceCreationExpression node) {
+  final typeName = node.constructorName.type.name.lexeme;
+  final ctorName = node.constructorName.name?.name;
+
+  if (typeName == 'KnexQuery' && ctorName == 'forDialect') {
+    return _resolveFromForDialectArg(node.argumentList);
+  }
+  if (typeName == 'KnexQuery' && ctorName == 'forClient') {
+    return _resolveFromForClientArg(node.argumentList);
+  }
+
+  return _resolveFromConstructorCall(node);
+}
+
 KnexDialect? _resolveFromConstructorCall(InstanceCreationExpression node) {
   final typeName = node.constructorName.type.name.lexeme;
   switch (typeName) {
