@@ -29,12 +29,29 @@ rest until each user widened their constraint by hand.
   `FileSystemSyncAccessHandle`s. A second connection to the same name while
   the first still holds them doesn't fail — it quietly lands on IndexedDB
   instead, so two connections read and write two different stores, each
-  believing it has the database, with writes from one invisible to the other
-  and to later OPFS reopens. That is the same class of silent divergence this
-  release removes elsewhere, so it does not belong on the default path.
-  IndexedDB persists, works on a page as well as in a worker (OPFS requires a
-  dedicated worker), and has no exclusive-handle contention, so one name
-  always resolves to one store.
+  believing it has the database. That is the same class of silent divergence
+  this release removes elsewhere, so it does not belong on the default path.
+  IndexedDB persists and works on a page as well as in a worker, where OPFS
+  requires a dedicated worker.
+
+  **Neither backend is safe for more than one connection to the same database
+  name, and this release does not change that.** OPFS at least enforces it:
+  the second connection cannot take the handles. IndexedDB does not enforce it
+  at all — its `xLock` delegates to a per-connection in-memory mirror
+  (`sqlite3`'s `indexed_db.dart`), and the class documents that "no guarantees
+  on durability can be made... file changes are written at some point after
+  the database is changed". Two connections on one name therefore interleave
+  asynchronous block write-back into a single store, which is corruption
+  rather than divergence, and silent either way. Earlier wording here said
+  IndexedDB "has no exclusive-handle contention, so one name always resolves
+  to one store" — true, and precisely the hazard: one store, two
+  uncoordinated writers.
+
+  So treat a single writer per database name as a precondition of web
+  persistence, not something the driver provides. Where several contexts need
+  one database, elect a single owner (a Web Lock over a dedicated worker is
+  the established pattern) and proxy to it; where they only need their own
+  scratch space, give each its own name or use `memory`.
 
   `auto` and `opfs` remain available explicitly. The explicit `opfs` mode never
   falls back, and `auto` no longer falls back on contention either — see the
@@ -75,6 +92,35 @@ rest until each user widened their constraint by hand.
   error. That is not a lock conflict and cannot be detected as one; it follows
   from `auto` resolving per execution context. Use `indexedDb` when a page and
   a worker share one database.
+
+- **Concurrent nested transactions failed with `no such savepoint`.** Only
+  outermost scopes were serialized, so two nested transactions started together
+  under one parent interleaved their `SAVEPOINT`/`RELEASE` pairs — and because
+  SQLite savepoints form a stack, releasing the outer one discarded the inner.
+  `db.trx((t) => Future.wait([t.trx(...), t.trx(...)]))` threw.
+
+  Nested transactions now queue behind their parent's previous child, which is
+  how knex.js has always handled it (`Transaction._lastChild`,
+  `lib/execution/transaction.js`). Each scope keeps the tail of its own
+  children's chain; a nested transaction awaits that tail and then becomes it,
+  so siblings run in sequence. The chain they queue on swallows errors, so one
+  rolled-back sibling does not stall the rest, while the future handed to the
+  caller keeps its error — the same two-chain split knex.js uses.
+
+  Chaining is per scope rather than per client, so independent transaction
+  trees do not block each other, and a transaction started inside another's
+  body queues against *that* transaction's children (a fresh chain) rather
+  than the sibling chain it is itself part of. An earlier note here claimed
+  serializing this risked deadlocking a nested transaction that awaits
+  another; that was wrong — correct parentage is what prevents it, and the
+  Zone supplies it.
+
+- **New: `SQLiteClient.cachedStatementCount`.** Exposes how many prepared
+  statements the native client currently caches, because the cache's bound is
+  otherwise unobservable from outside — a test could only assert that results
+  stay correct, which an unbounded cache does equally well. The web client
+  reports `0`; it keeps no cache, and the two are exported under the same name,
+  so their surfaces have to match.
 
 ## 0.4.2
 
@@ -131,28 +177,6 @@ by a regression test confirmed to fail before the fix.
   built from user input — produced a new key every time, and neither the map
   nor the native statements behind it ever stopped growing. Now capped at 128
   entries, evicting least-recently-used and closing what it evicts.
-
-- **Concurrent nested transactions failed with `no such savepoint`.** Only
-  outermost scopes were serialized, so two nested transactions started together
-  under one parent interleaved their `SAVEPOINT`/`RELEASE` pairs — and because
-  SQLite savepoints form a stack, releasing the outer one discarded the inner.
-  `db.trx((t) => Future.wait([t.trx(...), t.trx(...)]))` threw.
-
-  Nested transactions now queue behind their parent's previous child, which is
-  how knex.js has always handled it (`Transaction._lastChild`,
-  `lib/execution/transaction.js`). Each scope keeps the tail of its own
-  children's chain; a nested transaction awaits that tail and then becomes it,
-  so siblings run in sequence. The chain they queue on swallows errors, so one
-  rolled-back sibling does not stall the rest, while the future handed to the
-  caller keeps its error — the same two-chain split knex.js uses.
-
-  Chaining is per scope rather than per client, so independent transaction
-  trees do not block each other, and a transaction started inside another's
-  body queues against *that* transaction's children (a fresh chain) rather
-  than the sibling chain it is itself part of. An earlier note here claimed
-  serializing this risked deadlocking a nested transaction that awaits
-  another; that was wrong — correct parentage is what prevents it, and the
-  Zone supplies it.
 
 ## 0.4.1
 

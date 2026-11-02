@@ -126,6 +126,26 @@ worker must share one database.
 
 Pass `webStorageMode: 'memory'` for the pre-0.5.0 behavior.
 
+### One writer per database name
+
+Neither web backend is safe for more than one connection to the same database
+name, and the driver cannot make it safe.
+
+OPFS enforces single access: the second connection cannot take the file handles
+and fails (loudly, as of 0.5.0). IndexedDB does not enforce it at all — its
+`xLock` delegates to a per-connection in-memory mirror, and `sqlite3` documents
+that "no guarantees on durability can be made... file changes are written at
+some point after the database is changed". Two connections on one name
+therefore interleave asynchronous block write-back into a single store, which
+is corruption rather than divergence, and silent.
+
+So a single writer per name is a precondition of web persistence. Where several
+contexts need the same database, elect one owner — a Web Lock held over a
+dedicated worker, with other contexts proxying to it, is the established
+pattern — and note that OPFS additionally requires that owner to be a
+*dedicated* worker, never a page or a shared worker. Where contexts only need
+their own scratch space, give each its own name, or use `memory`.
+
 ### OPFS persistence
 
 Each named database opened with `webStorageMode: 'opfs'` lives in its own OPFS

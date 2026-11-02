@@ -180,6 +180,17 @@ detected as such; it follows from `auto` resolving per context. Use
 `webStorageMode: 'indexedDb'` when a page and a worker share one database.
 Pass `webStorageMode: 'memory'` for the old behavior.
 
+Neither web backend is safe for more than one connection to the same database
+name, and the driver cannot make it so. OPFS enforces single access — the
+second connection cannot take the handles and fails. IndexedDB enforces
+nothing: its lock is per-connection and in-memory, and `sqlite3` documents that
+it offers "no guarantees on durability", writing blocks back asynchronously, so
+two connections on one name interleave writes into a single store. That is
+corruption rather than divergence, and it is silent. Treat one writer per name
+as a precondition: elect a single owner (a Web Lock over a dedicated worker,
+with other contexts proxying to it) where a database must be shared, and give
+each context its own name, or `memory`, where it must not be.
+
 `rawSql()` takes exactly one statement. Passing several separated by `;` throws
 `ArgumentError` — SQLite compiles only the first, so before 0.5.0 that one ran,
 the rest were discarded and the call reported success. A trailing semicolon on a
